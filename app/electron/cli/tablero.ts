@@ -254,6 +254,16 @@ function porClave(items: Item[], clave: string): Item | null {
   return hallado;
 }
 
+// ---- probar: un item por proyecto, plataforma y versión, con un renglón por PROBAR
+
+const RE_VERSION = /^(v[0-9]+\.[0-9]+\.[0-9]+)(?![0-9])/;
+const PLATAFORMAS = ["linux", "windows"];
+const tituloProbar = (que: string, plat: string) => `Probar ${que} (${plat === "windows" ? "Windows" : "Linux"})`;
+/** `prueba` = los renglones numerados, con su marca: lo que la interfaz de antes ya sabe mostrar. */
+function ponerRenglones(it: Item) {
+  it.prueba = (it.renglones as Item[]).map((r, i) => `${i + 1}. [${r.hecho ? "x" : " "}] ${r.texto}`).join("\n");
+}
+
 const linea = (it: Item) => [strPy(it.id), strPy(it.columna), verdad(it.proyecto) ? it.proyecto : "-", verdad(it.titulo) ? it.titulo : "", `(${edad(it.creado)})`].join("  ");
 
 function ordenColumna(a: Item, b: Item): number {
@@ -1087,6 +1097,81 @@ class Tablero {
     this.print(String(it.id));
   }
 
+  /** La última versión commiteada del proyecto: el asunto `vX.Y.Z…` más nuevo de main (o del HEAD si no hay main); "" si no hay. */
+  async versionDe(ruta: string): Promise<string> {
+    const args = (ref: string) => ["log", "-1", "--format=%s", "-E", "--grep=^v[0-9]+[.][0-9]+[.][0-9]+([^0-9]|$)", ref, "--"];
+    const r = await this.gitVarios(new Map([["main", [ruta, args("main")] as [string, string[]]], ["head", [ruta, args("HEAD")] as [string, string[]]]]));
+    const s = r.get("main") ?? r.get("head") ?? "";
+    return RE_VERSION.exec(s)?.[1] ?? "";
+  }
+
+  /**
+   * Un PROBAR más: un renglón en el item abierto «Probar <proyecto> (<plataforma>)» (clave `probar:<proyecto>:<plataforma>`); si no hay,
+   * lo crea. Si desde que se abrió se commiteó una versión nueva en main, ese item pasa a «Probar vX.Y.Z (…)» (con clave `…@vX.Y.Z`,
+   * ya no recibe más) y el renglón va a uno nuevo. --clave: el mismo renglón (un `pa --seguir`) se actualiza, no se repite.
+   */
+  async cmdProbar(a: Item) {
+    const texto = unirEspacios(a.texto);
+    if (!texto) this.morir("probar: el texto está vacío", 2);
+    const reg = this.registro();
+    const [proy, ent, av] = reg.resolver(a.proyecto);
+    if (!proy) this.morir("probar: el proyecto está vacío", 2);
+    if (av) this.aviso(av);
+    const plat: string = a.plataforma || (process.platform === "win32" ? "windows" : "linux");
+    const version = ent && statSyncDir(reg.ruta(ent)) ? await this.versionDe(reg.ruta(ent)) : "";
+    const base = `probar:${proy}:${plat}`;
+    const it = await this.escritura((tx) => {
+      const ts = isoLocal();
+      let it = tx.items.find((x) => x.clave === base && abierto(x)) ?? null;
+      if (it && version && strPyVacio(it.version_base) !== version) {
+        it.titulo = it.titulo_simple = tituloProbar(version, plat);
+        it.clave = `${base}@${version}`;
+        it.tocado = ts;
+        it = null;
+      }
+      const propio = (x: Item) => abierto(x) && (x.clave === base || String(x.clave ?? "").startsWith(`${base}@`)) && Array.isArray(x.renglones);
+      const previo = verdad(a.clave) ? tx.items.filter(propio).flatMap((x) => (x.renglones as Item[]).map((r) => [x, r] as const)).find(([, r]) => r.clave === a.clave) : undefined;
+      if (previo) {
+        const [dueno, r] = previo;
+        if (r.texto !== texto) Object.assign(r, { texto, hecho: false });
+        ponerRenglones(dueno);
+        dueno.tocado = ts;
+        tx.cambio = true;
+        return dueno;
+      }
+      if (it === null) {
+        const titulo = tituloProbar(proy, plat);
+        it = { id: this.nuevoId(tx.items), columna: "espera-dueno", proyecto: proy, titulo, detalle: "", prueba: "", origen: a.origen || "", clave: base, head: null, creado: ts, tocado: ts, cerrado: null, hasta: null, tipo: "prueba", titulo_simple: titulo, version_base: version, renglones: [] };
+        tx.items.push(it);
+      }
+      it.renglones.push({ texto, hecho: false, clave: a.clave || "", creado: ts });
+      ponerRenglones(it);
+      it.tocado = ts;
+      tx.cambio = true;
+      return it;
+    });
+    this.print(String(it.id));
+  }
+
+  /** Tilda (o destilda con --no) renglones de un item; con todos tildados pasa a hecho, y destildar uno lo vuelve a abrir. */
+  async cmdTildar(a: Item) {
+    const it = await this.escritura((tx) => {
+      const it = this.buscar(tx.items, a.id);
+      const rs: Item[] = Array.isArray(it.renglones) ? it.renglones : [];
+      if (!rs.length) this.morir(`tildar: el item ${strPy(it.id)} no tiene renglones`, 2);
+      for (const n of a.n as number[]) if (n < 1 || n > rs.length) this.morir(`tildar: no hay renglón ${n} (el item ${strPy(it.id)} tiene ${rs.length})`, 2);
+      const ts = isoLocal();
+      for (const n of a.n as number[]) rs[n - 1]!.hecho = !a.no;
+      ponerRenglones(it);
+      if (rs.every((r) => r.hecho)) ponerColumna(it, "hecho", ts);
+      else if (!abierto(it)) ponerColumna(it, "espera-dueno", ts);
+      it.tocado = ts;
+      tx.cambio = true;
+      return it;
+    });
+    this.print(linea(it));
+  }
+
   async cmdArchivar(a: Item) {
     const corte = Date.now() / 1000 - a.dias * 86400;
     let n = 0;
@@ -1425,6 +1510,8 @@ function parsers(t: Tablero): Record<string, Parser> {
     cerrar: ajuste("cerrar", [pos("ids", "id", { nargs: "*", conv: conv.id }), val("--clave"), val("--nota")]),
     tirar: ajuste("tirar", [pos("ids", "id", { nargs: "+", conv: conv.id })]),
     sigue: ajuste("sigue", [pos("proyecto", "proyecto"), pos("texto", "<texto>"), val("--head")]),
+    probar: ajuste("probar", [pos("proyecto", "proyecto"), pos("texto", "<texto>"), val("--plataforma", { choices: PLATAFORMAS }), val("--clave"), val("--origen")]),
+    tildar: ajuste("tildar", [pos("id", "id", { conv: conv.id }), pos("n", "n", { nargs: "+", conv: "int" }), bandera("--no")]),
     ficha: ajuste("ficha", [json(), pos("proyecto", "proyecto"), bandera("--corta")]),
     proyectos: ajuste("proyectos", [json(), bandera("--retirados")]),
     hoy: ajuste("hoy", [json(), val("--fecha")]),
@@ -1446,7 +1533,7 @@ export async function main(argv: string[], env: Env = process.env, io: Io = porD
     const a: Item = { ...r.ns, cmd: r.cmd };
     const f: Record<string, (a: Item) => void | Promise<void>> = {
       agregar: (x) => t.cmdAgregar(x), listar: (x) => t.cmdListar(x), ver: (x) => t.cmdVer(x), mover: (x) => t.cmdMover(x), editar: (x) => t.cmdEditar(x), responder: (x) => t.cmdResponder(x),
-      posponer: (x) => t.cmdPosponer(x), cerrar: (x) => t.cmdCerrar(x), tirar: (x) => t.cmdTirar(x), sigue: (x) => t.cmdSigue(x), ficha: (x) => t.cmdFicha(x), proyectos: (x) => t.cmdProyectos(x),
+      posponer: (x) => t.cmdPosponer(x), cerrar: (x) => t.cmdCerrar(x), tirar: (x) => t.cmdTirar(x), sigue: (x) => t.cmdSigue(x), probar: (x) => t.cmdProbar(x), tildar: (x) => t.cmdTildar(x), ficha: (x) => t.cmdFicha(x), proyectos: (x) => t.cmdProyectos(x),
       hoy: (x) => t.cmdHoy(x), resumen: (x) => t.cmdResumen(x), archivar: (x) => t.cmdArchivar(x), init: () => t.cmdInit(),
     };
     await f[r.cmd]!(a);

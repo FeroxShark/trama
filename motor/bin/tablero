@@ -422,6 +422,21 @@ def por_clave(items, clave):
     return hallado
 
 
+# ---- probar: un item por proyecto, plataforma y versión, con un renglón por PROBAR ----
+
+RE_VERSION = re.compile(r"^(v[0-9]+\.[0-9]+\.[0-9]+)(?![0-9])")
+PLATAFORMAS = ("linux", "windows")
+
+
+def titulo_probar(que, plat):
+    return f"Probar {que} ({'Windows' if plat == 'windows' else 'Linux'})"
+
+
+def poner_renglones(it):
+    """`prueba` = los renglones numerados, con su marca: lo que la interfaz de antes ya sabe mostrar."""
+    it["prueba"] = "\n".join(f"{i + 1}. [{'x' if r.get('hecho') else ' '}] {r.get('texto')}" for i, r in enumerate(it["renglones"]))
+
+
 def linea(it):
     return "  ".join([
         str(it.get("id")), str(it.get("columna")), it.get("proyecto") or "-",
@@ -1093,6 +1108,90 @@ def cmd_sigue(a):
     print(it["id"])
 
 
+def version_de(ruta):
+    """La última versión commiteada del proyecto: el asunto `vX.Y.Z…` más nuevo de main (o del HEAD si no hay main); "" si no hay."""
+    args = lambda ref: ["log", "-1", "--format=%s", "-E", "--grep=^v[0-9]+[.][0-9]+[.][0-9]+([^0-9]|$)", ref, "--"]
+    r = git_varios({"main": (ruta, args("main")), "head": (ruta, args("HEAD"))})
+    s = r["main"] if r["main"] is not None else (r["head"] or "")
+    m = RE_VERSION.match(s)
+    return m.group(1) if m else ""
+
+
+def cmd_probar(a):
+    """Un PROBAR más: un renglón en el item abierto «Probar <proyecto> (<plataforma>)» (clave `probar:<proyecto>:<plataforma>`); si
+    no hay, lo crea. Si desde que se abrió se commiteó una versión nueva en main, ese item pasa a «Probar vX.Y.Z (…)» (clave
+    `…@vX.Y.Z`, ya no recibe más) y el renglón va a uno nuevo. --clave: el mismo renglón (un `pa --seguir`) se actualiza."""
+    texto = " ".join(a.texto.split())
+    if not texto:
+        morir("probar: el texto está vacío", 2)
+    reg = Registro()
+    proy, ent, av = reg.resolver(a.proyecto)
+    if not proy:
+        morir("probar: el proyecto está vacío", 2)
+    if av:
+        aviso(av)
+    plat = a.plataforma or ("windows" if os.name == "nt" else "linux")
+    version = version_de(reg.ruta(ent)) if ent and os.path.isdir(reg.ruta(ent)) else ""
+    base = f"probar:{proy}:{plat}"
+    with escritura() as tx:
+        ts = ahora()
+        it = next((x for x in tx.items if x.get("clave") == base and abierto(x)), None)
+        if it is not None and version and str(it.get("version_base") or "") != version:
+            it["titulo"] = it["titulo_simple"] = titulo_probar(version, plat)
+            it["clave"] = f"{base}@{version}"
+            it["tocado"] = ts
+            it = None
+
+        def propio(x):
+            c = str(x.get("clave") or "")
+            return abierto(x) and (c == base or c.startswith(f"{base}@")) and isinstance(x.get("renglones"), list)
+
+        previo = next(((x, r) for x in tx.items if propio(x) for r in x["renglones"] if r.get("clave") == a.clave), None) if a.clave else None
+        if previo:
+            dueno, r = previo
+            if r.get("texto") != texto:
+                r.update(texto=texto, hecho=False)
+            poner_renglones(dueno)
+            dueno["tocado"] = ts
+            it = dueno
+        else:
+            if it is None:
+                titulo = titulo_probar(proy, plat)
+                it = {
+                    "id": nuevo_id(tx.items), "columna": "espera-dueno", "proyecto": proy, "titulo": titulo, "detalle": "",
+                    "prueba": "", "origen": a.origen or "", "clave": base, "head": None, "creado": ts, "tocado": ts,
+                    "cerrado": None, "hasta": None, "tipo": "prueba", "titulo_simple": titulo, "version_base": version, "renglones": []}
+                tx.items.append(it)
+            it["renglones"].append({"texto": texto, "hecho": False, "clave": a.clave or "", "creado": ts})
+            poner_renglones(it)
+            it["tocado"] = ts
+        tx.cambio = True
+    print(it["id"])
+
+
+def cmd_tildar(a):
+    """Tilda (o destilda con --no) renglones de un item; con todos tildados pasa a hecho, y destildar uno lo vuelve a abrir."""
+    with escritura() as tx:
+        it = buscar(tx.items, a.id)
+        rs = it.get("renglones") if isinstance(it.get("renglones"), list) else []
+        if not rs:
+            morir(f"tildar: el item {it.get('id')} no tiene renglones", 2)
+        for n in a.n:
+            if n < 1 or n > len(rs):
+                morir(f"tildar: no hay renglón {n} (el item {it.get('id')} tiene {len(rs)})", 2)
+        ts = ahora()
+        for n in a.n:
+            rs[n - 1]["hecho"] = not a.no
+        poner_renglones(it)
+        if all(r.get("hecho") for r in rs):
+            poner_columna(it, "hecho", ts)
+        elif not abierto(it):
+            poner_columna(it, "espera-dueno", ts)
+        it["tocado"] = ts
+        tx.cambio = True
+    print(linea(it))
+
+
 def cmd_archivar(a):
     corte = datetime.now().astimezone() - timedelta(days=a.dias)
     n = 0
@@ -1504,6 +1603,18 @@ def main():
     p.add_argument("proyecto")
     p.add_argument("texto", metavar="<texto>")
     p.add_argument("--head", metavar="HASH", help="default: el HEAD del repo del proyecto ahora")
+
+    p = cmd("probar", cmd_probar, "suma un renglón a «Probar <proyecto> (<plataforma>)»; con versión nueva en main abre otro")
+    p.add_argument("proyecto")
+    p.add_argument("texto", metavar="<texto>")
+    p.add_argument("--plataforma", choices=PLATAFORMAS, help="default: la de esta máquina")
+    p.add_argument("--clave", help="el mismo renglón (pa:<id>:p1) se actualiza, no se repite")
+    p.add_argument("--origen", help="quién lo anotó (pa, shark…)")
+
+    p = cmd("tildar", cmd_tildar, "tilda renglones de un item (1, 2…); con todos tildados pasa a hecho")
+    p.add_argument("id", type=_id)
+    p.add_argument("n", type=int, nargs="+", help="el número de renglón, como en `ver`")
+    p.add_argument("--no", action="store_true", help="los destilda (y lo reabre si estaba hecho)")
 
     p = cmd("ficha", cmd_ficha, "dónde quedó un proyecto: commit, ramas sin integrar, sigue, esperas, corridas de pa", True)
     p.add_argument("proyecto")

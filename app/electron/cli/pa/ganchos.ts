@@ -289,7 +289,8 @@ export async function anotarTablero(pa: Pa, l: Lanzamiento): Promise<void> {
   }
   for (const p of bloque.pruebas) {
     if (!p || pruebaEsComando(p)) continue;
-    await t(5, ["agregar", `Probar: ${corte(p, 80)}`, "--columna", "espera-dueno", "--proyecto", c.slug, "--origen", "pa", "--clave", `${clave}:p1`, "--tipo", "prueba", `--prueba=${p}`, `--simple=Probar: ${corte(p, 80)}`]);
+    // Un renglón en «Probar <proyecto> (<plataforma>)», no un item por corrida (`tablero probar`; el bash congelado sigue con `agregar`).
+    await t(5, ["probar", c.slug, p, "--plataforma", pa.plat === "win32" ? "windows" : "linux", "--origen", "pa", "--clave", `${clave}:p1`]);
     break;
   }
   if (sigue && !c.leer && !c.usaWorktree) {
