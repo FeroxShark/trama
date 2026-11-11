@@ -367,6 +367,98 @@
   color: var(--rojo);
 }
 
+/* Una prueba con renglones: una casilla por renglón, que se tilda sola (sin "Anda"/"No anda"). */
+.pd-prog {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+}
+.pd-prog[data-todo] {
+  color: var(--verde);
+}
+.pd-pasos {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  list-style: none;
+}
+.pd-paso {
+  position: relative;
+  display: flex;
+  min-height: 2.25rem;
+  align-items: flex-start;
+  gap: var(--esp-2-5);
+  padding: var(--esp-1-5) var(--esp-2);
+  border-radius: var(--radio-2);
+  color: var(--texto-2);
+  cursor: pointer;
+}
+.pd-paso:hover {
+  background: var(--sup-2);
+}
+/* La casilla de verdad queda encima (clic y teclado); la caja dibujada es lo que se ve. */
+.pd-paso input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.pd-caja {
+  display: inline-flex;
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 0.0625rem;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--borde-4);
+  border-radius: var(--radio-2);
+  background: var(--sup-0);
+  color: transparent;
+}
+.pd-paso input:checked + .pd-caja {
+  border-color: var(--verde);
+  background: var(--verde);
+  color: var(--negro);
+}
+.pd-paso input:focus-visible + .pd-caja {
+  outline: 2px solid var(--azul);
+  outline-offset: 2px;
+}
+.pd-paso input:disabled + .pd-caja {
+  opacity: 0.55;
+}
+.pd-paso-t {
+  min-width: 0;
+  font-size: var(--letra-5);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.pd-paso[data-hecho] .pd-paso-t {
+  color: var(--txt-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.pd-paso-error {
+  margin: 0;
+  color: var(--rojo-claro);
+  font-size: var(--letra-4);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pd-caja {
+    transition: background var(--t-snappy), border-color var(--t-snappy);
+  }
+}
+
 /* Abajo, fijo: lo que se va a mandar. */
 .pd-pie {
   display: flex;
@@ -483,6 +575,7 @@
   .pd-fila,
   .pd-ops .pq-op,
   .pd-res button,
+  .pd-paso,
   .pd-mandar,
   .pd-avisar,
   .pd-volver,

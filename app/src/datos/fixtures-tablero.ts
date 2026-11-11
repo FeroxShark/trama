@@ -161,7 +161,11 @@ export function pendientesFijos(ahora: number): unknown[] {
     preg(9006, "atlas", 5, "¿Subimos la versión ahora o con lo próximo?", "Lo hecho hasta acá ya anda; lo próximo recién empieza.", [["ahora", "Ahora"], ["despues", "Con lo próximo"]], "despues"),
     prueba(9011, "atlas", 3, "Abrí un mapa grande y movelo con el mouse", "npm run dev -- --mapa grande"),
     prueba(9012, "atlas", 3, "Exportá un mapa y volvelo a importar", "atlas exportar --prueba"),
-    prueba(9013, "atlas", 4, "Que pasen los tests del mapa", "npm test -- mapa"),
+    // Como lo deja `tablero probar`: un item por proyecto y plataforma, con los renglones numerados en `prueba` (uno ya tildado).
+    {
+      ...prueba(9013, "atlas", 2, "Probar atlas (Linux)", "1. [x] Abrir un mapa grande y moverlo con el mouse\n2. [ ] Exportar un mapa a CSV y volver a importarlo\n3. [ ] Cerrar el programa con un mapa sin guardar: tiene que avisar\n4. [ ] Cambiar el idioma a inglés y mirar que no queden textos en español"),
+      clave: "probar:atlas:linux",
+    },
     // Ya contestada y mandada: sigue acá hasta que el líder la cierra.
     preg(9007, "atlas", 6, "¿Qué versión de Node usamos?", "El proyecto corre en la 22; la 24 trae mejoras que no necesitamos todavía.", [["22", "La 22"], ["24", "La 24"]], "22", {
       respuesta: { texto: "", opcion: "a", opcion_texto: "La 22", fecha: h(2) },
