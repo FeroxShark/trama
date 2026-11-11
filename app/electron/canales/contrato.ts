@@ -259,6 +259,7 @@ export const CANALES = [
   ["tablero:mover", "invoke"],
   ["tablero:cerrar", "invoke"],
   ["tablero:tirar", "invoke"],
+  ["tablero:tildar", "invoke"],
   ["tablero:posponer", "invoke"],
   ["tablero:agregar", "invoke"],
   ["tablero:responder", "invoke"],

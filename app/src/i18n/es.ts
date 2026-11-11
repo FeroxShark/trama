@@ -1225,6 +1225,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "main.tableroTextoVacio": "item vacío",
   "main.tableroNoLee": "no pude leer el tablero ({que})",
   "main.tableroRespuestaRara": "respuesta rara",
+  "main.tableroRenglonRaro": "renglón raro: {v}",
   "barra.liderMuerto": "líder muerto",
   "barra.liderMuertoTip": "{n}: su proceso desapareció sin cerrar la sesión (lo mataron o se cayó la máquina). Nadie está esperando esto.",
   "barra.sinLiderTip": "Lo lanzó {n}, que ya no está abierto",

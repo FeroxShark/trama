@@ -357,6 +357,7 @@ contextBridge.exposeInMainWorld("hilos", {
     mover: (id: number, columna: string): Promise<void> => invocar("tablero:mover", id, columna),
     cerrar: (id: number): Promise<void> => invocar("tablero:cerrar", id),
     tirar: (id: number): Promise<void> => invocar("tablero:tirar", id),
+    tildar: (id: number | string, numeros: number[], hecho: boolean): Promise<void> => invocar("tablero:tildar", id, numeros, hecho),
     posponer: (id: number, hasta: string): Promise<void> => invocar("tablero:posponer", id, hasta),
     agregar: (texto: string, proyecto: string | null, maquina?: string): Promise<unknown> => invocar("tablero:agregar", texto, proyecto, maquina),
     responder: (id: number, r: unknown): Promise<void> => invocar("tablero:responder", id, r),

@@ -1508,6 +1508,7 @@ export function armarNucleo() {
   manejar("tablero:mover", (_e, id: unknown, columna: unknown) => tablero.mover(id, columna));
   manejar("tablero:cerrar", (_e, id: unknown) => tablero.cerrar(id));
   manejar("tablero:tirar", (_e, id: unknown) => tablero.tirar(id));
+  manejar("tablero:tildar", (_e, id: unknown, numeros: unknown, hecho: unknown) => tablero.tildar(id, numeros, hecho));
   manejar("tablero:posponer", (_e, id: unknown, hasta: unknown) => tablero.posponer(id, hasta));
   manejar("tablero:agregar", (_e, texto: unknown, proyecto: unknown) => tablero.agregar(texto, proyecto));
   // Quién está compactando (compactando.ts): las marcas que deja el hook, miradas desde que se piden.

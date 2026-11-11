@@ -26,3 +26,16 @@ export const hechos = (rs: readonly Renglon[]): number => rs.filter((r) => r.hec
 
 /** La lista con el renglón `n` tildado o destildado (lo optimista: se pinta antes de que conteste el CLI). */
 export const conTilde = (rs: readonly Renglon[], n: number, hecho: boolean): Renglon[] => rs.map((r) => (r.n === n ? { ...r, hecho } : r));
+
+/** Lo único que hace falta de la fuente del tablero para tildar (se inyecta: el test pasa una de mentira). */
+export type TildaDe = { tildar(id: number | string, numeros: number[], hecho: boolean): Promise<void> };
+
+/**
+ * Tilda o destilda el renglón `n` del item `id` (`tablero tildar`) y devuelve la lista como queda. Si el CLI falla rechaza con lo
+ * que dijo y no devuelve nada: quien llama deja la lista como estaba. Con todos tildados el CLI cierra el item (lo ve la próxima lectura).
+ */
+export async function tildarRenglon(fuente: TildaDe, id: number | string, rs: readonly Renglon[], n: number, hecho: boolean): Promise<Renglon[]> {
+  if (!rs.some((r) => r.n === n)) throw new Error(`no hay renglón ${n}`);
+  await fuente.tildar(id, [n], hecho);
+  return conTilde(rs, n, hecho);
+}

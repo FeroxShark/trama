@@ -21,6 +21,8 @@ export interface FuenteTablero {
   cerrar(id: ItemId): Promise<void>;
   /** `tablero tirar <id>`. */
   tirar(id: ItemId): Promise<void>;
+  /** `tablero tildar <id> <n…>` (`--no` con `hecho: false`): renglones de una prueba; con todos tildados el CLI cierra el item. */
+  tildar(id: ItemId, numeros: number[], hecho: boolean): Promise<void>;
   /** `tablero mover <id> --hasta <fecha>` (`mañana`, `+3d`, `+1s`, `AAAA-MM-DD`). */
   posponer(id: ItemId, hasta: string): Promise<void>;
   /** `tablero agregar "<texto>" [--proyecto P]`: a bandeja. */
@@ -56,6 +58,7 @@ const conMain = (m: NonNullable<typeof main>): FuenteTablero => ({
   mover: (id, columna) => limpio(m.tablero.mover(id, columna)),
   cerrar: (id) => limpio(m.tablero.cerrar(id)),
   tirar: (id) => limpio(m.tablero.tirar(id)),
+  tildar: (id, numeros, hecho) => limpio(m.tablero.tildar(id, numeros, hecho)),
   posponer: (id, hasta) => limpio(m.tablero.posponer(id, hasta)),
   agregar: (texto, proyecto, maquina) => limpio(m.tablero.agregar(texto, proyecto, maquina)).then(() => {}),
   responder: (id, r) => limpio(m.tablero.responder(id, r)).then(() => {}),
@@ -81,6 +84,7 @@ const fija: FuenteTablero = (() => {
     mover: accion,
     cerrar: accion,
     tirar: accion,
+    tildar: accion,
     posponer: accion,
     agregar: accion,
     responder: accion,

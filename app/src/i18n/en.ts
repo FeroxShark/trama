@@ -1237,6 +1237,7 @@ export const en = {
   "main.tableroTextoVacio": "Empty item",
   "main.tableroNoLee": "couldn't read the board ({que})",
   "main.tableroRespuestaRara": "Invalid answer",
+  "main.tableroRenglonRaro": "Invalid line: {v}",
   "barra.liderMuerto": "lead died",
   "barra.liderMuertoTip": "{n}: its process is gone without closing the session (killed, or the machine went down). Nobody is collecting these.",
   "barra.sinLiderTip": "Launched by {n}, which is no longer open",

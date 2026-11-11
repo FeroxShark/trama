@@ -103,6 +103,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "tablero:mover": "maquina",
   "tablero:cerrar": "maquina",
   "tablero:tirar": "maquina",
+  "tablero:tildar": "maquina",
   "tablero:posponer": "maquina",
   "tablero:agregar": "maquina",
   // De esta máquina: el uso es de la misma cuenta, el consumo y el historial no se juntan.

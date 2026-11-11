@@ -66,6 +66,13 @@ export function argvMover(id: unknown, columna: unknown): string[] {
 
 export const argvCerrar = (id: unknown): string[] => ["cerrar", idItem(id)];
 
+/** `tablero tildar <id> <n…> [--no]`: tilda (o destilda) renglones; con todos tildados el CLI pasa el item a hecho. */
+export function argvTildar(id: unknown, numeros: unknown, hecho: unknown): string[] {
+  const ns = Array.isArray(numeros) ? numeros : [numeros];
+  if (!ns.length || ns.length > 99 || !ns.every((n) => Number.isInteger(n) && n >= 1 && n <= 999)) throw errorT("main.tableroRenglonRaro", { v: String(numeros) });
+  return ["tildar", idItem(id), ...(hecho === false ? ["--no"] : []), ...ns.map(String)];
+}
+
 export const argvTirar = (id: unknown): string[] => ["tirar", idItem(id)];
 
 export function argvPosponer(id: unknown, hasta: unknown): string[] {
@@ -228,6 +235,11 @@ export async function mover(id: unknown, columna: unknown): Promise<void> {
 /** `tablero cerrar <id>`: pasa a hecho. */
 export async function cerrar(id: unknown): Promise<void> {
   await correr(argvCerrar(id));
+}
+
+/** `tablero tildar <id> <n…>` (`--no` si `hecho` es false): renglones de una prueba. */
+export async function tildar(id: unknown, numeros: unknown, hecho: unknown): Promise<void> {
+  await correr(argvTildar(id, numeros, hecho));
 }
 
 /** `tablero tirar <id>`: no se va a hacer. */

@@ -491,6 +491,8 @@ type Main = {
     mover(id: number | string, columna: string): Promise<void>;
     cerrar(id: number | string): Promise<void>;
     tirar(id: number | string): Promise<void>;
+    /** `tablero tildar <id> <n…>` (`--no` con `hecho: false`): renglones de una prueba; todos tildados = el item pasa a hecho. */
+    tildar(id: number | string, numeros: number[], hecho: boolean): Promise<void>;
     posponer(id: number | string, hasta: string): Promise<void>;
     agregar(texto: string, proyecto: string | null, maquina?: string): Promise<unknown>;
     /** `tablero responder <id>`: la respuesta queda en el item (`null`: la saca). Ver electron/tablero.ts, `RespuestaCli`. */

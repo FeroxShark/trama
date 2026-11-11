@@ -226,6 +226,9 @@ test("argumentos: ids, columnas y fechas validados; el título va después de `-
   assert.deepEqual(cli.argvMover(12, "espera-dueno"), ["mover", "12", "--columna=espera-dueno"]);
   assert.deepEqual(cli.argvCerrar("7"), ["cerrar", "7"]);
   assert.deepEqual(cli.argvTirar(7), ["tirar", "7"]);
+  assert.deepEqual(cli.argvTildar(7, [1, 3], true), ["tildar", "7", "1", "3"]);
+  assert.deepEqual(cli.argvTildar("7", 2, false), ["tildar", "7", "--no", "2"]);
+  for (const malo of [[], [0], [1.5], ["1;ls"], null]) assert.throws(() => cli.argvTildar(7, malo, true), /main\.tableroRenglonRaro/);
   assert.deepEqual(cli.argvPosponer(7, " +3D "), ["mover", "7", "--hasta=+3d"]);
   assert.deepEqual(cli.argvPosponer(7, "2026-12-31"), ["mover", "7", "--hasta=2026-12-31"]);
   assert.deepEqual(cli.argvPosponer(7, "mañana"), ["mover", "7", "--hasta=mañana"]);
