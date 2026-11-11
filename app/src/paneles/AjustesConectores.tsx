@@ -14,6 +14,7 @@ import { mensaje } from "../puente";
 import { Boton } from "../ui/componentes";
 import "./tienda.css";
 import { Cat } from "./AjustesNav";
+import { ComoFunciona } from "./ComoFunciona";
 import { PanelCargando } from "./PanelCargando";
 import { aBorrador, PanelAgregar, type Borrador } from "./TiendaAgregar";
 import { SeccionesDescubrir } from "./TiendaDescubrir";
@@ -316,7 +317,9 @@ export function AjustesConectores() {
             );
           })}
         </div>
-        <p className="ti-que" id="ti-que">{t(`tienda.q.${pestana}`)}</p>
+        <ComoFunciona className="ti-que" key={pestana}>
+          <p>{t(`tienda.q.${pestana}`)}</p>
+        </ComoFunciona>
 
         <div className="ti-barra">
           {pestana !== "hooks" ? (

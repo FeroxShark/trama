@@ -3307,6 +3307,7 @@ export const en = {
   "cu.tj.sinClaveCorto": "Without a key no model is offered.",
   "cu.tj.verDetalle": "See the details",
   "cu.tj.quitarDe": "Remove {nombre}",
+  "pn.comoFunciona": "How it works",
   "cu.ayuda": "How these limits work",
   "cu.comoFunciona": "How it works",
   "cu.ayuda.claude1": "Two limits run at once: a 5-hour session window and a weekly one. Both need room: if either is full, Claude stops until it resets.",

@@ -13,6 +13,7 @@ import { MODO } from "../modo";
 import { esVentana, main, mensaje } from "../puente";
 import { Logo } from "../barra/Logo";
 import { Cat } from "./AjustesNav";
+import { ComoFunciona } from "./ComoFunciona";
 import { abrirRamas } from "./ajustes-nav";
 import { FilaFusion } from "./FilaFusion";
 import { LimpiezaPa } from "./AjustesLimpieza";
@@ -73,8 +74,10 @@ export function Proyectos() {
     <Cat id="proyectos">
       <section className="pn-sec" data-opc="pry.nombres">
         <h2 className="pn-h">{t("pry.titulo")}</h2>
-        <p className="pn-nota">{t("pry.intro")}</p>
-        <p className="pn-nota">{t("pry.instruccionesQue")}</p>
+        <ComoFunciona>
+          <p>{t("pry.intro")}</p>
+          <p>{t("pry.instruccionesQue")}</p>
+        </ComoFunciona>
         {lista.length ? (
           <div className="aj-busca">
             <Search className="aj-busca-i" size={15} strokeWidth={2} aria-hidden="true" />

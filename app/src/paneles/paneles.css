@@ -2755,6 +2755,42 @@
   color: var(--apagado);
   font-size: var(--letra-3);
 }
+/* «Cómo funciona» (ComoFunciona.tsx): la explicación larga de un panel, plegada detrás de un botón. */
+.pn-como-b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-0-5) 0;
+  border: 0;
+  background: none;
+  color: var(--apagado);
+  font: inherit;
+  font-size: var(--letra-4);
+  cursor: pointer;
+}
+.pn-como-b:hover,
+.pn-como-b:focus-visible {
+  color: var(--texto);
+}
+.pn-como-f {
+  transition: transform 0.15s;
+}
+.pn-como[data-abierta] .pn-como-f {
+  transform: rotate(180deg);
+}
+.pn-como-t {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  max-width: 48rem;
+  margin-top: var(--esp-1-5);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.45;
+}
+.pn-como-t > p {
+  margin: 0;
+}
 /* «Cómo funcionan estos límites»: un botón que despliega las particularidades de cada proveedor. */
 .cu-ayuda-b {
   display: inline-flex;

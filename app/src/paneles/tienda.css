@@ -59,12 +59,9 @@
   font-variant-numeric: tabular-nums;
   font-weight: 500;
 }
+/* «Cómo funciona» de la pestaña (ComoFunciona.tsx): lo que es cada cosa, plegado. */
 .ti-que {
-  max-width: 48rem;
   margin: 0;
-  color: var(--apagado);
-  font-size: var(--letra-5);
-  line-height: 1.5;
 }
 
 /* --- Barra: Tuyos | Descubrir, buscador, categoría, orden, volver a leer y Agregar --- */

@@ -3293,6 +3293,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "cu.tj.sinClaveCorto": "Sin clave no se ofrece ningún modelo.",
   "cu.tj.verDetalle": "Ver el detalle",
   "cu.tj.quitarDe": "Quitar {nombre}",
+  "pn.comoFunciona": "Cómo funciona",
   "cu.ayuda": "Cómo funcionan estos límites",
   "cu.comoFunciona": "Cómo funciona",
   "cu.ayuda.claude1": "Corren dos límites a la vez: una ventana de sesión de 5 horas y una semanal. Los dos necesitan lugar: si uno se llena, Claude para hasta que se reinicie.",
