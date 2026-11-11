@@ -320,6 +320,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
         tareaId: l.tareaId,
         subtarea: l.subtarea,
         titulo: l.titulo,
+        indivisible: l.indivisible,
         rubrica: l.rubrica,
         okDueno: l.okDueno,
         cuenta: l.cuenta,
@@ -466,7 +467,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       if (!l.rubrica && !rubrica) rubrica = leerCampo(hRet, "rubrica");
     }
     // El tipo definitivo (puede venir de la corrida que retoma): el tope por tipo se recalcula con él.
-    if (!l.maxTurnsDado) l.maxTurns = String(topeDeTurnos(tipo, pa.plan, leer));
+    if (!l.maxTurnsDado) l.maxTurns = String(topeDeTurnos(tipo, pa.plan, leer, Boolean(l.indivisible)));
 
     // --- la ficha va en la TAREA (no en el contrato: el contrato es el prefijo del caché)
     // (a un agy, codex u opencode no: son los pendientes del dueño y lo que va a otra empresa no se recupera; dsh:ollama es local)
@@ -507,6 +508,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       rubrica,
       subtarea,
       titulo: l.titulo,
+      indivisible: l.indivisible,
       sid,
       resume,
       conMcp: l.conMcp,

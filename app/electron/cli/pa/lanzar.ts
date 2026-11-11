@@ -89,6 +89,8 @@ export interface Corrida {
   rubrica?: string;
   subtarea?: string;
   titulo?: string;
+  /** `--indivisible`: el motivo (sólo TS); va a la última columna de medicion.tsv. */
+  indivisible?: string;
   /** El session id: el nuevo (uuid) o el que se retoma. */
   sid: string;
   resume: boolean;

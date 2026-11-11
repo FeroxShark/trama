@@ -152,10 +152,17 @@ test("el tope de turnos: sin --max-turns sale del tipo (y en plan pro, hasta 100
   assert.equal(tope(["--tipo", "lectura"]), "40");
   assert.equal(tope(["--tipo", "codigo-acotado"]), "50");
   assert.equal(tope(["--tipo", "debug"]), "80");
-  assert.equal(tope(["--tipo", "frontend"]), "90");
-  assert.equal(tope(["--tipo", "codigo-multi"]), "90");
-  assert.equal(tope(["--tipo", "diseno"]), "90");
-  assert.equal(tope(["--tipo", "diseño"]), "90");
+  assert.equal(tope(["--tipo", "frontend"]), "50");
+  assert.equal(tope(["--tipo", "codigo-multi"]), "50");
+  assert.equal(tope(["--tipo", "diseno"]), "50");
+  assert.equal(tope(["--tipo", "diseño"]), "50");
+  // --indivisible "<motivo>": vuelve a 90 (sólo los tipos de 50; uno más alto no baja) y el motivo queda en las opciones
+  assert.equal(tope(["--tipo", "frontend", "--indivisible", "un solo cambio de esquema"]), "90");
+  assert.equal(tope(["--tipo", "codigo-multi", "--indivisible", "x"]), "90");
+  assert.equal(tope(["--tipo", "diseño", "--indivisible", "x"]), "90");
+  assert.equal(tope(["--tipo", "final", "--indivisible", "x"]), "120");
+  assert.equal(tope(["--tipo", "frontend", "--indivisible", "x"], "pro"), "90");
+  assert.equal(tope(["--tipo", "frontend", "--indivisible", "x", "--max-turns", "60"]), "60");
   assert.equal(tope(["--tipo", "final"]), "120");
   // sin tipo: el de lectura si es --leer, si no el de codigo-acotado
   assert.equal(tope([]), "50");
@@ -166,6 +173,13 @@ test("el tope de turnos: sin --max-turns sale del tipo (y en plan pro, hasta 100
   // el jefe manda: --max-turns gana (y 0 = sin tope)
   assert.equal(tope(["--tipo", "mecanico", "--max-turns", "77"]), "77");
   assert.equal(tope(["--tipo", "mecanico", "--max-turns", "0"]), "");
+});
+
+test("--indivisible guarda el motivo y quiere un texto", () => {
+  const ctx = { env: {}, io: captura(), dueno: "Gonza", anotar: () => {} };
+  const o = parsearOpciones(["--tipo", "frontend", "--indivisible", "migra todo junto", "tarea"], opcionesIniciales("demo", {}, "max"), ctx);
+  assert.equal(o.indivisible, "migra todo junto");
+  assert.equal(parsearOpciones(["tarea"], opcionesIniciales("demo", {}, "max"), ctx).indivisible, "");
 });
 
 test("parseo: el escaneo de -m mira sólo la zona de flags", () => {

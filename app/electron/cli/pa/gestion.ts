@@ -10,7 +10,7 @@ import { cmdDescartar, cmdDescartarId, cmdIntegrar, cmdRamas } from "./ramas.ts"
 
 /** Los flags que llevan valor (`flags_con_valor` del bash). */
 const CON_VALOR = new Set(
-  "--max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --titulo --fase --tarea --subtarea --rubrica --cuenta --brief-archivo --leccion --auditar --decisiones --espejo --test-inline".split(
+  "--max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --titulo --indivisible --fase --tarea --subtarea --rubrica --cuenta --brief-archivo --leccion --auditar --decisiones --espejo --test-inline".split(
     " ",
   ),
 );

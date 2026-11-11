@@ -60,6 +60,7 @@ function banderas(l: Llamada): string[] {
   else if (l.aca) a.push("--aca");
   if (l.force) a.push("--force");
   if (l.tipo) a.push("--tipo", l.tipo);
+  if (l.indivisible) a.push("--indivisible", l.indivisible);
   if (l.fase) a.push("--fase", l.fase);
   if (l.tareaId) a.push("--tarea", l.tareaId);
   if (l.subtarea) a.push("--subtarea", l.subtarea);

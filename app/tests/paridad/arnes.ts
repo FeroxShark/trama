@@ -220,22 +220,21 @@ function sinDuracion(tsv: string): string {
 }
 
 /**
- * medicion.tsv: la columna `pisado` la agrega el de TypeScript (el bash está congelado y no la tiene): sale de los dos
+ * medicion.tsv: las columnas `pisado` e `indivisible` las agrega el de TypeScript (el bash está congelado y no la tiene): sale de los dos
  * lados para comparar el resto. Sin esto el header y las filas difieren sólo por esa columna.
  */
 function sinPisado(tsv: string): string {
   const [cab = "", ...filas] = tsv.split("\n");
   const cols = cab.split("\t");
-  const i = cols.indexOf("pisado");
-  if (i < 0) return tsv;
+  // `pisado` e `indivisible` (el motivo de --indivisible) son columnas sólo del TS.
+  const quitarIdx = ["pisado", "indivisible"].map((n) => cols.indexOf(n)).filter((i) => i >= 0);
+  if (!quitarIdx.length) return tsv;
   const quitar = (f: string) => {
     if (!f) return f;
     const c = f.split("\t");
-    if (c.length <= i) return f;
-    c.splice(i, 1);
-    return c.join("\t");
+    return c.filter((_, j) => !quitarIdx.includes(j)).join("\t");
   };
-  return [cols.filter((_, j) => j !== i).join("\t"), ...filas.map(quitar)].join("\n");
+  return [cols.filter((_, j) => !quitarIdx.includes(j)).join("\t"), ...filas.map(quitar)].join("\n");
 }
 
 /**

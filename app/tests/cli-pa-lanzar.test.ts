@@ -10,6 +10,7 @@ import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
 import { alSalir, argsCierre, argsClaude, armarLanzamiento, configClaudeDe, contratoClaude, envDeLaLlamada, lineaSkillsDiseno, promptDe, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
+import { medir } from "../electron/cli/pa/ganchos.ts";
 import { campoDe, decisionEsNada, epochReset, verificadoDe } from "../electron/cli/pa/resultado-lanzar.ts";
 
 const PA = path.join(import.meta.dirname, "..", "..", "motor", "bin", "pa");
@@ -160,6 +161,24 @@ test("al_salir: .ultimo con el lock, .listo sólo en async, y el rastro vivo se 
     assert.equal(existsSync(l.run), false);
     rmSync(listoF, { force: true });
   }
+});
+
+test("medicion.tsv: --indivisible deja el motivo en la última columna (sólo TS); sin él la columna queda vacía", async () => {
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-indivisible-"));
+  const pa = paFalso(raiz);
+  for (const indivisible of ["un solo cambio de esquema\ty más", undefined]) {
+    const l = armarLanzamiento(pa, corrida(raiz, { tipo: "frontend", indivisible }));
+    await medir(pa, l);
+  }
+  const [cab, ...filas] = readFileSync(path.join(pa.state, "medicion.tsv"), "utf8").replace(/\n$/, "").split("\n");
+  const cols = cab!.split("\t");
+  assert.equal(cols.at(-1), "indivisible");
+  assert.equal(cols.at(-2), "pisado");
+  assert.equal(filas.length, 2);
+  assert.equal(filas[0]!.split("\t").length, cols.length);
+  assert.equal(filas[0]!.split("\t").at(-1), "un solo cambio de esquema y más");
+  assert.equal(filas[1]!.split("\t").at(-1), "");
+  rmSync(raiz, { recursive: true, force: true });
 });
 
 test("MCP: el worker va sin MCP por defecto (escritores y --leer); --mcp se los devuelve", () => {

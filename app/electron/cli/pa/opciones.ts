@@ -8,7 +8,7 @@ import type { Modelos } from "./modelos.ts";
 
 /** Los flags que llevan valor (`flags_con_valor` del bash). */
 export const FLAGS_CON_VALOR = [
-  "--max-turns", "--id", "--integrar", "--descartar", "--actualizar", "--nota", "--max-budget-usd", "-m", "--model", "--effort", "--tipo", "--titulo",
+  "--max-turns", "--id", "--integrar", "--descartar", "--actualizar", "--nota", "--max-budget-usd", "-m", "--model", "--effort", "--tipo", "--titulo", "--indivisible",
   "--fase", "--tarea", "--subtarea", "--rubrica", "--cuenta", "--brief-archivo", "--leccion", "--auditar", "--decisiones", "--espejo",
   "--test-inline", "--seguir-con", "--retoma-de", "--objetivo", "--verificar", "--intentos", "--tope-cupo",
 ];
@@ -57,6 +57,8 @@ export interface Opciones {
   tareaId: string;
   subtarea: string;
   titulo: string;
+  /** `--indivisible "<motivo>"` (sólo TS): la tarea no se parte; el tope de turnos vuelve a 90 y el motivo va a medicion.tsv. */
+  indivisible: string;
   rubrica: string;
   okDueno: boolean;
   /** --exacto: el -m claude-* corre tal cual, sin pasarlo a agy aunque haya más cupo. */
@@ -91,20 +93,23 @@ export const OBJETIVO_TOPE_CUPO = 10;
  * El tope de turnos por tipo cuando el jefe NO pasó `--max-turns`: una corrida corta no necesita 150 turnos, y cada turno
  * paga el contexto entero. Un worker de diseño o de código grande tiene más margen; uno mecánico, menos.
  */
+/** El tope de turnos de frontend, codigo-multi y diseno con `--indivisible "<motivo>"` (la tarea no se pudo partir). */
+export const TOPE_INDIVISIBLE = 90;
 export const TOPE_POR_TIPO: Record<string, number> = {
   mecanico: 30,
   lectura: 40,
   "codigo-acotado": 50,
   debug: 80,
-  frontend: 90,
-  "codigo-multi": 90,
-  diseno: 90,
+  frontend: 50,
+  "codigo-multi": 50,
+  diseno: 50,
   final: 120,
 };
 /** El tope de turnos de un tipo (sin tipo: el de lectura o el de codigo-acotado). En plan pro, el menor entre el del tipo y 100. */
-export function topeDeTurnos(tipo: string, plan: "pro" | "max", leer = false): number {
+export function topeDeTurnos(tipo: string, plan: "pro" | "max", leer = false, indivisible = false): number {
   const t = (tipo || (leer ? "lectura" : "codigo-acotado")).toLowerCase().replace("diseño", "diseno");
-  const n = TOPE_POR_TIPO[t] ?? TOPE_POR_TIPO["codigo-acotado"]!;
+  let n = TOPE_POR_TIPO[t] ?? TOPE_POR_TIPO["codigo-acotado"]!;
+  if (indivisible) n = Math.max(n, TOPE_INDIVISIBLE);
   return plan === "pro" ? Math.min(n, 100) : n;
 }
 
@@ -144,6 +149,7 @@ export function opcionesIniciales(proyecto: string, env: Env, plan: "pro" | "max
     tareaId: env.PA_TAREA ?? "",
     subtarea: env.PA_SUBTAREA ?? "",
     titulo: "",
+    indivisible: "",
     rubrica: "",
     okDueno: false,
     exacto: false,
@@ -408,6 +414,11 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
       case "--tarea": o.tareaId = valor; dos(); break;
       case "--subtarea": o.subtarea = valor; dos(); break;
       case "--titulo": o.titulo = valor; dos(); break;
+      case "--indivisible":
+        if (!valor.trim()) error("pa: --indivisible quiere el motivo: pa <proy> --indivisible \"<por qué no se puede partir>\" \"<tarea>\"");
+        o.indivisible = valor;
+        dos();
+        break;
       case "--rubrica": o.rubrica = valor; dos(); break;
       case "--ok-dueno": o.okDueno = true; i++; break;
       case "--exacto": o.exacto = true; i++; break;
@@ -465,6 +476,6 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
   if (o.integrarSiPasa && !o.objetivo) error("pa: --integrar-si-pasa va con el modo Objetivo: pa <proy> --objetivo \"<meta>\" --verificar \"<comando>\" --integrar-si-pasa");
   if (o.decisiones && !o.auditar) error("pa: --decisiones sólo va con --auditar (lo lee el auditor).");
   // Sin --max-turns, el tope sale del tipo: una corrida corta no necesita 150 turnos.
-  if (!o.maxTurnsDado) o.maxTurns = String(topeDeTurnos(o.tipo, o.plan, o.leer));
+  if (!o.maxTurnsDado) o.maxTurns = String(topeDeTurnos(o.tipo, o.plan, o.leer, Boolean(o.indivisible)));
   return o;
 }

@@ -12,9 +12,9 @@ import { isoSegundos, tableroMudo } from "./ramas.ts";
 import { contarCompactaciones, decisionDe, decisionEsNada, frenoDe, leerSalida, sigueDe, textoResultado, transcriptDe } from "./resultado-lanzar.ts";
 
 export const MEDICION_HEADER_VIEJO = "fecha\tid\tproyecto\tmodelo\teffort\tleer\tseguir\tis_error\tnum_turns\tduration_s\ttokens\tcosto_usd\tbien";
-// La última columna es `pisado`: 1 = otra corrida que ya corría en paralelo cuando esta se integró le reescribió
+// Las últimas son `pisado` y `indivisible` (el motivo de `--indivisible`; sólo TS). `pisado`: 1 = otra corrida que ya corría en paralelo cuando esta se integró le reescribió
 // las líneas (no es retrabajo de esta). Va al final para que un archivo viejo (sin la columna) siga leyéndose.
-export const MEDICION_HEADER = `${MEDICION_HEADER_VIEJO}\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort\tfreno\tespera_s\tpisado`;
+export const MEDICION_HEADER = `${MEDICION_HEADER_VIEJO}\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort\tfreno\tespera_s\tpisado\tindivisible`;
 export const ESTADO_HEADER = "subtarea\tintento\tid\tmodelo\teffort\texit\tgate\tusd";
 
 type Obj = Record<string, unknown>;
@@ -107,7 +107,7 @@ export async function medir(pa: Pa, l: Lanzamiento, d: DatosFila = {}): Promise<
     c.leer ? "1" : "0",
     c.resume ? "1" : "0",
   ].join("\t") +
-    `\t${nums}\t\t${pa.plan}\t${comp}\t${c.autocompact || "nativo"}\t${c.lanzo || "jefe"}\t${cache}\t${c.tipo ?? ""}\t\t\t${c.cuenta}\t${c.fase ?? ""}\t${c.tareaId ?? ""}\t${c.rubrica ?? ""}\t${d.rub?.fila ?? ""}\t${d.rub?.modelo ?? ""}\t${d.rub?.effort ?? ""}\t${freno}\t${c.espera ?? 0}`;
+    `\t${nums}\t\t${pa.plan}\t${comp}\t${c.autocompact || "nativo"}\t${c.lanzo || "jefe"}\t${cache}\t${c.tipo ?? ""}\t\t\t${c.cuenta}\t${c.fase ?? ""}\t${c.tareaId ?? ""}\t${c.rubrica ?? ""}\t${d.rub?.fila ?? ""}\t${d.rub?.modelo ?? ""}\t${d.rub?.effort ?? ""}\t${freno}\t${c.espera ?? 0}\t\t${(c.indivisible ?? "").replace(/[\t\r\n]+/g, " ")}`;
   const f = path.join(pa.state, "medicion.tsv");
   mkdirSync(pa.state, { recursive: true });
   const lock = await tomar(f, { plat: pa.plat, env: pa.env, esperarMs: 30_000 });

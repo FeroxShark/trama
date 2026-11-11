@@ -500,6 +500,7 @@ export interface OpcionesHijo {
   tareaId?: string;
   subtarea?: string;
   titulo?: string;
+  indivisible?: string;
   rubrica?: string;
   okDueno?: boolean;
   cuenta?: string;
@@ -528,6 +529,7 @@ export function argsHijo(o: OpcionesHijo): string[] {
   if (o.tareaId) a.push("--tarea", o.tareaId);
   if (o.subtarea) a.push("--subtarea", o.subtarea);
   if (o.titulo) a.push("--titulo", o.titulo);
+  if (o.indivisible) a.push("--indivisible", o.indivisible);
   if (o.rubrica) a.push("--rubrica", o.rubrica);
   if (o.okDueno) a.push("--ok-dueno");
   if (o.cuenta) a.push("--cuenta", o.cuenta);
