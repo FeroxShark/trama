@@ -183,7 +183,7 @@ export function bloqueDe(res: string): Bloque {
       cierra();
       continue;
     }
-    if (/^(RESULTADO|ARCHIVOS|DECISI(O|Ó)N|SIGUE|FREN(O|Ó))[ \t*_]*:/.test(h)) {
+    if (/^(RESULTADO|ARCHIVOS|DECISI(O|Ó)N|SIGUE|FREN(O|Ó)|HALLAZGO|FALTA)[ \t*_]*:/.test(h)) {
       q = null;
       cierra();
       continue;

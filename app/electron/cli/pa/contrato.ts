@@ -6,6 +6,15 @@
 /** Sólo-TS (el bash está congelado): tareas chicas. Va como última línea del contrato; tests/cli-pa.test.ts y la paridad la sacan para comparar. */
 export const FRASE_COMPACTA = "Si tu contexto se compacta, cerrá el pedazo que estás haciendo, hacé commit y terminá con SIGUE: lo que falta.";
 
+/**
+ * Sólo-TS (el bash está congelado): dos líneas opcionales del bloque final, justo después de FRENÓ. tests/cli-pa.test.ts y la
+ * paridad las sacan para comparar. `FALTA` deja la corrida en `falta-info` (cli/pa/hilos.ts); las dos van al aviso del líder.
+ */
+export const LINEAS_OPCIONALES = [
+  "HALLAZGO: (opcional) algo que no te pidieron y el jefe tiene que saber. Sólo acá, al terminar: nada de avisos a mitad de tarea.",
+  "FALTA: (opcional) si frenaste por falta de información: cuál te faltó y qué necesitás para seguir.",
+].join("\n");
+
 const CONTRATO_L = [
   "Te delegó una tarea el orquestador de @DUENO@ (una sesión de Claude que corre en ~).",
   "NO estás hablando con @DUENO@: tu respuesta final la lee otro modelo.",
@@ -19,6 +28,7 @@ const CONTRATO_L = [
   "DECISION: qué tiene que decidir @DUENO@, o \"nada\".",
   "SIGUE: una línea con el próximo paso del proyecto si el trabajo sigue, o \"nada\" si quedó cerrado.",
   "FRENÓ: una línea con lo que te demoró o te frenó (un comando que se colgó, un error del entorno, algo que tuviste que rehacer), o \"nada\".",
+  LINEAS_OPCIONALES,
   "",
   "Si la tarea viene como brief (secciones Objetivo / Archivos / Listo cuando / Cómo verificar / No tocar):",
   "\"Listo cuando\" es tu criterio de cierre (ni antes ni después), \"Cómo verificar\" es lo que corrés para",

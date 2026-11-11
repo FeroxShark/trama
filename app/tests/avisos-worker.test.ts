@@ -307,6 +307,38 @@ test("compactarResultado: nunca pasa de 1500 caracteres, corta con «…» y lo 
   assert.ok(r.texto.split("\n").every((l) => l.endsWith("…")));
 });
 
+test("compactarResultado: con FALTA arranca con «Frenó: le faltó información», FALTA primero y HALLAZGO después", () => {
+  const conFalta = `${BLOQUE}\nHALLAZGO: el test de cola ya estaba roto en main.\nFALTA: no sé qué cuenta usar para la prueba; necesito el nombre.`;
+  const r = compactarResultado(conFalta);
+  assert.equal(r.recortado, false);
+  const l = r.texto.split("\n");
+  assert.equal(l[0], "Frenó: le faltó información.");
+  assert.equal(l[1], "FALTA: no sé qué cuenta usar para la prueba; necesito el nombre.");
+  assert.equal(l[2], "HALLAZGO: el test de cola ya estaba roto en main.");
+  assert.equal(l[3], "RESULTADO: arreglé el aviso al líder.");
+  assert.ok(r.texto.includes("SIGUE: integrar la rama."));
+  // dentro del aviso, el parser de la vista sigue entendiendo el trabajo
+  const t = textoParaLider({ tipo: "fin", id: "7", tarea: "x", jefe_id: "l1", resumen: r.texto } as AvisoWorker);
+  assert.equal(avisoDeTexto(t).trabajos.length, 1);
+});
+
+test("compactarResultado: con HALLAZGO solo, va antes del RESULTADO y sin «Frenó»; FALTA: nada no cuenta", () => {
+  const r = compactarResultado(`${BLOQUE}\nHALLAZGO: hay dos copias del parser del bloque.\nFALTA: nada`);
+  const l = r.texto.split("\n");
+  assert.equal(l[0], "HALLAZGO: hay dos copias del parser del bloque.");
+  assert.equal(l[1], "RESULTADO: arreglé el aviso al líder.");
+  assert.doesNotMatch(r.texto, /Frenó|FALTA/);
+  assert.equal(compactarResultado(`${BLOQUE}\nHALLAZGO: nada`).texto, compactarResultado(BLOQUE).texto, "HALLAZGO: nada no cambia nada");
+});
+
+test("compactarResultado: con FALTA y HALLAZGO largos tampoco pasa de 1500 caracteres", () => {
+  const largo = "palabra ".repeat(600);
+  const r = compactarResultado(`RESULTADO: ${largo}\nVERIFICACION: ${largo}\nDECISION: ${largo}\nSIGUE: ${largo}\nHALLAZGO: ${largo}\nFALTA: ${largo}`);
+  assert.equal(r.recortado, true);
+  assert.ok(r.texto.length <= TOPE_RESUMEN, `${r.texto.length}`);
+  assert.ok(r.texto.startsWith("Frenó: le faltó información.\nFALTA: palabra"));
+});
+
 test("textoParaLider: un worker que terminó trae su resultado compacto y su integración, con sangría; el parser sigue entendiéndolo", () => {
   const a = { tipo: "fin", id: "2", tarea: "tests de atlas", jefe_id: "l1", resumen: compactarResultado(BLOQUE).texto, integracion: "espera integración: la integra el líder que la lanzó" } as AvisoWorker;
   const t = textoParaLider(a);

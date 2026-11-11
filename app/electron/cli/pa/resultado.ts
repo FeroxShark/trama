@@ -9,7 +9,7 @@ import { esCarpeta, leerCampo, listar } from "./corridas.ts";
 import { avisoReparto } from "./resultado-lanzar.ts";
 import { type Pa } from "./entorno.ts";
 
-const ENCABEZADO = /^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI[^:*]{1,2}N|SIGUE|PROBAR|PREGUNTA|FREN(O|Ó))[*]*:/i;
+const ENCABEZADO = /^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI[^:*]{1,2}N|SIGUE|PROBAR|PREGUNTA|FREN(O|Ó)|HALLAZGO|FALTA)[*]*:/i;
 
 /** `verificacion_de`: la sección VERIFICACION de un RESULTADO (hasta el próximo encabezado conocido). */
 export function verificacionDe(texto: string): string {

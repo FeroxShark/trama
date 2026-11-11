@@ -9,8 +9,9 @@ import path from "node:path";
 import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
 import { AYUDA } from "../electron/cli/pa/ayuda.ts";
-import { CIERRE_TAREA, CONTRATO, CONTRATO_AGY, CONTRATO_CODEX, FRASE_COMPACTA, SIN_JEFE } from "../electron/cli/pa/contrato.ts";
+import { CIERRE_TAREA, CONTRATO, CONTRATO_AGY, CONTRATO_CODEX, FRASE_COMPACTA, LINEAS_OPCIONALES, SIN_JEFE } from "../electron/cli/pa/contrato.ts";
 import { main, type Deps } from "../electron/cli/pa/cli.ts";
+import { cmdHilos } from "../electron/cli/pa/hilos.ts";
 import type { Env, Io } from "../electron/cli/pa/entorno.ts";
 import { Modelos, problemaModelos } from "../electron/cli/pa/modelos.ts";
 import { correrLista, escanear, opcionesIniciales, parsearOpciones, partirLista } from "../electron/cli/pa/opciones.ts";
@@ -103,7 +104,7 @@ testPosix("el contrato y sus variantes son copia literal del bash", () => {
   assert.equal(r.status, 0, r.stderr);
   const [contrato, cierre, sinJefe, agy, codex] = r.stdout.split("\0");
   // La frase de «si tu contexto se compacta» es sólo del TS (el bash está congelado): se saca para comparar.
-  const sinFrase = (t: string) => t.replace(`\n${FRASE_COMPACTA}`, "");
+  const sinFrase = (t: string) => t.replace(`\n${FRASE_COMPACTA}`, "").replace(`\n${LINEAS_OPCIONALES}`, "");
   assert.equal(sinFrase(CONTRATO), contrato);
   assert.equal(CIERRE_TAREA, cierre);
   assert.equal(SIN_JEFE, sinJefe);
@@ -115,6 +116,41 @@ for (const [nombre, texto] of [["claude", CONTRATO], ["agy", CONTRATO_AGY], ["co
   test(`el contrato de ${nombre} pide cerrar y terminar si el contexto se compacta`, () => {
     assert.ok(texto.includes("Si tu contexto se compacta, cerrá el pedazo que estás haciendo, hacé commit y terminá con SIGUE: lo que falta"));
   });
+
+for (const [nombre, texto] of [["claude", CONTRATO], ["agy", CONTRATO_AGY], ["codex", CONTRATO_CODEX]] as const)
+  test(`el contrato de ${nombre} suma HALLAZGO y FALTA opcionales, después de FRENÓ y sólo al terminar`, () => {
+    const freno = texto.indexOf("\nFRENÓ:");
+    assert.ok(freno > 0 && texto.indexOf("\nHALLAZGO: (opcional)") > freno && texto.indexOf("\nFALTA: (opcional)") > freno);
+    assert.match(texto, /Sólo acá, al terminar: nada de avisos a mitad de tarea\./);
+    assert.match(texto, /cuál te faltó y qué necesitás para seguir/);
+  });
+
+test("--hilos: un resultado con FALTA (no vacía ni «nada») queda en falta-info; con HALLAZGO solo, sigue como siempre", async () => {
+  const { env, estado } = sandbox({ TZ: "UTC" });
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  const dia = `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`;
+  const dir = path.join(estado, "demo");
+  mkdirSync(dir, { recursive: true });
+  const ahora = Math.floor(Date.now() / 1000);
+  const base = "RESULTADO: hice una parte.\nARCHIVOS: a.ts\nVERIFICACION: ok\nDECISION: elegir A o B\nSIGUE: nada\nFRENÓ: nada\n";
+  const casos: [string, string][] = [
+    [`${dia}-000101-4401`, `${base}FALTA: no sé qué cuenta usar; necesito el nombre.\n`],
+    [`${dia}-000102-4402`, `${base}HALLAZGO: el test viejo estaba roto.\nFALTA: nada\n`],
+    [`${dia}-000103-4403`, `${base}**FALTA:**\n`],
+  ];
+  for (const [id, result] of casos) {
+    writeFileSync(path.join(dir, `${id}.hilo`), `inicio=${ahora - 60}\ntarea=t ${id}\n`);
+    writeFileSync(path.join(dir, `${id}.json`), JSON.stringify({ type: "result", is_error: false, result, duration_ms: 1000 }));
+    writeFileSync(path.join(dir, `${id}.listo`), "salida=x\nrc=0\n");
+  }
+  const r = await pa(["--hilos", "--json"], env, { globales: { hilos: (a, x) => cmdHilos(x, a) } });
+  assert.equal(r.rc, 0, r.e);
+  const est = new Map((JSON.parse(r.o) as { hilos: { id: string; estado: string }[] }).hilos.map((h) => [h.id, h.estado]));
+  assert.equal(est.get(casos[0]![0]), "falta-info");
+  assert.equal(est.get(casos[1]![0]), "decision", "HALLAZGO no cambia el estado y FALTA: nada no cuenta");
+  assert.equal(est.get(casos[2]![0]), "decision", "FALTA vacía no cuenta");
+});
 
 // ------------------------------------------------------------------------------------------- parseo
 

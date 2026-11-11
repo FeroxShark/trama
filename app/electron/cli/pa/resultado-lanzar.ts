@@ -38,7 +38,7 @@ const cortar = (s: string, n: number) => {
   return cs.length > n ? cs.slice(0, n).join("") : s;
 };
 
-const OTRO = /^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI(O|Ó)N|SIGUE|FREN(O|Ó))[*]*:/;
+const OTRO = /^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI(O|Ó)N|SIGUE|FREN(O|Ó)|HALLAZGO|FALTA)[*]*:/;
 
 /**
  * `campo_de`: el valor de un encabezado (`DECISI(O|Ó)N`, `SIGUE`…) del bloque del worker, tolerante a markdown. Con `todo`, el
@@ -87,6 +87,9 @@ export function campoDe(re: string, texto: string, todo = false): string {
 
 export const decisionDe = (texto: string, todo = false) => campoDe("DECISI(O|Ó)N", texto, todo);
 export const sigueDe = (texto: string, todo = false) => campoDe("SIGUE", texto, todo);
+/** Sólo-TS: la FALTA del worker (frenó por falta de información) y su HALLAZGO; "" si no están. */
+export const faltaDe = (texto: string, todo = false) => campoDe("FALTA", texto, todo);
+export const hallazgoDe = (texto: string, todo = false) => campoDe("HALLAZGO", texto, todo);
 /** `freno_de`: el FRENÓ del resultado en una línea, sin tabs (la columna `freno` de medicion.tsv). */
 export const frenoDe = (texto: string) => campoDe("FREN(O|Ó)", texto).replace(/\t/g, " ");
 
@@ -109,7 +112,7 @@ export function verificacionDe(texto: string): string {
       }
       continue;
     }
-    if (/^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI[^:*]{1,2}N|SIGUE|PROBAR|PREGUNTA|FREN(O|Ó))[*]*:/i.test(l)) break;
+    if (/^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI[^:*]{1,2}N|SIGUE|PROBAR|PREGUNTA|FREN(O|Ó)|HALLAZGO|FALTA)[*]*:/i.test(l)) break;
     t += "\n" + l;
   }
   return t;

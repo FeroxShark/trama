@@ -95,7 +95,7 @@ const MAX_AVISADOS = 2000;
 const VIVOS = new Set(["trabajando", "colgado"]);
 export const vivo = (h: Pick<FilaWorker, "estado" | "en_cola">) => VIVOS.has(h.estado) || h.en_cola === true;
 /** Terminó él solo (con resultado): lo demás que no es vivo ya lo movió una persona (integrar, archivar…) o murió. */
-const TERMINADOS = new Set(["listo", "decision", "entregado"]);
+const TERMINADOS = new Set(["listo", "decision", "falta-info", "entregado"]);
 
 const ERROR_CUPO = /RESOURCE_EXHAUSTED|Individual quota reached|quota|rate.?limit|usage limit|hit your limit|session limit|weekly limit|Too Many Requests|FreeUsageLimit|límite de uso|(^|[^0-9])429([^0-9]|$)/i;
 
@@ -417,12 +417,20 @@ export const MARCA_AVISO_TRAMA = "[Aviso automático de Trama]";
 export const TOPE_RESUMEN = 1500;
 /** Lo que se queda de cada parte del bloque del worker (con los saltos de línea suman `TOPE_RESUMEN`). */
 const PARTES_RESUMEN: readonly (readonly [string, number])[] = [["RESULTADO", 600], ["VERIFICACION", 500], ["DECISION", 250], ["SIGUE", 146]];
+/**
+ * Con FALTA o HALLAZGO (opcionales, al final del bloque) van primero, en ese orden, y le sacan lugar a VERIFICACION (lo que el
+ * líder más puede ir a buscar con `pa --hilo`). Con el renglón de `FRENO_FALTA` y los saltos de línea no pasan de `TOPE_RESUMEN`.
+ */
+const PARTES_CON_AVISOS: readonly (readonly [string, number])[] = [["FALTA", 290], ["HALLAZGO", 230], ["RESULTADO", 450], ["VERIFICACION", 200], ["DECISION", 180], ["SIGUE", 110]];
+/** La primera línea del resumen cuando el worker frenó por falta de información. */
+export const FRENO_FALTA = "Frenó: le faltó información.";
 /** Cualquier encabezado del bloque del worker (`RESULTADO:`, `ARCHIVOS:`, `FRENÓ:`…): corta la parte anterior. */
-const ENCABEZADO = /^\s*\**(RESULTADO|ARCHIVOS|VERIFICACI[OÓ]N|DECISI[OÓ]N|SIGUE|FREN[OÓ]|PROBAR|PREGUNTA|CONTEXTO|OPCION|DEFECTO)\**:\**[ \t]*/;
+const ENCABEZADO = /^\s*\**(RESULTADO|ARCHIVOS|VERIFICACI[OÓ]N|DECISI[OÓ]N|SIGUE|FREN[OÓ]|HALLAZGO|FALTA|PROBAR|PREGUNTA|CONTEXTO|OPCION|DEFECTO)\**:\**[ \t]*/;
 
 /**
  * El bloque que dejó un worker (`result` de su `.json`) en poco: RESULTADO, VERIFICACION, DECISION y SIGUE, cada uno con su tope
- * (juntos, `TOPE_RESUMEN`); lo que se pasa se corta con «…» y `recortado` lo dice. Sin bloque RESULTADO: vacío.
+ * (juntos, `TOPE_RESUMEN`); lo que se pasa se corta con «…» y `recortado` lo dice. Sin bloque RESULTADO: vacío. Si trae FALTA o
+ * HALLAZGO (no «nada»), van primero (FALTA antes), y con FALTA el resumen arranca con `FRENO_FALTA`.
  */
 export function compactarResultado(result: string): { texto: string; recortado: boolean } {
   const partes = new Map<string, string[]>();
@@ -438,11 +446,18 @@ export function compactarResultado(result: string): { texto: string; recortado: 
     if (actual) actual.push(linea.trimEnd());
   }
   if (!partes.has("RESULTADO")) return { texto: "", recortado: false };
+  const cuerpoDe = (nombre: string) => (partes.get(nombre) ?? []).join("\n").trim();
+  const vale = (nombre: string) => {
+    const c = cuerpoDe(nombre);
+    return c !== "" && !/^\**nada\.?\**$/i.test(c);
+  };
+  const falta = vale("FALTA");
+  const conAvisos = falta || vale("HALLAZGO");
   let recortado = false;
-  const lineas: string[] = [];
-  for (const [nombre, tope] of PARTES_RESUMEN) {
-    const cuerpo = (partes.get(nombre) ?? []).join("\n").trim();
-    if (!cuerpo || (nombre === "SIGUE" && /^nada\.?$/i.test(cuerpo))) continue;
+  const lineas: string[] = falta ? [FRENO_FALTA] : [];
+  for (const [nombre, tope] of conAvisos ? PARTES_CON_AVISOS : PARTES_RESUMEN) {
+    const cuerpo = cuerpoDe(nombre);
+    if (!cuerpo || ((nombre === "SIGUE" || nombre === "FALTA" || nombre === "HALLAZGO") && !vale(nombre))) continue;
     const encabezado = `${nombre}: `;
     const lugar = tope - encabezado.length;
     if (cuerpo.length > lugar) recortado = true;

@@ -67,7 +67,7 @@ const GUARDAR_ENTREGADOS_MS = 3 * 24 * 3600_000;
 const VENCE_PENDIENTE_MS = 14 * 24 * 3600_000;
 const MAX_ENTRADAS = 1000;
 
-const TERMINADOS = new Set(["listo", "decision", "entregado"]);
+const TERMINADOS = new Set(["listo", "decision", "falta-info", "entregado"]);
 /** Estados que dicen que alguien ya se ocupó del worker (integrarlo, archivarlo, descartarlo): su aviso no tiene sentido. */
 const CERRADOS = new Set(["archivado", "integrado", "descartado", "revertido"]);
 

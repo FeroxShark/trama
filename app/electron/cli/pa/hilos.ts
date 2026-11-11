@@ -74,6 +74,19 @@ export function decisionDe(texto: string): string {
   return cortar(t, 0, 400);
 }
 
+/**
+ * Sólo-TS: ¿el bloque final trae una FALTA de verdad (el worker frenó por falta de información)? No cuenta vacía ni «nada»; sólo
+ * un encabezado al principio de línea (tolera markdown).
+ */
+export function hayFalta(texto: string): boolean {
+  let v: string | null = null;
+  for (const x of texto.split("\n")) {
+    const m = /^[*#> \t-]*FALTA\*{0,}:\*{0,}(.*)$/.exec(x);
+    if (m) v = m[1]!;
+  }
+  return v !== null && !decisionEsNada(v) && trimJq(v.replace(/\*/g, "")) !== "";
+}
+
 /** `decision_es_nada`. */
 export const decisionEsNada = (s: string) => trimJq(s.replace(/\*/g, "")).replace(/\.$/, "").replace(/[A-Z]/g, (c) => c.toLowerCase()) === "nada";
 
@@ -445,6 +458,7 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
   else if (h.acc === "revertida") estado = "revertido";
   else if (h.acc === "descartada") estado = "descartado";
   else if (Jo === null) estado = "murio";
+  else if (hayFalta(comoString(result ?? "")) && (reciente || (noVacio(H.lanzo) ?? "jefe") !== "jefe")) estado = "falta-info";
   else if (noVacio(dec) !== null && dnada !== "1" && (reciente || (noVacio(H.lanzo) ?? "jefe") !== "jefe")) estado = "decision";
   else if (reciente) estado = "listo";
   else estado = "entregado";
