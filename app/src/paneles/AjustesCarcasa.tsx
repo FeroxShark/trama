@@ -87,7 +87,7 @@ export function Carcasa({ Dato }: { Dato: FilaDato }) {
 
   return (
     <section className="pn-sec pn-edita" ref={sec} data-carcasa>
-      <div className="pn-estado">{t("carcasa.version", { v: version || "…" })}</div>
+      <div className="pn-estado pn-car-version">{t("carcasa.version", { v: version || "…" })}</div>
 
       <Dato nombre="carcasa.act" que="carcasa.actQue">
         <div className="pn-car-col">

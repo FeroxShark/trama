@@ -1,0 +1,82 @@
+/* Ajustes > Actualizaciones > Salud (AjustesTrama.tsx, `SaludTrama`): un renglón de Ajustes con un botón que pliega o despliega los cuatro
+   renglones de lo que le pasó a Trama en 30 días. El estado va siempre con palabra e ícono (✓ «Todo bien», ⚠ «N cosas para mirar»); el
+   color sólo acompaña. Las filas se separan por paso de tono, como las de Novedades, no por línea. */
+.sal-sum {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-3) 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--texto);
+  font: inherit;
+  font-size: var(--letra-5);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sal-sum:hover {
+  background: var(--capa-hover);
+}
+.sal-sum:focus-visible {
+  outline: 2px solid var(--azul);
+  outline-offset: 2px;
+}
+.sal-sum > svg,
+.sal-fila > svg {
+  flex: none;
+  color: var(--ambar);
+}
+.sal-sum[data-bien] > svg,
+.sal-fila[data-ok] > svg {
+  color: var(--verde);
+}
+/* El triángulo de plegado es del texto: gira con el estado, como el de Novedades. */
+.sal-flecha {
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: none;
+  margin-left: var(--esp-1);
+  border-right: 2px solid var(--txt-3);
+  border-bottom: 2px solid var(--txt-3);
+  transform: translateY(-1px) rotate(45deg);
+  transition: transform 0.15s;
+}
+.sal-sum[aria-expanded="true"] > .sal-flecha {
+  transform: translateY(1px) rotate(-135deg);
+}
+.sal-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  margin-top: var(--esp-1);
+  margin-bottom: 0;
+  padding: 0;
+  list-style: none;
+}
+.sal-fila {
+  display: flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: var(--esp-3);
+  padding: var(--esp-2) var(--esp-4);
+  border-radius: var(--r-md);
+  background: var(--capa-div);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-variant-numeric: tabular-nums;
+}
+.sal-fila[data-ok] {
+  color: var(--apagado);
+}
+@media (pointer: coarse) {
+  .sal-sum {
+    min-height: 2.75rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sal-flecha {
+    transition: none;
+  }
+}

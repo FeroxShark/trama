@@ -1,13 +1,16 @@
 // Ajustes > Actualizaciones fuera de Windows (Linux, el celular): la versión de Trama y "Buscar actualizaciones" (consulta ya a GitHub,
 // sin esperar el reloj). Es la misma forma que la de Windows (AjustesCarcasa.tsx), pero sin "Quitar restos". Si hay una nueva, la barra
 // la avisa sola con su Actualizar (el evento `trama:version`); acá sólo se muestra el resultado de esa consulta.
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { version as VERSION_TRAMA } from "../../package.json";
 import { fuente, type BuscadaTrama, type EstadoActTrama } from "../datos/fuente";
 import { MODO } from "../modo";
 import { t } from "../i18n";
 import { Avance } from "../ui/Avance";
+import { IcAtencion, IcOk, ICONO } from "../ui/iconos";
 import type { FilaDato } from "./AjustesEditar";
+import { DIAS_SALUD, resumirSalud, type ResumenSalud } from "./salud-resumen";
+import "./salud-ajustes.css";
 
 type Estado = { paso: "quieta" } | { paso: "buscando" } | { paso: "resultado"; r: BuscadaTrama };
 
@@ -48,7 +51,7 @@ export function TramaActualizaciones({ Dato }: { Dato: FilaDato }) {
   }, []);
   return (
     <section className="pn-sec pn-edita">
-      <div className="pn-estado">{t("carcasa.version", { v: VERSION_TRAMA })}</div>
+      <div className="pn-estado pn-car-version">{t("carcasa.version", { v: VERSION_TRAMA })}</div>
 
       <Dato nombre="carcasa.act" que="ajustes.tramaActQue">
         <div className="pn-car-col">
@@ -67,6 +70,61 @@ export function TramaActualizaciones({ Dato }: { Dato: FilaDato }) {
           </div>
         </div>
       </Dato>
+    </section>
+  );
+}
+
+// Las capturas `salud-abierto` y `salud-bien-abierto` arrancan con el bloque desplegado (plegado es lo normal).
+const abiertoInicial = () => MODO.captura === "ajustes" && !!MODO.variante?.startsWith("salud") && MODO.variante.endsWith("-abierto");
+
+/** El título plegado ya dice lo importante: «Todo bien» (con ✓) o cuántas cosas hay para mirar (con ⚠). Nunca sólo el color. */
+function textoCosas(r: ResumenSalud): string {
+  return r.bien ? t("salud.todoBien") : t(r.cosas === 1 ? "salud.cosa1" : "salud.cosas", { n: r.cosas });
+}
+
+/**
+ * Ajustes > Actualizaciones > Salud: lo que le pasó a Trama en los últimos 30 días, plegado. Abierto, cuatro renglones con cifra y
+ * palabra (o una sola línea «Todo bien»). Los eventos los anota el main (electron/salud-eventos.ts); la cuenta es de salud-resumen.ts.
+ */
+export function SaludTrama({ Dato }: { Dato: FilaDato }) {
+  const [resumen, setResumen] = useState<ResumenSalud | null>(null);
+  const [abierto, setAbierto] = useState(abiertoInicial);
+  const id = useId();
+  useEffect(() => {
+    let vivo = true;
+    void fuente.saludEventos(DIAS_SALUD).then((e) => vivo && setResumen(resumirSalud(e)), () => vivo && setResumen(resumirSalud([])));
+    return () => {
+      vivo = false;
+    };
+  }, []);
+  return (
+    <section className="pn-sec sal-sec">
+      <Dato nombre="salud.titulo" que="salud.tituloQue">
+        {resumen ? (
+          <button type="button" className="sal-sum" data-bien={resumen.bien || undefined} aria-expanded={abierto} aria-controls={id} onClick={() => setAbierto((a) => !a)}>
+            {resumen.bien ? <IcOk {...ICONO} aria-hidden="true" /> : <IcAtencion {...ICONO} aria-hidden="true" />}
+            <span>{textoCosas(resumen)}</span>
+            <i className="sal-flecha" aria-hidden="true" />
+          </button>
+        ) : null}
+      </Dato>
+      {resumen && abierto ? (
+        <ul className="sal-lista" id={id} aria-label={t("salud.lista", { dias: DIAS_SALUD })}>
+          {resumen.bien ? (
+            <li className="sal-fila" data-ok>
+              <IcOk {...ICONO} aria-hidden="true" />
+              <span>{t("salud.todoBien")}</span>
+            </li>
+          ) : (
+            resumen.renglones.map((r) => (
+              <li key={r.id} className="sal-fila" data-ok={r.ok || undefined}>
+                {r.ok ? <IcOk {...ICONO} aria-hidden="true" /> : <IcAtencion {...ICONO} aria-hidden="true" />}
+                <span>{t(r.clave, r.vars as never)}</span>
+              </li>
+            ))
+          )}
+        </ul>
+      ) : null}
     </section>
   );
 }

@@ -17,7 +17,7 @@ import { BarraGuardar, Celular } from "./AjustesEditar";
 import { AjustesCuentas } from "./AjustesCuentas";
 import { AjustesModelos } from "./AjustesModelos";
 import { Compactar } from "./AjustesCompactar";
-import { TramaActualizaciones } from "./AjustesTrama";
+import { SaludTrama, TramaActualizaciones } from "./AjustesTrama";
 import { Guia } from "./AjustesGuia";
 import { VolverVersion } from "./AjustesVolver";
 import { Proyectos } from "./AjustesProyectos";
@@ -403,6 +403,7 @@ export function Ajustes() {
         <Celular Dato={Dato} />
         <Cat id="actualizaciones">
           {carcasaActualiza ? <Carcasa Dato={Dato} /> : <TramaActualizaciones Dato={Dato} />}
+          <SaludTrama Dato={Dato} />
           <Novedades Dato={Dato} />
         </Cat>
         <Proyectos />

@@ -321,6 +321,8 @@ export interface Fuente {
   limpiarTrama(): void;
   estadoActTrama(): Promise<EstadoActTrama>;
   alCambiarActTrama(fn: (e: EstadoActTrama) => void): () => void;
+  /** Los eventos de salud de Trama de los últimos `dias` días (`{ t, tipo, ... }`, sin validar): `salud:eventos`, electron/salud-eventos.ts. La cuenta es de `paneles/salud-resumen.ts`. */
+  saludEventos(dias: number): Promise<unknown>;
   /** Qué cortaría Actualizar ahora. */
   ocupacionTrama(): Promise<OcupacionTrama>;
   /** Reinicia la ventana de la PC (sin el main de la ventana, recarga la página). */
@@ -936,6 +938,23 @@ export const novedadesDe = (x: unknown): EstadoNovedades => {
   return { texto: typeof o.texto === "string" ? o.texto : "", actual: versionNormal(o.actual), vista: versionNormal(o.vista) };
 };
 
+/**
+ * Con fixtures: los eventos de salud de Trama. Sólo las capturas de Ajustes `salud*` traen problemas (`salud-bien*`: nada, «Todo bien»);
+ * el resto, nada que mirar.
+ */
+function saludFija(): unknown[] {
+  if (MODO.captura !== "ajustes" || !MODO.variante?.startsWith("salud") || MODO.variante.startsWith("salud-bien")) return [];
+  const t = T0_CAPTURA;
+  return [
+    { t: t - 20 * 86_400_000, tipo: "vuelta-version", version: "0.2.61", motivo: "no arrancó" },
+    { t: t - 12 * 86_400_000, tipo: "reinicio", ms: 18_000 },
+    { t: t - 9 * 86_400_000, tipo: "reinicio", ms: 6_200 },
+    { t: t - 3 * 86_400_000, tipo: "reinicio", ms: 16_400 },
+    { t: t - 2 * 86_400_000, tipo: "lideres-cortados", n: 3 },
+    { t: t - 86_400_000, tipo: "aviso-descartado", motivo: "sin líder" },
+  ];
+}
+
 /** Con fixtures: un CHANGELOG corto de muestra. Sólo sus capturas (`novedades*`) llegan con novedades sin ver; el resto, todo visto. */
 const CAMBIOS_FIJOS = `# Cambios
 
@@ -1538,6 +1557,9 @@ const fija: Fuente = {
   alCambiarActTrama(fn) {
     oyentesActTrama.add(fn);
     return () => void oyentesActTrama.delete(fn);
+  },
+  async saludEventos() {
+    return saludFija();
   },
   async ocupacionTrama() {
     return ocupacionTramaFija;
@@ -2221,6 +2243,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   alCambiarActTrama(fn) {
     return m.trama.alCambiarActualizacion((e) => fn(estadoActValido(e)));
+  },
+  async saludEventos(dias) {
+    return await m.salud.eventos(dias).catch(() => []);
   },
   async ocupacionTrama() {
     return ocupacionValida(await m.trama.ocupacion().catch(() => null));

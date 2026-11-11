@@ -44,7 +44,7 @@ test("cada fila del índice y cada categoría tienen texto en inglés y en espa�
 });
 
 test("cada fila del índice está dibujada con su data-opc (el salto la encuentra)", () => {
-  const fuente = ["Ajustes.tsx", "AjustesLimpieza.tsx", "AjustesModelos.tsx", "AjustesWorkers.tsx", "AjustesEditar.tsx", "AjustesCuentas.tsx", "AjustesCarcasa.tsx", "AjustesNovedades.tsx", "AjustesCupos.tsx", "AjustesCompactar.tsx", "AjustesDsh.tsx", "AjustesOpencode.tsx", "AjustesNvidia.tsx", "AjustesConectores.tsx", "AjustesGuia.tsx", "AjustesProyectos.tsx", "AjustesVolver.tsx"]
+  const fuente = ["Ajustes.tsx", "AjustesLimpieza.tsx", "AjustesModelos.tsx", "AjustesWorkers.tsx", "AjustesEditar.tsx", "AjustesCuentas.tsx", "AjustesCarcasa.tsx", "AjustesNovedades.tsx", "AjustesTrama.tsx", "AjustesCupos.tsx", "AjustesCompactar.tsx", "AjustesDsh.tsx", "AjustesOpencode.tsx", "AjustesNvidia.tsx", "AjustesConectores.tsx", "AjustesGuia.tsx", "AjustesProyectos.tsx", "AjustesVolver.tsx"]
     .map((f) => readFileSync(path.join(import.meta.dirname, "..", "src", "paneles", f), "utf8"))
     .join("\n");
   // Los tipos de worker se dibujan con la clave armada (`mdl.t.${tipo}`); el resto, con su clave literal.
@@ -64,6 +64,8 @@ test("buscar por título, descripción y sinónimo, con o sin tildes y en cualqu
   assert.ok(f("language").includes("ajustes.idioma"), "sinónimo en inglés");
   assert.ok(f("telefono puerto").includes("ajustes.celPuerto"), "dos palabras, sin tilde");
   assert.ok(f("ollama").includes("ajustes.mdlLocales"));
+  assert.ok(f("salud").includes("salud.titulo"), "el bloque Salud de Actualizaciones");
+  assert.ok(f("health").includes("salud.titulo"), "sinónimo en inglés");
   assert.ok(f("compactacion").includes("ajustes.compactar"));
   assert.deepEqual(f("zzzxqy"), []);
   assert.deepEqual(f("   "), []);

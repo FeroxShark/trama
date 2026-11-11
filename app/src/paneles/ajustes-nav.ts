@@ -64,6 +64,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "celular", nombre: "ajustes.celDisp", que: "ajustes.celDispQue", sin: "telefono movil phone mobile tailscale tailnet dispositivos devices permitidos allowed agregar add" },
 
   { cat: "actualizaciones", nombre: "carcasa.act", que: "carcasa.actQue", sin: "windows update version buscar check descargar download reiniciar restart exe trama github release novedades" },
+  { cat: "actualizaciones", nombre: "salud.titulo", que: "salud.tituloQue", sin: "salud health todo bien all good vueltas de version rollback reinicios lentos slow restarts lideres cortados cut off avisos descartados dropped notices 30 dias days" },
   { cat: "actualizaciones", nombre: "nov.titulo", que: "nov.tituloQue", sin: "novedades changelog cambios changes notas release notes versiones versions historial history que trajo whats new news" },
   { cat: "actualizaciones", nombre: "carcasa.restos", que: "carcasa.restosQue", sin: "windows limpiar clean restos leftovers versiones anteriores previous desinstalar uninstall", soloWindows: true },
 
@@ -216,7 +217,7 @@ export function inicial(cat: CatId) {
 export function deVariante(v: string | null | undefined): CatId | null {
   if (!v) return null;
   if (v.startsWith("cuentas")) return "cuentas";
-  if (v.startsWith("carcasa") || v === "trama-al-dia" || v === "trama-nueva" || v === "trama-instalando" || v === "novedades") return "actualizaciones";
+  if (v.startsWith("carcasa") || v === "trama-al-dia" || v === "trama-nueva" || v === "trama-instalando" || v === "novedades" || v.startsWith("salud")) return "actualizaciones";
   if (v === "mdl-agregar" || v === "mdl-bajando" || v === "mdl-sinollama" || v === "mdl-apagado" || v === "mdl-sugeridos" || v === "mdl-servidores" || v === "mdl-prender" || v === "mdl-win" || v === "mdl-guias") return "locales";
   if (v === "mdl-tope" || v.startsWith("cupos") || v === "editando" || v === "editando-mal") return "cupos";
   if (v === "celular" || v === "prendiendo") return "celular";

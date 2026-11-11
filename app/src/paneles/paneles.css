@@ -1636,6 +1636,14 @@
 }
 
 /* --- Trama para Windows: buscar actualizaciones y quitar restos --- */
+/* «Versión x.y.z» abre la tarjeta sin título: sin aire arriba quedaba pegada al borde y la tarjeta (overflow: hidden) la cortaba. */
+.aj-cat .pn-sec > .pn-car-version {
+  margin-top: var(--esp-4);
+  margin-bottom: var(--esp-3);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
 .pn-car-col {
   display: flex;
   flex-direction: column;
