@@ -3258,8 +3258,9 @@ function effortsEstimadosTabla(c: Obj): Obj {
   return { efforts_estimados: est, calidad_estimada_por_effort: q };
 }
 
-function tabla(cfg: Obj, cupos: Obj, now: Date): Obj[] {
-  const [cands] = armarCandidatos("lectura", { ...cfg, con_fable: true }, cupos, now, EFFORT_TABLA);
+/** `conFable`: sólo `--tabla` (lo que ve Ajustes) trae a Fable; el --resumen del líder y --aa-diag no lo nombran (no se elige solo). */
+function tabla(cfg: Obj, cupos: Obj, now: Date, conFable = false): Obj[] {
+  const [cands] = armarCandidatos("lectura", conFable ? { ...cfg, con_fable: true } : cfg, cupos, now, EFFORT_TABLA);
   const out: Obj[] = [];
   for (const c of cands) {
     let fam = c.familia;
@@ -3564,7 +3565,7 @@ export async function main(argv: string[]): Promise<number> {
   if (a[0] === "--tabla" && a.length === 1) {
     const d = cupos();
     if (!d) return 1;
-    const filas = tabla(cfg, d, now);
+    const filas = tabla(cfg, d, now, true);
     console.log(jsonOut ? jsonPy({ version: VERSION, leido: get(d, "leido"), modelos: filas }) : textoTabla(filas, now));
     return 0;
   }

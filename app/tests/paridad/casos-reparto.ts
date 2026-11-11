@@ -296,7 +296,7 @@ const casosSustituir: Caso[] = [
   rs("--tipo lectura con chequeo y --mismo-proveedor no cambia", ["--tipo", "lectura", "--mismo-proveedor", "claude"], 0, { env: { REPARTO_CON_CHEQUEO: "1" } }),
 ];
 
-export const casosReparto: Caso[] = [
+const casosReparto0: Caso[] = [
   // ayuda y errores de uso
   rp("sin argumentos", [], 2),
   rp("--help", ["--help"], 2),
@@ -476,3 +476,8 @@ export const casosReparto: Caso[] = [
   // umbrales de modelos.json
   ...casosModelos,
 ];
+
+/** Sólo en el TS (2026-11-11): `--tabla` suma a Fable 5.2 (`FAMILIAS`; no se elige solo, pero Ajustes lo muestra). El python congelado no lo conoce: los casos con `--tabla` no comparan stdout. */
+const DIVERGE_FABLE = "--tabla suma claude-fable-5-2 (sólo en el TS; reparto de python congelado)";
+const conTabla = (c: Caso): boolean => [c.args ?? [], ...(c.pasos ?? []).map((p) => p.args)].some((a) => a.includes("--tabla"));
+export const casosReparto: Caso[] = casosReparto0.map((c) => (conTabla(c) && !c.divergenciaSalida ? { ...c, divergenciaSalida: DIVERGE_FABLE } : c));
