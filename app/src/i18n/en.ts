@@ -2566,6 +2566,7 @@ export const en = {
   "carcasa.alDia": "You're up to date (v{v})",
   "carcasa.descargando": "Downloading v{v}… {p}%",
   "carcasa.lista": "Version {v} is ready.",
+  "carcasa.instalando": "Installing v{v}… Trama restarts by itself.",
   "carcasa.reiniciar": "Restart to update",
   "carcasa.errorAct": "Couldn't check: {m}",
   "carcasa.inactiva": "This copy doesn't update itself (it isn't the installed one).",

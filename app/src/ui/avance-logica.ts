@@ -66,3 +66,23 @@ export function avance(e: EntradaAvance): Avance {
 export function textoPaso(a: Pick<Avance, "paso" | "n" | "total">, t: (clave: string, vars?: Record<string, string | number>) => string): string {
   return t("avance.paso", { paso: t(`avance.${a.paso}`), n: a.n, total: a.total });
 }
+
+/** Lo que manda la carcasa de Windows (electron-updater, `windows/src/actualizar.js`): sólo lo que se mapea al avance. */
+export type EventoActualizador = { fase: string; version?: string; progreso?: number };
+
+/** Del evento de electron-updater a lo que pinta `Avance` (sólo `descargando` e `instalando`; el resto, `null`).
+ *  `descargando` lleva el porcentaje (`download-progress`, 0 a 100); `instalando` no lo trae: la barra se mueve sola. La carcasa no
+ *  cuenta los 4 pasos de Linux ni sabe desde cuándo va, así que el texto es propio y no hay tiempo ni aviso de «tarda de más». */
+export function propsDeActualizador(
+  e: EventoActualizador | null | undefined,
+  t: (clave: string, vars?: Record<string, string | number>) => string,
+): { estado: { fase: "instalando"; version: string; paso: PasoInstalacion }; porcentaje?: number; texto: string } | null {
+  if (!e) return null;
+  const version = e.version ?? "";
+  if (e.fase === "descargando") {
+    const p = finito(e.progreso) ? Math.min(100, Math.max(0, Math.round(e.progreso))) : 0;
+    return { estado: { fase: "instalando", version, paso: "bajando" }, porcentaje: p / 100, texto: t("carcasa.descargando", { v: version, p }) };
+  }
+  if (e.fase === "instalando") return { estado: { fase: "instalando", version, paso: "ventana" }, texto: t("carcasa.instalando", { v: version }) };
+  return null;
+}

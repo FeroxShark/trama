@@ -29,7 +29,7 @@ export function carcasa(): Carcasa | null {
 // --- Actualizar y quitar restos de versiones anteriores (Ajustes > Trama para Windows). Las capturas (`HILOS_VARIANTE=carcasa*`) usan una carcasa de mentira. ---
 
 export type EstadoActualizacion = {
-  fase: "inactiva" | "buscando" | "al-dia" | "descargando" | "lista" | "error";
+  fase: "inactiva" | "buscando" | "al-dia" | "descargando" | "lista" | "instalando" | "error";
   version?: string;
   progreso?: number;
   mensaje?: string;
@@ -77,7 +77,7 @@ const PLAN_MUESTRA: PlanRestos = {
 
 function carcasaDeMentira(): CarcasaActualiza {
   const estado: EstadoActualizacion =
-    v === "carcasa-bajando" ? { fase: "descargando", version: "0.2.0", progreso: 42 } : v === "carcasa-lista" ? { fase: "lista", version: "0.2.0" } : { fase: "al-dia" };
+    v === "carcasa-bajando" ? { fase: "descargando", version: "0.2.0", progreso: 42 } : v === "carcasa-instalando" ? { fase: "instalando", version: "0.2.0" } : v === "carcasa-lista" ? { fase: "lista", version: "0.2.0" } : { fase: "al-dia" };
   return {
     version: async () => "0.1.0",
     actualizacion: async () => estado,

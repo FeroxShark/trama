@@ -22,12 +22,13 @@ function useAhora(activo: boolean): number {
   return ahora;
 }
 
-export function Avance({ estado, porcentaje }: { estado: Instalando; porcentaje?: number }) {
+/** `texto` reemplaza el «Compilando · paso 2 de 4» (la carcasa de Windows no tiene esos 4 pasos: dice «Descargando la v0.2… 42%»). */
+export function Avance({ estado, porcentaje, texto: propio }: { estado: Instalando; porcentaje?: number; texto?: string }) {
   // Una captura fija el momento (el reloj no corre): así el tiempo y lo lento salen siempre iguales.
   const fijo = INSTANTE_CAPTURA;
   const reloj = useAhora(fijo === undefined);
   const a = avance({ paso: estado.paso, desde: estado.desde, ultimaLinea: estado.ultima, porcentaje, ahora: fijo ?? reloj });
-  const texto = textoPaso(a, (k, v) => t(k as "avance.paso", v as never));
+  const texto = propio ?? textoPaso(a, (k, v) => t(k as "avance.paso", v as never));
   return (
     <div className="avz" data-lento={a.lento || undefined}>
       <div

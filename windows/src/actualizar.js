@@ -10,6 +10,8 @@
 //   al-dia       no hay nada más nuevo
 //   descargando  hay una versión nueva; `progreso` 0–100
 //   lista        descargada: «Reiniciar para actualizar» (`instalar()`); una más nueva que aparezca la reemplaza
+//   instalando   la persona tocó «Reiniciar para actualizar»: se guarda la versión que corre y se cierra para instalar (sin porcentaje:
+//                electron-updater no lo informa); si no se pudo cerrar, vuelve a `lista`
 //   error        no se pudo preguntar o bajar; `mensaje` en una línea
 //
 // Cuándo se pregunta: cada 2 min en segundo plano, al enfocar la ventana y al volver de la suspensión (`refrescar`), con un mínimo
@@ -151,7 +153,24 @@ function crearActualizador({ autoUpdater, onEstado, log = () => {}, canal = null
   return {
     buscar: () => buscar(),
     refrescar: () => buscar({ fondo: true }),
-    instalar: () => autoUpdater.quitAndInstall(),
+    // `antes` es lo que hay que terminar antes de cerrar (guardar la versión que corre): mientras tanto ya se dice «instalando».
+    instalar: (antes) => {
+      const v = version;
+      decir({ fase: "instalando", version: v });
+      const volver = (e) => {
+        log(`actualizador: no pude instalar: ${e?.message || e}`);
+        decir({ fase: "lista", version: v });
+      };
+      const cerrar = () => {
+        try {
+          autoUpdater.quitAndInstall();
+        } catch (e) {
+          volver(e);
+        }
+      };
+      // Sin nada que esperar se cierra en el acto (sin saltar de turno).
+      return antes ? Promise.resolve().then(antes).then(cerrar, volver) : cerrar();
+    },
     activo: true,
   };
 }

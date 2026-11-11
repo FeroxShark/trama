@@ -2552,6 +2552,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "carcasa.alDia": "Estás al día (v{v})",
   "carcasa.descargando": "Descargando la v{v}… {p}%",
   "carcasa.lista": "La versión {v} está lista.",
+  "carcasa.instalando": "Instalando la v{v}… Trama se reinicia sola.",
   "carcasa.reiniciar": "Reiniciar para actualizar",
   "carcasa.errorAct": "No pude buscar: {m}",
   "carcasa.inactiva": "Esta copia no se actualiza sola (no es la instalada).",

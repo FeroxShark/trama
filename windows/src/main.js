@@ -504,10 +504,8 @@ app.whenReady().then(async () => {
     rechazada: () => versionAnterior.rechazada(),
     log,
   });
-  actualizador.instalar = async () => {
-    await versionAnterior.guardarAntes();
-    return u.instalar();
-  };
+  // «Instalando» se dice al tocar el botón, no recién al cerrar: guardar la versión que corre puede tardar.
+  actualizador.instalar = () => u.instalar(() => versionAnterior.guardarAntes());
   actualizador.buscar = u.buscar;
   actualizador.refrescar = u.refrescar;
   // Al volver de la suspensión se pregunta de nuevo (el ciclo de 2 min y el reintento de la red cubren el resto).

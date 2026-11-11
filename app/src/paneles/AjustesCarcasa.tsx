@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { alCambiarActualizacion, carcasaActualiza as carcasa, comoError, esError, FIXTURE_CARCASA, type EstadoActualizacion, type ItemResto, type PlanRestos } from "../carcasa";
 import { MODO } from "../modo";
 import { t } from "../i18n";
+import { Avance } from "../ui/Avance";
+import { propsDeActualizador } from "../ui/avance-logica";
 import type { FilaDato } from "./AjustesEditar";
 import { marcar } from "./ajustes-nav";
 
@@ -17,8 +19,6 @@ const textoAct = (e: EstadoActualizacion | null, v: string): string => {
       return t("carcasa.buscando");
     case "al-dia":
       return t("carcasa.alDia", { v });
-    case "descargando":
-      return t("carcasa.descargando", { v: e.version ?? "", p: e.progreso ?? 0 });
     case "lista":
       return t("carcasa.lista", { v: e.version ?? "" });
     case "error":
@@ -73,7 +73,9 @@ export function Carcasa({ Dato }: { Dato: FilaDato }) {
   if (!c) return null;
 
   const buscar = () => void c.buscarActualizacion().catch(() => {});
-  const ocupada = act?.fase === "buscando" || act?.fase === "descargando";
+  const ocupada = act?.fase === "buscando" || act?.fase === "descargando" || act?.fase === "instalando";
+  // Bajando e instalando se ven con el mismo `Avance` que en Linux; el resto (buscando, al día, lista, error), una línea de texto.
+  const av = propsDeActualizador(act, (k, v) => t(k as "avance.paso", v as never));
 
   const quitar = async (plan: PlanRestos, ids: string[]) => {
     setRestos({ paso: "quitando", plan });
@@ -102,10 +104,15 @@ export function Carcasa({ Dato }: { Dato: FilaDato }) {
               </button>
             )}
           </div>
-          <div className="pn-car-estado" role="status" aria-live="polite" data-fase={act?.fase}>
-            {act?.fase === "descargando" ? <span className="pn-car-barra" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={act.progreso ?? 0} style={{ ["--p" as string]: (act.progreso ?? 0) / 100 }} /> : null}
-            {textoAct(act, version)}
-          </div>
+          {av ? (
+            <div className="pn-car-av" data-fase={act?.fase}>
+              <Avance estado={av.estado} porcentaje={av.porcentaje} texto={av.texto} />
+            </div>
+          ) : (
+            <div className="pn-car-estado" role="status" aria-live="polite" data-fase={act?.fase}>
+              {textoAct(act, version)}
+            </div>
+          )}
         </div>
       </Dato>
 
