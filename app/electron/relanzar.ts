@@ -260,3 +260,48 @@ export function crearRelanzador(x: {
     },
   };
 }
+
+/**
+ * La huella de lo que tiene cargado el proceso de la ventana: `main` (el `dist-electron/main.js` y todo lo que importa,
+ * de una o con `import()`, siguiendo los `./x.js` relativos) y `preload` (`preload.cjs`). La página (`dist/`) no entra:
+ * ésa se toma con recargar. `null` en la que no se pudo leer (falta un archivo, build a medias).
+ */
+export type HuellaProceso = { main: string | null; preload: string | null };
+
+const IMPORTA = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)["'](\.\.?\/[^"']+)["']/g;
+
+/** Hash del archivo y de todo lo relativo que importa (en orden estable). `null` si alguno no se puede leer. */
+export function huellaDeModulo(archivo: string): string | null {
+  try {
+    const vistos = new Set<string>();
+    const pendientes = [path.resolve(archivo)];
+    while (pendientes.length) {
+      const f = pendientes.pop()!;
+      if (vistos.has(f)) continue;
+      vistos.add(f);
+      const texto = readFileSync(f, "utf8");
+      for (const m of texto.matchAll(IMPORTA)) pendientes.push(path.resolve(path.dirname(f), m[1]));
+    }
+    const h = createHash("sha256");
+    for (const f of [...vistos].sort()) h.update(`${f}\n`).update(readFileSync(f));
+    return h.digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+export function huellaProceso(raiz: string): HuellaProceso {
+  const dir = path.join(raiz, "dist-electron");
+  return { main: huellaDeModulo(path.join(dir, "main.js")), preload: huellaDeModulo(path.join(dir, "preload.cjs")) };
+}
+
+/**
+ * Un build nuevo: si el proceso de la ventana (main y preload, `huellaProceso`) es el mismo que cargó al arrancar, alcanza
+ * con recargar la página (cambió sólo la interfaz); si cambió, o alguna huella no se pudo leer, se relanza el proceso.
+ * Ante la duda, siempre relanzar.
+ */
+export function tomarBuild(antes: HuellaProceso | null, ahora: HuellaProceso | null): "recargar" | "relanzar" {
+  if (!antes || !ahora) return "relanzar";
+  if (antes.main === null || antes.preload === null || ahora.main === null || ahora.preload === null) return "relanzar";
+  return antes.main === ahora.main && antes.preload === ahora.preload ? "recargar" : "relanzar";
+}
