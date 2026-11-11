@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.73
+
+- Contexto del modelo local: «Opciones para más contexto» (MTP, precisión del KV, KV en RAM, capas en la GPU) y el botón «Máximo contexto», hasta 262144 tokens, con la RAM que usa.
+
 ## 0.2.72
 
 - «Actualizar» del aviso de Trama nueva anda también desde otra máquina por la tailnet (antes decía que sólo se podía desde la computadora). Hace falta que esa máquina ya tenga esta versión.

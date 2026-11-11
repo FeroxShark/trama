@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.73
+
+- Local model context: "More context options" (MTP, KV precision, KV in RAM, GPU layers) and the "Maximum context" button, up to 262144 tokens, with the RAM it uses.
+
 ## 0.2.72
 
 - "Update" in the new Trama notice also works from another machine over the tailnet (before it said it could only be done from the computer). That machine needs to already have this version.
