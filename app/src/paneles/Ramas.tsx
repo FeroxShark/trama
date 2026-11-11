@@ -15,6 +15,7 @@ import { Brush, Check, ChevronDown, CircleCheck, CircleHelp, CircleX, Eye, GitMe
 import { RESORTE } from "../barra/Fila";
 import { Reloj, tareaDe, tipoDe } from "../barra/piezas";
 import { errorCorto } from "../barra/arbol";
+import { tituloTarea } from "../../electron/titulo-tarea";
 import type { Estado, Hilo, Lider } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { fuentePaneles, type AccionRama, type EstadoAuto, type EstadoSalud } from "../datos/paneles";
@@ -727,7 +728,7 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
     >
       <div className="pn-rama-txt">
         <button type="button" className="pn-tarea" data-id={h.id} data-tip={tr("ramas.abrir")} onClick={() => alAbrir(h.id)}>
-          {tareaDe(h)}
+          {h.titulo || tituloTarea(h.tarea) || tareaDe(h)}
         </button>
         <div className="pn-chips">
           {t ? (
