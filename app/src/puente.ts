@@ -121,8 +121,8 @@ type Main = {
   /** Los modelos locales (electron/locales.ts): su contexto, la cuenta de la VRAM y Probar (carga el modelo de verdad). */
   locales: {
     leer(): Promise<EstadoLocales>;
-    guardar(x: { id: string; ctx: number }): Promise<EstadoLocales>;
-    probar(x: { id: string; ctx: number }): Promise<ResultadoProbar>;
+    guardar(x: { id: string; ctx: number; opciones?: import("../electron/locales-calc").Opciones }): Promise<EstadoLocales>;
+    probar(x: { id: string; ctx: number; opciones?: import("../electron/locales-calc").Opciones }): Promise<ResultadoProbar>;
     /** Lo que hay instalado o andando en esta máquina (sólo se lee). */
     detectar(): Promise<ResultadoDeteccion>;
     /** Prende el servicio de un modelo detectado (ocupa la GPU): sólo con el clic, la ventana ya pidió confirmar. */

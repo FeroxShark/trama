@@ -10,20 +10,29 @@ import {
   ctxFijoDeUnit,
   ctxQueEntra,
   ctxValido,
+  entraEnRam,
   envDe,
   estadoDeShow,
   estimar,
   kvBytesPorToken,
   libreMiB,
+  mejorCombinacion,
   MIB,
+  MTP_MIB_DEFECTO,
   motivoDeLog,
   nCtxDe,
   necesitaMiB,
+  OPCIONES_DEFECTO,
+  opcionesDeEnv,
+  opcionesValidas,
   parsearApps,
   parsearMemoria,
+  parsearMeminfo,
+  ramNecesitaMiB,
   seCayo,
   type CuentaModelo,
   type Gpu,
+  type Opciones,
 } from "../electron/locales-calc.ts";
 
 const KV_GRANDE = kvBytesPorToken({ capas: 17, kvHeads: 4, dimK: 256, dimV: 256, bytesPorElemento: BYTES_Q8_0 });
@@ -161,7 +170,126 @@ test("env de la unit: se escribe y se lee igual", () => {
   assert.equal(ctxDeEnv(envDe(131072)), 131072);
   assert.equal(ctxDeEnv("# nada\n"), null);
   assert.equal(ctxDeEnv("LLAMA_CTX=abc\n"), null);
-  assert.ok(envDe(4096).endsWith("LLAMA_CTX=4096\n"));
+  assert.ok(envDe(4096).includes("LLAMA_CTX=4096\n"));
+});
+
+test("env de la unit: escribe siempre las 5 variables y se leen igual", () => {
+  const o: Opciones = { mtp: false, kv: "q4_0", kvRam: true, ngl: 40 };
+  const texto = envDe(262144, o);
+  for (const l of ["LLAMA_CTX=262144", "LLAMA_MTP=0", "LLAMA_KV=q4_0", "LLAMA_KV_RAM=1", "LLAMA_NGL=40"]) assert.ok(texto.split("\n").includes(l), l);
+  assert.deepEqual(opcionesDeEnv(texto), o);
+  // Con los valores por defecto también van las cinco.
+  const defecto = envDe(32768);
+  for (const l of ["LLAMA_CTX=32768", "LLAMA_MTP=1", "LLAMA_KV=q8_0", "LLAMA_KV_RAM=0", "LLAMA_NGL=99"]) assert.ok(defecto.split("\n").includes(l), l);
+  assert.deepEqual(opcionesDeEnv(defecto), OPCIONES_DEFECTO);
+});
+
+test("env de la unit: conserva las otras líneas y cambia las cinco en su lugar, sin duplicar", () => {
+  const previo = "# a mano\nLLAMA_CTX=1000\nOTRA=1\nLLAMA_KV=f16\nLLAMA_KV=q8_0\n# fin\n";
+  const texto = envDe(8192, { mtp: true, kv: "q4_0", kvRam: false, ngl: 99 }, previo);
+  const l = texto.trimEnd().split("\n");
+  assert.equal(l[0], "# a mano");
+  assert.equal(l[1], "LLAMA_CTX=8192");
+  assert.equal(l[2], "OTRA=1");
+  assert.equal(l[3], "LLAMA_KV=q4_0");
+  assert.equal(l[4], "# fin");
+  assert.equal(l.filter((x) => x.startsWith("LLAMA_KV=")).length, 1);
+  assert.deepEqual(l.slice(5), ["LLAMA_MTP=1", "LLAMA_KV_RAM=0", "LLAMA_NGL=99"]);
+});
+
+test("opciones: lo que falta o no se entiende del env vale el default", () => {
+  assert.deepEqual(opcionesDeEnv("LLAMA_CTX=4096\n"), OPCIONES_DEFECTO);
+  assert.deepEqual(opcionesDeEnv("LLAMA_MTP=si\nLLAMA_KV=q2\nLLAMA_KV_RAM=x\nLLAMA_NGL=-3\n"), OPCIONES_DEFECTO);
+  assert.equal(opcionesDeEnv("LLAMA_NGL=200\n").ngl, 99);
+  assert.deepEqual(opcionesValidas({ mtp: "no", kv: 3 }), OPCIONES_DEFECTO);
+});
+
+// ---------- las opciones en la cuenta ----------
+
+const GPU24: Gpu = { totalMiB: 24576, usadoMiB: 1500, llamaMiB: 0, consumidores: [] };
+const RAM64 = { totalMiB: 65536, libreMiB: 40960 };
+
+test("opciones por defecto: la cuenta es la de siempre (la RAM no entra)", () => {
+  const a = estimar(GPU24, GRANDE);
+  const b = estimar(GPU24, GRANDE, undefined, OPCIONES_DEFECTO, RAM64);
+  assert.equal(b.maxCtx, a.maxCtx);
+  assert.equal(b.maxCtxSinReservas, a.maxCtxSinReservas);
+  assert.equal(b.modeloMiB, a.modeloMiB);
+  assert.equal(b.ramPesosMiB, 0);
+  assert.equal(b.ramKvMiBPorK, 0);
+});
+
+test("sin MTP resta el borrador de la VRAM y entra más contexto", () => {
+  const con = estimar(GPU24, GRANDE);
+  const sin = estimar(GPU24, GRANDE, undefined, { ...OPCIONES_DEFECTO, mtp: false });
+  assert.equal(con.modeloMiB - sin.modeloMiB, MTP_MIB_DEFECTO);
+  assert.ok(sin.maxCtx > con.maxCtx);
+  // El peso del borrador sale del modelo (`mtpMiB`); 0 = el modelo no tiene.
+  const sinBorrador = estimar(GPU24, { ...GRANDE, mtpMiB: 0 }, undefined, { ...OPCIONES_DEFECTO, mtp: false });
+  assert.equal(sinBorrador.modeloMiB, con.modeloMiB);
+});
+
+test("el KV en q4_0 pesa menos de la mitad que en q8_0 y en f16 casi el doble", () => {
+  const q8 = estimar(GPU24, GRANDE).kvMiBPorK;
+  const q4 = estimar(GPU24, GRANDE, undefined, { ...OPCIONES_DEFECTO, kv: "q4_0" }).kvMiBPorK;
+  const f16 = estimar(GPU24, GRANDE, undefined, { ...OPCIONES_DEFECTO, kv: "f16" }).kvMiBPorK;
+  assert.ok(Math.abs(q4 / q8 - 18 / 34) < 1e-9);
+  assert.ok(Math.abs(f16 / q8 - 64 / 34) < 1e-9);
+  assert.ok(estimar(GPU24, GRANDE, undefined, { ...OPCIONES_DEFECTO, kv: "q4_0" }).maxCtx > estimar(GPU24, GRANDE).maxCtx);
+  assert.ok(estimar(GPU24, GRANDE, undefined, { ...OPCIONES_DEFECTO, kv: "f16" }).maxCtx < estimar(GPU24, GRANDE).maxCtx);
+});
+
+test("KV en RAM: sale de la VRAM y se cuenta contra la RAM libre", () => {
+  const e = estimar(GPU24, GRANDE, undefined, { ...OPCIONES_DEFECTO, kvRam: true }, RAM64);
+  const base = estimar(GPU24, GRANDE);
+  assert.equal(e.kvMiBPorK, 0);
+  assert.ok(Math.abs(e.ramKvMiBPorK - base.kvMiBPorK) < 1e-9);
+  // Con 40 GB libres de RAM (menos el margen) llega al tope del modelo; con 4 GB, no.
+  assert.equal(e.maxCtxSinReservas, GRANDE.ctxMax);
+  const poca = estimar(GPU24, GRANDE, undefined, { ...OPCIONES_DEFECTO, kvRam: true }, { totalMiB: 8192, libreMiB: 4096 });
+  assert.ok(poca.maxCtxSinReservas < GRANDE.ctxMax);
+  assert.ok(poca.maxCtxSinReservas > 0);
+  assert.ok(ramNecesitaMiB(poca, poca.maxCtxSinReservas) <= 4096 - 1024);
+  assert.ok(entraEnRam(poca, poca.maxCtxSinReservas));
+  assert.ok(!entraEnRam(poca, GRANDE.ctxMax));
+  // Sin dato de RAM no se limita (no se sabe).
+  assert.equal(estimar(GPU24, GRANDE, undefined, { ...OPCIONES_DEFECTO, kvRam: true }, null).maxCtxSinReservas, GRANDE.ctxMax);
+  assert.ok(entraEnRam(estimar(GPU24, GRANDE), GRANDE.ctxMax));
+});
+
+test("capas en la GPU: la parte proporcional de los pesos y del KV pasa a la RAM", () => {
+  const todas = estimar(GPU24, GRANDE, undefined, OPCIONES_DEFECTO, RAM64);
+  const mitad = estimar(GPU24, { ...GRANDE, capasTotal: 64 }, undefined, { ...OPCIONES_DEFECTO, ngl: 32 }, RAM64);
+  const principal = GRANDE.pesosMiB - MTP_MIB_DEFECTO;
+  assert.ok(Math.abs(mitad.pesosGpuMiB - (principal / 2 + MTP_MIB_DEFECTO)) < 1e-6);
+  assert.ok(Math.abs(mitad.ramPesosMiB - principal / 2) < 1e-6);
+  assert.ok(Math.abs(mitad.kvMiBPorK - todas.kvMiBPorK / 2) < 1e-9);
+  assert.ok(Math.abs(mitad.ramKvMiBPorK - todas.kvMiBPorK / 2) < 1e-9);
+  // 99 y cualquier número de capas de más es "todas".
+  assert.equal(estimar(GPU24, GRANDE, undefined, { ...OPCIONES_DEFECTO, ngl: 65 }, RAM64).ramPesosMiB, 0);
+  // Los pesos en RAM descuentan lo que queda para el KV.
+  assert.ok(mitad.ramSobraMiB! < RAM64.libreMiB - 1024);
+});
+
+test("RAM disponible de /proc/meminfo", () => {
+  const r = parsearMeminfo("MemTotal:       65857348 kB\nMemFree:         1000000 kB\nMemAvailable:   41943040 kB\n");
+  assert.deepEqual(r, { totalMiB: 64314, libreMiB: 40960 });
+  assert.equal(parsearMeminfo("nada"), null);
+});
+
+test("mejorCombinacion: la más rápida que entra; si no hay, null", () => {
+  // Lo que entra sin tocar nada: se queda con los valores por defecto.
+  assert.deepEqual(mejorCombinacion(GPU24, GRANDE, RAM64, 16384), OPCIONES_DEFECTO);
+  // A 262144 hay que dar: la elegida entra, y ninguna de las más rápidas que ella entraba.
+  const o = mejorCombinacion(GPU24, GRANDE, RAM64, 262144)!;
+  assert.ok(o, "con 40 GB de RAM libres a 256K entra con alguna combinación");
+  assert.ok(estimar(GPU24, GRANDE, undefined, o, RAM64).maxCtxSinReservas >= 262144);
+  assert.ok(estimar(GPU24, GRANDE).maxCtxSinReservas < 262144);
+  // Sin RAM suficiente ni con todo: ninguna.
+  assert.equal(mejorCombinacion(GPU24, GRANDE, { totalMiB: 4096, libreMiB: 2048 }, 262144), null);
+  // Sin GPU libre para ni los pesos, ninguna sirve con las capas completas, y las capas en RAM necesitan RAM.
+  const llena: Gpu = { totalMiB: 24576, usadoMiB: 23000, llamaMiB: 0, consumidores: [] };
+  assert.equal(mejorCombinacion(llena, GRANDE, { totalMiB: 8192, libreMiB: 4096 }, 262144), null);
 });
 
 test("nCtxDe: /props de llama-server", () => {

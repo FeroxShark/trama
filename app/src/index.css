@@ -5955,6 +5955,8 @@ summary.sis-div-t:hover,
   .pbtn,
   .cl-num,
   .cl-rango,
+  .cl-seg-b,
+  .cl-av-h,
   .dic-b,
   .modo,
   .buscar,
@@ -6896,4 +6898,140 @@ button.mcx-main:hover {
   .pide-plega {
     min-height: 2.75rem;
   }
+}
+
+/* Las opciones para llegar a mucho contexto (MTP, KV, KV en RAM, capas en la GPU) dentro del detalle del contexto local. */
+.cl-av {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  padding-top: var(--esp-1-5);
+  border-top: 1px solid var(--borde-2);
+}
+.cl-av-h {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  text-align: left;
+}
+.cl-av-h:hover {
+  color: var(--texto-1);
+}
+.cl-av-fl {
+  flex: none;
+}
+.cl-av-h[aria-expanded="true"] .cl-av-fl {
+  rotate: 90deg;
+}
+.cl-av-res {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cl-av-c {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.cl-maxctx {
+  align-self: flex-start;
+}
+/* Una opción: su control y su nombre en una fila, la ayuda abajo (siempre visible: no hay que adivinar qué hace). */
+.cl-op {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: var(--esp-2);
+  row-gap: var(--esp-0-5);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--texto-3);
+}
+.cl-op > .cl-op-t {
+  grid-column: 2;
+  grid-row: 1;
+}
+.cl-op > .cl-chk {
+  grid-column: 1;
+  grid-row: 1;
+}
+.cl-op > .cl-op-a {
+  grid-column: 2;
+  grid-row: 2;
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+  line-height: 1.35;
+}
+/* Sin casilla (el KV y las capas): el nombre arriba a lo ancho y el control debajo. */
+.cl-op:not(:has(> .cl-chk)) {
+  grid-template-columns: 1fr;
+}
+.cl-op:not(:has(> .cl-chk)) > :is(.cl-op-t, .cl-seg, .cl-ngl, .cl-op-a) {
+  grid-column: 1;
+  grid-row: auto;
+}
+.cl-chk {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  margin: 0;
+  accent-color: var(--verde-suave);
+}
+.cl-seg {
+  display: inline-flex;
+  align-self: start;
+  width: max-content;
+  padding: var(--esp-0-5);
+  border-radius: var(--radio-3);
+  background: var(--sup-0);
+}
+.cl-seg-b {
+  height: 1.375rem;
+  padding: 0 var(--esp-2);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-5);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+}
+.cl-seg-b:hover:not(:disabled) {
+  color: var(--texto-1);
+}
+.cl-seg-b[aria-pressed="true"] {
+  background: var(--sup-3);
+  color: var(--texto-1);
+  font-weight: 600;
+}
+.cl-seg-b:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.cl-ngl {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.cl-ngl .cl-rango {
+  flex: 1;
+}
+.cl-ngl-v {
+  flex: none;
+  min-width: 3.5rem;
+  color: var(--texto-3);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }

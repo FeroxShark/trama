@@ -83,6 +83,8 @@ type Opciones = {
   sinConmutador?: boolean;
   /** Las units instaladas: nombre → texto (en HOME/.config/systemd/user). */
   units?: Record<string, string>;
+  /** El `/proc/meminfo` de la máquina (sin esto se lee el de verdad). */
+  meminfo?: string;
 };
 
 async function entorno(opts: Opciones = {}) {
@@ -125,7 +127,7 @@ async function entorno(opts: Opciones = {}) {
       }
       return "";
     },
-    leer: async (f) => readFile(f, "utf8").catch(() => null),
+    leer: async (f) => (f === "/proc/meminfo" && opts.meminfo ? opts.meminfo : readFile(f, "utf8").catch(() => null)),
     tamano: async () => null,
     escribir: async (f, t) => {
       await mkdir(path.dirname(f), { recursive: true });
@@ -174,6 +176,18 @@ test("sin locales.json no hay ningún local de llama-server", async () => {
   } finally {
     await e.limpiar();
   }
+});
+
+test("locales.json: mtpMiB y capasTotal son opcionales y se validan", () => {
+  const base = LOCALES_JSON.modelos[1];
+  const de = (extra: object) => parsearLocales(JSON.stringify({ version: 1, modelos: [{ ...base, ...extra }] })).modelos;
+  assert.equal(de({}).length, 1);
+  assert.equal(de({}).at(0)?.mtpMiB, undefined);
+  assert.equal(de({ mtpMiB: 1500, capasTotal: 48 }).at(0)?.mtpMiB, 1500);
+  assert.equal(de({ mtpMiB: 0 }).at(0)?.mtpMiB, 0);
+  assert.equal(de({ capasTotal: 48 }).at(0)?.capasTotal, 48);
+  assert.equal(de({ mtpMiB: "1500" }).length, 0);
+  assert.equal(de({ capasTotal: 0 }).length, 0);
 });
 
 test("locales.json: lo que no se entiende descarta esa entrada y no a las demás", () => {
@@ -258,13 +272,79 @@ test("guardar: escribe LLAMA_CTX y el contextWindow de dsh, y no carga nada (ni 
   const e = await entorno();
   try {
     const r = await guardarLocal({ id: "modelo-local-ejemplo", ctx: 98304 }, e.d);
-    assert.equal(await readFile(e.archivoEnv, "utf8"), "# Lo escribe trama (Contexto del modelo local): lo lee la unit con EnvironmentFile.\nLLAMA_CTX=98304\n");
+    assert.equal(await readFile(e.archivoEnv, "utf8"), "# Lo escribe trama (Contexto del modelo local): lo lee la unit con EnvironmentFile.\nLLAMA_CTX=98304\nLLAMA_MTP=1\nLLAMA_KV=q8_0\nLLAMA_KV_RAM=0\nLLAMA_NGL=99\n");
     const yaml = await readFile(e.dsh, "utf8");
     assert.ok(yaml.includes("contextWindow: 98304 # = el -c"));
     assert.ok(yaml.includes("contextWindow: 65536"));
     assert.equal(r.modelos[0].ctx, 98304);
     assert.equal(r.modelos[0].dsh, 98304);
     assert.ok(e.llamadas.every((l) => l.bin.endsWith("nvidia-smi")), "sólo mide la GPU");
+  } finally {
+    await e.limpiar();
+  }
+});
+
+const MEMINFO_64G = "MemTotal:       67108864 kB\nMemAvailable:   41943040 kB\n";
+const MEMINFO_6G = "MemTotal:       8388608 kB\nMemAvailable:   6291456 kB\n";
+
+test("guardar con opciones: escribe las 5 variables y conserva las otras líneas del env", async () => {
+  const e = await entorno({ meminfo: MEMINFO_64G });
+  try {
+    await mkdir(path.dirname(e.archivoEnv), { recursive: true });
+    await writeFile(e.archivoEnv, "# mío\nOTRA=1\nLLAMA_CTX=4096\n");
+    const r = await guardarLocal({ id: "modelo-local-ejemplo", ctx: 262144, opciones: { mtp: false, kv: "q4_0", kvRam: true, ngl: 99 } }, e.d);
+    assert.equal(await readFile(e.archivoEnv, "utf8"), "# mío\nOTRA=1\nLLAMA_CTX=262144\nLLAMA_MTP=0\nLLAMA_KV=q4_0\nLLAMA_KV_RAM=1\nLLAMA_NGL=99\n");
+    assert.deepEqual(r.modelos[0].opciones, { mtp: false, kv: "q4_0", kvRam: true, ngl: 99 });
+    assert.equal(r.modelos[0].ctx, 262144);
+    // Con el KV en RAM el máximo es el del modelo; la RAM sale de /proc/meminfo.
+    assert.equal(r.modelos[0].est?.maxCtxSinReservas, 262144);
+    assert.equal(r.modelos[0].ram?.libreMiB, 40960);
+    assert.ok(r.modelos[0].gpu && r.modelos[0].cuenta);
+    // Sin opciones en el pedido (otro cliente) se conservan las guardadas.
+    const r2 = await guardarLocal({ id: "modelo-local-ejemplo", ctx: 131072 }, e.d);
+    assert.deepEqual(r2.modelos[0].opciones, { mtp: false, kv: "q4_0", kvRam: true, ngl: 99 });
+    assert.ok((await readFile(e.archivoEnv, "utf8")).includes("LLAMA_CTX=131072\n"));
+    // Opciones raras vuelven al default, no se rechazan.
+    const r3 = await guardarLocal({ id: "modelo-local-ejemplo", ctx: 131072, opciones: { mtp: 7, kv: "q2", ngl: -1 } }, e.d);
+    assert.deepEqual(r3.modelos[0].opciones, { mtp: true, kv: "q8_0", kvRam: false, ngl: 99 });
+  } finally {
+    await e.limpiar();
+  }
+});
+
+test("probar con opciones: si el KV en RAM no entra en la RAM, falla al toque sin tocar el env ni la unit", async () => {
+  const e = await entorno({ meminfo: MEMINFO_6G });
+  try {
+    const r = await probarLocal({ id: "modelo-local-ejemplo", ctx: 262144, opciones: { mtp: true, kv: "q8_0", kvRam: true, ngl: 99 } }, e.d);
+    assert.equal(r.ok, false);
+    assert.match(r.error ?? "", /localSinRam/);
+    assert.deepEqual(e.acciones(), []);
+    assert.equal(await readFile(e.archivoEnv, "utf8").catch(() => null), null);
+  } finally {
+    await e.limpiar();
+  }
+});
+
+test("probar con opciones: las escribe en el env, y si no carga vuelven las de antes", async () => {
+  const e = await entorno({ meminfo: MEMINFO_64G, nCtx: () => 4096 });
+  try {
+    await guardarLocal({ id: "modelo-local-ejemplo", ctx: 32768, opciones: { mtp: true, kv: "f16", kvRam: false, ngl: 99 } }, e.d);
+    const antes = await readFile(e.archivoEnv, "utf8");
+    const r = await probarLocal({ id: "modelo-local-ejemplo", ctx: 65536, opciones: { mtp: false, kv: "q4_0", kvRam: true, ngl: 99 } }, e.d);
+    assert.equal(r.ok, false, "llama-server contestó otro n_ctx");
+    assert.equal(await readFile(e.archivoEnv, "utf8"), antes);
+  } finally {
+    await e.limpiar();
+  }
+});
+
+test("probar con opciones: si cargó, quedan guardadas en el env", async () => {
+  const e = await entorno({ meminfo: MEMINFO_64G });
+  try {
+    const r = await probarLocal({ id: "modelo-local-ejemplo", ctx: 65536, opciones: { mtp: false, kv: "q4_0", kvRam: false, ngl: 99 } }, e.d);
+    assert.equal(r.ok, true);
+    const env = await readFile(e.archivoEnv, "utf8");
+    for (const l of ["LLAMA_CTX=65536", "LLAMA_MTP=0", "LLAMA_KV=q4_0", "LLAMA_KV_RAM=0", "LLAMA_NGL=99"]) assert.ok(env.split("\n").includes(l), l);
   } finally {
     await e.limpiar();
   }

@@ -2,7 +2,7 @@
 // (y `HILOS_FIXTURES=1`). Todo inventado: proyectos, ids, tareas y ramas.
 // Los tiempos son relativos al momento de carga para que la barra siempre se
 // vea "viva" (un caché a 47 min, otro por vencer, uno trabajando hace 38 s).
-import { BYTES_Q8_0, estimar, kvBytesPorToken } from "../../electron/locales-calc";
+import { BYTES_Q8_0, estimar, kvBytesPorToken, OPCIONES_DEFECTO, type Opciones } from "../../electron/locales-calc";
 import type { EstadoLocales, LocalInfo } from "../../electron/locales";
 import type { EstadoVram, ResultadoLiberar } from "../../electron/vram";
 import { MODO } from "../modo";
@@ -1546,8 +1546,10 @@ export const LLAMA_FIJOS = [
   { id: "modelo-local-chico", nombre: "Modelo local chico", empresa: "Otra empresa de ejemplo" },
 ];
 const LOCALES_CTX: Record<string, number> = { "modelo-local-ejemplo": 32768, "modelo-local-chico": 65536 };
-export function localesFalsos(id?: string, ctx?: number): EstadoLocales {
+const LOCALES_OPC: Record<string, Opciones> = {};
+export function localesFalsos(id?: string, ctx?: number, opciones?: Opciones): EstadoLocales {
   if (id && ctx) LOCALES_CTX[id] = ctx;
+  if (id && opciones) LOCALES_OPC[id] = opciones;
   // `HILOS_VARIANTE=vram`: la GPU casi llena con los servicios de `vramFalsa` (el modelo grande no entra: el aviso con qué liberar).
   const conVram = MODO.variante === "vram";
   const gpu = {
@@ -1560,17 +1562,27 @@ export function localesFalsos(id?: string, ctx?: number): EstadoLocales {
     ],
   };
   const forma = { kvHeads: 4, dimK: 256, dimV: 256, bytesPorElemento: BYTES_Q8_0 };
-  const fila = (id: string, pesosMiB: number, capas: number): LocalInfo => ({
-    id,
-    ctx: LOCALES_CTX[id],
-    dsh: LOCALES_CTX[id],
-    ctxMin: 4096,
-    ctxMax: 262144,
-    paso: 1024,
-    pesosMiB,
-    ctxFijo: null,
-    est: estimar(gpu, { pesosMiB, fijoMiB: 2048, kvBytesPorToken: kvBytesPorToken({ capas, ...forma }), ctxMin: 4096, ctxMax: 262144, paso: 1024 }),
-  });
+  // La RAM de muestra: 64 GB con 40 libres.
+  const ram = { totalMiB: 65536, libreMiB: 40960 };
+  const fila = (id: string, pesosMiB: number, capas: number): LocalInfo => {
+    const cuenta = { pesosMiB, fijoMiB: 2048, kvBytesPorToken: kvBytesPorToken({ capas, ...forma }), ctxMin: 4096, ctxMax: 262144, paso: 1024 };
+    const opciones = LOCALES_OPC[id] ?? OPCIONES_DEFECTO;
+    return {
+      id,
+      ctx: LOCALES_CTX[id],
+      dsh: LOCALES_CTX[id],
+      ctxMin: 4096,
+      ctxMax: 262144,
+      paso: 1024,
+      pesosMiB,
+      ctxFijo: null,
+      opciones,
+      est: estimar(gpu, cuenta, undefined, opciones, ram),
+      gpu,
+      cuenta,
+      ram,
+    };
+  };
   return { gpuMiB: gpu.totalMiB, modelos: [fila("modelo-local-ejemplo", 17955, 17), fila("modelo-local-chico", 6873, 16)] };
 }
 

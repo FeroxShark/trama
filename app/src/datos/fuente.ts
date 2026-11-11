@@ -5,6 +5,7 @@ import type { Subagente, Subagentes } from "../../electron/subagentes";
 import { archivoVistoDe, tipoDeArchivo, type ArchivoVisto } from "../../electron/archivo-ruta";
 import { salidaDe, type SalidaTarea } from "../hilo/fondo-logica";
 import { imagenDe, type Imagen } from "../../electron/imagenes";
+import { estimar, type Opciones } from "../../electron/locales-calc";
 import type { EstadoLocales, ResultadoProbar } from "../../electron/locales";
 import type { ModeloDetectado, ResultadoDeteccion, ServidorLocal } from "../../electron/locales-deteccion";
 import type { EstadoVram, ResultadoLiberar } from "../../electron/vram";
@@ -154,9 +155,9 @@ export interface Fuente {
   prenderLocal(unit: string): Promise<{ ok: boolean; error?: string }>;
   apagarLocal(unit: string): Promise<{ ok: boolean; error?: string }>;
   /** Guarda el `-c` de un modelo local (rige en su próxima carga; no carga nada). */
-  guardarLocal(id: string, ctx: number): Promise<EstadoLocales>;
+  guardarLocal(id: string, ctx: number, opciones?: Opciones): Promise<EstadoLocales>;
   /** Carga el modelo con ese `-c` para confirmar que entra (usa la GPU: sólo con el clic del usuario). */
-  probarLocal(id: string, ctx: number): Promise<ResultadoProbar>;
+  probarLocal(id: string, ctx: number, opciones?: Opciones): Promise<ResultadoProbar>;
   /** Lo que se puede liberar de la GPU (la CLI `vram`): no toca nada. */
   vram(): Promise<EstadoVram>;
   /** Para o reinicia UN servicio de los que lista `vram()` (sólo con el clic y su confirmación del usuario). */
@@ -1876,15 +1877,16 @@ const fija: Fuente = {
     unitsFalsas.set(unit, false);
     return { ok: true };
   },
-  async guardarLocal(id, ctx) {
-    localesFalsos(id, ctx);
+  async guardarLocal(id, ctx, opciones) {
+    localesFalsos(id, ctx, opciones);
     return localesFalsos();
   },
-  async probarLocal(id, ctx) {
-    // Nunca carga nada: dice que entra si cabe en la cuenta de las fixtures.
+  async probarLocal(id, ctx, opciones) {
+    // Nunca carga nada: dice que entra si cabe en la cuenta de las fixtures (con las opciones pedidas).
     const l = localesFalsos().modelos.find((m) => m.id === id);
-    const entra = !!l?.est && ctx <= l.est.maxCtx;
-    if (entra) localesFalsos(id, ctx);
+    const est = l?.gpu && opciones ? estimar(l.gpu, l.cuenta, undefined, opciones, l.ram) : l?.est;
+    const entra = !!est && ctx <= est.maxCtx;
+    if (entra) localesFalsos(id, ctx, opciones);
     return entra
       ? { ok: true, nCtx: ctx, usadoMiB: 22400, total: 24576, error: null }
       : { ok: false, nCtx: null, usadoMiB: null, total: null, error: "\u0001i18n:main.localNoCargo\u0001{\"motivo\":\"out of memory\"}\u0001" };
@@ -2637,13 +2639,13 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
       throw new Error(mensaje(e));
     });
   },
-  guardarLocal(id, ctx) {
-    return m.locales.guardar({ id, ctx }).catch((e) => {
+  guardarLocal(id, ctx, opciones) {
+    return m.locales.guardar({ id, ctx, opciones }).catch((e) => {
       throw new Error(mensaje(e));
     });
   },
-  probarLocal(id, ctx) {
-    return m.locales.probar({ id, ctx }).catch((e) => {
+  probarLocal(id, ctx, opciones) {
+    return m.locales.probar({ id, ctx, opciones }).catch((e) => {
       throw new Error(mensaje(e));
     });
   },

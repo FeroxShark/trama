@@ -30,12 +30,20 @@ import {
   MIB,
   motivoDeLog,
   nCtxDe,
+  opcionesDeEnv,
+  parsearMeminfo,
+  entraEnRam,
+  opcionesValidas,
+  ramNecesitaMiB,
   parsearApps,
   parsearMemoria,
   seCayo,
   type CuentaModelo,
   type EstadoUnit,
   type Estimacion,
+  type Gpu,
+  type Opciones,
+  type Ram,
 } from "./locales-calc.ts";
 import { escribirAtomico } from "./pa.ts";
 import { leerConfigLocales, localDe, localesDeclarados, type LocalDef } from "./locales-config.ts";
@@ -58,8 +66,14 @@ export type LocalInfo = {
   ctxMin: number;
   ctxMax: number;
   paso: number;
-  /** La cuenta con la GPU de ahora (null si `nvidia-smi` no contesta). */
+  /** Las opciones guardadas en el env (MTP, KV, KV en RAM, capas en GPU); sin env, las de por defecto. */
+  opciones: Opciones;
+  /** La cuenta con la GPU de ahora y las opciones guardadas (null si `nvidia-smi` no contesta). */
   est: Estimacion | null;
+  /** Lo que hace falta para rehacer la cuenta en la ventana con otras opciones (sin pedirla de nuevo): la GPU, el modelo y la RAM. */
+  gpu: Gpu | null;
+  cuenta: CuentaModelo;
+  ram: Ram | null;
   /** El tamaño de los pesos usado, y si se midió en disco. */
   pesosMiB: number;
   /**
@@ -171,12 +185,29 @@ async function leerGpu(d: Deps) {
   }
 }
 
-async function infoDe(l: LocalDef, d: Deps, gpu: Awaited<ReturnType<typeof leerGpu>>): Promise<LocalInfo> {
-  const guardado = ctxDeEnv((await d.leer(archivoEnv(d, l))) ?? "");
+/** La RAM libre y total de esta máquina (`/proc/meminfo`); null si no se lee. */
+async function leerRam(d: Deps): Promise<Ram | null> {
+  return parsearMeminfo((await d.leer("/proc/meminfo")) ?? "");
+}
+
+async function infoDe(l: LocalDef, d: Deps, gpu: Awaited<ReturnType<typeof leerGpu>>, ram: Ram | null = null, probando?: Opciones): Promise<LocalInfo> {
+  const textoEnv = (await d.leer(archivoEnv(d, l))) ?? "";
+  const guardado = ctxDeEnv(textoEnv);
+  const opciones = probando ?? opcionesDeEnv(textoEnv);
   const ctx = guardado != null ? (ctxValido(guardado, l.ctxMin, l.ctxMax) ?? l.ctxDefecto) : l.ctxDefecto;
   const yaml = await d.leer(archivoDsh(d));
   const pesosMiB = await pesosDe(l, d);
-  const cuenta: CuentaModelo = { pesosMiB, fijoMiB: l.fijoMiB, kvBytesPorToken: kvBytesPorToken({ capas: l.capasKv, ...KV }), ctxMin: l.ctxMin, ctxMax: l.ctxMax, paso: l.paso };
+  const cuenta: CuentaModelo = {
+    pesosMiB,
+    fijoMiB: l.fijoMiB,
+    kvBytesPorToken: kvBytesPorToken({ capas: l.capasKv, ...KV }),
+    ctxMin: l.ctxMin,
+    ctxMax: l.ctxMax,
+    paso: l.paso,
+    ...(l.mtpMiB != null ? { mtpMiB: l.mtpMiB } : {}),
+    ...(l.capasTotal != null ? { capasTotal: l.capasTotal } : {}),
+  };
+  const g = gpu ? { totalMiB: gpu.totalMiB, usadoMiB: gpu.usadoMiB, llamaMiB: gpu.llamaMiB, consumidores: gpu.consumidores } : null;
   return {
     id: l.id,
     ctx,
@@ -184,7 +215,11 @@ async function infoDe(l: LocalDef, d: Deps, gpu: Awaited<ReturnType<typeof leerG
     ctxMin: l.ctxMin,
     ctxMax: l.ctxMax,
     paso: l.paso,
-    est: gpu ? estimar({ totalMiB: gpu.totalMiB, usadoMiB: gpu.usadoMiB, llamaMiB: gpu.llamaMiB, consumidores: gpu.consumidores }, cuenta) : null,
+    opciones,
+    est: g ? estimar(g, cuenta, undefined, opciones, ram) : null,
+    gpu: g,
+    cuenta,
+    ram,
     pesosMiB,
     ctxFijo: await ctxFijo(l, d),
   };
@@ -198,25 +233,28 @@ async function ctxFijo(l: LocalDef, d: Deps): Promise<number | null> {
 
 export async function leerLocales(d: Deps = depsDeVerdad()): Promise<EstadoLocales> {
   const gpu = await leerGpu(d);
+  const ram = await leerRam(d);
   const modelos: LocalInfo[] = [];
-  for (const l of defsDe(d)) modelos.push(await infoDe(l, d, gpu));
+  for (const l of defsDe(d)) modelos.push(await infoDe(l, d, gpu, ram));
   return { modelos, gpuMiB: gpu?.totalMiB ?? null };
 }
 
 // ---------- guardar ----------
 
-function pedido(x: unknown, d: Deps): { l: LocalDef; ctx: number } {
-  const { id, ctx } = (x ?? {}) as { id?: unknown; ctx?: unknown };
+function pedido(x: unknown, d: Deps): { l: LocalDef; ctx: number; opciones: Opciones | null } {
+  const { id, ctx, opciones } = (x ?? {}) as { id?: unknown; ctx?: unknown; opciones?: unknown };
   const l = typeof id === "string" ? defDe(id, d) : undefined;
   if (!l) throw errorT("main.localDesconocido");
   const c = ctxValido(ctx, l.ctxMin, l.ctxMax);
   if (c == null) throw errorT("main.localCtxInvalido", { min: l.ctxMin, max: l.ctxMax });
-  return { l, ctx: c };
+  // Sin opciones en el pedido (otro cliente, o un líder) se conservan las que ya estaban en el env.
+  return { l, ctx: c, opciones: opciones == null ? null : opcionesValidas(opciones) };
 }
 
-/** Escribe el `-c` en el env de la unit y el `contextWindow` en dsh. Lo segundo no es obligatorio: sin dsh sólo se salta. */
-async function escribirCtx(l: LocalDef, ctx: number, d: Deps): Promise<void> {
-  await d.escribir(archivoEnv(d, l), envDe(ctx));
+/** Escribe el `-c` y las opciones en el env de la unit (las 5 variables; lo demás del archivo se conserva) y el `contextWindow` en dsh. Lo segundo no es obligatorio: sin dsh sólo se salta. */
+async function escribirCtx(l: LocalDef, ctx: number, opciones: Opciones | null, d: Deps): Promise<void> {
+  const previo = await d.leer(archivoEnv(d, l));
+  await d.escribir(archivoEnv(d, l), envDe(ctx, opciones ?? opcionesDeEnv(previo ?? ""), previo));
   const yaml = await d.leer(archivoDsh(d));
   if (yaml == null) return;
   const nuevo = conContextWindow(yaml, l.dshId, ctx);
@@ -225,8 +263,8 @@ async function escribirCtx(l: LocalDef, ctx: number, d: Deps): Promise<void> {
 
 /** Guarda el `-c` elegido (rige en la próxima carga; no carga nada). Devuelve el estado ya al día. */
 export async function guardarLocal(x: unknown, d: Deps = depsDeVerdad()): Promise<EstadoLocales> {
-  const { l, ctx } = pedido(x, d);
-  await escribirCtx(l, ctx, d);
+  const { l, ctx, opciones } = pedido(x, d);
+  await escribirCtx(l, ctx, opciones, d);
   return leerLocales(d);
 }
 
@@ -309,12 +347,23 @@ async function cargar(l: LocalDef, d: Deps): Promise<string | null> {
 }
 
 /** Si los pesos solos no entran en lo libre de la GPU (sin contar al llama-server que se va a reemplazar): el aviso; si entran (o no se sabe), `null`. */
-async function noEntra(l: LocalDef, d: Deps): Promise<string | null> {
+async function noEntra(l: LocalDef, d: Deps, opciones?: Opciones): Promise<string | null> {
   const gpu = await leerGpu(d);
   if (!gpu) return null;
-  const info = await infoDe(l, d, gpu);
+  const info = await infoDe(l, d, gpu, await leerRam(d), opciones);
   const libre = info.est ? libreMiB(info.est) : Infinity;
-  return info.pesosMiB > libre ? textoT("main.localNoEntra", { pesos: gb(info.pesosMiB), libre: gb(Math.max(0, libre)), otros: gb(info.est!.otrosMiB) }) : null;
+  // Con capas fuera de la GPU o sin MTP los pesos que van a la VRAM son menos que el archivo entero.
+  const pesos = info.est?.pesosGpuMiB ?? info.pesosMiB;
+  return pesos > libre ? textoT("main.localNoEntra", { pesos: gb(pesos), libre: gb(Math.max(0, libre)), otros: gb(info.est!.otrosMiB) }) : null;
+}
+
+/** Si `ctx` con esas opciones no entra en la RAM (los pesos de las capas fuera de la GPU y el KV en RAM): el aviso; si entra o no se sabe, `null`. */
+async function noEntraRam(l: LocalDef, d: Deps, ctx: number, opciones: Opciones | null): Promise<string | null> {
+  const info = await infoDe(l, d, null, await leerRam(d), opciones ?? undefined);
+  if (!info.ram) return null;
+  const est = estimar({ totalMiB: 1, usadoMiB: 0, llamaMiB: 0, consumidores: [] }, info.cuenta, 0, info.opciones, info.ram);
+  if (entraEnRam(est, ctx)) return null;
+  return textoT("main.localSinRam", { necesita: gb(ramNecesitaMiB(est, ctx)), libre: gb(Math.max(0, info.ram.libreMiB)) });
 }
 
 /**
@@ -326,7 +375,7 @@ async function noEntra(l: LocalDef, d: Deps): Promise<string | null> {
  * una, y el conmutador lo toma como "sigue cargando") o llama-server avisa que no entra, la para y contesta enseguida.
  */
 export async function probarLocal(x: unknown, d: Deps = depsDeVerdad()): Promise<ResultadoProbar> {
-  const { l, ctx } = pedido(x, d);
+  const { l, ctx, opciones } = pedido(x, d);
   if (probando) throw errorT("main.localOcupado");
   probando = true;
   const fallo = (error: string, nCtx: number | null = null): ResultadoProbar => ({ ok: false, nCtx, usadoMiB: null, total: null, error });
@@ -335,13 +384,16 @@ export async function probarLocal(x: unknown, d: Deps = depsDeVerdad()): Promise
     const fijo = await ctxFijo(l, d);
     if (fijo != null && fijo !== ctx) return fallo(textoT("main.localUnitFija", { unit: l.unit, c: fijo }));
     // Si los pesos solos ya no entran en lo libre (sin contar al llama-server que se va a parar), no carga seguro.
-    const lleno = await noEntra(l, d);
+    const lleno = await noEntra(l, d, opciones ?? undefined);
     if (lleno) return fallo(lleno);
+    // Y que la RAM alcance: pasarse de RAM no da un error de carga, deja la máquina colgada.
+    const sinRam = await noEntraRam(l, d, ctx, opciones);
+    if (sinRam) return fallo(sinRam);
 
     const previo = await d.leer(archivoEnv(d, l));
     const yamlAntes = await d.leer(archivoDsh(d));
     const dshAntes = yamlAntes == null ? null : contextWindowDe(yamlAntes, l.dshId);
-    await escribirCtx(l, ctx, d);
+    await escribirCtx(l, ctx, opciones, d);
     // Si ya está activa, el conmutador no la reinicia: se la para para que la próxima carga lea el `-c` nuevo.
     await parar(l, d);
     const caida = await cargar(l, d);

@@ -8,7 +8,8 @@
 //                    "clave": "ejemplo", "unit": "llama-server-ejemplo.service", "alias": "ejemplo-27b",
 //                    "archivos": ["models/ejemplo/ejemplo.gguf"], "pesosMiB": 6000, "capasKv": 16, "ctxDefecto": 32768,
 //                    "url": "http://127.0.0.1:8080",  // opcional
-//                    "fijoMiB": 2048, "ctxMin": 4096, "ctxMax": 262144, "paso": 1024 } ] }
+//                    "fijoMiB": 2048, "ctxMin": 4096, "ctxMax": 262144, "paso": 1024,
+//                    "mtpMiB": 1700, "capasTotal": 65 } ] }   // mtpMiB y capasTotal: opcionales (la cuenta de MTP y de -ngl)
 //
 // Lo que no se entiende de una entrada la descarta (las demás siguen); un archivo que no es de esta versión no da ninguna.
 import { readFileSync } from "node:fs";
@@ -41,6 +42,10 @@ export type LocalDef = {
   capasKv: number;
   /** El `-c` de la unit original: con lo que arranca si nada se guardó. */
   ctxDefecto: number;
+  /** Lo que pesa el borrador MTP (va dentro de `pesosMiB`); sin dato rige el default de la cuenta. 0: no tiene borrador. */
+  mtpMiB?: number;
+  /** Cuántas capas tiene (lo que `-ngl` reparte); sin dato rige el default de la cuenta. */
+  capasTotal?: number;
   ctxMin: number;
   /** Hasta donde entrena el modelo. */
   ctxMax: number;
@@ -71,6 +76,7 @@ function modeloDe(x: unknown): LocalDef | null {
   const paso = x.paso === undefined ? 1024 : x.paso;
   const fijoMiB = x.fijoMiB === undefined ? 2048 : x.fijoMiB;
   if (!entero(ctxMin, 1) || !entero(ctxMax, ctxMin) || !entero(paso, 1) || !entero(fijoMiB, 0)) return null;
+  if ((x.mtpMiB !== undefined && !entero(x.mtpMiB, 0)) || (x.capasTotal !== undefined && !entero(x.capasTotal, 1, 1000))) return null;
   const clave = x.clave === undefined ? x.id : x.clave;
   const dshId = x.alias === undefined ? x.id : x.alias;
   if (!sano(clave) || !sano(dshId)) return null;
@@ -86,7 +92,7 @@ function modeloDe(x: unknown): LocalDef | null {
   }
   const nombre = typeof x.nombre === "string" && x.nombre.trim() ? x.nombre.trim().slice(0, 80) : x.id;
   const empresa = typeof x.empresa === "string" && x.empresa.trim() ? x.empresa.trim().slice(0, 40) : "Local";
-  return { id: x.id, nombre, empresa, clave, unit: x.unit, dshId, ...(url ? { url } : {}), archivos, pesosMiB: x.pesosMiB, fijoMiB, capasKv: x.capasKv, ctxDefecto: x.ctxDefecto, ctxMin, ctxMax, paso };
+  return { id: x.id, nombre, empresa, clave, unit: x.unit, dshId, ...(url ? { url } : {}), archivos, pesosMiB: x.pesosMiB, fijoMiB, ...(typeof x.mtpMiB === "number" ? { mtpMiB: x.mtpMiB } : {}), ...(typeof x.capasTotal === "number" ? { capasTotal: x.capasTotal } : {}), capasKv: x.capasKv, ctxDefecto: x.ctxDefecto, ctxMin, ctxMax, paso };
 }
 
 /** El texto del archivo → lo que declara. `modelos` queda vacío si no es de esta versión, no se entiende o no hay nada. */

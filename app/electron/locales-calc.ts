@@ -73,12 +73,90 @@ export type CuentaModelo = {
   pesosMiB: number;
   /** Buffers de cómputo, el estado recurrente y el contexto CUDA: lo que no crece con `-c`. */
   fijoMiB: number;
+  /** Lo que pesa el KV por token con el KV en q8_0 (la base: `kvBytesPorToken`); las opciones lo escalan. */
   kvBytesPorToken: number;
   ctxMin: number;
   ctxMax: number;
   /** De cuánto en cuánto sube el control. */
   paso: number;
+  /** Lo que pesa el borrador MTP (va dentro de `pesosMiB`); sin dato, `MTP_MIB_DEFECTO`. 0: el modelo no tiene borrador. */
+  mtpMiB?: number;
+  /** Cuántas capas tiene el modelo (lo que `-ngl` reparte); sin dato, `CAPAS_DEFECTO`. */
+  capasTotal?: number;
 };
+
+// ---------- las opciones de la unit (las 5 variables del env) ----------
+
+export type TipoKv = "q8_0" | "q4_0" | "f16";
+export const TIPOS_KV: readonly TipoKv[] = ["q8_0", "q4_0", "f16"];
+/** Lo que se pide a la unit además del `-c`: `LLAMA_MTP`, `LLAMA_KV`, `LLAMA_KV_RAM` y `LLAMA_NGL`. */
+export type Opciones = { mtp: boolean; kv: TipoKv; kvRam: boolean; ngl: number };
+/** 99 = todas las capas en la GPU. */
+export const NGL_TODAS = 99;
+export const OPCIONES_DEFECTO: Opciones = { mtp: true, kv: "q8_0", kvRam: false, ngl: NGL_TODAS };
+/** Bytes por elemento del KV: q8_0 guarda 32 en 34 bytes, q4_0 32 en 18, f16 2 por elemento. */
+export const KV_BYTES: Record<TipoKv, number> = { q8_0: BYTES_Q8_0, q4_0: 18 / 32, f16: 2 };
+/** Lo que ocupa el borrador MTP en la VRAM (1,5 a 1,9 GB). */
+export const MTP_MIB_DEFECTO = 1700;
+/** Capas de un Qwen3.8 27B (64 y la de salida): lo que `-ngl` reparte. */
+export const CAPAS_DEFECTO = 65;
+/** Lo que se deja libre de RAM para el sistema. */
+export const MARGEN_RAM_MIB = 1024;
+
+export const opcionesIguales = (a: Opciones, b: Opciones) => a.mtp === b.mtp && a.kv === b.kv && a.kvRam === b.kvRam && a.ngl === b.ngl;
+
+/** Una opción suelta, validada; lo que no se entiende vuelve al default (nunca se rechaza: el env lo puede haber editado a mano). */
+export function opcionesValidas(x: unknown): Opciones {
+  const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+  const ngl = typeof o.ngl === "number" && Number.isInteger(o.ngl) && o.ngl >= 0 ? Math.min(o.ngl, NGL_TODAS) : NGL_TODAS;
+  return {
+    mtp: typeof o.mtp === "boolean" ? o.mtp : OPCIONES_DEFECTO.mtp,
+    kv: TIPOS_KV.includes(o.kv as TipoKv) ? (o.kv as TipoKv) : OPCIONES_DEFECTO.kv,
+    kvRam: typeof o.kvRam === "boolean" ? o.kvRam : OPCIONES_DEFECTO.kvRam,
+    ngl,
+  };
+}
+
+/** Lo que de verdad ocupa cada recurso con unas opciones: pesos y KV repartidos entre la VRAM y la RAM. */
+export type CuentaEfectiva = {
+  /** Pesos que quedan en la GPU (con el borrador si hay MTP). */
+  pesosGpuMiB: number;
+  /** Pesos de las capas que no entran en la GPU: van a la RAM. */
+  pesosRamMiB: number;
+  kvGpuBytesPorToken: number;
+  kvRamBytesPorToken: number;
+};
+
+/**
+ * `-ngl` reparte los pesos del modelo (el borrador queda en la GPU) y el KV de esas capas va con ellas; con
+ * `--no-kv-offload` (KV en RAM) todo el KV está en la RAM. Sin MTP no se carga el borrador. q4_0 / f16 cambian los bytes del KV.
+ */
+export function cuentaEfectiva(m: Pick<CuentaModelo, "pesosMiB" | "kvBytesPorToken" | "mtpMiB" | "capasTotal">, o: Opciones): CuentaEfectiva {
+  const draft = Math.min(m.mtpMiB ?? MTP_MIB_DEFECTO, m.pesosMiB);
+  const principal = m.pesosMiB - draft;
+  const frac = Math.max(0, Math.min(1, o.ngl / (m.capasTotal ?? CAPAS_DEFECTO)));
+  const kvTotal = o.kv === "q8_0" ? m.kvBytesPorToken : (m.kvBytesPorToken * KV_BYTES[o.kv]) / BYTES_Q8_0;
+  const kvGpu = o.kvRam ? 0 : kvTotal * frac;
+  return {
+    pesosGpuMiB: principal * frac + (o.mtp ? draft : 0),
+    pesosRamMiB: principal * (1 - frac),
+    kvGpuBytesPorToken: kvGpu,
+    kvRamBytesPorToken: kvTotal - kvGpu,
+  };
+}
+
+/** La RAM de la máquina (`/proc/meminfo`): la disponible para programas y la total. */
+export type Ram = { totalMiB: number; libreMiB: number };
+
+export function parsearMeminfo(texto: string): Ram | null {
+  const kb = (k: string) => {
+    const m = new RegExp(`^${k}:\\s+(\\d+)\\s*kB`, "m").exec(texto);
+    return m ? Number(m[1]) : null;
+  };
+  const total = kb("MemTotal");
+  const libre = kb("MemAvailable");
+  return total != null && libre != null ? { totalMiB: Math.round(total / 1024), libreMiB: Math.round(libre / 1024) } : null;
+}
 
 export type Estimacion = {
   totalMiB: number;
@@ -90,19 +168,31 @@ export type Estimacion = {
   margenMiB: number;
   /** Lo que le queda al modelo (pesos + fijo + KV). Puede ser negativo. */
   presupuestoMiB: number;
-  /** Pesos + fijo: lo que cuesta cargarlo antes del primer token. */
+  /** Pesos en la GPU + fijo: lo que cuesta cargarlo antes del primer token. */
   modeloMiB: number;
-  /** MiB de KV cada 1000 tokens. */
+  /** Los pesos que van a la GPU (con las opciones: sin borrador, con parte de las capas). */
+  pesosGpuMiB: number;
+  /** MiB de KV en la VRAM cada 1000 tokens (con el KV en RAM, 0). */
   kvMiBPorK: number;
   /** El mayor `-c` que entra (múltiplo de `paso`, entre `ctxMin` y `ctxMax`); 0 si ni el mínimo entra. */
   maxCtx: number;
   /** Lo mismo sin guardar lugar para Handy / TTS: lo que entra si no cargan. */
   maxCtxSinReservas: number;
+  /** La RAM que usan las opciones: pesos de las capas fuera de la GPU y KV en RAM por cada 1000 tokens. */
+  ramPesosMiB: number;
+  ramKvMiBPorK: number;
+  /** La RAM de la máquina (null si no se pudo leer). */
+  ram: Ram | null;
+  /** Lo que sobra de RAM para el KV (descontado el margen y los pesos); null sin dato. */
+  ramSobraMiB: number | null;
 };
 
-/** Cuántos MiB pide un `-c` (pesos, fijo y KV). */
+/** Cuántos MiB pide un `-c` (pesos, fijo y KV) en la VRAM. */
 export const necesitaMiB = (m: Pick<CuentaModelo, "pesosMiB" | "fijoMiB" | "kvBytesPorToken">, ctx: number) =>
   m.pesosMiB + m.fijoMiB + (m.kvBytesPorToken * ctx) / MIB;
+
+/** Cuántos MiB de RAM pide un `-c` con esas opciones (pesos de las capas fuera de la GPU y KV en RAM). */
+export const ramNecesitaMiB = (e: Pick<Estimacion, "ramPesosMiB" | "ramKvMiBPorK">, ctx: number) => e.ramPesosMiB + (e.ramKvMiBPorK * ctx) / 1000;
 
 /** El mayor múltiplo de `paso` que entra en `sobraMiB` de KV, acotado; 0 si no llega al mínimo. */
 export function ctxQueEntra(sobraMiB: number, m: CuentaModelo): number {
@@ -112,12 +202,24 @@ export function ctxQueEntra(sobraMiB: number, m: CuentaModelo): number {
   return c >= m.ctxMin ? c : 0;
 }
 
-export function estimar(g: Gpu, m: CuentaModelo, margenMiB = MARGEN_MIB): Estimacion {
+/** Lo mismo con las dos memorias: lo que sobra de VRAM para el KV de la GPU y lo que sobra de RAM para el KV en RAM (null: sin dato). */
+function ctxQueEntraCon(sobraVramMiB: number, sobraRamMiB: number | null, cu: CuentaEfectiva, m: CuentaModelo): number {
+  if (sobraVramMiB < 0 || (sobraRamMiB != null && sobraRamMiB < 0)) return 0;
+  const deVram = cu.kvGpuBytesPorToken > 0 ? (sobraVramMiB * MIB) / cu.kvGpuBytesPorToken : Infinity;
+  const deRam = cu.kvRamBytesPorToken > 0 && sobraRamMiB != null ? (sobraRamMiB * MIB) / cu.kvRamBytesPorToken : Infinity;
+  const tokens = Math.min(deVram, deRam);
+  const c = Number.isFinite(tokens) ? Math.min(m.ctxMax, Math.floor(Math.floor(tokens) / m.paso) * m.paso) : m.ctxMax;
+  return c >= m.ctxMin ? c : 0;
+}
+
+export function estimar(g: Gpu, m: CuentaModelo, margenMiB = MARGEN_MIB, opciones: Opciones = OPCIONES_DEFECTO, ram: Ram | null = null): Estimacion {
+  const cu = cuentaEfectiva(m, opciones);
   const otrosMiB = Math.max(0, g.usadoMiB - g.llamaMiB);
   const reservas = g.consumidores.map((c) => ({ nombre: c.nombre, miB: Math.max(0, c.nominalMiB - c.actualMiB) })).filter((r) => r.miB > 0);
   const reservaMiB = reservas.reduce((s, r) => s + r.miB, 0);
   const libreMiB = g.totalMiB - otrosMiB - margenMiB;
-  const modeloMiB = m.pesosMiB + m.fijoMiB;
+  const modeloMiB = cu.pesosGpuMiB + m.fijoMiB;
+  const ramSobraMiB = ram ? ram.libreMiB - MARGEN_RAM_MIB - cu.pesosRamMiB : null;
   return {
     totalMiB: g.totalMiB,
     otrosMiB,
@@ -126,10 +228,40 @@ export function estimar(g: Gpu, m: CuentaModelo, margenMiB = MARGEN_MIB): Estima
     margenMiB,
     presupuestoMiB: libreMiB - reservaMiB,
     modeloMiB,
-    kvMiBPorK: (m.kvBytesPorToken * 1000) / MIB,
-    maxCtx: ctxQueEntra(libreMiB - reservaMiB - modeloMiB, m),
-    maxCtxSinReservas: ctxQueEntra(libreMiB - modeloMiB, m),
+    pesosGpuMiB: cu.pesosGpuMiB,
+    kvMiBPorK: (cu.kvGpuBytesPorToken * 1000) / MIB,
+    maxCtx: ctxQueEntraCon(libreMiB - reservaMiB - modeloMiB, ramSobraMiB, cu, m),
+    maxCtxSinReservas: ctxQueEntraCon(libreMiB - modeloMiB, ramSobraMiB, cu, m),
+    ramPesosMiB: cu.pesosRamMiB,
+    ramKvMiBPorK: (cu.kvRamBytesPorToken * 1000) / MIB,
+    ram,
+    ramSobraMiB,
   };
+}
+
+/** Si `ctx` entra en la RAM con esas opciones (sin dato de RAM, sí: no se sabe). */
+export const entraEnRam = (e: Pick<Estimacion, "ram" | "ramPesosMiB" | "ramKvMiBPorK">, ctx: number) =>
+  e.ram == null || ramNecesitaMiB(e, ctx) <= e.ram.libreMiB - MARGEN_RAM_MIB;
+
+/**
+ * De las opciones, de la más rápida a la más lenta, la primera con la que `ctx` entra (VRAM y RAM; sin guardar lugar para
+ * Handy / TTS: lo que hoy corre). Primero más precisión del KV y borrador; después sin MTP, KV más chico, KV en RAM y, al
+ * final, capas en la RAM. `null` si con nada entra.
+ */
+export function mejorCombinacion(g: Gpu, m: CuentaModelo, ram: Ram | null, ctx: number, margenMiB = MARGEN_MIB): Opciones | null {
+  const capas = m.capasTotal ?? CAPAS_DEFECTO;
+  const candidatas: Opciones[] = [
+    { mtp: true, kv: "q8_0", kvRam: false, ngl: NGL_TODAS },
+    { mtp: true, kv: "q4_0", kvRam: false, ngl: NGL_TODAS },
+    { mtp: false, kv: "q8_0", kvRam: false, ngl: NGL_TODAS },
+    { mtp: false, kv: "q4_0", kvRam: false, ngl: NGL_TODAS },
+    { mtp: true, kv: "q8_0", kvRam: true, ngl: NGL_TODAS },
+    { mtp: true, kv: "q4_0", kvRam: true, ngl: NGL_TODAS },
+    { mtp: false, kv: "q4_0", kvRam: true, ngl: NGL_TODAS },
+  ];
+  // Último recurso: el KV en RAM, sin MTP, y cada vez menos capas en la GPU (de a 4: cada una cuesta velocidad).
+  for (let ngl = capas - 4; ngl > 0; ngl -= 4) candidatas.push({ mtp: false, kv: "q4_0", kvRam: true, ngl });
+  return candidatas.find((o) => ctx <= estimar(g, m, margenMiB, o, ram).maxCtxSinReservas) ?? null;
 }
 
 /**
@@ -188,7 +320,47 @@ export function ctxDeEnv(texto: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
-export const envDe = (ctx: number) => `# Lo escribe trama (Contexto del modelo local): lo lee la unit con EnvironmentFile.\nLLAMA_CTX=${ctx}\n`;
+/** Las opciones de un env file (`LLAMA_MTP`, `LLAMA_KV`, `LLAMA_KV_RAM`, `LLAMA_NGL`); lo que falta o no se entiende vale el default. */
+export function opcionesDeEnv(texto: string): Opciones {
+  const v = (k: string) => new RegExp(`^${k}=(\\S+)\\s*$`, "m").exec(texto)?.[1];
+  const mtp = v("LLAMA_MTP");
+  const ram = v("LLAMA_KV_RAM");
+  const ngl = v("LLAMA_NGL");
+  return opcionesValidas({
+    mtp: mtp === "1" ? true : mtp === "0" ? false : undefined,
+    kv: v("LLAMA_KV"),
+    kvRam: ram === "1" ? true : ram === "0" ? false : undefined,
+    ngl: ngl != null && /^\d+$/.test(ngl) ? Number(ngl) : undefined,
+  });
+}
+
+const CLAVES_ENV = ["LLAMA_CTX", "LLAMA_MTP", "LLAMA_KV", "LLAMA_KV_RAM", "LLAMA_NGL"] as const;
+
+/**
+ * El env file de la unit con las 5 variables escritas siempre (aunque valgan el default). Con el texto anterior conserva
+ * todas las otras líneas (comentarios y variables ajenas) y cambia cada una de las cinco en su lugar; sin él arma uno nuevo.
+ */
+export function envDe(ctx: number, opciones: Opciones = OPCIONES_DEFECTO, previo?: string | null): string {
+  const nuevas: Record<(typeof CLAVES_ENV)[number], string> = {
+    LLAMA_CTX: String(ctx),
+    LLAMA_MTP: opciones.mtp ? "1" : "0",
+    LLAMA_KV: opciones.kv,
+    LLAMA_KV_RAM: opciones.kvRam ? "1" : "0",
+    LLAMA_NGL: String(opciones.ngl),
+  };
+  const puestas = new Set<string>();
+  const lineas: string[] = [];
+  for (const l of (previo ?? "# Lo escribe trama (Contexto del modelo local): lo lee la unit con EnvironmentFile.\n").replace(/\n+$/, "").split("\n")) {
+    const k = /^\s*([A-Z_]+)=/.exec(l)?.[1] as (typeof CLAVES_ENV)[number] | undefined;
+    if (k && k in nuevas) {
+      if (puestas.has(k)) continue;
+      puestas.add(k);
+      lineas.push(`${k}=${nuevas[k]}`);
+    } else lineas.push(l);
+  }
+  for (const k of CLAVES_ENV) if (!puestas.has(k)) lineas.push(`${k}=${nuevas[k]}`);
+  return `${lineas.join("\n")}\n`;
+}
 
 /** El `n_ctx` que dice `/props` de llama-server (o `null` si no se entiende). */
 export function nCtxDe(props: unknown): number | null {
