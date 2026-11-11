@@ -1,0 +1,154 @@
+/* La barra lisa de un cupo (src/ui/BarraCupo.tsx). Sólo tokens de src/tokens.css; todo en rem.
+   Neutra (--apagado) hasta el 80 %, ámbar (--aviso) desde ahí y coral (--critico) al 100 %; nunca el acento del tema. */
+.bcupo {
+  display: grid;
+  min-width: 0;
+  grid-template-areas:
+    "nombre cifra"
+    "pista pista"
+    "pie pie";
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--esp-2);
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+.bcupo-nombre {
+  display: inline-flex;
+  min-width: 0;
+  grid-area: nombre;
+  align-items: center;
+  gap: var(--esp-1);
+  overflow: hidden;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bcupo-cifra {
+  grid-area: cifra;
+  font-size: var(--letra-7);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.bcupo-pista {
+  position: relative;
+  display: block;
+  height: 0.375rem;
+  grid-area: pista;
+  margin-top: var(--esp-1-5);
+  overflow: hidden;
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+}
+.bcupo-uso {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--apagado);
+  transform-origin: left center;
+  transition:
+    transform var(--t-smooth) cubic-bezier(0.2, 0, 0, 1),
+    background-color var(--t-smooth) cubic-bezier(0.2, 0, 0, 1);
+}
+.bcupo-pie {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  grid-area: pie;
+  align-items: center;
+  column-gap: var(--esp-2);
+  margin-top: var(--esp-1-5);
+  color: var(--apagado);
+  font-size: var(--letra-3);
+  line-height: 1.3;
+}
+.bcupo-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  font-weight: 600;
+}
+.bcupo-ic {
+  flex: none;
+}
+
+/* Los niveles: la barra, la cifra y la palabra cambian juntas. */
+.bcupo[data-nivel="poco"] .bcupo-uso {
+  background: var(--aviso);
+}
+.bcupo[data-nivel="poco"] :is(.bcupo-cifra, .bcupo-estado, .bcupo-ic) {
+  color: var(--cupo-poco-texto);
+}
+.bcupo[data-nivel="sin"] .bcupo-uso {
+  background: var(--critico);
+}
+.bcupo[data-nivel="sin"] :is(.bcupo-cifra, .bcupo-estado, .bcupo-ic) {
+  color: var(--cupo-agotado-texto);
+}
+.bcupo[data-sin-dato] .bcupo-cifra {
+  color: var(--inactivo);
+  font-weight: 500;
+}
+
+/* Compacta (el riel, 2.5rem): el nombre con su ícono, la cifra debajo y la barrita; la palabra y el «vuelve» van al tooltip. */
+.bcupo[data-variante="compacta"] {
+  grid-template-areas:
+    "nombre"
+    "cifra"
+    "pista";
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  row-gap: 1px;
+}
+.bcupo[data-variante="compacta"] .bcupo-nombre {
+  font-size: var(--letra-2);
+}
+.bcupo[data-variante="compacta"] .bcupo-cifra {
+  font-size: var(--letra-3);
+  line-height: 1.2;
+}
+.bcupo[data-variante="compacta"] .bcupo-pista {
+  width: 100%;
+  height: 0.25rem;
+  margin-top: var(--esp-0-5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bcupo-uso {
+    transition: none;
+  }
+}
+
+/* La vista de prueba (BarraCupoDemo.tsx): dos paneles de vidrio sobre el fondo de la ventana. */
+.bcupo-demo {
+  display: flex;
+  height: 100%;
+  align-items: flex-start;
+  gap: var(--gap-paneles);
+  padding: var(--esp-6);
+  background: var(--fondo-ventana);
+  font-size: var(--letra-5);
+}
+.bcupo-demo-panel {
+  display: grid;
+  width: 18rem;
+  gap: var(--esp-4);
+  padding: var(--esp-4);
+  border-radius: var(--r-lg);
+  background: var(--vidrio-a);
+  box-shadow: var(--vidrio-borde), var(--sombra-vidrio);
+}
+.bcupo-demo-titulo {
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.bcupo-demo-riel {
+  display: grid;
+  width: 2.5rem;
+  gap: var(--esp-3);
+}

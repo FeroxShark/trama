@@ -2,6 +2,7 @@
 // que nadie elija un ícono suelto por pantalla. `ICONO` es el tamaño y el grosor; los componentes de `src/ui` lo usan.
 export {
   Archive as IcArchivar,
+  Ban as IcSinCupo,
   Bell as IcAviso,
   BarChart3 as IcEstadisticas,
   Check as IcOk,
