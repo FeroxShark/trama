@@ -9,7 +9,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
 import { AYUDA } from "../electron/cli/pa/ayuda.ts";
-import { CIERRE_TAREA, CONTRATO, CONTRATO_AGY, CONTRATO_CODEX, SIN_JEFE } from "../electron/cli/pa/contrato.ts";
+import { CIERRE_TAREA, CONTRATO, CONTRATO_AGY, CONTRATO_CODEX, FRASE_COMPACTA, SIN_JEFE } from "../electron/cli/pa/contrato.ts";
 import { main, type Deps } from "../electron/cli/pa/cli.ts";
 import type { Env, Io } from "../electron/cli/pa/entorno.ts";
 import { Modelos, problemaModelos } from "../electron/cli/pa/modelos.ts";
@@ -102,12 +102,19 @@ testPosix("el contrato y sus variantes son copia literal del bash", () => {
   const r = spawnSync("bash", ["-c", `${bloque}\nfor v in ${vars.join(" ")}; do printf '%s\\0' "\${!v}"; done`], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   const [contrato, cierre, sinJefe, agy, codex] = r.stdout.split("\0");
-  assert.equal(CONTRATO, contrato);
+  // La frase de «si tu contexto se compacta» es sólo del TS (el bash está congelado): se saca para comparar.
+  const sinFrase = (t: string) => t.replace(`\n${FRASE_COMPACTA}`, "");
+  assert.equal(sinFrase(CONTRATO), contrato);
   assert.equal(CIERRE_TAREA, cierre);
   assert.equal(SIN_JEFE, sinJefe);
-  assert.equal(CONTRATO_AGY, agy);
-  assert.equal(CONTRATO_CODEX, codex);
+  assert.equal(sinFrase(CONTRATO_AGY), agy);
+  assert.equal(sinFrase(CONTRATO_CODEX), codex);
 });
+
+for (const [nombre, texto] of [["claude", CONTRATO], ["agy", CONTRATO_AGY], ["codex", CONTRATO_CODEX]] as const)
+  test(`el contrato de ${nombre} pide cerrar y terminar si el contexto se compacta`, () => {
+    assert.ok(texto.includes("Si tu contexto se compacta, cerrá el pedazo que estás haciendo, hacé commit y terminá con SIGUE: lo que falta"));
+  });
 
 // ------------------------------------------------------------------------------------------- parseo
 

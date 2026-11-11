@@ -47,6 +47,8 @@ export function normalizar(texto: string, raices: Raices): string {
       .replace(/ · \d+s ·/g, " · <DUR> ·")
       // La ayuda: la entrada del tope de turnos ahora dice que sale del tipo y el bash está congelado: se borra de los dos.
       .replace(/^ *pa <proyecto> --max-turns N[^\n]*\n(?:[^\n]*\n){0,3}? *Al llegar:[^\n]*\n/gm, "")
+      // El contrato: la frase de «si tu contexto se compacta» existe sólo en el pa de TypeScript (el bash está congelado): se borra de los dos.
+      .replace(/\nSi tu contexto se compacta, cerrá el pedazo[^\n]*/g, "")
       // La ayuda: --integrar-si-pasa (en --objetivo) existe sólo en el pa de TypeScript (el bash está congelado): se borra de los dos.
       .replace(/ \[--integrar-si-pasa\]/g, "")
       .replace(/ Con --integrar-si-pasa, [\s\S]*?Sin el flag no integra\. /g, " ")

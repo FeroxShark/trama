@@ -3,6 +3,9 @@
 // literal de motor/bin/pa (CONTRATO, CIERRE_TAREA, SIN_JEFE, CONTRATO_AGY, CONTRATO_CODEX, con_jefe) y tests/cli-pa.test.ts lo
 // compara con el del bash. `@DUENO@` se reemplaza al armar la llamada (`conDueno`, el `D` del bash).
 
+/** Sólo-TS (el bash está congelado): tareas chicas. Va como última línea del contrato; tests/cli-pa.test.ts y la paridad la sacan para comparar. */
+export const FRASE_COMPACTA = "Si tu contexto se compacta, cerrá el pedazo que estás haciendo, hacé commit y terminá con SIGUE: lo que falta.";
+
 const CONTRATO_L = [
   "Te delegó una tarea el orquestador de @DUENO@ (una sesión de Claude que corre en ~).",
   "NO estás hablando con @DUENO@: tu respuesta final la lee otro modelo.",
@@ -69,6 +72,7 @@ const CONTRATO_L = [
   "commitear. Agregá los archivos que tocaste, uno por uno. (Hay un hook que lo bloquea igual.)",
   "No compiles release ni instales nada (`tauri build`, `cargo <sub> --release`, `cargo install`): lo",
   "hace el jefe después de integrar (un hook lo bloquea). Probá con cargo test/check o build debug.",
+  FRASE_COMPACTA,
 ];
 const CIERRE_TAREA_L = [
   "Te quedaste sin turnos. NO sigas con la tarea: cerrá.",
