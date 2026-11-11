@@ -379,3 +379,24 @@ test("--auditar --decisiones <archivo>: el texto va al pedido del auditor bajo s
   assert.equal(suelto.rc, 2);
   assert.match(suelto.err, /sólo va con --auditar/);
 });
+
+test("tamaño: un pedido grande de frontend/codigo-multi/diseno avisa por stderr (no bloquea); chico, otro tipo o --indivisible, no", () => {
+  const cinco = "Objetivo: x\nArchivos: app/src/a.tsx, app/src/b.tsx, app/src/c.ts, app/src/d.css, app/src/e.ts\nListo cuando: pasa\nCómo verificar: npm test\nNo tocar: z.ts";
+  const grande = paClaude(["--tipo", "frontend"], cinco);
+  assert.equal(grande.rc, 0, grande.err);
+  assert.match(grande.err, /aviso: el pedido nombra 5 archivos y el tipo frontend corta a los 50 turnos.*--indivisible/);
+  assert.doesNotMatch(paClaude(["--tipo", "frontend"], BRIEF).err, /aviso: el pedido/);
+  assert.doesNotMatch(paClaude(["--tipo", "frontend", "--indivisible", "es un solo flujo"], cinco).err, /aviso: el pedido/);
+  assert.doesNotMatch(paClaude(["--tipo", "codigo-acotado"], cinco).err, /aviso: el pedido/);
+  assert.match(paClaude(["--tipo", "codigo-multi"], `${BRIEF}\nObjetivo: y`).err, /aviso: el pedido trae 2 «Objetivo»/);
+});
+
+test("pintaGrande: función pura (rutas en Archivos, sin contar No tocar; más de un Objetivo)", async () => {
+  const { pintaGrande } = await import("../electron/cli/pa/cli.ts");
+  assert.equal(pintaGrande(BRIEF, "frontend"), "");
+  assert.equal(pintaGrande("Archivos: a/b.ts a/c.ts a/d.ts\nNo tocar: x.ts y.ts z.ts w.ts", "diseno"), "");
+  assert.equal(pintaGrande("Archivos: a.ts b.ts c.ts d.ts", "diseno"), "nombra 4 archivos");
+  assert.equal(pintaGrande("Archivos: a.ts b.ts c.ts d.ts", "diseno", "motivo"), "");
+  assert.equal(pintaGrande("Archivos: a.ts b.ts c.ts d.ts", "debug"), "");
+  assert.equal(pintaGrande("toca a.ts b.ts c.ts d.ts", ""), "");
+});

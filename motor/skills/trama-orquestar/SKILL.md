@@ -98,6 +98,10 @@ No tocar:       lo que no cambia
      salida; `No tocar:` lo que no cambia.
   Si no podés escribir los pasos 1 a 4, el pedido es ambiguo: partilo o usá Sonnet.
 - Una tarea, un `pa`; los bugs de un revisor vuelven al autor (`--seguir --id <id>`) con `archivo:línea`.
+- **Tamaño (regla dura):** un pedazo es **un objetivo**, **hasta 3 archivos escritos**, y sus archivos son
+  **disjuntos** de los de los workers vivos. `codigo-multi` se parte siempre, salvo `--indivisible "<motivo>"`.
+  frontend, codigo-multi y diseno cortan a **50 turnos** (con `--indivisible`, 90); `pa` avisa si el pedido pinta grande.
+- Tras una lectura, calificala: `pa --bien <id> si|no|parcial` (alimenta el reparto).
 
 ## Trabajo largo y reglas
 

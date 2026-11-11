@@ -148,6 +148,44 @@ export function avisarBrief(io: Io, tarea: string): void {
   );
 }
 
+/** Los tipos que el tope de turnos corta en 50 (ver `topeDeTurnos`): ahí un pedido grande se parte. */
+export const TIPOS_GRANDES = ["frontend", "codigo-multi", "diseno"];
+/** Más de esto en `Archivos:` ya no es un pedazo (la skill trama-orquestar: hasta 3 archivos escritos). */
+export const MAX_ARCHIVOS_PEDAZO = 3;
+
+/**
+ * ¿Pinta grande el pedido de un tipo grande? Devuelve el motivo, o "" si no (o si va con `--indivisible`).
+ * Heurística pura: más de 3 rutas distintas en `Archivos:` (sin contar lo de `No tocar:`; sin esa sección, en todo el
+ * texto) o más de un «Objetivo:».
+ */
+export function pintaGrande(tarea: string, tipo: string, indivisible = ""): string {
+  if (indivisible.trim() || !TIPOS_GRANDES.includes(tipo)) return "";
+  const objetivos = (tarea.match(/^\s*objetivo\s*:/gimu) ?? []).length;
+  if (objetivos > 1) return `trae ${objetivos} «Objetivo»`;
+  const cabecera = /^\s*(objetivo|archivos|listo\s+cuando|c\S{1,2}mo\s+verificar|no\s+tocar)\s*:/gimu;
+  const secciones = [...tarea.matchAll(cabecera)];
+  const ini = secciones.find((m) => m[1]!.toLowerCase() === "archivos");
+  let texto = tarea;
+  if (ini) {
+    const fin = secciones.find((m) => m.index! > ini.index!);
+    texto = tarea.slice(ini.index!, fin?.index ?? tarea.length);
+  } else {
+    const nt = secciones.find((m) => /^no\s+tocar$/i.test(m[1]!));
+    if (nt) texto = tarea.slice(0, nt.index!);
+  }
+  const rutas = new Set(texto.match(/[\w@.~-]+(?:\/[\w@.~-]+)*\.[A-Za-z][A-Za-z0-9]{0,4}\b/gu) ?? []);
+  return rutas.size > MAX_ARCHIVOS_PEDAZO ? `nombra ${rutas.size} archivos` : "";
+}
+
+/** `pintaGrande` por stderr, sin bloquear. */
+export function avisarTamano(io: Io, tarea: string, tipo: string, indivisible = ""): void {
+  const m = pintaGrande(tarea, tipo, indivisible);
+  if (!m) return;
+  io.err(
+    `pa: aviso: el pedido ${m} y el tipo ${tipo} corta a los 50 turnos: partilo en pedazos (un objetivo, hasta ${MAX_ARCHIVOS_PEDAZO} archivos escritos, archivos disjuntos entre workers vivos) o, si no se puede, lanzá con --indivisible "<motivo>". No bloqueo.\n`,
+  );
+}
+
 /** El perfil de reparto de modelos.json (`perfil`), o "" sin archivo válido. Sin avisos: los da quien carga el archivo de verdad. */
 export const perfilDeReparto = (pa: Pa): string => new Modelos(pa.env, { out: () => {}, err: () => {} }, pa.home, pa.plat).clave("perfil");
 
@@ -448,7 +486,10 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
   const calidad = l.lanza && !l.leer ? await modeloFlojo(pa, depsPol, l.modelo) : null;
   l.flojo = calidad !== null;
   if (l.lanza && !l.leer && !l.actualizar && !env.PA_ASYNC) {
-    if (!l.seguir && !l.retomaDe) avisarBrief(io, l.tarea);
+    if (!l.seguir && !l.retomaDe) {
+      avisarBrief(io, l.tarea);
+      avisarTamano(io, l.tarea, l.tipo ?? "", l.indivisible);
+    }
     const perfil = perfilDeReparto(pa);
     if (!l.seguir && !l.retomaDe && (perfil === "ahorro" || perfil === "agresivo")) io.err(avisoPerfilAhorro(perfil));
     if (calidad !== null)
