@@ -1,5 +1,15 @@
 # Cambios
 
+## 0.2.68
+
+- Actualizar se ve: el aviso de Trama nueva y Ajustes > Actualizaciones muestran el paso real de la instalación («Compilando · paso 2 de 4»), el tiempo que lleva y, si un paso pasa de 3 minutos, «Tarda más de lo normal» con un botón para ver el registro. Con movimiento reducido la barra queda quieta.
+- Reinicio más rápido: si el build nuevo sólo cambió la interfaz, la ventana recarga la página en vez de relanzar Electron; al cerrar, un líder sin turno en curso se corta a los 2 s (no a los 8), y las escrituras pendientes tienen tope.
+- «Reiniciar la ventana» muestra la tarjeta «Actualizando Trama…» como una actualización.
+- La medición del reinicio cuenta cada etapa desde el inicio de su propia corrida y guarda las últimas 30.
+- Salud de Trama: bloque plegado en Ajustes > Actualizaciones con los últimos 30 días (vueltas de versión, reinicios lentos, líderes cortados al salir y avisos descartados), o «Todo bien».
+- Ajustes > Actualizaciones: la fila «Versión» ya no sale cortada.
+- Windows: la carcasa muestra «Descargando N %» e «Instalando» con la misma barra, y anota las vueltas de versión en la salud.
+
 ## 0.2.67
 
 - Arranque seguro: Trama ya no vuelve sola a la versión anterior cuando una instalación la cierra desde afuera. Una señal (SIGTERM, SIGINT, SIGHUP) cuenta como salida a propósito, un arranque cortado mientras se instala no suma falla, y `arranque.json` se escribe con candado. Cada arranque y cada salida quedan en `trama.log` con versión, fallas y hace cuánto arrancó el anterior.

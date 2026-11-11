@@ -1,5 +1,15 @@
 # Changes
 
+## 0.2.68
+
+- Updating is visible: the new-Trama notice and Settings > Updates show the real install step ("Compiling · step 2 of 4"), how long it's been going and, if a step takes over 3 minutes, "Taking longer than usual" with a button to see the log. With reduced motion the bar stays still.
+- Faster restart: if the new build only changed the interface, the window reloads the page instead of relaunching Electron; on quit, a leader with no turn in progress is stopped after 2 s (not 8), and pending writes have a cap.
+- "Restart window" shows the "Updating Trama…" card like an update does.
+- Restart timing counts each stage from the start of its own run and keeps the last 30.
+- Trama health: a collapsed block in Settings > Updates with the last 30 days (version rollbacks, slow restarts, leaders cut off on quit and dropped notices), or "All good".
+- Settings > Updates: the "Version" row is no longer clipped.
+- Windows: the shell shows "Downloading N %" and "Installing" with the same bar, and logs version rollbacks in health.
+
 ## 0.2.67
 
 - Safe start: Trama no longer rolls back to the previous version on its own when an install closes it from outside. A signal (SIGTERM, SIGINT, SIGHUP) counts as an intentional exit, a start cut short during an install doesn't count as a failure, and `arranque.json` is written under a lock. Every start and exit is logged in `trama.log` with version, failures and how long ago the previous one started.
