@@ -4,6 +4,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { type Pa } from "./entorno.ts";
+import { datoDeFila } from "./dato-medicion.ts";
 import { fijo, imprimirAwk, leerArchivo, registros } from "./medicion.ts";
 import { isoSegundos } from "./ramas.ts";
 import { canonico, cuentaCanonica } from "./modelo-canonico.ts";
@@ -99,7 +100,8 @@ function filasDe(texto: string, desde: string): ((nombre: string) => string)[] {
 }
 
 const esNum = (x: string) => /^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$/.test(x);
-const conDato = (i: string, r: string) => i === "0" || (i === "1" && (r === "0" || r === "1"));
+/** `dato` y `ok` de la fila que `v` lee (una lectura cuenta por su columna `bien`: ver dato-medicion.ts). */
+const datoDe = (v: (nombre: string) => string) => datoDeFila({ leer: v("leer") === "1", integrada: v("integrada"), retrabajo: v("retrabajo"), bien: v("bien") });
 
 export function celdasPor(texto: string, desde: string, por: string): Celda[] {
   const g = new Map<string, { t: string; m: string; e: string; cu: string; n: number; dato: number; ok: number; pis: number; tur: number[]; usd: number; nu: number; nc: number; comp: number }>();
@@ -114,11 +116,10 @@ export function celdasPor(texto: string, desde: string, por: string): Celda[] {
     let a = g.get(k);
     if (!a) g.set(k, (a = { t, m: can.modelo, e, cu, n: 0, dato: 0, ok: 0, pis: 0, tur: [], usd: 0, nu: 0, nc: 0, comp: 0 }));
     a.n++;
-    const i = v("integrada");
-    const r = v("retrabajo");
-    if (conDato(i, r)) {
+    const d = datoDe(v);
+    if (d.dato) {
       a.dato++;
-      if (i === "1" && r === "0") a.ok++;
+      if (d.ok) a.ok++;
       if (v("pisado") === "1") a.pis++;
     }
     let x = v("num_turns");
@@ -182,11 +183,10 @@ function filasRubrica(texto: string, desde: string): FilaRub[] {
     a.effort = v("rub_effort");
     if (v("modelo") === v("rub_modelo")) {
       a.est++;
-      const i = v("integrada");
-      const r = v("retrabajo");
-      if (conDato(i, r)) {
+      const d = datoDe(v);
+      if (d.dato) {
         a.dato++;
-        if (i === "1" && r === "0") a.ok++;
+        if (d.ok) a.ok++;
       }
     }
   }

@@ -30,6 +30,7 @@ import {
 import { estadoHilos, estadoPa, plataformaActual, type Plataforma } from "../rutas.ts";
 import { lanzarSuelto, pidDeCorrida, pidDeRunning } from "./base/proc.ts";
 import { carpetaMotor } from "./pa/entorno.ts";
+import { datoDeFila } from "./pa/dato-medicion.ts";
 import { canonico } from "./pa/modelo-canonico.ts";
 import {
   conFloat,
@@ -2236,12 +2237,13 @@ function rindeDeModelos(now: Date): Map<string, [number, number]> {
       }
       const v = (n: string) => (n in cols! && cols![n]! < c.length ? c[cols![n]!]! : "");
       if (c.length < 5 || !/^[0-9]{4}-/.test(c[0]!) || c[0]!.slice(0, 10) < desde) continue;
-      const [i, r] = [v("integrada"), v("retrabajo")];
-      if (!(i === "0" || (i === "1" && (r === "0" || r === "1")))) continue;
+      // una lectura (`leer=1`) cuenta por su columna `bien`; el python congelado la ignora (divergencia a propósito)
+      const d = datoDeFila({ leer: v("leer") === "1", integrada: v("integrada"), retrabajo: v("retrabajo"), bien: v("bien") });
+      if (!d.dato) continue;
       // un solo nombre por modelo (sin el effort: la regla de historial es por modelo); el python congelado agrupa crudo
       const k = `${v("tipo")}\t${canonico(v("modelo"), v("effort")).modelo}`;
-      const [d, ok] = out.get(k) ?? [0, 0];
-      out.set(k, [d + 1, ok + (i === "1" && r === "0" ? 1 : 0)]);
+      const [n, ok] = out.get(k) ?? [0, 0];
+      out.set(k, [n + 1, ok + (d.ok ? 1 : 0)]);
     }
   } catch {
     return new Map();

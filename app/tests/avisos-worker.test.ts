@@ -342,3 +342,14 @@ test("un worker que termina bien sale del aviso con su resultado leído del disc
   assert.match(avisos.find((x) => x.id === "a")?.resumen ?? "", /^RESULTADO: arreglé el aviso al líder\./);
   assert.equal(avisos.find((x) => x.id === "b")?.resumen, undefined, "sin resultado legible, sin resumen");
 });
+
+test("el aviso de una lectura termina con la línea de `pa --bien` y el de una escritura no", async () => {
+  const { av, alLider } = armarLider("worker");
+  await av.hilos([fila("l1", "trabajando", { leer: true }), fila("w1", "trabajando")]);
+  await av.hilos([fila("l1", "entregado", { leer: true }), fila("w1", "entregado")]);
+  const textos = alLider.map(textoParaLider);
+  const lect = textos.find((t) => t.includes("l1"))!;
+  const escr = textos.find((t) => t.includes("w1"))!;
+  assert.match(lect, /¿Sirvió\? `pa --bien l1 si\|no\|parcial`/);
+  assert.doesNotMatch(escr, /pa --bien/);
+});

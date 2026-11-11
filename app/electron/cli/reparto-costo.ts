@@ -1,6 +1,7 @@
 // El costo REAL de cada modelo: lo que se midió en las corridas (medicion.tsv) en vez de los pesos fijos de la tabla.
 // Todo puro: entra el texto de medicion.tsv y salen las muestras por tipo × modelo × effort de los últimos 60 días.
 // Lo usa electron/cli/reparto.ts (el reparto de TypeScript); el python de motor/bin/reparto queda como está.
+import { datoDeFila } from "./pa/dato-medicion.ts";
 import { canonico, effortCanonico } from "./pa/modelo-canonico.ts";
 
 /** Los días que se mira para atrás (la misma ventana que `pa --rinde`). */
@@ -37,6 +38,8 @@ export interface Fila {
   tipo: string;
   integrada: string;
   retrabajo: string;
+  /** La columna `bien` (`pa --bien`): es el dato de una corrida de lectura. */
+  bien: string;
   /** El costo en US$ (null si la corrida no lo anotó). */
   costo: number | null;
 }
@@ -63,6 +66,7 @@ export function leerMedicion(texto: string): Fila[] {
       tipo: v("tipo").trim(),
       integrada: v("integrada").trim(),
       retrabajo: v("retrabajo").trim(),
+      bien: v("bien").trim(),
       costo: numero(v("costo_usd")),
     });
   }
@@ -80,8 +84,6 @@ export interface Muestra {
   dato: number;
 }
 
-/** ¿La corrida tiene dato de integración (como lo cuenta `pa --rinde`)? */
-const conDato = (integrada: string, retrabajo: string): boolean => integrada === "0" || (integrada === "1" && (retrabajo === "0" || retrabajo === "1"));
 
 /** La muestra de un tipo × modelo × effort: las corridas desde `desde` (YYYY-MM-DD). */
 export function muestra(filas: Fila[], q: { tipo: string; modelo: string; effort?: string | null }, desde: string): Muestra {
@@ -101,9 +103,10 @@ export function muestra(filas: Fila[], q: { tipo: string; modelo: string; effort
       m.n++;
       m.usd += f.costo;
     }
-    if (conDato(f.integrada, f.retrabajo)) {
+    const d = datoDeFila(f);
+    if (d.dato) {
       m.dato++;
-      if (f.integrada === "1" && f.retrabajo === "0") m.ok++;
+      if (d.ok) m.ok++;
     }
   }
   return m;
@@ -120,9 +123,10 @@ export function muestraModelo(filas: Fila[], modelos: string[], desde: string): 
       m.n++;
       m.usd += f.costo;
     }
-    if (conDato(f.integrada, f.retrabajo)) {
+    const d = datoDeFila(f);
+    if (d.dato) {
       m.dato++;
-      if (f.integrada === "1" && f.retrabajo === "0") m.ok++;
+      if (d.ok) m.ok++;
     }
   }
   return m;
@@ -140,9 +144,10 @@ export function muestraTipo(filas: Fila[], tipo: string, modelos: string[], desd
       m.n++;
       m.usd += f.costo;
     }
-    if (conDato(f.integrada, f.retrabajo)) {
+    const d = datoDeFila(f);
+    if (d.dato) {
       m.dato++;
-      if (f.integrada === "1" && f.retrabajo === "0") m.ok++;
+      if (d.ok) m.ok++;
     }
   }
   return m;

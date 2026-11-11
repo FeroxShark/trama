@@ -19,6 +19,8 @@ export type FilaWorker = {
   modelo?: string | null;
   jefe_id?: string | null;
   jefe?: string | null;
+  /** Corrida de sólo lectura (`pa --leer`). */
+  leer?: boolean;
   resultado?: string | null;
   /** Commits de la rama del worker por encima de su base (`pa --hilos`). */
   commits?: number | null;
@@ -49,6 +51,8 @@ export type AvisoWorker = {
   jefe: string | null;
   /** En una línea; vacío cuando terminó bien. */
   motivo: string;
+  /** Corrida de sólo lectura: el aviso al líder le pide anotar si sirvió (`pa --bien`). */
+  leer?: boolean;
   /** `fin`: terminó pidiendo una decisión. */
   decision?: boolean;
   /** `fin`: terminó sin el bloque RESULTADO, pero con commits y el repo limpio (el trabajo está). */
@@ -250,6 +254,7 @@ export function crearAvisosWorker(d: Deps) {
     modelo: h.modelo ?? "",
     jefe_id: h.jefe_id || null,
     jefe: h.jefe ?? null,
+    ...(h.leer ? { leer: true } : {}),
   });
 
   async function falla(h: FilaWorker, rc: number | undefined, rastro?: string) {
@@ -452,6 +457,8 @@ function detalleDe(a: AvisoWorker, sangria: string): string[] {
   if (a.integracion) extra.push(`Integración: ${a.integracion}`);
   if (a.resumen) extra.push(...a.resumen.split("\n"));
   if (a.resumen && a.recortado) extra.push(`(recortado; el resto: \`pa --hilo ${a.id}\`)`);
+  // Una lectura no se integra: lo que dice el líder (`bien`) es lo único que le dice al reparto si rindió.
+  if (a.leer && a.tipo === "fin") extra.push(`¿Sirvió? \`pa --bien ${a.id} si|no|parcial\``);
   return extra.map((l) => sangria + l);
 }
 
