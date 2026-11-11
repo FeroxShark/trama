@@ -56,7 +56,7 @@ test("cada clave que usa el main (errorT/textoT en electron/) existe, con sus va
       assert.deepEqual(vars, variables(en[k]), `${f}: ${k}`);
     }
     // Las claves que el main elige de una tabla (RARO en pa.ts, el bucle de lider-arma.ts).
-    for (const m of src.matchAll(/"(main\.\w+)"/g)) assert.ok(m[1] in en, `${f}: ${m[1]}`);
+    for (const m of src.matchAll(/"(main\.(?!c?js")\w+)"/g)) assert.ok(m[1] in en, `${f}: ${m[1]}`);
   }
   assert.ok(usadas > 20, String(usadas));
 });
