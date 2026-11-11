@@ -36,7 +36,10 @@ export type EntradaCache = {
 };
 
 export type VeredictoCache = {
-  /** `enviar`: sigue como siempre. `preguntar`: se muestra la elección. `resumen`: la persona ya recordó empezar con resumen. */
+  /**
+   * `enviar`: sigue como siempre. `preguntar`: se muestra la elección. `resumen`: la persona ya recordó empezar con resumen y eso
+   * no la saca de su conversación (agy). En Claude «empezar con resumen» abre OTRA conversación (`abreOtra`): eso nunca pasa solo.
+   */
   accion: "enviar" | "preguntar" | "resumen";
   tokensSeguir: number;
   tokensResumen: number;
@@ -50,10 +53,15 @@ export function cacheVencida(e: Pick<EntradaCache, "modelo" | "vence" | "ttl" | 
   return venceS !== null && e.ahoraMs / 1000 >= venceS;
 }
 
+/** ¿«Empezar con resumen» abriría otra conversación? Claude no reabre un `--session-id` ya usado (lider.ts `mandarConResumen`); agy sigue en la misma. */
+export const abreOtra = (modelo: string): boolean => motorDeCache(modelo) === "claude";
+
 export function decidirCache(e: EntradaCache): VeredictoCache {
   const base = { tokensSeguir: e.tokens, tokensResumen: Math.min(e.tokens, TOKENS_RESUMEN) };
   const motor = motorDeCache(e.modelo);
   const aplica = !e.local && !e.cruza && (motor === "claude" || motor === "gemini");
   if (!aplica || e.tokens < UMBRAL_TOKENS || !cacheVencida(e)) return { ...base, accion: "enviar" };
-  return { ...base, accion: e.pref === "seguir" ? "enviar" : e.pref === "resumen" ? "resumen" : "preguntar" };
+  if (e.pref === "seguir") return { ...base, accion: "enviar" };
+  // Lo recordado no puede sacar a nadie de su conversación sin avisar: si el resumen abre otra, se pregunta cada vez.
+  return { ...base, accion: e.pref === "resumen" && !abreOtra(e.modelo) ? "resumen" : "preguntar" };
 }

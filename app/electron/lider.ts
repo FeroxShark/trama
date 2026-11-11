@@ -1743,6 +1743,8 @@ async function ramificarRelevo(sid: string, uuid: string, modelo: string, effort
     cache_ttl_s: null,
     modo: origen?.modo ?? MODO_DEFAULT,
     ...(cwd && cwd !== HOME ? { cwd } : {}),
+    // La cuenta es del chat (`Guardado.cuenta`): la rama sigue con la que tenía su origen, no con la de los chats nuevos.
+    ...(origen?.cuenta && familiaDeModelo(modelo) === "claude" ? { cuenta: origen.cuenta } : {}),
     heredado: { de: sid, hasta: uuid },
     origen: { sid, titulo: tituloOrigen },
   };

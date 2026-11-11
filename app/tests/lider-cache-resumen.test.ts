@@ -122,3 +122,28 @@ test("Claude: «resumen» abre un líder nuevo con el relevo (sesión fresca, si
   // Un valor raro de `empezar` es un mandar normal.
   assert.equal(await lider.mandar({ sid, texto: "normal", modelo: "claude-opus-5-5", effort: "high", empezar: "ruido" }), null);
 });
+
+test("Claude: el líder nuevo del resumen conserva la cuenta del chat de origen (la cuenta es del chat, no de los chats nuevos)", { timeout: 90_000 }, async () => {
+  const sid = await lider.nuevo({ modelo: "claude-opus-5-5", effort: "high", texto: "con cuenta" });
+  await hasta(() => de(sid, "fin").length === 1);
+  escribirTranscriptClaude(sid, [
+    { rol: "user", texto: "unoCT" },
+    { rol: "assistant", texto: "dosCT" },
+  ]);
+  // Una cuenta que ya no existe corre con la de siempre (`cuentaDeLider`), pero el dato del chat no se pierde.
+  (await lider.lideresApp()).find((x) => x.sid === sid)!.cuenta = "trabajo";
+  const nuevo = await lider.mandar({ sid, texto: "seguimos", modelo: "claude-opus-5-5", effort: "high", empezar: "resumen" });
+  assert.ok(nuevo && nuevo !== sid);
+  await hasta(() => de(nuevo!, "fin").length === 1);
+  assert.equal((await lider.lideresApp()).find((x) => x.sid === nuevo)!.cuenta, "trabajo");
+  // Sin cuenta propia en el origen, la rama tampoco anota ninguna.
+  const sin = await lider.nuevo({ modelo: "claude-opus-5-5", effort: "high", texto: "sin cuenta" });
+  await hasta(() => de(sin, "fin").length === 1);
+  escribirTranscriptClaude(sin, [
+    { rol: "user", texto: "tresCT" },
+    { rol: "assistant", texto: "cuatroCT" },
+  ]);
+  const otro = await lider.mandar({ sid: sin, texto: "seguimos", modelo: "claude-opus-5-5", effort: "high", empezar: "resumen" });
+  await hasta(() => de(otro!, "fin").length === 1);
+  assert.equal((await lider.lideresApp()).find((x) => x.sid === otro)!.cuenta, undefined);
+});

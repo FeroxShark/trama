@@ -7,7 +7,7 @@ import path from "node:path";
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "trama-cache-pref-"));
 process.env.HILOS_STATE = tmp;
-const { decidirCache, cacheVencida, UMBRAL_TOKENS, TOKENS_RESUMEN, TTL_DEFECTO_S } = await import("../electron/cache-pregunta.ts");
+const { decidirCache, cacheVencida, abreOtra, UMBRAL_TOKENS, TOKENS_RESUMEN, TTL_DEFECTO_S } = await import("../electron/cache-pregunta.ts");
 const { guardarCacheVencida, leerPreferencias } = await import("../electron/preferencias.ts");
 
 const AHORA = 1_800_000_000_000;
@@ -45,11 +45,20 @@ test("contexto chico, sin actividad, local, otros motores o cambio de motor: no 
   assert.equal(cacheVencida({ ...base, modelo: "dsh:x" }), false);
 });
 
-test("lo recordado: seguir manda como siempre, resumen arranca con resumen sin preguntar; vigente o chico, nada cambia", () => {
+test("lo recordado: seguir manda como siempre; resumen arranca solo únicamente donde no abre otra conversación (agy); vigente o chico, nada cambia", () => {
+  const agy = { ...base, modelo: "agy:gemini-4-argon-high" };
   assert.equal(decidirCache({ ...base, pref: "seguir" }).accion, "enviar");
-  assert.equal(decidirCache({ ...base, pref: "resumen" }).accion, "resumen");
+  assert.equal(decidirCache({ ...agy, pref: "seguir" }).accion, "enviar");
+  assert.equal(decidirCache({ ...agy, pref: "resumen" }).accion, "resumen");
+  assert.equal(decidirCache({ ...agy, pref: "resumen", actividad: AHORA / 1000 - 10 }).accion, "enviar");
   assert.equal(decidirCache({ ...base, pref: "resumen", actividad: AHORA / 1000 - 10 }).accion, "enviar");
   assert.equal(decidirCache({ ...base, pref: "resumen", tokens: 5_000 }).accion, "enviar");
+});
+
+test("Claude: «empezar con resumen» abre otra conversación, así que lo recordado nunca la abre solo: pregunta cada vez", () => {
+  assert.equal(abreOtra("claude-opus-5-5"), true);
+  assert.equal(abreOtra("agy:gemini-4-argon-high"), false);
+  for (const modelo of ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-2"]) assert.equal(decidirCache({ ...base, modelo, pref: "resumen" }).accion, "preguntar", modelo);
 });
 
 test("recordar mi elección: se guarda en preferencias, se cambia y se borra con «preguntar»; lo raro se ignora", async () => {

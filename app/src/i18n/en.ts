@@ -1928,7 +1928,7 @@ export const en = {
   "ajustes.avisoLiderTanda": "When the batch ends",
   "ajustes.avisoLiderWorker": "For each worker",
   "ajustes.cacheVencida": "When the cache expired",
-  "ajustes.cacheVencidaQue": "When you write to a large conversation (over 40k tokens) that sat idle until its cache expired, continuing the same session makes it reread everything. Choose whether Trama asks you, always continues the same session, or always starts a new session with a summary of what was said.",
+  "ajustes.cacheVencidaQue": "When you write to a large conversation (over 40k tokens) that sat idle until its cache expired, continuing the same session makes it reread everything. Choose whether Trama asks you, always continues the same session, or always starts a new session with a summary of what was said. With Claude, starting with a summary opens another conversation: there Trama always asks, even if it is selected.",
   "ajustes.cacheVencidaPreguntar": "Ask me",
   "ajustes.cacheVencidaSeguir": "Continue the same session",
   "ajustes.cacheVencidaResumen": "Start with a summary",

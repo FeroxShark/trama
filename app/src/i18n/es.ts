@@ -1915,7 +1915,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "ajustes.avisoLiderTanda": "Al terminar la tanda",
   "ajustes.avisoLiderWorker": "Por cada worker",
   "ajustes.cacheVencida": "Si venció la caché",
-  "ajustes.cacheVencidaQue": "Al escribirle a una conversación grande (más de 40 mil tokens) que estuvo quieta hasta que venció la caché, seguir la misma sesión obliga a releer todo. Elegí si Trama te pregunta, siempre sigue la misma sesión o siempre empieza una sesión nueva con un resumen de lo hablado.",
+  "ajustes.cacheVencidaQue": "Al escribirle a una conversación grande (más de 40 mil tokens) que estuvo quieta hasta que venció la caché, seguir la misma sesión obliga a releer todo. Elegí si Trama te pregunta, siempre sigue la misma sesión o siempre empieza una sesión nueva con un resumen de lo hablado. Con Claude, empezar con resumen abre otra conversación: ahí Trama pregunta siempre, aunque esté elegido.",
   "ajustes.cacheVencidaPreguntar": "Preguntar",
   "ajustes.cacheVencidaSeguir": "Seguir la misma sesión",
   "ajustes.cacheVencidaResumen": "Empezar con resumen",
