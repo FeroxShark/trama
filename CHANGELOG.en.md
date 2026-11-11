@@ -1,5 +1,17 @@
 # Changes
 
+## 0.2.69
+
+- Measurement: each model has a single name when read (`sonnet` and `claude-sonnet-5-5` are the same row; effort glued to agy, codex and dsh names goes to its column). `pa --rinde` went from 107 to 91 rows and routing gathers its 10 runs sooner.
+- Reads: a `--leer` run counts for routing according to `pa --bien <id> si|no|parcial`, and its notice to the leader ends asking for it.
+- Smaller tasks: frontend, multi-part code and design have a 50-turn cap (90 with `--indivisible "<reason>"`, which gets logged); if context gets compacted, the worker closes the piece, commits and says what's next. `pa` warns if a big request names more than 3 files or has more than one goal.
+- When done, a worker can leave `HALLAZGO:` (something the leader needs to know) and `FALTA:` (it stopped for lack of information). With `FALTA`, the sidebar shows "needs info" and the leader's notice starts with "Stopped: missing information".
+- Routing without an Artificial Analysis key: it uses a snapshot of the data (from 11/10) with its per-effort curve; Settings > Models says how old the data is.
+- Fable 5.2 shows in the model table (still not picked without the owner's OK), and models with estimated quality say "estimated".
+- Settings > Models: each "Would pick today" row explains why, on hover or with the keyboard.
+- Board: worker "Probar" items no longer each create an entry: they gather into "Probar <project> (Linux/Windows)", renamed "Probar vX.Y.Z" when the version ships; each line is ticked on its own (`tablero tildar`) and ticking all closes it.
+- The number at the bottom of the sidebar counts only questions waiting for your decision (not tests) and no longer shows "99+".
+
 ## 0.2.68
 
 - Updating is visible: the new-Trama notice and Settings > Updates show the real install step ("Compiling · step 2 of 4"), how long it's been going and, if a step takes over 3 minutes, "Taking longer than usual" with a button to see the log. With reduced motion the bar stays still.

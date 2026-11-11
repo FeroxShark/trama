@@ -1,5 +1,17 @@
 # Cambios
 
+## 0.2.69
+
+- Medición: cada modelo tiene un solo nombre al leer (`sonnet` y `claude-sonnet-5-5` son la misma fila; el effort pegado al nombre de agy, codex y dsh va a su columna). `pa --rinde` bajó de 107 a 91 filas y el reparto junta antes las 10 corridas que pide.
+- Lecturas: una corrida `--leer` cuenta para el reparto según `pa --bien <id> si|no|parcial`, y su aviso al líder termina pidiéndolo.
+- Tareas más chicas: frontend, código de varias partes y diseño tienen tope de 50 turnos (90 con `--indivisible "<motivo>"`, que queda anotado); si el contexto se compacta, el worker cierra el pedazo, hace commit y dice qué sigue. `pa` avisa si un pedido grande nombra más de 3 archivos o trae más de un objetivo.
+- Al terminar, el worker puede dejar `HALLAZGO:` (algo que el líder tiene que saber) y `FALTA:` (frenó porque le faltó información). Con `FALTA`, la barra muestra «le falta info» y el aviso al líder empieza con «Frenó: le faltó información».
+- Reparto sin clave de Artificial Analysis: usa una foto de los datos (del 10/11) con su curva por effort; Ajustes > Modelos dice de cuándo son los datos.
+- Fable 5.2 aparece en la tabla de modelos (sigue sin elegirse sin permiso del dueño), y los modelos con calidad estimada dicen «estimada».
+- Ajustes > Modelos: cada renglón de «Elegiría hoy» explica por qué, al pasar el mouse o con el teclado.
+- Tablero: los «Probar» de los workers ya no crean un item cada uno: se juntan en «Probar <proyecto> (Linux/Windows)», que pasa a «Probar vX.Y.Z» al salir la versión; cada renglón se tilda aparte (`tablero tildar`) y tildar todo lo cierra.
+- El número del pie de la barra cuenta sólo preguntas que esperan tu decisión (no pruebas) y ya no muestra «99+».
+
 ## 0.2.68
 
 - Actualizar se ve: el aviso de Trama nueva y Ajustes > Actualizaciones muestran el paso real de la instalación («Compilando · paso 2 de 4»), el tiempo que lleva y, si un paso pasa de 3 minutos, «Tarda más de lo normal» con un botón para ver el registro. Con movimiento reducido la barra queda quieta.
