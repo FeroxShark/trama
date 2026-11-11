@@ -715,6 +715,9 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
           : [botonIntegrar("mini"), [descartar(M)]];
   if (libre && h.rama) secundarias.push(botonAuditar(M));
   const [largo, setLargo] = useState(false);
+  // El pedido entero sólo se muestra al desplegar, y sólo si el título no es ya el pedido.
+  const [verPedido, setVerPedido] = useState(false);
+  const pedidoLargo = Boolean(h.tarea) && tituloDe(h) !== h.tarea;
   const Ie = ICONO_E[estado];
   const Iv = juicio ? ICONO_V[juicio.veredicto] : null;
   return (
@@ -758,7 +761,18 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
               {tr("ramas.verAnalisis")}
             </button>
           ) : null}
+          {pedidoLargo ? (
+            <button type="button" className="mini pn-ver-pedido" data-ver-pedido aria-expanded={verPedido} aria-controls={`pedido-${h.id}`} onClick={() => setVerPedido((x) => !x)}>
+              <ChevronDown size={11} strokeWidth={1.8} aria-hidden="true" />
+              {tr(verPedido ? "ramas.ocultarPedido" : "ramas.verPedido")}
+            </button>
+          ) : null}
         </div>
+        {pedidoLargo ? (
+          <p className="pn-pedido" id={`pedido-${h.id}`} hidden={!verPedido}>
+            {h.tarea}
+          </p>
+        ) : null}
         <div className="pn-sub">
           {salud ? (
             <span className="pn-salud" data-tip={tr(rojo ? `ramas.salud.${rojo.motivo}` : salud.rojo === false && salud.verificando ? "ramas.salud.verificando" : "ramas.salud.bien")}>

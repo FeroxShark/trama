@@ -121,6 +121,23 @@
   line-clamp: unset;
   color: var(--texto-3);
 }
+/* El pedido entero, al desplegar la rama: el brief tal cual (con sus saltos de línea), sin cortar. */
+.pn-pedido {
+  margin: var(--esp-1) 0 0;
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+/* La flecha del botón «Ver el pedido entero» da vuelta cuando está abierto (el texto también cambia: no sólo el ícono). */
+.pn-ver-pedido svg {
+  margin-right: var(--esp-1);
+  vertical-align: -1px;
+}
+.pn-ver-pedido[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
 .pn-mas {
   position: relative;
 }
