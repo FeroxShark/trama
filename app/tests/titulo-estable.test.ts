@@ -61,6 +61,8 @@ test("lo puesto a mano en Claude Code manda sobre lo inferido y no se pierde si 
     assert.equal(await b.titulo("s4", sinTema, "trama-bbbb"), "maxq-blender");
     // Un /rename nuevo lo reemplaza.
     assert.equal(await b.titulo("s3", { custom: "Otro nombre", ai: null, primero: PRIMERO }, "trama-bbbb"), "Otro nombre");
+    // Que no quede una escritura en vuelo cuando `carpeta` borra el directorio (ENOTEMPTY en CI).
+    await b.vaciar();
   }));
 
 test("decidirTitulo: lo automático nunca pisa lo manual guardado y no escribe de más", () => {
