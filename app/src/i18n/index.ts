@@ -5,8 +5,7 @@
 //
 // Sin imports de React ni del DOM a la fuerza: lo usan módulos que prueba `node --test`.
 // El hook para los componentes está en ./react.ts.
-import { en } from "./en.ts";
-import { es } from "./es.ts";
+import type { en } from "./en.ts";
 
 export type Idioma = "en" | "es";
 export const IDIOMAS: readonly Idioma[] = ["en", "es"];
@@ -19,7 +18,15 @@ type Args<K extends Clave> = [Vars<(typeof en)[K]>] extends [never] ? [] : [vars
 /** Las claves sin variables (para guardarlas en tablas y resolverlas al pintar). */
 export type ClaveSola = { [K in Clave]: Args<K> extends [] ? K : never }[Clave];
 
-const DICCIONARIOS: Record<Idioma, Record<Clave, string>> = { en, es };
+type Diccionario = Record<Clave, string>;
+
+// Cada idioma es un chunk aparte (en.ts / es.ts): la app carga sólo el que se usa (abajo). En node (los tests, sin `document`) se cargan
+// los dos para que `cambiarIdioma` siga siendo síncrono.
+const cargar: Record<Idioma, () => Promise<Diccionario>> = {
+  en: () => import("./en.ts").then((m) => m.en),
+  es: () => import("./es.ts").then((m) => m.es),
+};
+const DICCIONARIOS: Partial<Record<Idioma, Diccionario>> = {};
 
 export const esIdioma = (x: unknown): x is Idioma => x === "en" || x === "es";
 
@@ -30,14 +37,26 @@ function inicial(): Idioma {
 }
 
 let actual: Idioma = inicial();
+for (const i of typeof document === "undefined" ? IDIOMAS : [actual]) DICCIONARIOS[i] = await cargar[i]();
 if (typeof document !== "undefined") document.documentElement.lang = actual;
 const oyentes = new Set<() => void>();
 
 export const idioma = () => actual;
 
+/** Todas las claves (son las mismas en los dos idiomas): el diccionario que se cargó. */
+export const claves = (): Clave[] => Object.keys(DICCIONARIOS[actual]!) as Clave[];
+
 /** Cambia el idioma al toque: avisa a los suscriptos (React re-renderiza, el reloj repinta). */
 export function cambiarIdioma(i: Idioma) {
   if (i === actual || !esIdioma(i)) return;
+  // Un idioma que todavía no se bajó (otro chunk) se pide y se aplica al llegar; mientras tanto sigue el actual.
+  if (!DICCIONARIOS[i]) {
+    void cargar[i]().then((d) => {
+      DICCIONARIOS[i] = d;
+      cambiarIdioma(i);
+    });
+    return;
+  }
   actual = i;
   if (typeof document !== "undefined") document.documentElement.lang = i;
   for (const f of oyentes) f();
@@ -56,7 +75,7 @@ export function t<K extends Clave>(k: K, ...a: Args<K>): string {
 
 /** Lo mismo en un idioma dado (para reservar el lugar del otro idioma: ./Fijo.tsx). */
 export function tDe<K extends Clave>(i: Idioma, k: K, ...a: Args<K>): string {
-  const texto = DICCIONARIOS[i][k];
+  const texto = (DICCIONARIOS[i] ?? DICCIONARIOS[actual]!)[k];
   const vars = a[0] as Record<string, string | number> | undefined;
   return vars ? texto.replace(/\{(\w+)\}/g, (m, v: string) => (v in vars ? String(vars[v]) : m)) : texto;
 }
@@ -77,10 +96,10 @@ export function textoMain(s: string | null): string | null {
   if (!s) return s;
   // La clave pelada ("main.cuentasFallo", sin marca): la arma el renderer cuando el canal no contestó (fuente.ts, CuentasVarias) y nunca
   // debe verse cruda. Las variables que no vienen quedan en "?".
-  if (BASE_MAIN.test(s) && s in en) return (t as (k: Clave) => string)(s as Clave).replace(/\{\w+\}/g, "?");
+  if (BASE_MAIN.test(s) && s in DICCIONARIOS[actual]!) return (t as (k: Clave) => string)(s as Clave).replace(/\{\w+\}/g, "?");
   if (!s.includes("\u0001")) return s;
   return s.replace(MARCA_MAIN, (m, k: string, json: string) => {
-    if (!(k in en)) return m;
+    if (!(k in DICCIONARIOS[actual]!)) return m;
     let vars: Record<string, string | number> = {};
     try {
       if (json) vars = JSON.parse(json);

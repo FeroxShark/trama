@@ -6,17 +6,16 @@
 // mismo. La escribe el reloj compartido (src/reloj.ts): rotar no re-renderiza nada.
 //
 // Sin React ni DOM a la fuerza: lo prueba `node --test` (tests/tierno.test.ts).
-import { en } from "../i18n/en.ts";
-import { t, type Clave } from "../i18n/index.ts";
+import { claves, t, type Clave } from "../i18n/index.ts";
 import type { Pintor } from "../reloj";
 
 type ClaveTierna = Extract<Clave, `tierno.${string}`>;
 type ClaveCara = Extract<Clave, `cara.${string}`>;
 
 /** Las frases, sin carita: las claves `tierno.NN` de los diccionarios (src/i18n). */
-export const FRASES = (Object.keys(en) as Clave[]).filter((k): k is ClaveTierna => k.startsWith("tierno."));
+export const FRASES = claves().filter((k): k is ClaveTierna => k.startsWith("tierno."));
 /** Las caritas sueltas (`cara.NN`, iguales en los dos idiomas). */
-export const CARAS = (Object.keys(en) as Clave[]).filter((k): k is ClaveCara => k.startsWith("cara."));
+export const CARAS = claves().filter((k): k is ClaveCara => k.startsWith("cara."));
 
 const q = typeof location === "undefined" ? null : new URLSearchParams(location.search);
 /** En bench y captura la frase no rota: fotos repetibles y un reposo sin nada que se mueva. */
