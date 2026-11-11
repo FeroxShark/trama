@@ -2,7 +2,7 @@
 // proyecto que filtra la lista (× si algo falló, ? si algo te espera y un punto que late si algo corre: siempre con su nombre en el tooltip
 // y su frase en el aria-label), los dos anillos de cupos y los íconos de los paneles. Una pestaña del color del proyecto, del lado del
 // borde, dice cuál se está filtrando y cuál se está mirando: el hilo que sale del riel hacia la lista.
-import { useEffect, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { Folders, Home, PanelLeft } from "lucide-react";
 import { GENERAL } from "../datos/contrato";
 import { MODO } from "../modo";
@@ -10,7 +10,7 @@ import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { OTRAS } from "./claude-code";
 import { useIconos } from "./Logo";
-import { monograma, tonoRiel } from "./logo-logica";
+import { monogramas, tonoRiel } from "./logo-logica";
 import { Marca } from "./Marca";
 import { nombreCarpeta } from "./arbol";
 import { Glifo } from "./Glifo";
@@ -41,6 +41,12 @@ export function Riel({ items, filtro, viendo, alFiltrar, alMenu, alOcultar, cupo
   useIdioma();
   const titulos = useTitulos();
   const iconos = useIconos();
+  // Los monogramas, sin repetir. El orden es el del slug (no el del riel, que cambia con la actividad): el mismo proyecto, las mismas letras.
+  const monogramaDe = useMemo(() => {
+    const slugs = [...new Set(items.map((it) => it.proyecto))].filter((p) => p !== OTRAS && p !== GENERAL).sort();
+    const letras = monogramas(slugs.map((p) => titulos[p] || p));
+    return Object.fromEntries(slugs.map((p, i) => [p, letras[i]])) as Record<string, string>;
+  }, [items, titulos]);
   const hayVivo = items.some((it) => it.vivo && !it.marca);
   useEffect(() => {
     if (hayVivo) latir();
@@ -82,7 +88,7 @@ export function Riel({ items, filtro, viendo, alFiltrar, alMenu, alOcultar, cupo
               ) : src ? (
                 <img className="pr-img" src={src} alt="" draggable={false} />
               ) : (
-                monograma(titulos[it.proyecto] || it.proyecto).toLowerCase()
+                monogramaDe[it.proyecto].toLowerCase()
               )}
               {it.marca ? (
                 <span className="marca" data-at={it.marca}>
