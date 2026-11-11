@@ -92,6 +92,9 @@
   color: var(--inactivo);
   font-weight: 500;
 }
+.bcupo[data-sin-dato] .bcupo-estado {
+  font-weight: 500;
+}
 
 /* Compacta (el riel, 2.5rem): el nombre con su ícono, la cifra debajo y la barrita; la palabra y el «vuelve» van al tooltip. */
 .bcupo[data-variante="compacta"] {
@@ -104,6 +107,8 @@
   row-gap: 1px;
 }
 .bcupo[data-variante="compacta"] .bcupo-nombre {
+  max-width: 100%;
+  gap: var(--esp-0-5);
   font-size: var(--letra-2);
 }
 .bcupo[data-variante="compacta"] .bcupo-cifra {
@@ -151,4 +156,7 @@
   display: grid;
   width: 2.5rem;
   gap: var(--esp-3);
+}
+.bcupo-demo-panel:has(.bcupo-demo-riel) {
+  width: auto;
 }
