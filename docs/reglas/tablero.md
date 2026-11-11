@@ -19,3 +19,13 @@ relee el tablero. Lo cubre `scripts/prueba-tablero.mjs` (tablero temporal) y `te
 trae el id del worker, y sus items son los de clave `pa:<id>`, `pa:<id>:<n>`, `pa:<id>:p1`. El estado (te espera / ya respondiste / ya se cerró) sale del tablero leído, una lectura
 compartida (`tablero-dejado-fuente.ts`). Abrir = `pedirItem` (`paneles/tablero-abrir.ts`): la barra abre el panel y `TableroNuevo` muestra el item. Captura `lider-tablero-dejado`
 (`HILOS_VARIANTE=respondida|cerrada|muchas`); lo controla `tests/tablero-dejado.test.ts`. Límite: un `pa --seguir` anota con el id de la corrida original, que puede no ser el del aviso.
+
+## «Probar» por versión
+
+- **Los PROBAR de los workers (`tablero probar`, `app/electron/cli/tablero.ts` y `motor/bin/tablero`):** `pa` (`anotarTablero`, `cli/pa/ganchos.ts`) ya no crea un item por
+PROBAR: llama `tablero probar <proyecto> <texto> --plataforma linux|windows --clave pa:<id>:p1`, que suma un renglón al item abierto «Probar <proyecto> (Linux|Windows)»
+(clave `probar:<proyecto>:<plataforma>`, campos `renglones: [{texto, hecho, clave, creado}]` y `version_base`) o lo crea. La misma `--clave` actualiza su renglón. `prueba`
+lleva los renglones numerados con `[ ]`/`[x]`, así la interfaz que no sabe de renglones los muestra igual. La versión se mira al llegar el PROBAR siguiente: si el asunto
+`vX.Y.Z…` más nuevo de main (o del HEAD) no es el `version_base` del item, ese item pasa a «Probar vX.Y.Z (…)» con clave `…@vX.Y.Z` (queda abierto, no recibe más) y el
+renglón abre otro. `tablero tildar <id> <n…> [--no]` tilda renglones; todos tildados = `hecho`, destildar reabre. Los items viejos (`pa:<id>:p1`) no se tocan. El `pa`
+bash congelado sigue con `agregar`. Límite: «Te dejé esto en el tablero» busca la clave `pa:<id>:p1`, que ahora vive en el renglón. Lo controla `tests/tablero-probar.test.ts`.
