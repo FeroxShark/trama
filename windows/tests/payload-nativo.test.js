@@ -39,6 +39,7 @@ function repoFalso(dir) {
   escribir(path.join(r, "motor", "skills", "trama-orquestar", "SKILL.md"), "# skill");
   escribir(path.join(r, "motor", "plantillas", "home", "CLAUDE.md"), "# líder");
   escribir(path.join(r, "motor", "datos", "aa-suplemento.json"), "{}");
+  escribir(path.join(r, "motor", "datos", "aa-foto.json"), "{}");
   escribir(path.join(r, "motor", "bin", "pa"), "#!/usr/bin/env bash\n");
   escribir(path.join(r, "motor", "scripts", "instalar-producto.sh"), "#!/usr/bin/env bash\n");
   escribir(path.join(r, "motor", "systemd", "trama-motor.service"), "[Unit]");
@@ -55,6 +56,7 @@ test("arma el payload por lista permitida: sólo la app compilada, hooks .mjs, s
     const hay = [...p.recorrer(destino)].sort();
     assert.deepEqual(hay, [
       ".version",
+      "app/datos/aa-foto.json",
       "app/datos/aa-suplemento.json",
       "app/dist-electron/cli/trama-estado.js",
       "app/dist-electron/cli/workers.js",

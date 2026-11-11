@@ -679,7 +679,7 @@ function aaEsfuerzoInfo(m: Obj): [string | null, string] {
 
 type EntradaAA = Record<string, [number, string, string]>;
 type EfAA = Record<string, [number, number, Obj]>;
-type IndiceAA = { fecha: string | null; exacto: Map<string, EntradaAA>; conjunto: Map<string, EntradaAA>; ex_ef: Map<string, EfAA>; co_ef: Map<string, EfAA>; suplemento: Obj | null };
+type IndiceAA = { fecha: string | null; foto: boolean; exacto: Map<string, EntradaAA>; conjunto: Map<string, EntradaAA>; ex_ef: Map<string, EfAA>; co_ef: Map<string, EfAA>; suplemento: Obj | null };
 const claveConjunto = (tk: string[]) => [...new Set(tk)].sort().join(" ");
 
 function aaIndice(modelos: Obj[]): [Map<string, EntradaAA>, Map<string, EntradaAA>, Map<string, EfAA>, Map<string, EfAA>] {
@@ -760,16 +760,35 @@ function aaBuscarExtras(aa: IndiceAA | null, mid: string): Record<string, Obj> {
   return out;
 }
 
-function aaSuplementoRuta(): string | null {
-  const env = E.REPARTO_AA_SUPLEMENTO;
+/** Un archivo de `datos/` que viaja con el motor (en Windows, `app\\datos`): `env` lo cambia, "0" lo apaga. Se arma con `path.join`, igual en las dos. */
+function aaDatosRuta(env: string | undefined, archivo: string): string | null {
   if (env === "0") return null;
   if (env) return env;
   const aqui = path.join(carpetaMotor(), "bin");
   for (const base of [path.join(aqui, ".."), aqui]) {
-    const r = path.normalize(path.join(base, "datos", "aa-suplemento.json"));
+    const r = path.normalize(path.join(base, "datos", archivo));
     if (esArchivo(r)) return r;
   }
   return null;
+}
+const aaSuplementoRuta = () => aaDatosRuta(E.REPARTO_AA_SUPLEMENTO, "aa-suplemento.json");
+
+/**
+ * La foto de la caché de Artificial Analysis (`datos/aa-foto.json`, la saca `app/scripts/aa-foto.mjs`): vale cuando no hay caché propia
+ * (sin API key). Con REPARTO_AA puesto (una caché fija o "0") no se mira, salvo que REPARTO_AA_FOTO la nombre: así los tests que fijan
+ * la caché no se mezclan con la del repo. REPARTO_AA_FOTO=0 la apaga.
+ */
+function aaFoto(): { fecha: string | null; modelos: Obj[] } | null {
+  if (E.REPARTO_AA && !E.REPARTO_AA_FOTO) return null;
+  const ruta = aaDatosRuta(E.REPARTO_AA_FOTO, "aa-foto.json");
+  if (!ruta) return null;
+  try {
+    const j = leerJson(readFileSync(ruta, "utf8"));
+    const modelos = (j.modelos as unknown[]).filter(esDict);
+    return modelos.length ? { fecha: pyStr(j.fecha || "").slice(0, 10) || null, modelos } : null;
+  } catch {
+    return null;
+  }
 }
 
 function aaSuplemento(): [string | null, string | null, Obj[]] {
@@ -787,13 +806,19 @@ function aaSuplemento(): [string | null, string | null, Obj[]] {
 function aaCargar(): IndiceAA | null {
   const ruta = E.REPARTO_AA || path.join(stateDir(), "aa-modelos.json");
   if (ruta === "0") return null;
-  let j: Obj;
+  let fecha: string | null;
   let modelos: Obj[];
+  let deFoto = false;
   try {
-    j = leerJson(readFileSync(ruta, "utf8"));
+    const j = leerJson(readFileSync(ruta, "utf8"));
     modelos = (j.modelos as unknown[]).filter(esDict);
+    fecha = pyStr(j.fetched || "").slice(0, 10) || null;
   } catch {
-    return null;
+    const foto = aaFoto();
+    if (!foto) return null;
+    modelos = foto.modelos;
+    fecha = foto.fecha;
+    deFoto = true;
   }
   const [fechaS, fuenteS, supl] = aaSuplemento();
   if (supl.length) {
@@ -810,7 +835,7 @@ function aaCargar(): IndiceAA | null {
   }
   const [exacto, conjunto, exEf, coEf] = aaIndice(modelos);
   if (!exacto.size) return null;
-  return { fecha: pyStr(j.fetched || "").slice(0, 10) || null, exacto, conjunto, ex_ef: exEf, co_ef: coEf, suplemento: supl.length ? { fecha: fechaS, fuente: fuenteS } : null };
+  return { fecha, foto: deFoto, exacto, conjunto, ex_ef: exEf, co_ef: coEf, suplemento: supl.length ? { fecha: fechaS, fuente: fuenteS } : null };
 }
 
 function aaCalidad(aa: IndiceAA | null, mid: string): [number, string] | null {
@@ -3236,6 +3261,7 @@ function tabla(cfg: Obj, cupos: Obj, now: Date): Obj[] {
       ...extrasTabla(cfg, c),
       origen: get(c, "origen") || (verdad(get(c, "estimada")) ? "estimada" : "defecto"),
       aa_fecha: get(c, "origen") === "artificial-analysis" && cfg.aa ? cfg.aa.fecha : null,
+      ...(get(c, "origen") === "artificial-analysis" && cfg.aa?.foto ? { aa_foto: true } : {}),
       gratis, ...(verdad(get(c, "plan_go")) ? { plan: c.plan_go, go: goTopes(cfg, c.modelo) } : {}),
       cupo_libre: c.cupo_libre, vuelve: c.vuelve, ventanas: get(c, "ventanas", []),
       urgencia: get(c, "urgencia", 0.0), permitido: !x, excluido_por: x,
