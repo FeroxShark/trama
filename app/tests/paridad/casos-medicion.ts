@@ -45,6 +45,10 @@ const pcli = (nombre: string, args: Caso["args"], rc: number, extra: Partial<Cas
 
 // ------------------------------------------------------------------------------------------- datos de --rinde
 
+/** `pa --rinde` del TS une los nombres al leer (electron/cli/pa/modelo-canonico.ts) y el bash congelado agrupa crudo. */
+const DIVERGE_CANONICO =
+  "pa --rinde del TS agrupa con un solo nombre por modelo (alias corto → id completo, effort del nombre de agy/codex/dsh a la columna, settings/-/vacío juntos, sin @opencode) y el bash congelado agrupa crudo";
+
 /** Corridas con FRENÓ para `pa --rinde`: parecidos (la mitad de las palabras), iguales, sin texto, otro proyecto y una de hace 40 días. */
 const datosFrenos = (c: Contexto) =>
   medicion(
@@ -238,18 +242,18 @@ export const casosMedicion: Caso[] = [
   // --- --rinde ---
   pcli("rinde sin medicion.tsv", ["--rinde"], 0),
   pcli("rinde --json sin medicion.tsv", ["--rinde", "--json"], 0),
-  pcli("rinde por tipo", ["--rinde"], 0, { preparar: datosRinde }),
-  pcli("rinde --json", ["--rinde", "--json"], 0, { preparar: datosRinde }),
-  pcli("rinde --dias 1", ["--rinde", "--dias", "1"], 0, { preparar: datosRinde }),
-  pcli("rinde --dias 0042 --json", ["--rinde", "--dias", "0042", "--json"], 0, { preparar: datosRinde }),
-  pcli("rinde por fase", ["--rinde", "--por", "fase"], 0, { preparar: datosRinde }),
-  pcli("rinde por tarea --json", ["--rinde", "--por", "tarea", "--json"], 0, { preparar: datosRinde }),
-  pcli("rinde --por tipo explícito", ["--rinde", "--por", "tipo"], 0, { preparar: datosRinde }),
+  pcli("rinde por tipo", ["--rinde"], 0, { preparar: datosRinde, divergenciaSalida: DIVERGE_CANONICO }),
+  pcli("rinde --json", ["--rinde", "--json"], 0, { preparar: datosRinde, divergenciaSalida: DIVERGE_CANONICO }),
+  pcli("rinde --dias 1", ["--rinde", "--dias", "1"], 0, { preparar: datosRinde, divergenciaSalida: DIVERGE_CANONICO }),
+  pcli("rinde --dias 0042 --json", ["--rinde", "--dias", "0042", "--json"], 0, { preparar: datosRinde, divergenciaSalida: DIVERGE_CANONICO }),
+  pcli("rinde por fase", ["--rinde", "--por", "fase"], 0, { preparar: datosRinde, divergenciaSalida: DIVERGE_CANONICO }),
+  pcli("rinde por tarea --json", ["--rinde", "--por", "tarea", "--json"], 0, { preparar: datosRinde, divergenciaSalida: DIVERGE_CANONICO }),
+  pcli("rinde --por tipo explícito", ["--rinde", "--por", "tipo"], 0, { preparar: datosRinde, divergenciaSalida: DIVERGE_CANONICO }),
   pcli("rinde con FRENÓ: los parecidos van juntos, top 3 por proyecto", ["--rinde"], 0, { preparar: datosFrenos }),
   pcli("rinde --json con FRENÓ", ["--rinde", "--json"], 0, { preparar: datosFrenos }),
-  pcli("rinde con sustituciones de claude-* por agy", ["--rinde"], 0, { preparar: datosSustituciones }),
-  pcli("rinde --json con sustituciones", ["--rinde", "--json"], 0, { preparar: datosSustituciones }),
-  pcli("rinde --dias 1 deja afuera las sustituciones viejas", ["--rinde", "--dias", "1", "--json"], 0, { preparar: datosSustituciones }),
+  pcli("rinde con sustituciones de claude-* por agy", ["--rinde"], 0, { preparar: datosSustituciones, divergenciaSalida: DIVERGE_CANONICO }),
+  pcli("rinde --json con sustituciones", ["--rinde", "--json"], 0, { preparar: datosSustituciones, divergenciaSalida: DIVERGE_CANONICO }),
+  pcli("rinde --dias 1 deja afuera las sustituciones viejas", ["--rinde", "--dias", "1", "--json"], 0, { preparar: datosSustituciones, divergenciaSalida: DIVERGE_CANONICO }),
   pcli("rinde --rubrica", ["--rinde", "--rubrica"], 0, { preparar: datosRinde }),
   pcli("rinde --rubrica --json", ["--rinde", "--rubrica", "--json"], 0, { preparar: datosRinde }),
   pcli("rinde --rubrica sin datos", ["--rinde", "--rubrica"], 0),
