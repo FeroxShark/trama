@@ -321,13 +321,13 @@ try {
   ok(!(await rpc("reinicio:leer")).valor?.hay, "el motor nuevo ya está en el build nuevo (sin cartel)");
   // Las marcas del reinicio (electron/reinicio-marcas.ts): cada paso quedó, en el orden en que pasó.
   const marcas = (await hastaQue(() => /\blista\n/.test(leer("reinicio-marcas")), 20_000)) ? leer("reinicio-marcas").trim().split("\n").map((l) => l.split(" ")) : [];
-  const t = (paso) => Number(marcas.find((m) => m[3] === paso)?.[0] ?? NaN);
+  const t = (paso) => Number(marcas.find((m) => m[4] === paso)?.[0] ?? NaN);
   const orden = (...pasos) => pasos.every((p, i) => Number.isFinite(t(p)) && (i === 0 || t(pasos[i - 1]) <= t(p)));
   ok(orden("inicio", "lideres-cerrados", "motor-sale", "motor-arranco", "motor-escucha", "motor-visto", "cliente-armado", "ventana-creada", "pagina-monto", "pagina-conecto", "lista"), "marcas del reinicio: el motor se va y vuelve, y la ventana nueva pasa por cada paso hasta la lista");
   ok(orden("ventana-aviso", "ventana-guardo", "ventana-arranco", "electron-listo", "ventana-creada"), "marcas: la ventana vieja guarda y se va, la nueva arranca Electron");
   ok(Number.isFinite(t("pagina-cargada")) && t("ventana-arranco") < t("motor-escucha"), "marcas: la ventana nueva arrancó antes de que el motor nuevo escuchara (en paralelo)");
   const orde = [...marcas].sort((x, y) => x[0] - y[0]);
-  console.log(`      reinicio completo en ${t("lista") - t("inicio")} ms (unidad de mentira a ${restartMs / 1000} s): ${orde.map((m, i) => `${m[3]} +${m[0] - orde[Math.max(0, i - 1)][0]}`).join(", ")}`);
+  console.log(`      reinicio completo en ${t("lista") - t("inicio")} ms (unidad de mentira a ${restartMs / 1000} s): ${orde.map((m, i) => `${m[4]} +${m[0] - orde[Math.max(0, i - 1)][0]}`).join(", ")}`);
   // `MARCAS_SALIDA=<archivo>`: deja las marcas tal cual para scripts/medir-reinicio.mjs.
   if (process.env.MARCAS_SALIDA) writeFileSync(process.env.MARCAS_SALIDA, leer("reinicio-marcas"));
   pag.cerrar();
