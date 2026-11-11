@@ -26,6 +26,7 @@ import type { EstadoLocales, LocalInfo, ResultadoProbar } from "../../electron/l
 import { fuente } from "../datos/fuente";
 import { t, textoMain } from "../i18n";
 import { useIdioma } from "../i18n/react";
+import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { LiberarVram } from "./LiberarVram";
 import { nombreModelo } from "./opciones";
@@ -68,7 +69,7 @@ export function ContextoLocal({ modelo, lado = "der", abierto: deEntrada = false
   const [borrador, setBorrador] = useState<string | null>(null);
   // Las opciones que el usuario tocó; `null`: todavía ninguna (valen las guardadas).
   const [opcBorrador, setOpcBorrador] = useState<Opciones | null>(null);
-  const [avAbierto, setAvAbierto] = useState<boolean | null>(null);
+  const [avAbierto, setAvAbierto] = useState<boolean | null>(MODO.variante === "opciones" ? true : null);
   const [fase, setFase] = useState<"libre" | "guardando" | "probando">("libre");
   const [nota, setNota] = useState<Nota | null>(null);
   const boton = useRef<HTMLButtonElement>(null);

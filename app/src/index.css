@@ -3856,6 +3856,9 @@ html[data-titulo-nativo] #root::after {
 }
 .cl-det {
   width: 19rem;
+  /* Con las opciones abiertas es alto: que se desplace en vez de salirse de la ventana. */
+  max-height: calc(100dvh - 7rem);
+  overflow-y: auto;
 }
 .cl-det .ctx-relevo {
   max-width: none;
