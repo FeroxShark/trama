@@ -34,4 +34,4 @@ bash congelado sigue con `agregar`. Límite: «Te dejé esto en el tablero» bus
 `N. [ ] texto` / `N. [x] texto` (puro; texto suelto o numeración rara = `null`, y el item se ve como antes, con Anda / No anda). Con renglones la tarjeta es una lista de casillas
 (una `<input type="checkbox">` real por renglón, fila de 2.25 rem, 2.75 rem en táctil) y «N de M probados»; tildar llama al canal `tablero:tildar` (`id`, `[n]`, `hecho`) = `tablero tildar`
 (también en `windows/src/canales.json` y `maquinas-contrato.ts`) y el CLI cierra el item al tildar todos. `tildarRenglon` recibe la fuente por parámetro (lo prueba
-`tests/tablero-renglones.test.ts`). Un item con renglones no suma al «N de M pruebas» del pie ni se manda con «Mandar»: su respuesta es tildar. Captura: `HILOS_VARIANTE=abajo scripts/captura.sh tablero-nuevo-proyecto`.
+`tests/tablero-renglones.test.ts`). Un item con renglones no cuenta como contestado en el «N de M pruebas» del pie (sí en M) ni se manda con «Mandar»: su respuesta es tildar. Captura: `HILOS_VARIANTE=abajo scripts/captura.sh tablero-nuevo-proyecto`.
