@@ -3,6 +3,7 @@
 // lo prueba `node --test` (tests/ramas-vista.test.ts).
 import type { Juicio, Veredicto } from "../datos/analista.ts";
 import { VEREDICTOS } from "../datos/analista.ts";
+import type { Estado, Hilo } from "../datos/contrato.ts";
 
 /** Lo que filtran los chips: un veredicto, las que no tienen (todavía) o todas. */
 export type FiltroRama = Veredicto | "sin" | "todas";
@@ -141,3 +142,41 @@ export function leerAnalisis(crudo: string | null): Analisis {
 
 /** El enlace sólo vale si el analista que hizo el análisis de esa rama sigue abierto: uno cerrado no tiene conversación a la que volver. */
 export const analisisVigente = (a: Analisis, id: string, sidAnalista: string | undefined): boolean => !!sidAnalista && a[id] === sidAnalista;
+
+export type Item = { h: Hilo; estado: Estado };
+
+/** Con estos estados la rama ya no está pendiente. */
+const RESUELTO: ReadonlySet<Estado> = new Set(["integrado", "descartado", "revertido"]);
+/** Cuántas integradas se ofrecen para deshacer. */
+const INTEGRADAS = 8;
+
+const fin = (h: Hilo) => h.inicio + (h.duracion_s ?? 0);
+
+/** Las ramas sin integrar, por proyecto (lo más nuevo arriba), y las integradas hace poco (también las revertidas). */
+export function ramas(hilos: Hilo[], optimista: Map<string, Estado>) {
+  // Un `--seguir` trabaja sobre la rama del hilo que continúa: una fila por rama, la del último.
+  const porRama = new Map<string, Item>();
+  for (const h of hilos) {
+    const k = h.rama ?? h.id;
+    const otro = porRama.get(k);
+    if (!otro || h.inicio > otro.h.inicio) porRama.set(k, { h, estado: optimista.get(h.id) ?? h.estado });
+  }
+  const grupos = new Map<string, Item[]>();
+  const integradas: Item[] = [];
+  for (const { h, estado } of porRama.values()) {
+    if (estado === "integrado" || estado === "revertido") integradas.push({ h, estado });
+    else if (h.rama && h.commits > 0 && !RESUELTO.has(estado)) {
+      const g = grupos.get(h.proyecto);
+      if (g) g.push({ h, estado });
+      else grupos.set(h.proyecto, [{ h, estado }]);
+    }
+  }
+  const pendientes = [...grupos].map(([proyecto, filas]) => ({
+    proyecto,
+    filas: filas.sort((a, b) => fin(b.h) - fin(a.h)),
+  }));
+  pendientes.sort((a, b) => fin(b.filas[0].h) - fin(a.filas[0].h));
+  // `pa --hilos` no dice cuándo se integró: se ordena por cuándo terminó el worker.
+  integradas.sort((a, b) => fin(b.h) - fin(a.h));
+  return { pendientes, integradas: integradas.slice(0, INTEGRADAS) };
+}

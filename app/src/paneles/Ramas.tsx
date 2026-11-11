@@ -30,7 +30,7 @@ import { pasoAuditar, pasoLider, pasoWorker } from "./PasoLanzar";
 import { effortPara } from "../hilo/elegir";
 import { effortsLeidos } from "../hilo/efforts";
 import { conTexto, type Eleccion } from "./lanzar";
-import { analisisVigente, conCuenta, correrLote, cuentas, filtroVigente, leerAnalisis, pasa, pasosDe, planAplicar, resumenLote, type Analisis, type FiltroRama, type PasoLote, type PlanLote } from "./ramas-vista";
+import { analisisVigente, ramas, conCuenta, correrLote, cuentas, filtroVigente, leerAnalisis, pasa, pasosDe, planAplicar, resumenLote, type Analisis, type FiltroRama, type PasoLote, type PlanLote } from "./ramas-vista";
 import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar-auto";
 import { useNombreProyecto } from "../datos/proyectos";
 import { LimpiezaPa } from "./AjustesLimpieza";
@@ -64,11 +64,7 @@ export type PropsRamas = {
 
 type Item = { h: Hilo; estado: Estado };
 
-/** Con estos estados la rama ya no está pendiente. */
-const RESUELTO: ReadonlySet<Estado> = new Set(["integrado", "descartado", "revertido"]);
 const VIVO: ReadonlySet<Estado> = new Set(["trabajando", "colgado"]);
-/** Cuántas integradas se ofrecen para deshacer. */
-const INTEGRADAS = 8;
 /** Cuánto queda armado el Descartar esperando el segundo clic. */
 const ARMADO_MS = 4000;
 /** Qué líder analizó cada rama: en el navegador, para que "Ver el análisis" sobreviva a cambiar de conversación. */
@@ -87,37 +83,6 @@ const guardarAnalisis = (a: Analisis) => {
     /* sin almacenamiento: vale en esta sesión */
   }
 };
-
-const fin = (h: Hilo) => h.inicio + (h.duracion_s ?? 0);
-
-/** Las ramas sin integrar, por proyecto (lo más nuevo arriba), y las integradas hace poco (también las revertidas). */
-export function ramas(hilos: Hilo[], optimista: Map<string, Estado>) {
-  // Un `--seguir` trabaja sobre la rama del hilo que continúa: una fila por rama, la del último.
-  const porRama = new Map<string, Item>();
-  for (const h of hilos) {
-    const k = h.rama ?? h.id;
-    const otro = porRama.get(k);
-    if (!otro || h.inicio > otro.h.inicio) porRama.set(k, { h, estado: optimista.get(h.id) ?? h.estado });
-  }
-  const grupos = new Map<string, Item[]>();
-  const integradas: Item[] = [];
-  for (const { h, estado } of porRama.values()) {
-    if (estado === "integrado" || estado === "revertido") integradas.push({ h, estado });
-    else if (h.rama && h.commits > 0 && !RESUELTO.has(estado)) {
-      const g = grupos.get(h.proyecto);
-      if (g) g.push({ h, estado });
-      else grupos.set(h.proyecto, [{ h, estado }]);
-    }
-  }
-  const pendientes = [...grupos].map(([proyecto, filas]) => ({
-    proyecto,
-    filas: filas.sort((a, b) => fin(b.h) - fin(a.h)),
-  }));
-  pendientes.sort((a, b) => fin(b.filas[0].h) - fin(a.filas[0].h));
-  // `pa --hilos` no dice cuándo se integró: se ordena por cuándo terminó el worker.
-  integradas.sort((a, b) => fin(b.h) - fin(a.h));
-  return { pendientes, integradas: integradas.slice(0, INTEGRADAS) };
-}
 
 const commits = (n: number) => tr(n === 1 ? "comun.commit" : "comun.commits", { n });
 

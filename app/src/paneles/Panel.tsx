@@ -1,10 +1,8 @@
 // Los paneles del pie de la barra (Ajustes, Ramas, Estadísticas, Tablero): ocupan
 // el lado derecho, donde va la conversación. Esc o "Volver" los cierra.
-import { useRef } from "react";
+import { lazy, Suspense, useRef } from "react";
 import { useFoco } from "../foco";
-import { Ajustes } from "./Ajustes";
-import { Estadisticas } from "./Estadisticas";
-import { Ramas, type PropsRamas } from "./Ramas";
+import type { PropsRamas } from "./Ramas";
 import { Tablero, type PropsTablero } from "./Tablero";
 import { TableroNuevo } from "./TableroNuevo";
 import { AvisoLecciones } from "./Lecciones";
@@ -16,6 +14,11 @@ import "./paneles.css";
 import "./lavado.css";
 import "./ajustes-vidrio.css";
 import "./paneles-vidrio.css";
+
+// Ajustes, Ramas y Estadísticas se cargan al abrirse (chunk aparte): no pesan en el arranque.
+const Ajustes = lazy(() => import("./Ajustes").then((m) => ({ default: m.Ajustes })));
+const Ramas = lazy(() => import("./Ramas").then((m) => ({ default: m.Ramas })));
+const Estadisticas = lazy(() => import("./Estadisticas").then((m) => ({ default: m.Estadisticas })));
 
 export type CualPanel = "ajustes" | "ramas" | "estadisticas" | "tablero";
 
@@ -56,11 +59,17 @@ export function Panel({ cual, barraAbierta, alAlternarBarra, alVolver, ramas, ta
         {/* La clave: al cambiar de panel el contenido entra de nuevo. */}
         <div key={cual} className={cual === "tablero" ? "pn pn-tablero" : cual === "ajustes" ? "pn pn-ajustes" : "pn"} data-desliza>
           {cual === "ajustes" ? (
-            <Ajustes />
+            <Suspense fallback={null}>
+              <Ajustes />
+            </Suspense>
           ) : cual === "ramas" ? (
-            <Ramas {...ramas} />
+            <Suspense fallback={null}>
+              <Ramas {...ramas} />
+            </Suspense>
           ) : cual === "estadisticas" ? (
-            <Estadisticas />
+            <Suspense fallback={null}>
+              <Estadisticas />
+            </Suspense>
           ) : (
             // El tablero nuevo (lo que le toca al usuario); el kanban de siempre es su pestaña "Todo".
             <>

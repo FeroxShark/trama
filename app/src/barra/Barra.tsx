@@ -4,6 +4,8 @@
 // con sus workers colgando en árbol (src/barra/arbol.ts). Lo cerrado que no
 // cuelga de nadie va a "Cerrados", al fondo.
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -57,9 +59,8 @@ import { consumoALaVista } from "./consumo-logica";
 import { alPedirAjustes, alPedirRamas } from "../paneles/ajustes-nav";
 import { alPedirItem } from "../paneles/tablero-abrir";
 import { panelDeCaptura } from "../guia/registro";
-import { PanelContexto } from "../paneles/PanelContexto";
 import { usePedidoSub } from "../paneles/contexto-pedido";
-import { ramas } from "../paneles/Ramas";
+import { ramas } from "../paneles/ramas-vista";
 import { pasoLider, pasoWorker } from "../paneles/PasoLanzar";
 import { conTexto, type Eleccion } from "../paneles/lanzar";
 import { rcDe, RC_CONFLICTO } from "../datos/errorpa";
@@ -149,6 +150,9 @@ import { LoBuscado, Resalte } from "./Resalte";
 import { pintorHace } from "../tiempo";
 import { Reloj } from "./piezas";
 import { avisarVentana, irA, ponerLista, UMBRAL, useVentana } from "./ventana";
+
+// El panel de contexto va en un chunk aparte: se carga al abrirlo.
+const PanelContexto = lazy(() => import("../paneles/PanelContexto").then((m) => ({ default: m.PanelContexto })));
 
 const CLAVE_COLAPSADOS = "hilos:barra:colapsados";
 const CLAVE_ANCHO = "hilos:barra:ancho";
@@ -2287,7 +2291,11 @@ export function Barra() {
           <PanelRight size={16} strokeWidth={1.8} />
         </button>
         {/* El panel de contexto, a la derecha de todo: el líder que se mira (o el del worker que se mira) y sus workers. */}
-        {consumo ? <PanelContexto lider={liderContexto} workers={workersContexto} alCerrar={alternarConsumo} alAbrirHilo={abrir} /> : null}
+        {consumo ? (
+          <Suspense fallback={null}>
+            <PanelContexto lider={liderContexto} workers={workersContexto} alCerrar={alternarConsumo} alAbrirHilo={abrir} />
+          </Suspense>
+        ) : null}
       </div>
     </MotionConfig>
     </SubAbierto>
