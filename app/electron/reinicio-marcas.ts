@@ -1,8 +1,9 @@
 // Cuánto tarda el reinicio por un build nuevo, paso por paso. Cada proceso que participa (el motor, la
 // ventana que se va, la que llega, y la página) anota una marca en `$HILOS_STATE/reinicio-marcas` con la hora,
-// quién y qué paso, y la deja también en su log (`[reinicio] +1234 ms motor lideres-cerrados`). El tiempo
-// corre desde `inicio`: el momento en que el reinicio deja de esperar y sale. Sin cargar nada: una línea por
-// marca, y las del arranque sólo existen si hay un reinicio en marcha (de hace menos de `VALE_MS` y sin `lista`).
+// quién, qué paso y el id de su corrida (la hora de su `inicio`), y la deja también en su log
+// (`[reinicio] +1234 ms motor lideres-cerrados`). Cada etapa se mide desde el `inicio` de SU corrida, no desde la
+// marca anterior. El archivo guarda las últimas `CORRIDAS` corridas, con sus marcas intercaladas por hora; el reinicio
+// en marcha es la corrida más reciente, si es de hace menos de `VALE_MS` y todavía no llegó a `lista`.
 // La misma marca le dice a la ventana que llega que viene de una actualización (muestra el cartel desde el primer
 // cuadro: `src/actualizando.ts`) y, con `via`, si tiene que esperar al motor antes de decidir cómo arrancar.
 // Puro (sólo `node:fs`, el log y el estado): lo prueba tests/reinicio-marcas.test.ts; lo lee scripts/medir-reinicio.mjs.
@@ -14,27 +15,48 @@ import { log } from "./log.js";
 export const MARCAS = path.join(ESTADO, "reinicio-marcas");
 /** Un reinicio más viejo que esto no cuenta: es de otro día, no de la ventana que está arrancando. */
 const VALE_MS = 2 * 60_000;
+/** Cuántas corridas guarda el archivo: al empezar una nueva se tiran las más viejas. */
+export const CORRIDAS = 30;
 
 export type Quien = "motor" | "ventana" | "pagina";
 /** `motor`: lo reinicia el motor (la ventana es su cliente y vuelve sola); `ventana`: todo en uno. */
 export type Via = "motor" | "ventana";
 export type Marca = { t: number; quien: string; pid: number; paso: string };
+/** `t0` es el `inicio` de la corrida: también es su id, y cada marca de la corrida lo lleva. */
 export type Corrida = { t0: number; via: Via; marcas: Marca[]; lista: boolean };
 
-/** Lo que dice el archivo: la corrida más reciente (empieza en el último `inicio`). */
-export function analizar(texto: string): Corrida | null {
-  let corrida: Corrida | null = null;
+/** Una línea del archivo: `t id quien pid paso [extra]`. */
+type Linea = Marca & { id: number; extra: string };
+
+/** Las líneas con su id. Las de antes (`t quien pid paso [extra]`, sin id) son de la corrida que va abierta. */
+function parsear(texto: string): Linea[] {
+  const out: Linea[] = [];
+  let abierta = 0;
   for (const linea of texto.split("\n")) {
-    const [t, quien, pid, paso, extra] = linea.trim().split(/\s+/);
-    if (!paso || !Number.isFinite(Number(t))) continue;
-    const m: Marca = { t: Number(t), quien, pid: Number(pid) || 0, paso };
-    if (paso === "inicio") corrida = { t0: m.t, via: extra === "ventana" ? "ventana" : "motor", marcas: [m], lista: false };
-    else if (corrida) {
-      corrida.marcas.push(m);
-      if (paso === "lista") corrida.lista = true;
-    }
+    const f = linea.trim().split(/\s+/);
+    const nueva = Number.isFinite(Number(f[1]));
+    const t = Number(f[0]);
+    const [quien, pid, paso, extra = ""] = nueva ? f.slice(2) : f.slice(1);
+    if (!paso || !Number.isFinite(t)) continue;
+    if (!nueva && paso === "inicio") abierta = t;
+    out.push({ t, id: nueva ? Number(f[1]) : abierta, quien, pid: Number(pid) || 0, paso, extra });
   }
-  return corrida;
+  return out;
+}
+
+/** Una corrida del archivo, con sus marcas (sólo las de su id). Sin `id`, la más reciente. */
+export function analizar(texto: string, id?: number): Corrida | null {
+  const lineas = parsear(texto);
+  const inicios = lineas.filter((l) => l.paso === "inicio");
+  const ini = id === undefined ? inicios.at(-1) : inicios.find((l) => l.t === id);
+  if (!ini) return null;
+  const propias = lineas.filter((l) => l.id === ini.t);
+  return {
+    t0: ini.t,
+    via: ini.extra === "ventana" ? "ventana" : "motor",
+    marcas: propias.map(({ t, quien, pid, paso }) => ({ t, quien, pid, paso })),
+    lista: propias.some((l) => l.paso === "lista"),
+  };
 }
 
 function leer(archivo: string): Corrida | null {
@@ -51,41 +73,60 @@ export function enMarcha(archivo = MARCAS, ahora = Date.now()): Corrida | null {
   return c && !c.lista && ahora - c.t0 < VALE_MS ? c : null;
 }
 
-function anotar(archivo: string, quien: string, paso: string, t: number, extra = "") {
+function anotar(archivo: string, id: number, quien: string, paso: string, t: number, extra = "") {
   try {
     mkdirSync(path.dirname(archivo), { recursive: true });
-    appendFileSync(archivo, `${t} ${quien} ${process.pid} ${paso}${extra ? ` ${extra}` : ""}\n`);
+    appendFileSync(archivo, `${t} ${id} ${quien} ${process.pid} ${paso}${extra ? ` ${extra}` : ""}\n`);
   } catch {
     // Medir no puede romper un reinicio.
   }
 }
 
-/** El reinicio deja de esperar y sale: empieza una corrida nueva (la anterior se borra). */
-export function empezar(quien: Quien, via: Via, archivo = MARCAS, t = Date.now()) {
+/** Deja sólo las últimas `CORRIDAS` (por su `inicio`); si hay menos, no reescribe nada. */
+function recortar(archivo: string) {
+  let lineas: Linea[];
   try {
-    mkdirSync(path.dirname(archivo), { recursive: true });
-    writeFileSync(archivo, "");
-  } catch {}
-  anotar(archivo, quien, "inicio", t, via);
+    lineas = parsear(readFileSync(archivo, "utf8"));
+  } catch {
+    return;
+  }
+  const ids = [...new Set(lineas.filter((l) => l.paso === "inicio").map((l) => l.t))];
+  if (ids.length <= CORRIDAS) return;
+  const vivas = new Set(ids.slice(-CORRIDAS));
+  const texto = lineas
+    .filter((l) => vivas.has(l.id))
+    .map((l) => `${l.t} ${l.id} ${l.quien} ${l.pid} ${l.paso}${l.extra ? ` ${l.extra}` : ""}\n`)
+    .join("");
+  try {
+    writeFileSync(archivo, texto);
+  } catch {
+    // Medir no puede romper un reinicio.
+  }
+}
+
+/** El reinicio deja de esperar y sale: empieza una corrida nueva (su `inicio` es su id) y se recortan las viejas. */
+export function empezar(quien: Quien, via: Via, archivo = MARCAS, t = Date.now()) {
+  anotar(archivo, t, quien, "inicio", t, via);
+  recortar(archivo);
   log.escribir("info", "reinicio", `+0 ms ${quien} inicio (${via})`);
 }
 
 /**
- * Una marca de un reinicio en marcha; sin ninguno no hace nada. Devuelve los ms desde `inicio` (o `null`).
- * `t` es la hora de verdad del paso si se sabe de antes (cuándo arrancó el proceso).
+ * Una marca de un reinicio en marcha; sin ninguno no hace nada. Va a la corrida en marcha (la más reciente).
+ * Devuelve los ms desde su `inicio` (o `null`). `t` es la hora de verdad del paso si se sabe de antes (cuándo arrancó el proceso).
  */
 export function marcar(quien: Quien, paso: string, archivo = MARCAS, t = Date.now()): number | null {
   const c = enMarcha(archivo, t);
   if (!c) return null;
-  anotar(archivo, quien, paso, t);
+  anotar(archivo, c.t0, quien, paso, t);
   const ms = t - c.t0;
   log.escribir("info", "reinicio", `+${ms} ms ${quien} ${paso}`);
   if (paso === "lista") log.escribir("info", "reinicio", resumen({ ...c, lista: true, marcas: [...c.marcas, { t, quien, pid: process.pid, paso }] }));
   return ms;
 }
 
-/** Una línea por paso con lo que tardó desde el anterior: lo que se lee en el log y en scripts/medir-reinicio.mjs. */
+/** Una línea: cuánto tardó cada paso desde el `inicio` de SU corrida (no desde la marca anterior). */
 export function resumen(c: Corrida): string {
-  const ms = c.marcas.map((m, i) => ({ ...m, desde: m.t - (c.marcas[i - 1]?.t ?? m.t), total: m.t - c.t0 }));
-  return `reinicio completo en ${ms.at(-1)?.total ?? 0} ms: ${ms.map((m) => `${m.paso} +${m.desde}`).join(", ")}`;
+  const total = c.marcas.at(-1)?.t ?? c.t0;
+  return `reinicio completo en ${total - c.t0} ms: ${c.marcas.map((m) => `${m.paso} +${m.t - c.t0}`).join(", ")}`;
 }

@@ -13,25 +13,35 @@ import path from "node:path";
 
 const raiz = path.resolve(import.meta.dirname, "..");
 
-/** La corrida más reciente del archivo: empieza en el último `inicio`. */
+/**
+ * La corrida más reciente del archivo: sus marcas, las que llevan el id de su `inicio`. Cada línea es
+ * `t id quien pid paso [extra]`; las de antes (`t quien pid paso [extra]`) son de la corrida que va abierta.
+ */
 function corrida(texto) {
-  let c = null;
+  const lineas = [];
+  let abierta = null;
   for (const l of texto.split("\n")) {
-    const [t, quien, pid, paso, extra] = l.trim().split(/\s+/);
-    if (!paso || !Number.isFinite(Number(t))) continue;
-    if (paso === "inicio") c = { via: extra ?? "?", marcas: [] };
-    if (c) c.marcas.push({ t: Number(t), quien, pid, paso });
+    const f = l.trim().split(/\s+/);
+    const nueva = Number.isFinite(Number(f[1]));
+    const t = Number(f[0]);
+    const [quien, pid, paso, extra] = nueva ? f.slice(2) : f.slice(1);
+    if (!paso || !Number.isFinite(t)) continue;
+    if (!nueva && paso === "inicio") abierta = t;
+    lineas.push({ t, id: nueva ? Number(f[1]) : abierta, quien, pid, paso, extra });
   }
-  return c;
+  const ini = lineas.filter((m) => m.paso === "inicio").at(-1);
+  if (!ini) return null;
+  return { via: ini.extra ?? "?", marcas: lineas.filter((m) => m.id === ini.t) };
 }
 
+/** Cada paso desde el `inicio` de su corrida (no desde la marca anterior). */
 function tabla(titulo, texto) {
   const c = corrida(texto);
   if (!c) return console.log(`${titulo}: sin marcas`);
   const ms = [...c.marcas].sort((a, b) => a.t - b.t);
-  const t0 = ms[0].t;
+  const t0 = ms.find((m) => m.paso === "inicio").t;
   console.log(`${titulo} (vía ${c.via})`);
-  ms.forEach((m, i) => console.log(`  +${String(m.t - t0).padStart(5)} ms  (${String(i ? m.t - ms[i - 1].t : 0).padStart(5)})  ${m.quien.padEnd(8)} ${m.paso}`));
+  ms.forEach((m) => console.log(`  +${String(m.t - t0).padStart(5)} ms  ${m.quien.padEnd(8)} ${m.paso}`));
   const lista = ms.find((m) => m.paso === "lista");
   console.log(`  ${lista ? `reinicio completo: ${lista.t - t0} ms` : "no llegó a `lista`"}`);
 }
