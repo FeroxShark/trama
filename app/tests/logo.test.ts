@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { monograma, PALETA, tono } from "../src/barra/logo-logica.ts";
+import { monograma, monogramas, PALETA, tono } from "../src/barra/logo-logica.ts";
 import { candidatos, iconoDe, iconosDe, LUGARES } from "../electron/iconos.ts";
 
 test("monograma: dos letras de una palabra, iniciales de dos", () => {
@@ -16,6 +16,20 @@ test("monograma: dos letras de una palabra, iniciales de dos", () => {
   assert.equal(monograma("x"), "X");
   assert.equal(monograma("ñandú"), "Ña");
   assert.equal(monograma("--"), "·");
+});
+
+test("monogramas: dos iguales → distintos; tres → tres; sin choques, como hoy", () => {
+  assert.deepEqual(monogramas(["shark", "shell"]), ["Sh", "Sl"]);
+  assert.deepEqual(monogramas(["shark", "shell", "shade"]), ["Sh", "Sl", "Sd"]);
+  assert.deepEqual(monogramas(["Atlas Web", "atlas-web"]), ["AW", "AB"]);
+  assert.deepEqual(monogramas(["atlas", "brote"]), [monograma("atlas"), monograma("brote")]);
+  // el orden cuenta: el primero se queda con el suyo
+  assert.deepEqual(monogramas(["shell", "shark"]), ["Sh", "Sr"]);
+  assert.deepEqual(monogramas(["shell", "shark"]), monogramas(["shell", "shark"]));
+  // sin más consonantes en el nombre: igual salen distintos
+  assert.deepEqual(monogramas(["ab", "ab", "ab"]), ["Ab", "Ac", "Ad"]);
+  // sin letras no hay con qué distinguirlos
+  assert.deepEqual(monogramas(["--", "--"]), ["·", "·"]);
 });
 
 test("el tono es de la paleta y siempre el mismo para el mismo nombre", () => {

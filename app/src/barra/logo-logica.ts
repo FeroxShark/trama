@@ -38,15 +38,60 @@ export const tonoRiel = (nombre: string): string => PALETA_RIEL[hash(nombre.toLo
  * palabras (separadas por guion, punto, espacio o mayúscula) dan sus iniciales;
  * una sola, sus dos primeras letras.
  */
-export function monograma(nombre: string): string {
-  const palabras = nombre
+/** Las palabras del nombre: parte por lo que no es letra ni número y separa «SpaceLens» en dos. */
+function palabrasDe(nombre: string): string[] {
+  return nombre
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
+}
+
+export function monograma(nombre: string): string {
+  const palabras = palabrasDe(nombre);
   if (palabras.length === 0) return "·";
   if (palabras.length === 1) {
     const [a, b = ""] = [...palabras[0]];
     return a.toUpperCase() + b.toLowerCase();
   }
   return ([...palabras[0]][0] + [...palabras[1]][0]).toUpperCase();
+}
+
+const VOCALES = "aeiouáéíóúü";
+/** Si el nombre no da más consonantes: el resto del abecedario (consonantes, después vocales). */
+const RESERVA = [..."bcdfghjklmnpqrstvwxyzñ", ..."aeiou"];
+
+const esConsonante = (c: string) => /^\p{L}$/u.test(c) && !VOCALES.includes(c);
+
+/** La alternativa de un monograma que choca: la primera letra se queda; la segunda, la siguiente consonante distinta del nombre. */
+function alternativa(base: string, palabras: string[], usados: ReadonlySet<string>): string | null {
+  const letras = palabras.flatMap((p) => [...p.toLowerCase()]);
+  // La segunda letra del monograma: la inicial de la segunda palabra o la segunda letra del nombre.
+  const pos = palabras.length > 1 ? [...palabras[0]].length : 1;
+  const actual = letras[pos];
+  const mayus = base === base.toUpperCase();
+  const siguientes = letras.map((_, k) => letras[(pos + k) % letras.length]);
+  for (const c of [...siguientes.filter(esConsonante), ...RESERVA]) {
+    if (c === letras[0] || c === actual) continue;
+    const m = [...base][0] + (mayus ? c.toUpperCase() : c);
+    if (!usados.has(m)) return m;
+  }
+  return null;
+}
+
+/**
+ * Los monogramas de una lista de nombres, sin repetir. El primero se queda con
+ * su `monograma`; el que choca toma la siguiente consonante distinta de su
+ * nombre («shark» y «shell» → «Sh» y «Sl»). Depende del orden de la lista: el
+ * mismo orden, el mismo resultado. Un nombre sin letras queda «·» (no hay con
+ * qué distinguirlo).
+ */
+export function monogramas(nombres: readonly string[]): string[] {
+  const usados = new Set<string>();
+  return nombres.map((nombre) => {
+    const base = monograma(nombre);
+    const palabras = palabrasDe(nombre);
+    const elegido = usados.has(base) && palabras.length > 0 ? (alternativa(base, palabras, usados) ?? base) : base;
+    usados.add(elegido);
+    return elegido;
+  });
 }
