@@ -1,11 +1,13 @@
 // El logo de una carpeta, para ubicarla sin leer: el ícono del proyecto si el
 // main encontró uno (electron/iconos.ts) o su monograma (logo-logica.ts). Los íconos
 // se piden una vez y los comparten todas las carpetas.
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { Folder, Folders, Home } from "lucide-react";
 import { GENERAL } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
-import { monograma, tono } from "./logo-logica";
+import { useProyectos } from "../datos/proyectos";
+import { mapaMonogramas, monogramaDe, tono } from "./logo-logica";
+import { useTitulos } from "./titulos";
 
 /** slug → data URL. `null`: todavía no llegaron (no se pinta el monograma para después cambiarlo). */
 let iconos: Record<string, string> | null = null;
@@ -42,9 +44,17 @@ function descartar(proyecto: string) {
 /** Los íconos de los proyectos (slug → data URL); `null`, todavía no llegaron. */
 export const useIconos = () => useSyncExternalStore(suscribir, () => iconos);
 
+/** slug → monograma sin repetir, de todos los proyectos del registry: el riel y cada cabecera leen el mismo. */
+export function useMonogramas(): Record<string, string> {
+  const proyectos = useProyectos();
+  const titulos = useTitulos();
+  return useMemo(() => mapaMonogramas(proyectos.map((p) => p.slug), titulos), [proyectos, titulos]);
+}
+
 /** `titulo`: el del registry, si tiene; el monograma sale de él, el tono del slug (no cambia de color) y es el texto alternativo del ícono. */
 export function Logo({ proyecto, titulo }: { proyecto: string; titulo?: string | null }) {
   const todos = useIconos();
+  const mapa = useMonogramas();
   // General no es un proyecto: son las sesiones que corren en el home.
   if (proyecto === GENERAL)
     return (
@@ -57,7 +67,7 @@ export function Logo({ proyecto, titulo }: { proyecto: string; titulo?: string |
   if (src) return <img className="logo" src={src} alt={titulo || proyecto} draggable={false} onError={() => descartar(proyecto)} />;
   return (
     <span className="logo" style={{ background: tono(proyecto) }} aria-hidden="true">
-      {monograma(titulo || proyecto)}
+      {monogramaDe(mapa, proyecto, titulo)}
     </span>
   );
 }
@@ -69,6 +79,7 @@ export function Logo({ proyecto, titulo }: { proyecto: string; titulo?: string |
  */
 export function LogoCab({ proyecto, titulo, otras = false, generico = false, personal = false, icono = 11 }: { proyecto?: string; titulo?: string | null; otras?: boolean; generico?: boolean; personal?: boolean; icono?: number }) {
   const src = useIconos()?.[proyecto ?? ""];
+  const mapa = useMonogramas();
   return (
     <span className="proy-logo" aria-hidden="true">
       {otras ? (
@@ -80,7 +91,7 @@ export function LogoCab({ proyecto, titulo, otras = false, generico = false, per
       ) : src ? (
         <img src={src} alt="" draggable={false} />
       ) : (
-        monograma(titulo || proyecto).toLowerCase()
+        monogramaDe(mapa, proyecto, titulo).toLowerCase()
       )}
     </span>
   );
