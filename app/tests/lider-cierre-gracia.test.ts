@@ -109,7 +109,10 @@ test("esperarEscrituras colgada: sigue al tope y devuelve false; sin colgarse de
     mock.timers.tick(1);
     await espera;
     assert.equal(r, false);
-    assert.equal(await pa.esperarEscrituras(lider.TOPE_ESCRITURAS_MS, new Map([["b", Promise.resolve()]])), true);
+    // Una escritura que termina se saca del mapa, como hace `escribirAtomico`.
+    const sana = new Map<string, Promise<void>>();
+    sana.set("b", Promise.resolve().then(() => void sana.delete("b")));
+    assert.equal(await pa.esperarEscrituras(lider.TOPE_ESCRITURAS_MS, sana), true);
   } finally {
     mock.timers.reset();
   }
