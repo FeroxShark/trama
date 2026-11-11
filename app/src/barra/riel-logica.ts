@@ -1,7 +1,10 @@
 // La lógica de la barra con riel (rediseño 0.4), sin React: qué marca lleva cada proyecto del riel, qué queda a la vista con
 // los filtros, cómo se resalta lo buscado y cómo se cuenta. Pura: lo prueba `tests/riel.test.ts`.
 import { dondeSeVe } from "../../electron/reemplazos.ts";
-import { activo, atencionItem, liderEspera, normal, type Arbol, type Atencion, type Carpeta, type Item, type Rama } from "./arbol.ts";
+import { activo, atencionItem, compararLideres, liderEspera, normal, type Arbol, type Atencion, type Carpeta, type Item, type Rama } from "./arbol.ts";
+import { modoOrden } from "./orden.ts";
+import type { Orden } from "../datos/contrato.ts";
+import type { Recientes } from "./recientes.ts";
 
 const porInicio = (a: Item, b: Item) => b.h.inicio - a.h.inicio;
 const ramasDe = (c: Carpeta): Rama[] => [...c.ramas, ...c.espera, ...c.dormidos];
@@ -95,6 +98,24 @@ export const QUIETOS_VISTA = 2;
 export function quietosDe(c: Carpeta, abierto: boolean): { ver: { r: Rama; tipo: "espera" | "dormidos" }[]; resto: number } {
   const todos = [...c.espera.map((r) => ({ r, tipo: "espera" as const })), ...c.dormidos.map((r) => ({ r, tipo: "dormidos" as const }))];
   return abierto ? { ver: todos, resto: 0 } : { ver: todos.slice(0, QUIETOS_VISTA), resto: Math.max(0, todos.length - QUIETOS_VISTA) };
+}
+
+export type FilaCarpeta = { r: Rama; tipo: "lider" | "espera" | "dormidos" };
+
+/**
+ * Las filas de un proyecto en el orden en que se ven. En "Recientes", sin nada acomodado a mano en ese proyecto, van estrictamente por lo
+ * último que se usó: los quietos que están a la vista (`quietosDe`) se intercalan por fecha con los demás, en vez de quedar todos debajo
+ * (uno de hace una hora no va debajo de uno de hace dos días que tiene un worker colgando). Con orden a mano, en "A-Z" o sin la foto de
+ * actividad, como siempre: primero los que tienen algo y después los quietos. Lo que no es de un líder ("sin líder") va al final.
+ * Qué se ve y qué queda detrás de "Ver N más" no cambia: sólo el orden.
+ */
+export function filasCarpeta(c: Carpeta, abierto: boolean, orden?: Orden, recientes?: Recientes): { filas: FilaCarpeta[]; resto: number } {
+  const { ver, resto } = quietosDe(c, abierto);
+  const filas: FilaCarpeta[] = [...c.ramas.map((r) => ({ r, tipo: "lider" as const })), ...ver];
+  if (!recientes || modoOrden(orden) !== "recientes" || orden?.lideres[c.proyecto]?.length) return { filas, resto };
+  const cmp = compararLideres(orden, c.proyecto, recientes);
+  const conLider = filas.filter((f) => f.r.lider).sort((a, b) => cmp(a.r.lider!, b.r.lider!));
+  return { filas: [...conLider, ...filas.filter((f) => !f.r.lider)], resto };
 }
 
 /** Los proyectos con lo que pide atención primero; entre sí, como venían. */

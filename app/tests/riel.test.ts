@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { armarArbol, type Arbol, type Carpeta, type Item, type Rama } from "../src/barra/arbol.ts";
-import { aRiel, atencionCarpeta, carpetaViva, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, segunLista } from "../src/barra/riel-logica.ts";
+import { aRiel, atencionCarpeta, carpetaViva, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, filasCarpeta, segunLista } from "../src/barra/riel-logica.ts";
 import { bloquesMotores, cuentasClaude, lineasCuentas, nivelCupo, vueltaDe } from "../src/barra/cupos-riel-logica.ts";
 import { PALETA_RIEL, tonoRiel } from "../src/barra/logo-logica.ts";
 import { pintorHace } from "../src/tiempo.ts";
@@ -140,6 +140,23 @@ test("quietosDe: de a dos y el resto detrás de Ver N más", () => {
   const abierto = quietosDe(c, true);
   assert.equal(abierto.resto, 0);
   assert.deepEqual(abierto.ver.map((x) => x.tipo), ["espera", "espera", "espera", "dormidos"]);
+});
+
+test("filasCarpeta: en Recientes, lo visible de un proyecto va por fecha aunque esté quieto; a mano o A-Z, como antes", () => {
+  const activa = rama("a", lider("a", "p", { nombre: "Zeta" }));
+  const suelta = rama("s", null);
+  const quietos = ["q1", "q2", "q3"].map((k) => rama(k, lider(k, "p", { nombre: k })));
+  const c = carpeta("p", [activa, suelta], quietos);
+  const recientes = { lideres: new Map([["a", 10], ["q1", 30], ["q2", 20], ["q3", 40]]), carpetas: new Map() };
+  const ids = (r: ReturnType<typeof filasCarpeta>) => r.filas.map((f) => f.r.lider?.id ?? f.r.clave);
+  const reciente = filasCarpeta(c, false, { carpetas: [], lideres: {} }, recientes);
+  assert.deepEqual(ids(reciente), ["q1", "q2", "a", "s"]);
+  assert.equal(reciente.resto, 1);
+  assert.equal(reciente.filas.find((f) => f.r.lider?.id === "q1")?.tipo, "espera");
+  const comoAntes = ["a", "s", "q1", "q2"];
+  assert.deepEqual(ids(filasCarpeta(c, false, { carpetas: [], lideres: {}, modo: "az" }, recientes)), comoAntes);
+  assert.deepEqual(ids(filasCarpeta(c, false, { carpetas: [], lideres: { p: ["q2", "a"] } }, recientes)), comoAntes);
+  assert.deepEqual(ids(filasCarpeta(c, false)), comoAntes);
 });
 
 test("ordenAtencion y segunLista: lo que pide atención primero; lo nuevo, al final como venía", () => {

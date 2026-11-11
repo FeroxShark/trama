@@ -142,7 +142,7 @@ import { CuposRiel } from "./CuposRiel";
 import { Glifo } from "./Glifo";
 import { latir } from "./latido";
 import { estiloProyecto, Riel } from "./Riel";
-import { aRiel, atencionCarpeta, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, quietosDe, segunLista } from "./riel-logica";
+import { aRiel, atencionCarpeta, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, filasCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, segunLista } from "./riel-logica";
 import { LogoCab } from "./Logo";
 import { LoBuscado, Resalte } from "./Resalte";
 import { pintorHace } from "../tiempo";
@@ -2061,6 +2061,8 @@ export function Barra() {
                       fila={fila}
                       virtual={virtual}
                       resueltos={resueltos}
+                      orden={nombres.orden}
+                      recientes={recientes}
                       mueve={!buscando && !filtroVigente && !verVigente && !MODO.captura}
                       claude={buscando ? SIN_CONVS : (porCarpetaCC.get(g.proyecto) ?? SIN_CONVS)}
                       alAbrirClaude={abrirClaude}
@@ -2322,6 +2324,9 @@ type PropsCarpeta = {
   virtual: boolean;
   /** Los workers que pidieron atención y ya no (`atencion-vigente.ts`): ni el ícono del líder ni su fila los cuentan. */
   resueltos: ReadonlySet<string>;
+  /** El orden elegido y la foto de actividad: en "Recientes" las filas del proyecto van por fecha (`filasCarpeta`). */
+  orden?: Orden;
+  recientes?: Recientes;
   /** Se puede reordenar arrastrando (buscando, no): la carpeta y sus líderes llevan `data-mueve`. */
   mueve: boolean;
   /** Sus conversaciones de Claude Code (las que no son de Trama), de la más reciente a la más vieja. */
@@ -2351,6 +2356,8 @@ function Carpeta({
   fila,
   virtual,
   resueltos,
+  orden,
+  recientes,
   mueve,
   claude,
   alAbrirClaude,
@@ -2363,7 +2370,7 @@ function Carpeta({
   const claveE = claveEspera(g.proyecto);
   const claveD = claveDormidos(g.proyecto);
   const verQuietos = desplegada(claveE) || desplegada(claveD);
-  const { ver: quietos, resto } = quietosDe(g, verQuietos);
+  const { filas, resto } = filasCarpeta(g, verQuietos, orden, recientes);
   const hayMas = g.espera.length + g.dormidos.length > QUIETOS_VISTA;
   const hilos = hilosCarpeta(g);
   const corriendo = enMarcha(g);
@@ -2439,7 +2446,7 @@ function Carpeta({
             transition={{ duration: 0.12 }}
           >
             <AnimatePresence mode="popLayout" initial={false}>
-              {[...g.ramas.map((r) => ({ r, tipo: "lider" as const })), ...quietos].map(({ r, tipo }) => (
+              {filas.map(({ r, tipo }) => (
                 <Arbol
                   key={r.clave}
                   r={r}
