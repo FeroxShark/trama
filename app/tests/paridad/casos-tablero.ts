@@ -227,6 +227,27 @@ const casosDeTablero: Caso[] = [
     p(["sigue", "demo", "tercer paso"], 0),
     p(["listar", "--columna", "sigue", "--json"], 0),
   ]),
+  tb("probar: renglones por proyecto y plataforma, versión nueva, tildar", [
+    p(["probar", "demo", "abrir la app", "--plataforma", "linux", "--clave", "pa:1:p1", "--origen", "pa"], 0),
+    p(["probar", "demo", "mirar  el aviso", "--plataforma", "linux", "--clave", "pa:2:p1"], 0),
+    p(["probar", "demo", "mirar el aviso, en oscuro", "--plataforma", "linux", "--clave", "pa:2:p1"], 0),
+    p(["probar", "demo", "en Windows", "--plataforma", "windows"], 0),
+    // el args de función commitea la versión en el repo del sandbox antes del paso
+    p((c) => (gitFijo(c, "commit", "-q", "--allow-empty", "-m", "v1.2.3"), ["probar", "demo", "después de la versión", "--plataforma", "linux"]), 0),
+    p(["tildar", "1", "2"], 0),
+    p(["tildar", "1", "1"], 0),
+    p(["tildar", "1", "1", "--no"], 0),
+    p(["tildar", "1", "9"], 2),
+    p(["tildar", "1", "x"], 2),
+    p(["tildar", "4"], 2),
+    p(["probar", "demo", " "], 2),
+    p(["probar", "demo", "x", "--plataforma", "mac"], 2),
+    p(["agregar", "suelto"], 0),
+    p(["tildar", "4", "1"], 2),
+    p(["ver", "1"], 0),
+    p(["listar", "--json"], 0),
+  ]),
+  tb("ayuda: probar -h y tildar -h", [p(["probar", "-h"], 0), p(["tildar", "-h"], 0)]),
 
   // --- vistas
   tb("ficha: proyecto con ramas, corridas, esperas y sigue", [p(["ficha", "demo"], 0), p(["ficha", "demo", "--corta"], 0), p(["ficha", "demo", "--json"], 0)], conRamasYCorridas),
