@@ -106,6 +106,33 @@ test("cartas de un worker: por su clave pa:<id>, sólo lo que le toca a la perso
   assert.ok(esDelWorker(`pa:${w}`, w) && !esDelWorker(`pa:${w}9`, w));
 });
 
+test("cartas de un worker con su PROBAR como renglón del item «Probar <proyecto> (…)»: la carta es el renglón y dice si está tildado", () => {
+  const w = "20261111-075203-570635";
+  const t = tablero([
+    crudo(10, {
+      clave: "probar:trama:linux",
+      tipo: "prueba",
+      titulo: "Probar trama (Linux)",
+      prueba: "1. [ ] abrir la app\n2. [x] otro del mismo worker\n3. [ ] de otro worker",
+      renglones: [
+        { texto: "abrir la app", hecho: false, clave: `pa:${w}:p1` },
+        { texto: "otro del mismo worker", hecho: true, clave: `pa:${w}:p2` },
+        { texto: "de otro worker", hecho: false, clave: `pa:${w}9:p1` },
+      ],
+    }),
+    // Un item viejo, con la clave en el item: sigue como siempre.
+    crudo(11, { clave: `pa:${w}:p1`, tipo: "prueba", prueba: "abrir la app vieja", titulo_simple: "Probar: la app vieja" }),
+  ]);
+  const c = cartas([{ por: "worker", worker: w }], t);
+  assert.deepEqual(c.map((x) => [x.id, x.titulo, x.estado, x.renglon]), [
+    [10, "abrir la app", "abierto", { n: 1, hecho: false }],
+    [10, "otro del mismo worker", "probado", { n: 2, hecho: true }],
+    [11, "Probar: la app vieja", "abierto", undefined],
+  ]);
+  assert.equal(c[0].tipo, "prueba");
+  assert.deepEqual(cartas([{ por: "worker", worker: "otro" }], t), []);
+});
+
 test("los workers salen del aviso que Trama le manda a ese líder (por jefe_id), sin los que fallaron", () => {
   const a = avisoDeTexto(
     "[Aviso automático de Trama] Terminaron los 3 workers que lanzaste, 1 con falla:\n- «hacer A» (w-1): terminó pidiendo una decisión\n- «hacer B» (w-2): falló\n- «hacer C» (w-3): terminó\nRevisá cada uno con `pa --hilo <id>`.",

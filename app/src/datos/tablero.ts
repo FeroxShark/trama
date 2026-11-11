@@ -47,7 +47,12 @@ export type Item = {
   porDefecto: string | null;
   /** Lo que el usuario contestó (`tablero responder`); `null` si no. El item no se cierra ni se mueve. */
   respuesta: Respuesta | null;
+  /** Los renglones de una prueba «Probar <proyecto> (Linux|Windows)» (`tablero probar`): `clave` es la del PROBAR del worker (`pa:<id>:p1`). Vacío en un item viejo. */
+  renglones: ItemRenglon[];
 };
+
+/** Un renglón de una prueba, tal como lo guarda el CLI (su número es su posición, desde 1). */
+export type ItemRenglon = { texto: string; hecho: boolean; clave: string };
 
 /** Lo que el usuario contestó a un item: `anda` sólo en una prueba; `opcion`/`opcionTexto`, si apretó un botón. */
 export type Respuesta = { texto: string; opcion: string | null; opcionTexto: string | null; anda: boolean | null; fecha: string };
@@ -80,6 +85,14 @@ function respuesta(x: unknown): Respuesta | null {
   const o = x as Record<string, unknown> | null;
   if (!o || typeof o !== "object") return null;
   return { texto: texto(o.texto), opcion: textoONada(o.opcion), opcionTexto: textoONada(o.opcion_texto), anda: typeof o.anda === "boolean" ? o.anda : null, fecha: texto(o.fecha) };
+}
+
+function renglones(x: unknown): ItemRenglon[] {
+  if (!Array.isArray(x)) return [];
+  return x.map((r) => {
+    const o = (r && typeof r === "object" ? r : {}) as Record<string, unknown>;
+    return { texto: texto(o.texto), hecho: o.hecho === true, clave: texto(o.clave) };
+  });
 }
 
 function opciones(x: unknown): Item["opciones"] {
@@ -116,6 +129,7 @@ function item(x: unknown): Item | null {
     opciones: opciones(o.opciones),
     porDefecto: textoONada(o.por_defecto),
     respuesta: respuesta(o.respuesta),
+    renglones: renglones(o.renglones),
   };
 }
 

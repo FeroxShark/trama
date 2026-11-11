@@ -24,10 +24,15 @@ export type EstadoDejado =
   | "respondido"
   /** Se cerró (o ya no está en el tablero). */
   | "cerrado"
+  /** Un renglón de prueba que la persona ya tildó (el item puede seguir abierto por los demás renglones). */
+  | "probado"
   /** Todavía no se leyó el tablero: se muestra el título sin decir nada del estado. */
   | "sin-leer";
 
-export type Carta = { key: string; id: ItemId; titulo: string; tipo: "pregunta" | "prueba"; proyecto: string; estado: EstadoDejado };
+/** El renglón de la prueba «Probar <proyecto> (…)» que es de este worker: su número (posición, desde 1) y si ya se tildó. El `titulo` de la carta es su texto. */
+export type RenglonCarta = { n: number; hecho: boolean };
+
+export type Carta = { key: string; id: ItemId; titulo: string; tipo: "pregunta" | "prueba"; proyecto: string; estado: EstadoDejado; renglon?: RenglonCarta };
 
 // --- La llamada del líder -------------------------------------------------------------
 
@@ -169,8 +174,15 @@ export function dejadosDeAviso(a: Pick<AvisoTexto, "trabajos">): RefDejado[] {
   return fuera;
 }
 
-/** ¿Es de este worker la clave de un item? `pa:<id>`, `pa:<id>:<n>` o `pa:<id>:p1`. */
+/**
+ * ¿Es de este worker la clave de un item? `pa:<id>`, `pa:<id>:<n>` o `pa:<id>:p1`. Los PROBAR nuevos ya no son items sino renglones del
+ * item agrupado «Probar <proyecto> (Linux|Windows)» (clave `probar:…`): ahí la clave `pa:<id>:p1` vive en el renglón (`renglonesDelWorker`).
+ */
 export const esDelWorker = (clave: string, worker: string): boolean => clave === `pa:${worker}` || clave.startsWith(`pa:${worker}:`);
+
+/** Los renglones de un item agrupado que dejó este worker (por la clave del renglón), con su número. Un item sin renglones: ninguno. */
+export const renglonesDelWorker = (i: Pick<Item, "renglones">, worker: string): { n: number; texto: string; hecho: boolean }[] =>
+  i.renglones.flatMap((r, k) => (esDelWorker(r.clave, worker) ? [{ n: k + 1, texto: r.texto, hecho: r.hecho }] : []));
 
 // --- Qué dice el tablero hoy ----------------------------------------------------------
 
@@ -192,8 +204,8 @@ export function cartas(refs: readonly RefDejado[], t: Tablero | null): Carta[] {
   const fuera: Carta[] = [];
   const vistas = new Set<string>();
   const poner = (c: Carta) => {
-    if (vistas.has(String(c.id))) return;
-    vistas.add(String(c.id));
+    if (vistas.has(c.key)) return;
+    vistas.add(c.key);
     fuera.push(c);
   };
   const lista = t ? todos(t) : [];
@@ -204,9 +216,14 @@ export function cartas(refs: readonly RefDejado[], t: Tablero | null): Carta[] {
       else poner({ key: `i${r.id}`, id: r.id, titulo: r.titulo, tipo: "pregunta", proyecto: "", estado: t ? "cerrado" : "sin-leer" });
     } else {
       for (const x of lista) {
-        if (x.i.maquina || !esDelWorker(x.i.clave, r.worker)) continue;
+        if (x.i.maquina) continue;
         // Un item de worker que aún está en el tablero sólo cuenta si le toca a la persona (en `espera-dueno`) o ya se cerró.
         if (!x.cerrado && x.i.columna !== "espera-dueno") continue;
+        // Su PROBAR como renglón del item agrupado: la carta es el renglón y dice si ya está tildado.
+        for (const g of renglonesDelWorker(x.i, r.worker)) {
+          poner({ key: `i${x.i.id}r${g.n}`, id: x.i.id, titulo: g.texto, tipo: "prueba", proyecto: x.i.proyecto, estado: g.hecho ? "probado" : x.cerrado ? "cerrado" : "abierto", renglon: { n: g.n, hecho: g.hecho } });
+        }
+        if (!esDelWorker(x.i.clave, r.worker)) continue;
         poner({ key: `i${x.i.id}`, id: x.i.id, titulo: tituloDe(x.i), tipo: x.i.tipo, proyecto: x.i.proyecto, estado: x.cerrado ? "cerrado" : sinEstado(x.i) });
       }
     }
