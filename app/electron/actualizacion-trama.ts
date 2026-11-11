@@ -10,7 +10,7 @@
 // como el payload de Windows) no hay aviso: no hay de dónde actualizar. Los pasos, por argv y sin shell:
 //   git fetch --tags  ·  git checkout --detach refs/tags/<tag>  ·  bash motor/scripts/instalar-producto.sh
 // El tag sale del release consultado y pasa por `TAG_RE` antes de llegar a git; el IPC de Actualizar no recibe
-// argumentos. Es de la PC sola (SOLO_PC_TAILNET): corre un instalador. Con cambios sin commitear en el checkout no
+// argumentos. También se pide por la tailnet (no está en SOLO_PC_TAILNET). Con cambios sin commitear en el checkout no
 // se toca nada. La instalada es la del proceso que corre: hasta reiniciar Trama sigue diciendo la vieja.
 //
 // El instalador reinicia `trama-motor.service`: los líderes con turno en curso se cortan (quedan `dormido` y vuelven con
