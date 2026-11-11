@@ -12,6 +12,13 @@
 .aj-raiz .aj-nav {
   gap: var(--esp-1);
 }
+.aj-raiz .aj-gr {
+  gap: var(--esp-1);
+}
+.aj-raiz .aj-gr-t {
+  padding-right: var(--esp-4);
+  padding-left: var(--esp-4);
+}
 .aj-raiz .aj-it {
   min-height: var(--alto-nav);
   padding: var(--esp-1-5) var(--esp-4);
@@ -124,6 +131,9 @@
 }
 .aj-raiz .aj-cat .pn-sec > :last-child {
   margin-bottom: var(--esp-4);
+}
+.aj-raiz .aj-cat .pn-sec > .mdl-como:first-child {
+  margin-top: var(--esp-3);
 }
 .aj-raiz .aj-cat .pn-sec > :is(.ol-guia, .cel-estado):first-child {
   margin-top: var(--esp-5);

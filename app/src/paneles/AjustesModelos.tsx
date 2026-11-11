@@ -4,7 +4,7 @@
 // crea nada hasta que se guarda un cambio. Los modelos locales se detectan preguntándole a Ollama (`/api/tags`); acá no se
 // carga ninguno. Sólo se edita desde la PC (por la tailnet el main rechaza guardar).
 import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
-import { Plus, X } from "lucide-react";
+import { ChevronDown, Info, Plus, X } from "lucide-react";
 import { Interruptor } from "../ui/componentes";
 import { VERSION, type Uso } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
@@ -53,6 +53,7 @@ import {
   ponerDestrabar,
   ponerPermitirMax,
   porcentaje,
+  nombreDe,
   quitarLocal,
   sucio,
   textoEleccion,
@@ -70,6 +71,27 @@ import type { EfectivoPa } from "../../electron/modelos-config";
 
 /** Para las capturas: `mdl` (con archivo), `mdl-agregar` (con el panel de otra dirección abierto), `mdl-lider` (el selector del líder abierto), `mdl-bajando` (un modelo a mitad de bajada), `mdl-sinollama` (Ollama sin instalar), `mdl-apagado` (instalado y apagado), `mdl-sugeridos` (los modelos sugeridos), `mdl-servidores` (lo que se detecta en la máquina), `mdl-prender` (con el aviso de prender abierto), `mdl-guias` (las guías de instalación), `mdl-win` (lo mismo visto desde Windows), `mdl-tope` (el aviso de un tope cruzado) y `sinmdl` (sin archivo). */
 const VARIANTE = MODO.variante ?? "";
+
+/** «Cómo funciona»: la explicación larga plegada (mismo patrón y estilos que «Cómo funcionan estos límites» de Plan y cupos); se toca, no depende del mouse. */
+function ComoFunciona({ claves }: { claves: ClaveSola[] }) {
+  const [abierta, setAbierta] = useState(false);
+  return (
+    <div className="cu-ayuda mdl-como" data-abierta={abierta ? "" : undefined}>
+      <button type="button" className="cu-ayuda-b" aria-expanded={abierta} onClick={() => setAbierta((a) => !a)}>
+        <Info size={13} strokeWidth={2} aria-hidden="true" />
+        <span>{t("ajustes.mdlComo")}</span>
+        <ChevronDown className="cu-ayuda-f" size={12} strokeWidth={2} aria-hidden="true" />
+      </button>
+      {abierta ? (
+        <div className="mdl-como-c">
+          {claves.map((k) => (
+            <Fijo key={k} k={k} bloque className="pn-nota" />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 const ES_CAPTURA = VARIANTE.startsWith("mdl") || VARIANTE === "sinmdl";
 
 const GRUPO: Record<Proveedor, string> = { anthropic: "Anthropic", google: "Google", ollama: "Ollama", otro: "" };
@@ -405,7 +427,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
     <div className="aj-sin-caja" ref={sec as RefObject<HTMLDivElement>} data-modelos>
       <Cat id="modelos">
         <section className="pn-sec pn-edita">
-          <Fijo k="ajustes.mdlIntro" bloque className="pn-nota pn-intro" />
+          <ComoFunciona claves={["ajustes.mdlIntro"]} />
           {!e.existe ? <Fijo k="ajustes.mdlSinArchivo" bloque className="pn-nota pn-intro" /> : null}
 
           <Dato nombre="ajustes.mdlLider" que="ajustes.mdlLiderQue">
@@ -432,22 +454,46 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
           {auto ? (
             <>
               <h3 className="pn-sub-h">{t("ajustes.mdlHoyElegiria")}</h3>
-              <ul className="pn-disp mdl-hoy" aria-label={t("ajustes.mdlHoyElegiria")}>
-                {TIPOS.map((tipo) => {
-                  const h = ef?.reparto?.[tipo];
-                  const esperando = efectivo === "pendiente";
-                  // El motivo sale en un tooltip al pasar el mouse y al enfocar el renglón con Tab (`tooltip.ts`); el lector lo oye por `aria-describedby`.
-                  const motivo = h ? textoMain(h.motivo) : "";
-                  return (
-                    <li key={tipo} data-tipo={tipo} tabIndex={motivo ? 0 : undefined} data-tip={motivo || undefined} aria-describedby={motivo ? `mdl-hoy-motivo-${tipo}` : undefined}>
-                      <span className="mdl-hoy-tipo" data-tip={t(`mdl.t.${tipo}Que` as ClaveSola)}>{t(`mdl.t.${tipo}` as ClaveSola)}</span>
-                      <span className="mdl-hoy-modelo" data-vacio={h || esperando ? undefined : ""} data-cargando={esperando ? "" : undefined} aria-busy={esperando || undefined}>
-                        {esperando ? <span className="pn-cargando-barra" aria-hidden /> : h ? textoEleccion({ modelo: h.modelo, ...(h.effort ? { effort: h.effort } : {}) }, locales) : t("ajustes.mdlHoySin")}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="mdl-hoy-caja">
+              <table className="mdl-hoy" aria-label={t("ajustes.mdlHoyElegiria")}>
+                <thead>
+                  <tr>
+                    <th scope="col">{t("tbl.tipo")}</th>
+                    <th scope="col">{t("comun.modelo")}</th>
+                    <th scope="col">{t("comun.esfuerzo")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {TIPOS.map((tipo) => {
+                    const h = ef?.reparto?.[tipo];
+                    const esperando = efectivo === "pendiente";
+                    // El motivo sale en un tooltip al pasar el mouse y al enfocar el renglón con Tab (`tooltip.ts`); el lector lo oye por `aria-describedby`.
+                    const motivo = h ? textoMain(h.motivo) : "";
+                    // Los de Gemini traen el esfuerzo pegado al nombre («Gemini 4 Argon · high»): se separa para que caiga en su columna.
+                    const [modelo, esfuerzoNombre] = h ? nombreDe(h.modelo, locales).split(" · ") : ["", undefined];
+                    return (
+                      <tr key={tipo} data-tipo={tipo} tabIndex={motivo ? 0 : undefined} data-tip={motivo || undefined} aria-describedby={motivo ? `mdl-hoy-motivo-${tipo}` : undefined} aria-busy={esperando || undefined}>
+                        <th scope="row" className="mdl-hoy-tipo" data-tip={t(`mdl.t.${tipo}Que` as ClaveSola)}>{t(`mdl.t.${tipo}` as ClaveSola)}</th>
+                        {esperando ? (
+                          <td colSpan={2} className="mdl-hoy-modelo" data-cargando="">
+                            <span className="pn-cargando-barra" aria-hidden />
+                          </td>
+                        ) : h ? (
+                          <>
+                            <td className="mdl-hoy-modelo">{modelo}</td>
+                            <td className="mdl-hoy-effort">{h.effort ?? esfuerzoNombre ?? ""}</td>
+                          </>
+                        ) : (
+                          <td colSpan={2} className="mdl-hoy-modelo" data-vacio="">
+                            {t("ajustes.mdlHoySin")}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              </div>
               {TIPOS.map((tipo) => {
                 const motivo = ef?.reparto?.[tipo]?.motivo;
                 return motivo ? (

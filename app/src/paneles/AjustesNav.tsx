@@ -14,6 +14,7 @@ import {
   categoria,
   deVariante,
   efectiva,
+  GRUPOS,
   inicial,
   irA,
   marcasDe,
@@ -200,10 +201,15 @@ export function AjustesMarco({ children }: { children: ReactNode }) {
   const cats = CATS.filter((c) => hay(c, presentes));
   useResaltar(activa, salto, cont);
 
-  const opciones: Opcion[] = cats.map((c) => {
-    const m = textoMarca(c, marcas[c]);
-    return { id: c, nombre: t(TEXTOS[c].nombre), desc: m ?? t(TEXTOS[c].que), marca: m ? <span className="aj-punto" aria-hidden="true" /> : undefined };
-  });
+  // El selector del angosto lleva los mismos tres títulos: cada opción sabe de qué grupo es.
+  const opciones: Opcion[] = GRUPOS.flatMap((g) =>
+    g.cats
+      .filter((c) => cats.includes(c))
+      .map((c) => {
+        const m = textoMarca(c, marcas[c]);
+        return { id: c, nombre: t(TEXTOS[c].nombre), desc: m ?? t(TEXTOS[c].que), grupo: t(g.titulo), marca: m ? <span className="aj-punto" aria-hidden="true" /> : undefined };
+      }),
+  );
 
   return (
     <CatCtx.Provider value={activa}>
@@ -211,17 +217,28 @@ export function AjustesMarco({ children }: { children: ReactNode }) {
         <div className="aj">
           <Buscador presentes={presentes} />
           <nav className="aj-nav" aria-label={t("aj.categorias")}>
-            {cats.map((c) => {
-              const { icono: Icono } = TEXTOS[c];
-              const m = textoMarca(c, marcas[c]);
+            {GRUPOS.map((g) => {
+              const delGrupo = g.cats.filter((c) => cats.includes(c));
+              if (!delGrupo.length) return null;
               return (
-                <button key={c} type="button" className="aj-it" data-cat={c} aria-current={c === activa ? "page" : undefined} onClick={() => irA(c)}>
-                  <Icono size={16} aria-hidden="true" />
-                  <span className="aj-it-x">
-                    <span className="aj-it-n">{t(TEXTOS[c].nombre)}</span>
-                    {m ? <span className="aj-it-m">{m}</span> : null}
+                <div key={g.id} className="aj-gr" role="group" aria-labelledby={`aj-gr-${g.id}`}>
+                  <span className="aj-gr-t" id={`aj-gr-${g.id}`}>
+                    {t(g.titulo)}
                   </span>
-                </button>
+                  {delGrupo.map((c) => {
+                    const { icono: Icono } = TEXTOS[c];
+                    const m = textoMarca(c, marcas[c]);
+                    return (
+                      <button key={c} type="button" className="aj-it" data-cat={c} aria-current={c === activa ? "page" : undefined} onClick={() => irA(c)}>
+                        <Icono size={16} aria-hidden="true" />
+                        <span className="aj-it-x">
+                          <span className="aj-it-n">{t(TEXTOS[c].nombre)}</span>
+                          {m ? <span className="aj-it-m">{m}</span> : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               );
             })}
           </nav>

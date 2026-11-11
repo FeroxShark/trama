@@ -7,6 +7,16 @@ import { TIPOS } from "../../electron/modelos-tipos";
 export const CATS = ["cuentas", "modelos", "cupos", "locales", "opencode", "dsh", "conectores", "celular", "actualizaciones", "proyectos", "general", "guia"] as const;
 export type CatId = (typeof CATS)[number];
 
+/**
+ * La barra lateral agrupa las categorías bajo tres títulos (`aj.grupo.*`). Todas están en un solo grupo; el orden de `CATS` no cambia
+ * (es el del «primera que haya»), éste es sólo el de la barra: de lo que se elige (modelos y cupos), a lo que se conecta, a Trama misma.
+ */
+export const GRUPOS: readonly { id: "modelos" | "conexiones" | "trama"; titulo: ClaveSola; cats: readonly CatId[] }[] = [
+  { id: "modelos", titulo: "aj.grupo.modelos", cats: ["modelos", "cupos", "locales", "opencode", "dsh"] },
+  { id: "conexiones", titulo: "aj.grupo.conexiones", cats: ["cuentas", "conectores", "celular"] },
+  { id: "trama", titulo: "aj.grupo.trama", cats: ["proyectos", "actualizaciones", "general", "guia"] },
+];
+
 export const esCat = (x: unknown): x is CatId => typeof x === "string" && (CATS as readonly string[]).includes(x);
 
 /** Una fila de Ajustes que se puede buscar: `nombre` es la misma clave con que se pinta (`data-opc` de la fila). */

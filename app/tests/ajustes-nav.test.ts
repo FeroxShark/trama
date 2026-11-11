@@ -23,7 +23,7 @@ const nav = await import("../src/paneles/ajustes-nav.ts");
 const { cambiarIdioma, t } = await import("../src/i18n/index.ts");
 const en = (await import("../src/i18n/en.ts")).en as Record<string, string>;
 const { es } = (await import("../src/i18n/es.ts")) as { es: Record<string, string> };
-const { CATS, ITEMS, buscar, normalizar, categoria, irA, efectiva, marcar, marcasDe, varsDe, declarar, presentesDe, deVariante, inicial, reiniciar, suscribir, pendienteDeMostrar } = nav;
+const { CATS, GRUPOS, ITEMS, buscar, normalizar, categoria, irA, efectiva, marcar, marcasDe, varsDe, declarar, presentesDe, deVariante, inicial, reiniciar, suscribir, pendienteDeMostrar } = nav;
 
 beforeEach(() => {
   reiniciar();
@@ -41,6 +41,16 @@ test("cada fila del índice y cada categoría tienen texto en inglés y en espa�
   }
   assert.equal(new Set(ITEMS.map((i) => i.nombre)).size, ITEMS.length, "una fila repetida en el índice");
   for (const c of CATS) assert.ok(ITEMS.some((i) => i.cat === c) || c === "cuentas", `la categoría ${c} no tiene nada que buscar`);
+});
+
+test("la barra agrupa las 12 categorías bajo tres títulos, cada una en un solo grupo, y los títulos existen en los dos idiomas", () => {
+  const todas = GRUPOS.flatMap((g: { cats: string[] }) => g.cats);
+  assert.equal(GRUPOS.length, 3);
+  assert.deepEqual([...todas].sort(), [...CATS].sort(), "cada categoría va en un grupo y sólo en uno");
+  for (const g of GRUPOS as { titulo: string }[]) {
+    assert.ok(g.titulo in en && g.titulo in es, `falta el título ${g.titulo}`);
+  }
+  assert.deepEqual((GRUPOS as { titulo: string }[]).map((g) => en[g.titulo]), ["Models & quotas", "Connections", "Trama"]);
 });
 
 test("cada fila del índice está dibujada con su data-opc (el salto la encuentra)", () => {

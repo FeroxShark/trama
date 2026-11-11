@@ -769,23 +769,57 @@
 }
 /* Automático: lo que el reparto elegiría hoy por tipo (sólo lectura), y los modelos que no se usan (chips con su ✕). */
 .mdl-hoy {
+  width: 100%;
   min-width: 0;
+  margin: 0 0 var(--esp-2);
+  border-collapse: collapse;
 }
-.mdl-hoy li {
-  min-height: 1.75rem;
-  padding-right: var(--esp-2);
+.mdl-hoy th,
+.mdl-hoy td {
+  padding: var(--esp-1-5) var(--esp-2);
+  border-bottom: 1px solid var(--borde-3);
+  text-align: left;
+  vertical-align: middle;
+}
+.mdl-hoy thead th {
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+  font-weight: 500;
+}
+.mdl-hoy tbody tr:last-child > * {
+  border-bottom: 0;
 }
 .mdl-hoy-tipo {
   color: var(--texto-3);
   font-size: var(--letra-4);
+  font-weight: 400;
 }
 .mdl-hoy-modelo {
   color: var(--texto);
   font-size: var(--letra-4);
   font-variant-numeric: tabular-nums;
 }
+.mdl-hoy-effort {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+}
 .mdl-hoy-modelo[data-vacio] {
   color: var(--texto-7);
+}
+.mdl-hoy tbody tr:hover > *,
+.mdl-hoy tbody tr:focus-visible > * {
+  background: var(--capa-hover);
+}
+/* «Cómo funciona» plegado: la explicación larga sale al tocarlo, en columna y sin cortar el hilo de la lista de abajo. */
+.mdl-como {
+  margin: 0 0 var(--esp-2);
+}
+.mdl-como-c {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin-top: var(--esp-1-5);
 }
 /* Va dentro de `.pn-val` (mono, sin renglones): la nota de abajo es prosa y tiene que hacer renglones. */
 .mdl-excluir {
@@ -1527,8 +1561,9 @@
     content: "";
     transform: translate(-50%, -50%);
   }
-  .mdl-hoy li {
-    min-height: 2.75rem;
+  .mdl-hoy th,
+  .mdl-hoy td {
+    height: 2.75rem;
   }
   .pn-disp li {
     min-height: 2.75rem;
@@ -2322,6 +2357,21 @@
   display: flex;
   flex-direction: column;
   gap: var(--esp-0-5);
+}
+/* Un grupo de categorías con su título (sentence case, sin versalitas ni adorno): el hueco entre grupos es mayor que entre ítems. */
+.aj-gr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+}
+.aj-gr + .aj-gr {
+  margin-top: var(--esp-3);
+}
+.aj-gr-t {
+  padding: 0 var(--esp-3) var(--esp-1);
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+  font-weight: 600;
 }
 .aj-it {
   display: flex;
