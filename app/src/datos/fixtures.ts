@@ -64,7 +64,7 @@ export const FRENADO = { id: "20261003-103620-49377", proyecto: "atlas" };
 const PEDIDO_LARGO = [
   "Seguí AGENTS.md (Linux y Windows juntos, i18n es+en). Usá ui-ux-pro-max.",
   "Contexto: la config vieja se sigue leyendo un release más, para no romper a nadie.",
-  "Objetivo: migrar la config de YAML a TOML y avisar a quien todavía tenga YAML.",
+  "Objetivo: Migrar la config de YAML a TOML y avisar a quien todavía tenga YAML.",
   "Archivos: electron/config.ts, electron/config-migrar.ts.",
   "Listo cuando: los tests de config pasan con YAML y con TOML.",
 ].join("\n");
