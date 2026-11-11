@@ -193,6 +193,7 @@ const COSTO_DSH_PAGO = 1.5;
 
 type Familia = [string, string, string, string, string | null, string | null, string[] | null];
 const FAMILIAS: Familia[] = [
+  ["claude-fable-5-2", "fable", "Claude Fable 5.2", "claude", null, null, null],
   ["claude-opus-5-5", "opus", "Claude Opus 5.5", "claude", null, null, null],
   ["claude-sonnet-5-5", "sonnet", "Claude Sonnet 5.5", "claude", null, null, null],
   ["claude-haiku-5-5", "haiku", "Claude Haiku 5.5", "claude", null, null, null],
@@ -950,6 +951,12 @@ function cargarConfig(): Obj {
     }
   }
   return cfg;
+}
+
+/** Los ids de FAMILIAS que ninguna fuente de Artificial Analysis (caché, foto del repo o suplemento) trae: quedarían con la calidad de fábrica sin que nadie se entere (lo controla `tests/reparto-familias-aa.test.ts`). */
+export function familiasSinFilaAA(): string[] {
+  const aa = aaCargar();
+  return FAMILIAS.filter(([base]) => !aaCalidad(aa, base)).map(([base]) => base);
 }
 
 function mapaEfforts(cfg: Obj, clave: string, mid: string | null = null): MapaEf {
@@ -2564,6 +2571,12 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     const x = excluidoPor(modelo, cfg.excluir, fam);
     if (x && !cand.duro) {
       cand.descartado_por = `excluido en modelos.json (excluir: ${x})`;
+      cand.duro = true;
+    }
+    // Fable no entra solo al reparto: `pa` lo frena sin --ok-dueno (cobra créditos en `-p`), así que elegirlo acá sería un worker que no arranca.
+    // Se ve en --tabla (el dueño lo prende o apaga) y sale por `-m claude-fable-5-2 --ok-dueno`; REPARTO_OK_DUENO=1 lo deja competir.
+    if (fam === "fable" && !cand.duro && E.REPARTO_OK_DUENO !== "1") {
+      cand.descartado_por = "Fable no se elige solo: va sólo con -m y --ok-dueno (en `-p` cobra créditos sin preguntar)";
       cand.duro = true;
     }
     const nd = excluidoPor(modelo, noDisponibles(), fam);

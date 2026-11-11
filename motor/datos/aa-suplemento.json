@@ -22,6 +22,7 @@
     { "name": "Gemini 3.8 Flash (High)", "slug": "gemini-3-8-flash", "intelligence": 40.93, "cost": 3769.96, "tokens": 172228415, "time": 519.8 },
     { "name": "Gemini 3.8 Flash (Medium)", "slug": "gemini-3-8-flash-medium", "intelligence": 39.77 },
     { "name": "Gemini 3.8 Flash (Low)", "slug": "gemini-3-8-flash-low", "intelligence": 33.45 },
+    { "name": "GPT-OSS 120B (Medium)", "slug": "gpt-oss-120b", "intelligence": 38.7, "aproximado": true, "nota": "ESTIMADA: la foto de AA no trae este modelo; es la calidad de fábrica de reparto (45 de la escala vieja) en unidades de AA. Reemplazar cuando AA lo mida." },
     { "name": "Kimi K2.7 Code", "slug": "kimi-k2-7-code", "intelligence": 25.81, "cost": 992.88, "tokens": 122130503, "time": 358.5 },
     { "name": "Kimi K3.1 Pro", "slug": "kimi-k3-1-pro", "intelligence": 55.09, "cost": 3117.31, "tokens": 147973700, "time": 1228.1 },
     { "name": "GLM-5.3-Flash", "slug": "glm-5-3-flash", "intelligence": 41.81, "cost": 305.52, "tokens": 180681476, "time": 729.4 },

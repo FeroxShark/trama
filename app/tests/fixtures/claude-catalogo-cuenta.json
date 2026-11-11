@@ -1,0 +1,198 @@
+{
+ "version": 2,
+ "catalog": {
+  "surface": "cc",
+  "config": {
+   "id": "cc",
+   "models": [
+    {
+     "id": "claude-opus-5-5",
+     "name": "Opus 5.5",
+     "section": "main",
+     "runtime": {
+      "family": "opus",
+      "effort_levels": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    },
+    {
+     "id": "claude-fable-5-2",
+     "name": "Fable 5.2",
+     "section": "main",
+     "runtime": {
+      "family": "fable",
+      "effort_levels": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    },
+    {
+     "id": "claude-sonnet-5-5",
+     "name": "Sonnet 5.5",
+     "section": "main",
+     "runtime": {
+      "family": "sonnet",
+      "effort_levels": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    },
+    {
+     "id": "claude-haiku-5-5",
+     "name": "Haiku 5.5",
+     "section": "main",
+     "runtime": {
+      "family": "haiku",
+      "effort_levels": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    },
+    {
+     "id": "claude-fable-5-1",
+     "name": "Fable 5.1",
+     "section": "overflow",
+     "runtime": {
+      "family": "fable",
+      "effort_levels": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    },
+    {
+     "id": "claude-haiku-4-5-20251001",
+     "name": "Haiku 4.5",
+     "section": "overflow",
+     "runtime": {
+      "family": "haiku",
+      "effort_levels": []
+     }
+    },
+    {
+     "id": "claude-sonnet-5",
+     "name": "Sonnet 5",
+     "section": "overflow",
+     "runtime": {
+      "family": "sonnet",
+      "effort_levels": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    },
+    {
+     "id": "claude-opus-5",
+     "name": "Opus 5",
+     "section": "overflow",
+     "runtime": {
+      "family": "opus",
+      "effort_levels": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    },
+    {
+     "id": "claude-fable-5",
+     "name": "Fable 5",
+     "section": "overflow",
+     "runtime": {
+      "family": "fable",
+      "effort_levels": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    },
+    {
+     "id": "claude-opus-4-8",
+     "name": "Opus 4.8",
+     "section": "overflow",
+     "runtime": {
+      "family": "opus",
+      "effort_levels": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    },
+    {
+     "id": "claude-opus-4-7",
+     "name": "Opus 4.7",
+     "section": "overflow",
+     "runtime": {
+      "family": "opus",
+      "effort_levels": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    },
+    {
+     "id": "claude-opus-4-6",
+     "name": "Opus 4.6",
+     "section": "overflow",
+     "runtime": {
+      "family": "opus",
+      "effort_levels": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ]
+     }
+    },
+    {
+     "id": "claude-sonnet-4-6",
+     "name": "Sonnet 4.6",
+     "section": "overflow",
+     "runtime": {
+      "family": "sonnet",
+      "effort_levels": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ]
+     }
+    }
+   ]
+  }
+ }
+}
