@@ -185,6 +185,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "ramas.f.revisar": "Para mirar",
   "ramas.f.sin": "Sin veredicto",
   "ramas.verMotivo": "Ver el motivo entero",
+  "ramas.verPedido": "Ver el pedido entero",
+  "ramas.ocultarPedido": "Ocultar el pedido",
   "ramas.mas": "Más acciones",
   "lec.motivo": "{l} líneas, {c} caracteres (tope 30 / 3000)",
   "gu.intro": "Lo mínimo para trabajar bien con trama. Tocá un tema o buscalo arriba.",

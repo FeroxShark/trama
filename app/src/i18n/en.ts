@@ -195,6 +195,8 @@ export const en = {
   "ramas.f.revisar": "To look at",
   "ramas.f.sin": "No verdict",
   "ramas.verMotivo": "Show the whole reason",
+  "ramas.verPedido": "Show the whole request",
+  "ramas.ocultarPedido": "Hide the request",
   "ramas.mas": "More actions",
   "lec.motivo": "{l} lines, {c} characters (limit 30 / 3000)",
   "gu.intro": "The minimum to work well with trama. Pick a topic or search for it above.",
