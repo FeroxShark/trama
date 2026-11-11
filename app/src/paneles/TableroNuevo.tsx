@@ -361,7 +361,10 @@ function Proyecto({
   // Para las capturas (`HILOS_VARIANTE=abajo`): la lista abierta hasta el final, donde están las pruebas.
   const scroll = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if ((MODO.variante === "abajo" || MODO.variante === "mandadas") && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
+    if (MODO.variante !== "abajo" && MODO.variante !== "mandadas") return;
+    // Después de pintar (y de asentarse las fuentes): si no, el alto todavía no es el final y queda cortado.
+    const f = requestAnimationFrame(() => scroll.current && (scroll.current.scrollTop = scroll.current.scrollHeight));
+    return () => cancelAnimationFrame(f);
   }, []);
   // Viene de una tarjeta del chat: el item a la vista (se mueve esta lista, nunca la conversación).
   useEffect(() => {

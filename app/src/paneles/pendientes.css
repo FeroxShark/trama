@@ -421,7 +421,7 @@
   align-items: center;
   justify-content: center;
   border: 1.5px solid var(--borde-4);
-  border-radius: var(--radio-2);
+  border-radius: var(--r-xs);
   background: var(--sup-0);
   color: transparent;
 }
