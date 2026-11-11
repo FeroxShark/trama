@@ -61,7 +61,7 @@ test("la foto del repo (motor/datos/aa-foto.json) es válida, sin claves, y alca
   const j = JSON.parse(texto) as { fecha: string; modelos: object[] };
   assert.match(j.fecha, /^\d{4}-\d{2}-\d{2}$/);
   assert.ok(j.modelos.length > 0);
-  const t = tabla({});
+  const t = tabla({ REPARTO_AA_FOTO: "" }); // vacío = sin variable: la ruta por defecto, la del repo
   const conCurva = Object.values(t).filter((m) => m.origen === "artificial-analysis" && Object.keys(m.calidad_por_effort).length >= 2);
   assert.ok(conCurva.length > 0, "ningún modelo con curva por effort desde la foto");
   assert.ok(conCurva.every((m) => m.aa_foto === true && m.aa_fecha === j.fecha));

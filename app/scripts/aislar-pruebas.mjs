@@ -3,4 +3,7 @@
 // queda anotado en stderr y el archivo sale con 97: falla. Lo permitido es el checkout (HILOS_AISLAR_PERMITE lo arma
 // scripts/test.mjs). tests/aislar.test.ts comprueba que este cable existe.
 process.env.TRAMA_AISLAR ??= "1";
+// La foto de Artificial Analysis del repo (motor/datos/aa-foto.json) es lo que usa `reparto` sin caché: los tests que dicen «sin caché» no la
+// quieren (esperan los defaults). Quien la pruebe la nombra con REPARTO_AA_FOTO (tests/reparto-aa-foto.test.ts).
+process.env.REPARTO_AA_FOTO ??= "0";
 await import("../electron/aislar.ts");
