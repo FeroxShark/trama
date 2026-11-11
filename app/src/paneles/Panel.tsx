@@ -3,8 +3,7 @@
 import { lazy, Suspense, useRef } from "react";
 import { useFoco } from "../foco";
 import type { PropsRamas } from "./Ramas";
-import { Tablero, type PropsTablero } from "./Tablero";
-import { TableroNuevo } from "./TableroNuevo";
+import type { PropsTablero } from "./Tablero";
 import { AvisoLecciones } from "./Lecciones";
 import { t, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
@@ -15,9 +14,11 @@ import "./lavado.css";
 import "./ajustes-vidrio.css";
 import "./paneles-vidrio.css";
 
-// Ajustes, Ramas y Estadísticas se cargan al abrirse (chunk aparte): no pesan en el arranque.
+// Ajustes, Ramas, Estadísticas y el Tablero se cargan al abrirse (chunk aparte): no pesan en el arranque.
 const Ajustes = lazy(() => import("./Ajustes").then((m) => ({ default: m.Ajustes })));
 const Ramas = lazy(() => import("./Ramas").then((m) => ({ default: m.Ramas })));
+const Tablero = lazy(() => import("./Tablero").then((m) => ({ default: m.Tablero })));
+const TableroNuevo = lazy(() => import("./TableroNuevo").then((m) => ({ default: m.TableroNuevo })));
 const Estadisticas = lazy(() => import("./Estadisticas").then((m) => ({ default: m.Estadisticas })));
 
 export type CualPanel = "ajustes" | "ramas" | "estadisticas" | "tablero";
@@ -74,7 +75,9 @@ export function Panel({ cual, barraAbierta, alAlternarBarra, alVolver, ramas, ta
             // El tablero nuevo (lo que le toca al usuario); el kanban de siempre es su pestaña "Todo".
             <>
               <AvisoLecciones />
-              <TableroNuevo todo={<Tablero {...tablero} />} carpetas={tablero.carpetas} lideres={tablero.lideres} alRedactar={tablero.alRedactar} avisar={tablero.avisar} />
+              <Suspense fallback={null}>
+                <TableroNuevo todo={<Tablero {...tablero} />} carpetas={tablero.carpetas} lideres={tablero.lideres} alRedactar={tablero.alRedactar} avisar={tablero.avisar} />
+              </Suspense>
             </>
           )}
         </div>
