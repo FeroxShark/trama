@@ -87,5 +87,5 @@ test("Fable 5.2 está en la tabla con su fila de AA y el reparto no lo elige sol
     assert.notEqual(j.modelo, "claude-fable-5-2", `${tipo}: Fable no se elige solo`);
   }
   const ex = r(["--tipo", "frontend", "--json", "--explicar"]).stdout;
-  assert.match(ex, /Fable no se elige solo/);
+  assert.doesNotMatch(ex, /fable/i, "Fable ni aparece entre los candidatos del reparto");
 });

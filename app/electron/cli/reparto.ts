@@ -2573,12 +2573,6 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
       cand.descartado_por = `excluido en modelos.json (excluir: ${x})`;
       cand.duro = true;
     }
-    // Fable no entra solo al reparto: `pa` lo frena sin --ok-dueno (cobra créditos en `-p`), así que elegirlo acá sería un worker que no arranca.
-    // Se ve en --tabla (el dueño lo prende o apaga) y sale por `-m claude-fable-5-2 --ok-dueno`; REPARTO_OK_DUENO=1 lo deja competir.
-    if (fam === "fable" && !cand.duro && E.REPARTO_OK_DUENO !== "1") {
-      cand.descartado_por = "Fable no se elige solo: va sólo con -m y --ok-dueno (en `-p` cobra créditos sin preguntar)";
-      cand.duro = true;
-    }
     const nd = excluidoPor(modelo, noDisponibles(), fam);
     if (nd && !cand.duro) {
       cand.descartado_por = `no disponible ahora según pa (${nd})`;
@@ -2672,7 +2666,12 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     conFloat(cand, "urgencia", "puntaje", "ritmo_pts");
     out.push(cand);
   };
-  for (const c of FAMILIAS) for (const cs of c[3] === "claude" ? claudes : c[3] === "openai" ? openais : googles) hacer(c, cs);
+  // Fable está en la tabla (--tabla: el dueño lo prende o apaga) pero no compite: `pa` lo frena sin --ok-dueno (en `-p` cobra créditos sin
+  // preguntar), así que elegirlo solo sería un worker que no arranca. Sale por `-m claude-fable-5-2 --ok-dueno`; REPARTO_OK_DUENO=1 lo deja competir.
+  for (const c of FAMILIAS) {
+    if (c[1] === "fable" && !cfg.con_fable && E.REPARTO_OK_DUENO !== "1") continue;
+    for (const cs of c[3] === "claude" ? claudes : c[3] === "openai" ? openais : googles) hacer(c, cs);
+  }
   // Los modelos que el agy de la cuenta ofrece y FAMILIAS no conoce (p. ej. 'Claude Sonnet 4.6 (Thinking)'): entran con calidad estimada
   for (const cs of googles) {
     for (const m of (get(cs, "agy_modelos", []) || []) as { id: string; nombre: string }[]) {
@@ -3260,7 +3259,7 @@ function effortsEstimadosTabla(c: Obj): Obj {
 }
 
 function tabla(cfg: Obj, cupos: Obj, now: Date): Obj[] {
-  const [cands] = armarCandidatos("lectura", cfg, cupos, now, EFFORT_TABLA);
+  const [cands] = armarCandidatos("lectura", { ...cfg, con_fable: true }, cupos, now, EFFORT_TABLA);
   const out: Obj[] = [];
   for (const c of cands) {
     let fam = c.familia;
