@@ -436,16 +436,24 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
                 {TIPOS.map((tipo) => {
                   const h = ef?.reparto?.[tipo];
                   const esperando = efectivo === "pendiente";
+                  // El motivo sale en un tooltip al pasar el mouse y al enfocar el renglón con Tab (`tooltip.ts`); el lector lo oye por `aria-describedby`.
+                  const motivo = h ? textoMain(h.motivo) : "";
                   return (
-                    <li key={tipo} data-tipo={tipo}>
+                    <li key={tipo} data-tipo={tipo} tabIndex={motivo ? 0 : undefined} data-tip={motivo || undefined} aria-describedby={motivo ? `mdl-hoy-motivo-${tipo}` : undefined}>
                       <span className="mdl-hoy-tipo" data-tip={t(`mdl.t.${tipo}Que` as ClaveSola)}>{t(`mdl.t.${tipo}` as ClaveSola)}</span>
-                      <span className="mdl-hoy-modelo" data-vacio={h || esperando ? undefined : ""} data-cargando={esperando ? "" : undefined} data-tip={h ? textoMain(h.motivo) : undefined} aria-busy={esperando || undefined}>
+                      <span className="mdl-hoy-modelo" data-vacio={h || esperando ? undefined : ""} data-cargando={esperando ? "" : undefined} aria-busy={esperando || undefined}>
                         {esperando ? <span className="pn-cargando-barra" aria-hidden /> : h ? textoEleccion({ modelo: h.modelo, ...(h.effort ? { effort: h.effort } : {}) }, locales) : t("ajustes.mdlHoySin")}
                       </span>
                     </li>
                   );
                 })}
               </ul>
+              {TIPOS.map((tipo) => {
+                const motivo = ef?.reparto?.[tipo]?.motivo;
+                return motivo ? (
+                  <span key={tipo} id={`mdl-hoy-motivo-${tipo}`} className="oculto">{textoMain(motivo)}</span>
+                ) : null;
+              })}
               {hayCambio ? <Fijo k="ajustes.mdlHoyAlGuardar" bloque className="pn-nota" /> : null}
             </>
           ) : (
