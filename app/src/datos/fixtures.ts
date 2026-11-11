@@ -60,6 +60,15 @@ export const ARRANCANDO = { id: "20261013-120000-70001", proyecto: "atlas" };
 /** El worker de atlas que "frena" la captura `frenado`: trabaja bajo ana-c7 (el de los índices). */
 export const FRENADO = { id: "20261003-103620-49377", proyecto: "atlas" };
 
+/** El brief largo de la variante `ramas-brief` (captura `ramas`): la rama de YAML con los rótulos de un brief; su título es el objetivo y el pedido entero va al desplegar. */
+const PEDIDO_LARGO = [
+  "Seguí AGENTS.md (Linux y Windows juntos, i18n es+en). Usá ui-ux-pro-max.",
+  "Contexto: la config vieja se sigue leyendo un release más, para no romper a nadie.",
+  "Objetivo: migrar la config de YAML a TOML y avisar a quien todavía tenga YAML.",
+  "Archivos: electron/config.ts, electron/config-migrar.ts.",
+  "Listo cuando: los tests de config pasan con YAML y con TOML.",
+].join("\n");
+
 export const HILOS: RespuestaHilos = {
   version: 1,
   hilos: [
@@ -82,7 +91,7 @@ export const HILOS: RespuestaHilos = {
       id: "20261003-094533-47102",
       origen: "app",
       proyecto: "atlas",
-      tarea: "Migrar la config de YAML a TOML",
+      tarea: MODO.variante === "ramas-brief" ? PEDIDO_LARGO : "Migrar la config de YAML a TOML",
       estado: "decision",
       inicio: AHORA - 71 * MIN,
       duracion_s: 19 * MIN,
