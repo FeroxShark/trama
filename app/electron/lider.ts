@@ -60,6 +60,8 @@ import {
 import * as puntos from "./puntos.ts";
 import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
+import { barrerEtiqueta, nuevaEtiqueta, VARIABLE } from "./huerfanos.js";
+import { arranqueDe } from "./local.js";
 import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts";
 import { fragmentoVigente } from "./apagados.ts";
 import { conClaves } from "./claves.ts";
@@ -574,7 +576,10 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   // La terminal de los agentes (Windows): PowerShell por defecto; en Linux no cambia nada (terminal-agentes.ts).
   const plat = plataformaActual();
   const terminal = terminalAgentesGuardada();
-  const base = opcionesLider(process.env, HOME, g.cwd, local && { modelo: g.modelo, effort: g.effort, local }, extra.ollama) as { cwd: string; env: NodeJS.ProcessEnv };
+  const base0 = opcionesLider(process.env, HOME, g.cwd, local && { modelo: g.modelo, effort: g.effort, local }, extra.ollama) as { cwd: string; env: NodeJS.ProcessEnv };
+  // Etiqueta del árbol de este líder (electron/huerfanos.ts): la heredan sus herramientas aunque hagan setsid; al salir se barre por ella.
+  const etiqueta = nuevaEtiqueta(process.pid, arranqueDe(process.pid));
+  const base = { ...base0, env: { ...base0.env, [VARIABLE]: etiqueta } };
   // Su propio grupo (setsid): lo que el líder deja corriendo desde sus herramientas (un `qs`, un watcher) se barre al salir.
   // Un líder de Claude de una cuenta agregada corre con la carpeta de esa cuenta (CLAUDE_CONFIG_DIR); una que ya no existe cae a la de siempre.
   const cuenta = clase === "claude" && !local && !extra.ollama ? cuentaDeLider(g) : undefined;
@@ -745,6 +750,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   }
   const fin = (codigo: number | null, error: string | null, seMurio = false) => {
     barrerGrupo(p.pid);
+    // Lo que hizo setsid (el Bash tool de Claude) sale del grupo: se barre por la etiqueta que heredó (electron/huerfanos.ts).
+    barrerEtiqueta(etiqueta);
     if (procs.get(g.sid) !== x) return;
     procs.delete(g.sid);
     // Ya no tiene proceso: no es uno que trama se haya cortado con él vivo (`marcarCortados`).

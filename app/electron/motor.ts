@@ -19,6 +19,7 @@ import { abrirLocal, arranqueDe } from "./local.js";
 import { log, silencio } from "./log.js";
 import { armarNucleo, contarClientes, correrSalida, escuchar, esperarSalida, llamarLocal, soltarLocal, TOPE_SALIDA_MS } from "./nucleo.js";
 import { ESTADO, escribirAtomico } from "./pa.js";
+import { barrerDeMotoresMuertos } from "./huerfanos.js";
 import { armarRelanzo } from "./reinicio.js";
 import { marcar } from "./reinicio-marcas.js";
 import { armarRemoto } from "./remoto-armar.js";
@@ -49,6 +50,16 @@ async function arrancar() {
   marcar("motor", "motor-arranco", undefined, Math.round(Date.now() - process.uptime() * 1000));
   vigilarProceso(log);
   process.title = "trama-motor";
+  // Lo que dejó un motor anterior (SIGKILL, crash, o el relanzo con KillMode=process): sus líderes ya no están, así que sus
+  // herramientas (un watcher con `pactl subscribe`) se barren por la etiqueta que heredaron (electron/huerfanos.ts).
+  barrerDeMotoresMuertos((pid, arranque) => {
+    try {
+      if (arranque === "x") return (process.kill(pid, 0), true);
+      return arranqueDe(pid) === arranque;
+    } catch {
+      return false;
+    }
+  });
   // Las señales se atienden desde el primer instante: quien vea `dueno` y el socket ya puede mandar SIGTERM.
   let local: Awaited<ReturnType<typeof abrirLocal>> | undefined;
   let apagando = false;
