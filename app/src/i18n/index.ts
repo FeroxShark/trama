@@ -20,7 +20,7 @@ export type ClaveSola = { [K in Clave]: Args<K> extends [] ? K : never }[Clave];
 
 type Diccionario = Record<Clave, string>;
 
-// Cada idioma es un chunk aparte (en.ts / es.ts): la app carga sólo el que se usa (abajo). En node (los tests, sin `document`) se cargan
+// Cada idioma es un chunk aparte (en.ts / es.ts): la app carga sólo el que se usa (abajo). En node (los tests) se cargan
 // los dos para que `cambiarIdioma` siga siendo síncrono.
 const cargar: Record<Idioma, () => Promise<Diccionario>> = {
   en: () => import("./en.ts").then((m) => m.en),
@@ -37,7 +37,9 @@ function inicial(): Idioma {
 }
 
 let actual: Idioma = inicial();
-for (const i of typeof document === "undefined" ? IDIOMAS : [actual]) DICCIONARIOS[i] = await cargar[i]();
+// `import.meta.env` lo pone vite: sin él (node --test, aun con un `document` de mentira) se cargan los dos.
+const conVite = (import.meta as { env?: unknown }).env !== undefined;
+for (const i of conVite ? [actual] : IDIOMAS) DICCIONARIOS[i] = await cargar[i]();
 if (typeof document !== "undefined") document.documentElement.lang = actual;
 const oyentes = new Set<() => void>();
 
