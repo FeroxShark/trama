@@ -3302,6 +3302,7 @@ export const en = {
   "cu.tj.verDetalle": "See the details",
   "cu.tj.quitarDe": "Remove {nombre}",
   "cu.ayuda": "How these limits work",
+  "cu.comoFunciona": "How it works",
   "cu.ayuda.claude1": "Two limits run at once: a 5-hour session window and a weekly one. Both need room: if either is full, Claude stops until it resets.",
   "cu.ayuda.google1": "Quota is per group of models, not per account. The models in a group share one weekly limit and one 5-hour limit.",
   "cu.ayuda.google2": "Usage is counted by token cost: shorter tasks and cheaper models make the quota last longer.",

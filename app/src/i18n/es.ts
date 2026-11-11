@@ -3288,6 +3288,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "cu.tj.verDetalle": "Ver el detalle",
   "cu.tj.quitarDe": "Quitar {nombre}",
   "cu.ayuda": "Cómo funcionan estos límites",
+  "cu.comoFunciona": "Cómo funciona",
   "cu.ayuda.claude1": "Corren dos límites a la vez: una ventana de sesión de 5 horas y una semanal. Los dos necesitan lugar: si uno se llena, Claude para hasta que se reinicie.",
   "cu.ayuda.google1": "El cupo es por grupo de modelos, no por cuenta. Los modelos de un grupo comparten un límite semanal y uno de 5 horas.",
   "cu.ayuda.google2": "El uso se cuenta según el costo en tokens: tareas más cortas y modelos más baratos hacen que el cupo dure más.",

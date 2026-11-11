@@ -2738,7 +2738,35 @@
   font-size: var(--letra-4);
   line-height: 1.45;
 }
-/* Avanzado: su título y su explicación. */
+/* Avanzado: su título (un botón que lo pliega, cerrado de entrada) y su explicación. */
+.cu-av-h {
+  margin: 0;
+}
+.cu-av-b {
+  display: flex;
+  width: 100%;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.cu-av-f {
+  flex: none;
+  color: var(--inactivo);
+}
+.cu-avanzado[data-abierta] .cu-av-f {
+  transform: rotate(180deg);
+}
+.cu-avanzado[data-abierta] .cu-av-h {
+  margin-bottom: var(--esp-1);
+}
 .cu-av-q {
   padding-bottom: var(--esp-2);
   color: var(--apagado);

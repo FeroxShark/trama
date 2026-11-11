@@ -145,25 +145,32 @@ function Resumen({ s }: { s: { ventanas?: VentanaCupo[]; grupos?: GrupoCupo[]; a
   );
 }
 
-/** «Cómo funcionan estos límites»: un botón que despliega las particularidades del proveedor (se toca; no depende de pasar el mouse). */
-function Ayuda({ lineas, antes }: { lineas: ClaveSola[]; antes?: ReactNode }) {
+/** Una explicación larga plegada: un botón que la despliega (se toca; no depende de pasar el mouse). `titulo`: «Cómo funciona», «Cómo funcionan estos límites». */
+function Plegable({ titulo, children }: { titulo: string; children: ReactNode }) {
   const [abierta, setAbierta] = useState(false);
   return (
     <div className="cu-ayuda" data-abierta={abierta ? "" : undefined}>
       <button type="button" className="cu-ayuda-b" aria-expanded={abierta} onClick={() => setAbierta((a) => !a)}>
         <Info size={13} strokeWidth={2} aria-hidden="true" />
-        <span>{t("cu.ayuda")}</span>
+        <span>{titulo}</span>
         <ChevronDown className="cu-ayuda-f" size={12} strokeWidth={2} aria-hidden="true" />
       </button>
-      {abierta ? (
-        <ul className="cu-ayuda-l">
-          {antes ? <li>{antes}</li> : null}
-          {lineas.map((k) => (
-            <li key={k}>{t(k)}</li>
-          ))}
-        </ul>
-      ) : null}
+      {abierta ? children : null}
     </div>
+  );
+}
+
+/** «Cómo funcionan estos límites»: lo particular de cada proveedor, plegado. */
+function Ayuda({ lineas, antes }: { lineas: ClaveSola[]; antes?: ReactNode }) {
+  return (
+    <Plegable titulo={t("cu.ayuda")}>
+      <ul className="cu-ayuda-l">
+        {antes ? <li>{antes}</li> : null}
+        {lineas.map((k) => (
+          <li key={k}>{t(k)}</li>
+        ))}
+      </ul>
+    </Plegable>
   );
 }
 
@@ -654,9 +661,9 @@ const nombrePlanOc = (p: PlanOc) => (p === "go" ? t("ajustes.ocPlanGo") : p === 
  * El plan de una cuenta de OpenCode: lo que dice (el plan, y si es «detectado» —`opencode models` de esa cuenta— o elegido a mano) y, plegado como
  * respaldo, el selector manual (el elegido, con tilde y negrita además del color). `detectado`: lo que detectó Trama; Go Plus no se distingue de Go,
  * así que un Go detectado vale para un Go Plus elegido. `opc`: la fila que encuentra el buscador de Ajustes (sólo la de la cuenta de siempre).
- * `nota`: lo que dice debajo (con Go, cuántos modelos se ofrecen).
+ * `nota`: lo que dice el plan, plegado en «Cómo funciona» (la de siempre lo lleva en el pliegue de los límites).
  */
-function PlanOpencode({ plan, detectado, guardando, deshabilitado, error, nota, opc, alElegir }: { plan: PlanOc; detectado?: PlanOc | null; guardando: boolean; deshabilitado?: boolean; error: string | null; nota: string; opc?: string; alElegir: (p: PlanOc) => void }) {
+function PlanOpencode({ plan, detectado, guardando, deshabilitado, error, nota, opc, alElegir }: { plan: PlanOc; detectado?: PlanOc | null; guardando: boolean; deshabilitado?: boolean; error: string | null; nota?: string; opc?: string; alElegir: (p: PlanOc) => void }) {
   const coincide = !!detectado && (detectado === plan || (detectado === "go" && plan === "go-plus"));
   return (
     <div className="cu-oc-plan" data-opc={opc}>
@@ -680,7 +687,11 @@ function PlanOpencode({ plan, detectado, guardando, deshabilitado, error, nota, 
           ))}
         </div>
       </details>
-      <div className="cu-nota">{nota}</div>
+      {nota ? (
+        <Plegable titulo={t("cu.comoFunciona")}>
+          <p className="cu-ayuda-l">{nota}</p>
+        </Plegable>
+      ) : null}
       {error ? <div className="pn-error dsh-err" role="alert">{textoMain(error)}</div> : null}
     </div>
   );
@@ -788,7 +799,6 @@ function TarjetaOpencode({ uso, perfiles, lista, alCambiar, detalleDe }: { uso: 
         guardando={guardando}
         deshabilitado={!v}
         error={errPlan}
-        nota={go ? t("ajustes.ocPlanNotaGo", { n: e?.go ?? v?.modelos.length ?? 0 }) : t("ajustes.ocPlanNotaGratis")}
         alElegir={(p) => void elegirPlan(p)}
       />
       {go && v?.precio != null ? <div className="cu-nota">{t("cu.opencodeGo.precio", { usd: v.precio })}</div> : null}
@@ -834,7 +844,9 @@ function TarjetaOpencode({ uso, perfiles, lista, alCambiar, detalleDe }: { uso: 
         ) : null}
       </div>
     ) : null;
-  const ayuda = <Ayuda lineas={["cu.opencode.libreQue", "cu.opencode.contados", "cu.opencode.pagos", "cu.opencode.cuentas", "cu.opencode.mas"]} />;
+  // Lo que dice el plan (con Go, cuántos modelos se ofrecen) va con el resto de la explicación, plegado.
+  const notaPlan = go ? t("ajustes.ocPlanNotaGo", { n: e?.go ?? v?.modelos.length ?? 0 }) : t("ajustes.ocPlanNotaGratis");
+  const ayuda = <Ayuda antes={notaPlan} lineas={["cu.opencode.libreQue", "cu.opencode.contados", "cu.opencode.pagos", "cu.opencode.cuentas", "cu.opencode.mas"]} />;
   const otra = lista ? <AgregarCuenta proveedor="opencode" alCambiar={alCambiar} /> : null;
   if (varias)
     return (
@@ -898,13 +910,13 @@ function TarjetaNvidia({ uso }: { uso: Uso | null }) {
   const estado: EstadoProv | null = e ? (e.hayClave ? { texto: t("cu.nvidia.conClave"), tono: "ok" } : { texto: t("cu.nvidia.sinClave") }) : null;
   return (
     <Chica id="nvidia" opc="cu.nvidia" nombre={t("cu.nvidia")} estado={estado} resumen={e && !e.hayClave ? t("cu.tj.sinClaveCorto") : <ResumenChica s={s} sinDatos={t("cu.tj.sinUsoCorto")} />}>
-      {s?.grupos?.length ? s.grupos.map((g) => <Grupo key={g.id} g={g} />) : <div className="cu-sin">{t(e && !e.hayClave ? "cu.nvidia.sinClaveQue" : "cu.nvidia.sinUso")}</div>}
+      {s?.grupos?.length ? s.grupos.map((g) => <Grupo key={g.id} g={g} />) : e && !e.hayClave ? null : <div className="cu-sin">{t("cu.nvidia.sinUso")}</div>}
       {e && !e.hayClave ? (
         <Boton className="cu-poner-clave" primario onClick={() => irA("opencode", "ajustes.nimClave", true)}>
           {t("cu.nvidia.ponerClave")}
         </Boton>
       ) : null}
-      <Ayuda lineas={["cu.nvidia.libreQue", "cu.nvidia.contados", "cu.nvidia.mas"]} />
+      <Ayuda lineas={["cu.nvidia.libreQue", "cu.nvidia.contados", "cu.nvidia.mas"]} antes={e && !e.hayClave && !s?.grupos?.length ? t("cu.nvidia.sinClaveQue") : null} />
     </Chica>
   );
 }
@@ -961,9 +973,36 @@ export function AjustesCupos({ Dato, b, cambiar, uso }: { Dato: FilaDato; b: Bor
   const { grupos, chatgpt } = filasDeUso(uso);
   const reserva = reservaDePerfil(b.perfil);
 
+  // Plegado de entrada: el buscador de Ajustes lo abre solo cuando salta a una fila de adentro (en el mismo render, para que el salto la encuentre).
+  const salto = useSyncExternalStore(suscribir, pendienteDeMostrar);
+  const [tocado, setTocado] = useState(false);
+  const [saltoCerrado, setSaltoCerrado] = useState<number | null>(null);
+  const pedido = !!salto && esDeAvanzado(salto.opc) && salto.n !== saltoCerrado;
+  const abierto = tocado || pedido;
+  const alTocar = () => {
+    if (abierto && salto) setSaltoCerrado(salto.n);
+    setTocado(!abierto);
+  };
+
   return (
-    <section className="pn-sec pn-edita cu-avanzado">
-      <h3 className="pn-h">{t("cu.avanzado")}</h3>
+    <section className="pn-sec pn-edita cu-avanzado" data-abierta={abierto ? "" : undefined}>
+      <h3 className="pn-h cu-av-h">
+        <button type="button" className="cu-av-b" aria-expanded={abierto} onClick={alTocar}>
+          <span>{t("cu.avanzado")}</span>
+          <ChevronDown className="cu-av-f" size={16} strokeWidth={2} aria-hidden="true" />
+        </button>
+      </h3>
+      {abierto ? <AvanzadoCuerpo Dato={Dato} b={b} cambiar={cambiar} grupos={grupos} chatgpt={chatgpt} reserva={reserva} /> : null}
+    </section>
+  );
+}
+
+/** Lo que el buscador de Ajustes encuentra dentro de «Avanzado» (perfil, topes y qué hacer sin cupo). */
+const esDeAvanzado = (opc: string) => opc === "ajustes.cuposPerfil" || opc === "ajustes.cuposSinCupo" || opc === "cu.topes" || opc.startsWith("cu.tope.");
+
+function AvanzadoCuerpo({ Dato, b, cambiar, grupos, chatgpt, reserva }: { Dato: FilaDato; b: Borrador; cambiar: (b: Borrador) => void; grupos: { id: string; nombre: string }[]; chatgpt: boolean; reserva: number }) {
+  return (
+    <>
       <div className="cu-av-q">{t("cu.avanzadoQue")}</div>
       <Dato nombre="ajustes.cuposPerfil" que="ajustes.cuposPerfilQue">
         <div className="pn-sel">
@@ -1019,6 +1058,6 @@ export function AjustesCupos({ Dato, b, cambiar, uso }: { Dato: FilaDato; b: Bor
           />
         </div>
       </Dato>
-    </section>
+    </>
   );
 }
