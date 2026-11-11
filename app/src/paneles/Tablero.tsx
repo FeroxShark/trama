@@ -60,6 +60,8 @@ import { MODO } from "../modo";
 import { MaquinaMigas } from "../barra/Maquina";
 import { hayVarias, nombreMaquina, opcionesMaquina, puedeMaquina, useMaquinas } from "../maquinas";
 import { Vacio } from "./Vacio";
+import { ListaRenglones, useRenglones } from "./RenglonesLista";
+import { hechos, renglonesDe, type Renglon } from "../datos/tablero-renglones";
 import "./tablero-logica.css";
 
 const NOMBRE: Record<Columna, ClaveSola> = {
@@ -995,14 +997,46 @@ function Cara({ i, ahora, children }: { i: Item; ahora: number; children?: React
         {children}
         <span className="tb-edad">{edad(i.cerrado ?? i.creado, ahora)}</span>
       </div>
-      {i.prueba ? (
-        <div className="tb-p">
-          <code>{i.prueba}</code>
-          <Copiar texto={i.prueba} />
-        </div>
-      ) : null}
+      {i.prueba ? <PruebaResumen i={i} /> : null}
     </>
   );
+}
+
+/** En la tarjeta (alto fijo) la prueba con renglones se cuenta («1 de 3 probados»); sin renglones, el texto exacto con su botón de copiar. */
+function PruebaResumen({ i }: { i: Item }) {
+  const rs = i.tipo === "prueba" ? renglonesDe(i.prueba) : null;
+  if (!rs) {
+    return (
+      <div className="tb-p">
+        <code>{i.prueba}</code>
+        <Copiar texto={i.prueba} />
+      </div>
+    );
+  }
+  const todo = hechos(rs) === rs.length;
+  return (
+    <div className="tb-p tb-p-renglones" data-todo={todo ? "" : undefined} role="status">
+      {todo ? <Check size={12} strokeWidth={2.25} aria-hidden="true" /> : null}
+      <span>{todo ? t("pd.pasosTodo") : t("pd.pasosN", { n: hechos(rs), total: rs.length })}</span>
+    </div>
+  );
+}
+
+/** En el detalle la prueba se lee entera: con renglones, como lista de casillas (se tildan acá, `tablero:tildar`); si no, el texto con su botón de copiar. */
+function PruebaDetalle({ i }: { i: Item }) {
+  const rs = i.tipo === "prueba" ? renglonesDe(i.prueba) : null;
+  if (rs) return <RenglonesDetalle i={i} base={rs} />;
+  return (
+    <div className="tb-p tb-p-larga">
+      <code>{i.prueba}</code>
+      <Copiar texto={i.prueba} />
+    </div>
+  );
+}
+
+function RenglonesDetalle({ i, base }: { i: Item; base: Renglon[] }) {
+  const estado = useRenglones(i.id, base, i.prueba);
+  return <ListaRenglones estado={estado} />;
 }
 
 /** `#12`, y con la máquina de la que viene si es de otra: `#12 · Servidor`. */
@@ -1112,10 +1146,7 @@ function Detalle({ item: i, ahora, hasta, alEscribirHasta, alCerrar, alMover, al
         {i.prueba ? (
           <section>
             <h3>{t("tablero.det.prueba")}</h3>
-            <div className="tb-p tb-p-larga">
-              <code>{i.prueba}</code>
-              <Copiar texto={i.prueba} />
-            </div>
+            <PruebaDetalle i={i} />
           </section>
         ) : null}
         <dl className="tb-dl">

@@ -338,6 +338,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* La prueba con renglones en la tarjeta: sólo el avance, con palabra (y con ícono cuando está todo). */
+.tb-p-renglones {
+  padding: 0 var(--esp-2);
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+}
+.tb-p-renglones[data-todo] {
+  color: var(--verde);
+}
 .tb-copiar {
   display: grid;
   width: 1.25rem;

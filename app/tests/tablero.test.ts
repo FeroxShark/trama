@@ -57,6 +57,29 @@ test("validar: sin vista (null) es un tablero vacío marcado `sinVista`, no un e
   assert.equal(validar({ version: 1, vista: { columnas: {} } }).sinVista, false);
 });
 
+test("validar: los renglones de una prueba agrupada se leen con su clave; un item viejo (clave en el item) no trae ninguno", () => {
+  const base = { columna: "espera-dueno", proyecto: "trama", titulo: "x", detalle: "", origen: "pa", creado: "2026-11-05T10:00:00Z", tocado: "2026-11-05T10:00:00Z" };
+  const v = validar({
+    version: 1,
+    vista: {
+      columnas: {
+        "espera-dueno": [
+          { ...base, id: 1, clave: "probar:trama:linux", tipo: "prueba", prueba: "1. [ ] abrir\n2. [x] cerrar", renglones: [{ texto: "abrir", hecho: false, clave: "pa:w1:p1" }, { texto: "cerrar", hecho: true, clave: "pa:w2:p1" }] },
+          { ...base, id: 2, clave: "pa:w3:p1", tipo: "prueba", prueba: "abrir la app" },
+        ],
+      },
+    },
+    hecho: [],
+    proyectos: [],
+    pospuestosLista: [],
+    aviso: null,
+  });
+  const [agrupado, viejo] = v.columnas["espera-dueno"];
+  assert.deepEqual(agrupado.renglones, [{ texto: "abrir", hecho: false, clave: "pa:w1:p1" }, { texto: "cerrar", hecho: true, clave: "pa:w2:p1" }]);
+  assert.deepEqual(viejo.renglones, []);
+  assert.equal(viejo.clave, "pa:w3:p1");
+});
+
 test("validar: version desconocida o vista sin columnas es un error; lo raro de adentro se saltea", () => {
   assert.throws(() => validar(null), ErrorTablero);
   assert.throws(() => validar({ version: 2, vista: { columnas: {} } }), ErrorTablero);

@@ -25,9 +25,10 @@ import {
   type Respuestas,
 } from "../datos/pendientes";
 import { tono, type ItemId, type Tablero } from "../datos/tablero";
-import { hechos, renglonesDe, tildarRenglon, type Renglon } from "../datos/tablero-renglones";
+import { renglonesDe, type Renglon } from "../datos/tablero-renglones";
 import { cargarTocado, podarTocado, soltarTocado, tocarPregunta, tocarPrueba, useTocado } from "../datos/tocado";
 import { t } from "../i18n";
+import { ListaRenglones, useRenglones } from "./RenglonesLista";
 import { useIdioma } from "../i18n/react";
 import { Selector, type Opcion } from "../hilo/Selector";
 import { MODO } from "../modo";
@@ -518,27 +519,8 @@ function Pregunta({ q, x, cands, ocupado, alAvisar }: { q: Pend; x: RespPregunta
 
 /** Una prueba con renglones (`tablero probar`): una casilla por renglón; al tildar el último el CLI cierra el item. */
 function PruebaRenglones({ u, base }: { u: Pend; base: Renglon[] }) {
-  const [rs, setRs] = useState(base);
-  const [ocupado, setOcupado] = useState<number | null>(null);
-  const [falla, setFalla] = useState<string | null>(null);
-  // Una lectura nueva del tablero (otro renglón sumado, o tildado desde otro lado) pisa lo local.
-  useEffect(() => setRs(base), [u.item.prueba]);
-  const listos = hechos(rs);
-  const todo = listos === rs.length;
-  const tildar = (n: number, hecho: boolean) => {
-    setOcupado(n);
-    setFalla(null);
-    tildarRenglon(fuenteTablero, u.id, rs, n, hecho).then(
-      (nuevo) => {
-        setRs(nuevo);
-        setOcupado(null);
-      },
-      (e: Error) => {
-        setFalla(t("pd.pasoFalla", { error: e.message }));
-        setOcupado(null);
-      },
-    );
-  };
+  const estado = useRenglones(u.id, base, u.item.prueba);
+  const { rs, listos, todo } = estado;
   return (
     <article className="pd-card" data-item-id={String(u.id)} data-hecha={todo ? "" : undefined} data-res={todo ? "anda" : undefined} data-renglones="">
       <div className="pd-card-t">
@@ -548,24 +530,7 @@ function PruebaRenglones({ u, base }: { u: Pend; base: Renglon[] }) {
           {todo ? t("pd.pasosTodo") : t("pd.pasosN", { n: listos, total: rs.length })}
         </span>
       </div>
-      <ul className="pd-pasos" aria-label={t("pd.pasos")}>
-        {rs.map((r) => (
-          <li key={r.n}>
-            <label className="pd-paso" data-hecho={r.hecho ? "" : undefined}>
-              <input type="checkbox" checked={r.hecho} disabled={ocupado === r.n} onChange={(e) => tildar(r.n, e.target.checked)} />
-              <span className="pd-caja" aria-hidden="true">
-                <Check size={12} strokeWidth={3} />
-              </span>
-              <span className="pd-paso-t">{r.texto}</span>
-            </label>
-          </li>
-        ))}
-      </ul>
-      {falla ? (
-        <p className="pd-paso-error" role="alert">
-          {falla}
-        </p>
-      ) : null}
+      <ListaRenglones estado={estado} />
     </article>
   );
 }

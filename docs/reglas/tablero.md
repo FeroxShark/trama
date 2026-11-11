@@ -28,10 +28,15 @@ PROBAR: llama `tablero probar <proyecto> <texto> --plataforma linux|windows --cl
 lleva los renglones numerados con `[ ]`/`[x]`, así la interfaz que no sabe de renglones los muestra igual. La versión se mira al llegar el PROBAR siguiente: si el asunto
 `vX.Y.Z…` más nuevo de main (o del HEAD) no es el `version_base` del item, ese item pasa a «Probar vX.Y.Z (…)» con clave `…@vX.Y.Z` (queda abierto, no recibe más) y el
 renglón abre otro. `tablero tildar <id> <n…> [--no]` tilda renglones; todos tildados = `hecho`, destildar reabre. Los items viejos (`pa:<id>:p1`) no se tocan. El `pa`
-bash congelado sigue con `agregar`. Límite: «Te dejé esto en el tablero» busca la clave `pa:<id>:p1`, que ahora vive en el renglón. Lo controla `tests/tablero-probar.test.ts`.
+bash congelado sigue con `agregar`. «Te dejé esto en el tablero» y el panel viejo leen los renglones (`Item.renglones`, con su `clave`): ver abajo. Lo controla `tests/tablero-probar.test.ts`.
 
 - **La prueba con renglones en la interfaz (`app/src/datos/tablero-renglones.ts`, `PruebaRenglones` en `app/src/paneles/TableroNuevo.tsx`):** `renglonesDe(prueba)` lee los
 `N. [ ] texto` / `N. [x] texto` (puro; texto suelto o numeración rara = `null`, y el item se ve como antes, con Anda / No anda). Con renglones la tarjeta es una lista de casillas
 (una `<input type="checkbox">` real por renglón, fila de 2.25 rem, 2.75 rem en táctil) y «N de M probados»; tildar llama al canal `tablero:tildar` (`id`, `[n]`, `hecho`) = `tablero tildar`
 (también en `windows/src/canales.json` y `maquinas-contrato.ts`) y el CLI cierra el item al tildar todos. `tildarRenglon` recibe la fuente por parámetro (lo prueba
 `tests/tablero-renglones.test.ts`). Un item con renglones no cuenta como contestado en el «N de M pruebas» del pie (sí en M) ni se manda con «Mandar»: su respuesta es tildar. Captura: `HILOS_VARIANTE=abajo scripts/captura.sh tablero-nuevo-proyecto`.
+
+- **El PROBAR de un worker como renglón, en la tarjeta «Te dejé esto» y en `Tablero.tsx`:** `cartas()` (`src/hilo/tablero-dejado.ts`) busca también en los `renglones` de los items agrupados los de clave `pa:<id>:…`
+(`renglonesDelWorker`): la carta es el renglón (su texto, número = posición) y trae `renglon: {n, hecho}`; tildado dice «Ya lo probaste» (`estado: "probado"`), y `DejadoTablero.tsx` le pone una casilla que tilda con
+el mismo canal `tablero:tildar`. Un item viejo (clave en el item) sigue igual. En `Tablero.tsx` la tarjeta de columna (alto fijo) cuenta el avance («1 de 3 probados») y el detalle muestra la lista de casillas
+(`app/src/paneles/RenglonesLista.tsx`, compartida con `PruebaRenglones` de `TableroNuevo.tsx`); un item sin renglones, como antes (el texto con «copiar»).
