@@ -4,6 +4,31 @@ Para retomar el trabajo en otra sesión, con otra persona o con otra herramienta
 rama y el dueño (Ferox) abre y mergea los PR desde la web de GitHub. `main` tiene una regla que impide borrarlo y reescribir su
 historia (force push); se puede subir directo y mergear sin esperar el CI.
 
+## Cómo se trabaja (reglas del dueño)
+
+- **Idioma:** todo en español rioplatense (código comentado en español, interfaz es + en).
+- **Accesibilidad:** el dueño tiene deuteranomalía. Ningún estado puede depender sólo del rojo o el verde: siempre con palabra
+  o ícono.
+- **CSS:** sólo con los tokens que ya existen. i18n en `app/src/i18n/es.ts` y `en.ts`.
+- **Claves y secretos:** nunca se pegan ni se loguean. Viven sólo en `~/.config/trama/claves.env`.
+- **Windows:** nada de bash, WSL ni Git Bash, ni siquiera de respaldo (regla fija, ver `motor/docs/port-windows-plan.md`).
+- **Cuentas:** no rotar cuentas de Claude ni de OpenCode para esquivar límites.
+- **PR:** no se abren salvo que el dueño lo pida. Sin nombres de modelos de IA en commits ni en PR.
+- **Antes de cada commit**, desde `app/`: `npx tsc -p tsconfig.json --noEmit`, `npx tsc -p tsconfig.electron.json --noEmit`,
+  `npx vite build`, `npm test`. Si se toca el motor que se está portando: `npm run test:paridad`.
+- **Instalar en la PC del dueño** (Linux), desde la carpeta del repo:
+  `git checkout main; git pull; bash motor/scripts/instalar-producto.sh`. Desde la app: el aviso "Hay una Trama nueva" hace lo mismo (ver Hecho).
+
+## Qué es Trama (mapa rápido)
+
+- `app/`: Electron + React 19 + Vite + TS. `app/electron/` es el proceso principal (IPC en `nucleo.ts`, `preload.cts`,
+  `src/puente.ts`); `app/src/` es la interfaz (barra lateral en `src/barra/`, ajustes en `src/paneles/`, hilos en `src/hilo/`).
+  Tests con `node --test` (`app/scripts/test.mjs`).
+- `motor/`: `bin/pa` (delega tareas a workers en worktrees; el default es el pa de TS, ver Hecho abajo), `bin/reparto` (elige
+  modelo según calidad y cupo), `bin/tablero`, `bin/cuentas` (estos tres también defaultean a TS), `bin/trama-estado`, hooks
+  (`motor/hooks/*.mjs`), runner de OpenCode (`motor/opencode/`).
+- CI: `.github/workflows/ci.yml`, trabajos `linux` y `windows`.
+
 ## Pendiente (en orden sugerido)
 
 1. ~~Mergear `claude/elegant-sagan-gvgbq5`~~: ya está absorbida en `main` (rama borrada el 2026-11-10).
