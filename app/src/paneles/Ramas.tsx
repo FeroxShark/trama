@@ -37,6 +37,9 @@ import { useNombreProyecto } from "../datos/proyectos";
 import { LimpiezaPa } from "./AjustesLimpieza";
 import "./ramas-tarjetas.css";
 
+/** El título de una rama, como en la barra: el de `pa --titulo` o el objetivo del brief. El pedido entero va al desplegar la rama. */
+const tituloDe = (h: Hilo) => h.titulo || tituloTarea(h.tarea) || tareaDe(h);
+
 /** El ícono de cada veredicto: nunca sólo color. */
 const ICONO_V: Record<string, LucideIcon> = { integrar: GitMerge, descartar: Trash2, retomar: RotateCcw, revisar: Eye };
 /** El ícono del estado de la rama. */
@@ -224,7 +227,7 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
   const aplicarPlan = async (pl: PlanLote) => {
     const pasos = pasosDe(pl);
     if (!pasos.length) return;
-    for (const h of filas) titulos.current.set(h.id, tareaDe(h));
+    for (const h of filas) titulos.current.set(h.id, tituloDe(h));
     setConfirmando(null);
     setCorriendo(true);
     setLote(pasos);
@@ -421,7 +424,7 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
         </div>
         {errorAn ? <div className="pn-error">{errorAn}</div> : null}
         {confirmando ? (
-          <ResumenAplicar plan={confirmando} titulo={(id) => tareaDe(filas.find((h) => h.id === id) ?? ({ tarea: id } as Hilo))} alAplicar={() => void aplicarPlan(confirmando)} alCancelar={() => setConfirmando(null)} />
+          <ResumenAplicar plan={confirmando} titulo={(id) => tituloDe(filas.find((h) => h.id === id) ?? ({ tarea: id } as Hilo))} alAplicar={() => void aplicarPlan(confirmando)} alCancelar={() => setConfirmando(null)} />
         ) : null}
         {lote ? (
           <ResultadoLote pasos={lote} corriendo={corriendo} titulo={(id) => titulos.current.get(id) ?? id} alCerrar={() => setLote(null)} />
@@ -510,7 +513,7 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
             className="pn-sec"
           >
             <h2 className="pn-h">{tr("ramas.integradas")}</h2>
-            {ultimaSola ? <div className="pn-nota pn-sola">{tr("ramas.integradoSolo", { v: tareaDe(ultimaSola.h) })}</div> : null}
+            {ultimaSola ? <div className="pn-nota pn-sola">{tr("ramas.integradoSolo", { v: tituloDe(ultimaSola.h) })}</div> : null}
             <ul className="pn-ramas">
               <AnimatePresence mode="popLayout" initial={false}>
                 {integradas.map(fila)}
@@ -728,7 +731,7 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
     >
       <div className="pn-rama-txt">
         <button type="button" className="pn-tarea" data-id={h.id} data-tip={tr("ramas.abrir")} onClick={() => alAbrir(h.id)}>
-          {h.titulo || tituloTarea(h.tarea) || tareaDe(h)}
+          {tituloDe(h)}
         </button>
         <div className="pn-chips">
           {t ? (
