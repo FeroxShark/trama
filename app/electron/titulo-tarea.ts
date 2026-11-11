@@ -32,8 +32,8 @@ const corto = (s: string, tope: number) => {
   return `${(i > tope / 2 ? corte.slice(0, i) : corte).replace(/[\s,;:.-]+$/u, "")}…`;
 };
 
-/** Cómo se llama un worker en la barra, de su tarea (brief o texto suelto). "" si no hay nada que decir. */
-export function tituloTarea(tarea: string | null | undefined, tope = TITULO_TAREA_MAX): string {
+/** El objetivo o la línea tal como se escribieron (sin tocar la mayúscula). */
+function tituloTal(tarea: string | null | undefined, tope: number): string {
   const t = (tarea ?? "").trim();
   if (!t) return "";
   const o = OBJETIVO.exec(t)?.[1]?.replace(/\s+/g, " ").trim();
@@ -44,4 +44,10 @@ export function tituloTarea(tarea: string | null | undefined, tope = TITULO_TARE
   }
   // Todo era «Contexto:» o reglas: mejor ese texto que nada.
   return corto(t.replace(ES_CONTEXTO, ""), tope);
+}
+
+/** Cómo se llama un worker en la barra, de su tarea (brief o texto suelto). "" si no hay nada que decir. Con la primera letra en mayúscula; el resto, como lo escribió quien lo lanzó. */
+export function tituloTarea(tarea: string | null | undefined, tope = TITULO_TAREA_MAX): string {
+  const t = tituloTal(tarea, tope);
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }

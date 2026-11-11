@@ -4,20 +4,27 @@ import { tituloTarea } from "../electron/titulo-tarea.ts";
 
 test("tituloTarea: toma la línea «Objetivo:» del brief, sin el rótulo", () => {
   const brief = "Contexto: usuario Ana (Windows), PC accesible por `ssh ana@pc`, nada de esto es el título\nObjetivo: arreglar el popover de workers\nArchivos: app/src/barra/\nListo cuando: pasan los tests";
-  assert.equal(tituloTarea(brief), "arreglar el popover de workers");
+  assert.equal(tituloTarea(brief), "Arreglar el popover de workers");
   // Un objetivo que sigue en las líneas de abajo hasta el próximo rótulo.
-  assert.equal(tituloTarea("Objetivo: arreglar el popover\nque se corta\nArchivos: x"), "arreglar el popover que se corta");
+  assert.equal(tituloTarea("Objetivo: arreglar el popover\nque se corta\nArchivos: x"), "Arreglar el popover que se corta");
+});
+
+test("tituloTarea: la primera letra va en mayúscula y el resto queda como lo escribieron", () => {
+  assert.equal(tituloTarea("objetivo: migrar el parser de fechas a Temporal"), "Migrar el parser de fechas a Temporal");
+  assert.equal(tituloTarea("Objetivo: arreglar el popover de ANA"), "Arreglar el popover de ANA");
+  assert.equal(tituloTarea("Objetivo: Ya en mayúscula"), "Ya en mayúscula");
+  assert.equal(tituloTarea("ñandú sin objetivo"), "Ñandú sin objetivo");
 });
 
 test("tituloTarea: con el brief aplastado en una línea (sin saltos), corta en el próximo rótulo", () => {
-  assert.equal(tituloTarea("Contexto: algo largo Objetivo: sacar el título del brief Archivos: a.ts Listo cuando: ok"), "sacar el título del brief");
+  assert.equal(tituloTarea("Contexto: algo largo Objetivo: sacar el título del brief Archivos: a.ts Listo cuando: ok"), "Sacar el título del brief");
 });
 
 test("tituloTarea: sin «Objetivo:», la primera línea que no sea «Contexto:»", () => {
   assert.equal(tituloTarea("Contexto: mucho texto\n\nRevisar el instalador de Windows\notra línea"), "Revisar el instalador de Windows");
-  assert.equal(tituloTarea("hacé esto"), "hacé esto");
+  assert.equal(tituloTarea("hacé esto"), "Hacé esto");
   // Sólo «Contexto:»: mejor ese texto que nada.
-  assert.equal(tituloTarea("Contexto: sólo esto"), "sólo esto");
+  assert.equal(tituloTarea("Contexto: sólo esto"), "Sólo esto");
   assert.equal(tituloTarea(""), "");
   assert.equal(tituloTarea(null), "");
 });
