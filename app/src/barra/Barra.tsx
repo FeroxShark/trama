@@ -28,8 +28,7 @@ import { agregarAdjuntos } from "../hilo/adjuntos";
 import { fuentePaneles, type AccionRama } from "../datos/paneles";
 import { idioma, t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
-import { leerBorrador, llenarBorrador, soltarBorrador } from "../hilo/borradores";
-import { BORRADOR_LIDER } from "../hilo/Lider";
+import { BORRADOR_LIDER, leerBorrador, llenarBorrador, soltarBorrador } from "../hilo/borradores";
 import { llanaRuta } from "../hilo/carpeta-nueva";
 import { pedirCarpeta } from "../hilo/carpeta-nueva-estado";
 import { fuenteProyectos, useProyectos } from "../datos/proyectos";
@@ -49,7 +48,6 @@ import { validar } from "../datos/tablero";
 import { muestraTocada } from "../datos/tocado";
 import { useEsperan } from "./esperan";
 import { resueltosDe } from "./atencion-vigente";
-import { Vista } from "../hilo/Vista";
 import { MODO } from "../modo";
 import { apariencia, LETRA_DEF } from "../tipografia";
 import { esAngosto, useAngosto, useAtras, useMedio } from "../angosto";
@@ -152,6 +150,8 @@ import { Reloj } from "./piezas";
 import { avisarVentana, irA, ponerLista, UMBRAL, useVentana } from "./ventana";
 
 // El panel de contexto va en un chunk aparte: se carga al abrirlo.
+// La vista del hilo (chat del líder, worker, subagente) va en un chunk aparte.
+const Vista = lazy(() => import("../hilo/Vista").then((m) => ({ default: m.Vista })));
 const PanelContexto = lazy(() => import("../paneles/PanelContexto").then((m) => ({ default: m.PanelContexto })));
 
 const CLAVE_COLAPSADOS = "hilos:barra:colapsados";
@@ -2246,27 +2246,29 @@ export function Barra() {
             }}
           />
         ) : null}
-        <Vista
-          h={hiloActivo}
-          estado={hiloActivo ? estadoVisto(hiloActivo, optimista.get(hiloActivo.id)) : null}
-          settle={hiloActivo ? salidaWorker(hiloActivo, estadoVisto(hiloActivo, optimista.get(hiloActivo.id)), arbol.aCargo) : null}
-          lider={liderActivo}
-          sub={subActivo}
-          settleLider={sidActivo ? settleDe(ramaDe(arbol, sidActivo)) : null}
-          liderNuevo={activa === LIDER_NUEVO}
-          alLiderCreado={liderCreado}
-          alLiderNuevo={abrirLiderNuevo}
-          alCerrarLider={cerrarLider}
-          alSettleLider={settleLiderYa}
-          lideres={arbol.lideres}
-          alAbrirLider={abrirLider}
-          alAbrirHilo={abrir}
-          barraAbierta={abierta}
-          alAlternarBarra={angosto ? volverALista : alternarBarra}
-          alCerrar={cerrar}
-          alPasar={pasar}
-          alRetomar={retomarId}
-        />
+        <Suspense fallback={null}>
+          <Vista
+            h={hiloActivo}
+            estado={hiloActivo ? estadoVisto(hiloActivo, optimista.get(hiloActivo.id)) : null}
+            settle={hiloActivo ? salidaWorker(hiloActivo, estadoVisto(hiloActivo, optimista.get(hiloActivo.id)), arbol.aCargo) : null}
+            lider={liderActivo}
+            sub={subActivo}
+            settleLider={sidActivo ? settleDe(ramaDe(arbol, sidActivo)) : null}
+            liderNuevo={activa === LIDER_NUEVO}
+            alLiderCreado={liderCreado}
+            alLiderNuevo={abrirLiderNuevo}
+            alCerrarLider={cerrarLider}
+            alSettleLider={settleLiderYa}
+            lideres={arbol.lideres}
+            alAbrirLider={abrirLider}
+            alAbrirHilo={abrir}
+            barraAbierta={abierta}
+            alAlternarBarra={angosto ? volverALista : alternarBarra}
+            alCerrar={cerrar}
+            alPasar={pasar}
+            alRetomar={retomarId}
+          />
+        </Suspense>
         {/* El panel va al lado y la vista se esconde por CSS (`data-panel`): no se desmonta. */}
         {panel ? (
           <Panel

@@ -34,7 +34,7 @@ import { MODO } from "../modo";
 import { esTactil } from "../angosto";
 import { pintorCache } from "../tiempo";
 import { cacheAplica } from "../../electron/cache";
-import { cursorDe, escucharBorrador, guardarCursor, leerBorrador, ponerBorrador } from "./borradores";
+import { BORRADOR_LIDER, cursorDe, escucharBorrador, guardarCursor, leerBorrador, ponerBorrador } from "./borradores";
 import { effortPara } from "./elegir";
 import { effortsLeidos, leerEfforts, recordarEffort } from "./efforts";
 import { effortDe, effortsOpciones, MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo } from "./opciones";
@@ -98,8 +98,6 @@ import { separarAdjuntos } from "../../electron/adjunto";
 
 /** El esfuerzo en pocas letras para el chip fusionado ("medium" → "med"). */
 const abreviar = (e: string) => (e === "medium" ? "med" : e);
-
-export const BORRADOR_LIDER = "lider-nuevo";
 
 /** Lo que tarda (como mucho) la caja de un líder nuevo en bajar antes de abrirlo. */
 const BAJAR_MS = 260;

@@ -5,6 +5,9 @@
 // devuelve por su sessionStorage.
 import { huboCambio } from "./cambios";
 
+/** La clave del borrador del líder nuevo (vive acá y no en Lider.tsx para que la barra no arrastre el chat al arranque). */
+export const BORRADOR_LIDER = "lider-nuevo";
+
 export type Borrador = { texto: string; error: string | null; extra?: Record<string, string> };
 
 const borradores = new Map<string, Borrador>();
