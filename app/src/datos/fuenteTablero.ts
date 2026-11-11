@@ -7,6 +7,7 @@ import { main, mensaje } from "../puente";
 import { conDejados, tableroFijo } from "./fixtures-tablero";
 import { ErrorTablero, validar, type Abierta, type ItemId, type Tablero } from "./tablero";
 import type { RespuestaCli } from "../../electron/tablero";
+import { preguntasEsperan } from "../../electron/tablero-cuenta.ts";
 
 export interface FuenteTablero {
   leer(): Promise<Tablero>;
@@ -32,7 +33,7 @@ export interface FuenteTablero {
 
 let ultimo: Tablero | null = null;
 
-const esperanDe = (t: Tablero) => t.columnas["espera-dueno"].filter((i) => !i.respuesta).length;
+const esperanDe = (t: Tablero) => preguntasEsperan(t.columnas["espera-dueno"]);
 
 const mirado = (crudo: unknown): Tablero => {
   try {

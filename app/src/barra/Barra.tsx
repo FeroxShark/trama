@@ -373,7 +373,7 @@ export function Barra() {
   const [ancho, setAncho] = useState(() => guardado(CLAVE_ANCHO, (c) => acotar(Number(c) || ANCHO), MODO.variante?.endsWith("-angosta") ? ANCHO_MIN : MODO.variante?.endsWith("-300") ? 300 : ANCHO));
   const [abierta, setAbierta] = useState(() => vueltaInicial()?.abierta ?? guardado(CLAVE_ABIERTA, (c) => c !== "0", true));
   const reinicio = useReinicio();
-  // Cuántos items esperan al usuario (el número del botón del Tablero, en el pie).
+  // Cuántas preguntas esperan al usuario, sin las pruebas (el número del botón del Tablero, en el pie).
   const esperan = useEsperan();
   const vistaAhora = useRef({ activa, panel: panel as string | null, abierta });
   vistaAhora.current = { activa, panel, abierta };
@@ -2637,7 +2637,7 @@ function BotonPie({ panel, icono: I, etq, activo, alClic, n = 0 }: PropsBotonPie
       <I size={16} strokeWidth={1.8} />
       {n > 0 ? (
         <span className="pie-n" aria-hidden="true">
-          {n > 99 ? "99+" : n}
+          {n}
         </span>
       ) : null}
     </button>

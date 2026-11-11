@@ -10,6 +10,7 @@ import path from "node:path";
 import { comandoPropio, entornoPa, lanzarCmd } from "./binario.ts";
 import { errorT } from "./errores.ts";
 import { plataformaActual, vistaTablero, type Plataforma } from "./rutas.ts";
+import { preguntasEsperan } from "./tablero-cuenta.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -116,10 +117,10 @@ export function argvResponder(id: unknown, r: unknown): string[] {
 
 // --- Leer ------------------------------------------------------------------------
 
-/** Cuántos items esperan al usuario sin respuesta (el número del botón del pie), de `vista.json`: sin correr el CLI. */
+/** Cuántas preguntas esperan al usuario sin respuesta (el número del botón del pie), de `vista.json`: sin correr el CLI. */
 export function esperanEnVista(vista: unknown): number {
   const col = (vista as { columnas?: Record<string, unknown> } | null)?.columnas?.["espera-dueno"];
-  return Array.isArray(col) ? col.filter((i) => i && typeof i === "object" && !(i as { respuesta?: unknown }).respuesta).length : 0;
+  return preguntasEsperan(col);
 }
 
 /** El número del botón del pie; `null` si no hay vista (sin tablero no hay número). */
