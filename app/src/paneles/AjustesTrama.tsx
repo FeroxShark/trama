@@ -51,7 +51,7 @@ export function TramaActualizaciones({ Dato }: { Dato: FilaDato }) {
   }, []);
   return (
     <section className="pn-sec pn-edita">
-      <div className="pn-estado pn-car-version">{t("carcasa.version", { v: VERSION_TRAMA })}</div>
+      <div className="pn-car-version">{t("carcasa.version", { v: VERSION_TRAMA })}</div>
 
       <Dato nombre="carcasa.act" que="ajustes.tramaActQue">
         <div className="pn-car-col">

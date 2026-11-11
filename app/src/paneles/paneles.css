@@ -1636,7 +1636,8 @@
 }
 
 /* --- Trama para Windows: buscar actualizaciones y quitar restos --- */
-/* «Versión x.y.z» abre la tarjeta sin título: sin aire arriba quedaba pegada al borde y la tarjeta (overflow: hidden) la cortaba. */
+/* «Versión x.y.z» abre la tarjeta sin título. Antes llevaba la clase `pn-estado` (la pastilla con borde de Ramas): salía como una pastilla
+   estirada, pegada al borde de arriba y cortada por la tarjeta (overflow: hidden). Ahora es texto simple, con aire arriba. */
 .aj-cat .pn-sec > .pn-car-version {
   margin-top: var(--esp-4);
   margin-bottom: var(--esp-3);
