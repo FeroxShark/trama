@@ -149,7 +149,7 @@ function atenderSenales(proc, salir, irse) {
 
 /**
  * El servicio de la carcasa. `d`: { almacen, version, inst, base, restaurar(inst, copia), salir(), copiarAlEstarLista?, ahora?, despues?,
- * topeMs?, log?, instalando? }. `restaurar` deja la restauración en marcha (en Windows, el guion suelto) y `salir` cierra esta Trama.
+ * topeMs?, log?, instalando?, anotarSalud?(evento) }. `restaurar` deja la restauración en marcha (en Windows, el guion suelto) y `salir` cierra esta Trama.
  */
 function crearVersionAnterior(d) {
   const ahora = d.ahora ?? Date.now;
@@ -179,6 +179,7 @@ function crearVersionAnterior(d) {
         await d.restaurar(inst, c);
         d.almacen.cambiar((e) => alVolver(e, c, motivo));
         log(`vuelvo a la ${c.version} (${motivo})`);
+        d.anotarSalud?.({ tipo: "vuelta-version", version: c.version, motivo });
         await d.salir();
         return { ok: true };
       } catch (e) {

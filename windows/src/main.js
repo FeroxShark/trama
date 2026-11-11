@@ -22,6 +22,7 @@ const { ENTRADAS_NATIVO } = require("./manifiesto-nativo");
 const { crearCanalesVentana } = require("./ventana");
 const { crearAlmacen } = require("./arranque-seguro");
 const discoInstalacion = require("./disco-instalacion");
+const salud = require("./salud-eventos");
 const { atenderSenales, crearVersionAnterior, fsCrudo, instalacionDe, lanzarRestauracion } = require("./version-anterior");
 
 // TRAMA_CAPTURA=<png> (sólo para la prueba de arranque sin Windows): offscreen, foto a los 4 s y sale.
@@ -248,6 +249,8 @@ const versionAnterior = crearVersionAnterior({
     return supervisor.parar().finally(() => app.exit(0));
   },
   log,
+  // La vuelta a una versión anterior queda en el archivo de salud que lee el canal `salud:eventos` del motor.
+  anotarSalud: (e) => salud.anotar(salud.archivoSalud(rutasNativas), e),
 });
 
 // Lo de la pantalla de la PC (ventana.js): la página lo pide por window.carcasa.ventana (preload.js), no al motor, que lo rechaza por red.
