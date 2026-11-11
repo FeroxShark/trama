@@ -28,3 +28,10 @@ el payload de Windows (`<raíz>\bin` + `app\hooks`, sin carpeta `motor`), `<raí
 `~/.local/share/trama/app`), el checkout anotado en `~/.config/trama/checkout` y el enlace de `~/.local/bin/pa`. Todo lo que `pa` lanza del motor (`reparto`,
 `tablero`, `cuentas`, `repos-empujar`, hooks de latido y guardia) cuelga de `pa.bin`/`pa.hooks`; si falta, `avisarFalta` lo dice por stderr (nunca callado).
 Nada de `path.join(…, "..", "motor")` suelto. Si un worker sale siempre con el modelo por defecto, mirá primero el aviso «pa: no encuentro …».
+
+## Huérfanos de los líderes (`pactl subscribe` y compañía)
+
+- **Trampa:** el Bash tool de Claude corre cada comando en su propia sesión (setsid). Un watcher lanzado desde un líder (un `pactl subscribe`) sale del grupo del líder, así que `barrerGrupo` no lo ve; y si el motor muere a lo bruto o lo relanza systemd con `KillMode=process`, nadie lo barre y queda en el cgroup `trama-motor.service` (2026-11-11: 20 vivos llenaron el cupo de pipewire-pulse). Node no tiene PR_SET_PDEATHSIG: la salida es la etiqueta.
+- **Cómo se barre:** cada líder sale con `TRAMA_LIDER_ETIQUETA=<pid motor>:<arranque motor>:<azar>` en el entorno (`electron/huerfanos.ts`, `lider.ts`). Al salir el líder se manda TERM (KILL a los 3 s) a todo proceso con esa etiqueta; al arrancar el motor se barre lo de los motores que ya no están. `pa --async` sale con la etiqueta vacía: sus workers sobreviven a los relanzos del motor a propósito.
+- **No hay `pactl` en el repo:** el watcher lo lanza una herramienta del líder o un script del usuario. «Un solo suscriptor» no se puede imponer desde el motor; lo que sí garantiza el motor es que no queden huérfanos.
+- Sólo Linux (lee `/proc`); en Windows es no-op. Test: `app/tests/huerfanos.test.ts`.
