@@ -37,6 +37,8 @@ import {
   ponerInteligencia,
   ponerPermitido,
   reglasSueltas,
+  fechaCortaIdioma,
+  procedenciaAA,
   usadoDe,
   type GrupoTabla,
 } from "./modelos-workers";
@@ -231,6 +233,7 @@ export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: B
   // Los pares modelo+esfuerzo dominados (otro permitido rinde igual o más por menos): se ven en cada fila y se desmarcan con «Aplicar sugerencias».
   const dom = useMemo(() => dominados(paresDe(filas, b)), [filas, b]);
   const [confirmando, setConfirmando] = useState(false);
+  const procedencia = procedenciaAA(filas);
   const hayAA = filas.some((f) => f.origen === "artificial-analysis");
   const nombreRegla = (id: string) => ({ fable: "Fable", opus: "Opus", sonnet: "Sonnet", haiku: "Haiku", argon: "Gemini Argon", flash: "Gemini Flash", "gpt-oss": "GPT-OSS" } as Record<string, string>)[id] ?? id;
 
@@ -289,6 +292,11 @@ export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: B
           <p className="pn-nota" data-wk-indice>
             {t("ajustes.mdlWkIndice")} <AtribucionAA />
           </p>
+          {procedencia?.fecha ? (
+            <p className="pn-nota" data-wk-aa-datos>
+              {t(procedencia.sinClave ? "ajustes.mdlWkAaDatosFoto" : "ajustes.mdlWkAaDatos", { fecha: fechaCortaIdioma(procedencia.fecha, idioma()) ?? "" })}
+            </p>
+          ) : null}
           <p className="pn-nota">{t("ajustes.mdlWkCostoNota")}</p>
           {dom.length > 0 ? (
             confirmando ? (

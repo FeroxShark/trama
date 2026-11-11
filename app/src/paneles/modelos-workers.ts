@@ -148,6 +148,18 @@ export function fechaCorta(iso: string | null): string | null {
   return m ? `${m[2]}/${m[1]}` : null;
 }
 
+/** `AAAA-MM-DD` → el día corto como se lee en cada idioma: `10/11` en español, `11/10` en inglés; `null` si no es una fecha. */
+export function fechaCortaIdioma(iso: string | null, lengua: "es" | "en"): string | null {
+  const m = /^\d{4}-(\d{2})-(\d{2})/.exec(iso ?? "");
+  return m ? (lengua === "en" ? `${m[1]}/${m[2]}` : `${m[2]}/${m[1]}`) : null;
+}
+
+/** La procedencia de los datos de Artificial Analysis para la línea de Ajustes: la fecha y si es la foto de la app (sin clave); `null` si ninguna fila viene de AA. */
+export function procedenciaAA(filas: readonly FilaTabla[]): { fecha: string | null; sinClave: boolean } | null {
+  const f = filas.find((x) => x.origen === "artificial-analysis");
+  return f ? { fecha: f.aaFecha, sinClave: f.aaFoto === true } : null;
+}
+
 /** De dónde sale la cifra que se ve: lo fijado en el borrador es «tuyo» aunque todavía no se guardó; si no, lo que dice `reparto` (que ya aplicó usuario > Artificial Analysis > defecto > estimada). */
 export function origenDe(f: FilaTabla, b: Borrador): OrigenVista {
   if (b.calidad[claveCalidad(f)] !== undefined) return { tipo: "usuario", fecha: null };

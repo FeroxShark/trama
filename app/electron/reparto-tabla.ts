@@ -57,6 +57,8 @@ export type FilaTabla = {
   origen: OrigenCalidad;
   /** Día (`AAAA-MM-DD`) en que se bajó el dato de Artificial Analysis; sólo con `origen` `artificial-analysis`. */
   aaFecha: string | null;
+  /** El dato de Artificial Analysis sale de la foto que viaja con la app (no hay caché propia: sin API key); `aaFecha` es la de la foto. */
+  aaFoto?: boolean;
   gratis: boolean;
   /** OpenCode Go: el plan (`go` / `go-plus`) y los topes del modelo en él; ausente si el modelo no es de Go (o el plan está apagado). */
   plan?: "go" | "go-plus";
@@ -170,6 +172,7 @@ export function parsearTabla(salida: string, ahoraMs = Date.now()): TablaReparto
       estimada: o.estimada === true,
       origen: (ORIGENES_CALIDAD as readonly string[]).includes(texto(o.origen)) ? (texto(o.origen) as OrigenCalidad) : o.estimada === true ? "estimada" : "defecto",
       aaFecha: /^\d{4}-\d{2}-\d{2}/.test(texto(o.aa_fecha)) ? texto(o.aa_fecha).slice(0, 10) : null,
+      ...(o.aa_foto === true ? { aaFoto: true } : {}),
       gratis: o.gratis === true,
       ...((o.plan === "go" || o.plan === "go-plus") ? { plan: o.plan as "go" | "go-plus", go: goTopes(o.go) } : {}),
       libre: pct(o.cupo_libre),

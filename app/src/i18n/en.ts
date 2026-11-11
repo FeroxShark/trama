@@ -3114,6 +3114,8 @@ export const en = {
   "ajustes.mdlWkChipTiempo": "{n} per task",
   "ajustes.mdlWkNoConviene": "Not worth {effort}: {alternativa} performs as well or better for less.",
   "ajustes.mdlWkIndice": "The Artificial Analysis intelligence index is used for every model and effort. The coding and agentic indices, when they exist, only show in each effort's detail. Each effort says whether it is measured or estimated. Tap an effort to allow it for workers or not.",
+  "ajustes.mdlWkAaDatos": "Artificial Analysis · data from {fecha}",
+  "ajustes.mdlWkAaDatosFoto": "Artificial Analysis · data from {fecha} (no key)",
   "ajustes.mdlWkCostoNota": "For subscriptions (Claude, Google, ChatGPT) the cost is the API equivalent, a proxy for how much quota it spends; without Artificial Analysis data it is estimated by family and effort.",
   "ajustes.mdlWkAplicar": "Apply suggestions ({n})",
   "ajustes.mdlWkAplicarPregunta": "{n} efforts that are not worth it will be turned off. You can turn them back on one by one.",

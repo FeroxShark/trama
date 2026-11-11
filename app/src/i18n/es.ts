@@ -3100,6 +3100,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "ajustes.mdlWkChipTiempo": "{n} por tarea",
   "ajustes.mdlWkNoConviene": "No conviene {effort}: {alternativa} rinde igual o más por menos.",
   "ajustes.mdlWkIndice": "Se usa el índice de inteligencia de Artificial Analysis para todos los modelos y esfuerzos. Los índices de código y de agentes, cuando existen, solo aparecen en el detalle de cada esfuerzo. Cada esfuerzo dice si es medido o estimado. Tocá un esfuerzo para permitirlo o no a los workers.",
+  "ajustes.mdlWkAaDatos": "Artificial Analysis · datos del {fecha}",
+  "ajustes.mdlWkAaDatosFoto": "Artificial Analysis · datos del {fecha} (sin clave)",
   "ajustes.mdlWkCostoNota": "En las suscripciones (Claude, Google, ChatGPT) el costo es el equivalente en API, un indicador de cuánto cupo gasta; sin dato de Artificial Analysis se estima por familia y esfuerzo.",
   "ajustes.mdlWkAplicar": "Aplicar sugerencias ({n})",
   "ajustes.mdlWkAplicarPregunta": "Se van a desmarcar {n} esfuerzos que no convienen. Se pueden volver a prender uno por uno.",

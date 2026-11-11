@@ -22,7 +22,7 @@ registerHooks({
 
 const { parsearTabla } = await import("../electron/reparto-tabla.ts");
 const { sumarClaudeCuenta } = await import("../electron/reparto-claude.ts");
-const { fechaCorta, nombreVisible, origenDe, agrupar, calidadEscrita, claveCalidad, estadoDe, filasUnicas, filtrar, inteligenciaDe, ponerInteligencia, ponerPermitido, reglasSueltas } = await import("../src/paneles/modelos-workers.ts");
+const { fechaCorta, fechaCortaIdioma, procedenciaAA, nombreVisible, origenDe, agrupar, calidadEscrita, claveCalidad, estadoDe, filasUnicas, filtrar, inteligenciaDe, ponerInteligencia, ponerPermitido, reglasSueltas } = await import("../src/paneles/modelos-workers.ts");
 const { borradorDe, configDe, sucio } = await import("../src/paneles/modelos-borrador.ts");
 const { guardarModelos, leerModelos } = await import("../electron/modelos-config.ts");
 const { validarConfig, leerConfig } = await import("../electron/modelos-tipos.ts");
@@ -232,6 +232,16 @@ test("origenDe: lo fijado en el borrador es tuyo; AA lleva su fecha; estimada y 
   assert.equal(fechaCorta("2026-01-05T10:00:00Z"), "05/01");
   assert.equal(fechaCorta(null), null);
   assert.equal(fechaCorta("ayer"), null);
+});
+
+test("procedencia de los datos de AA: fecha en el orden de cada idioma, y «sin clave» si vienen de la foto de la app", () => {
+  assert.equal(fechaCortaIdioma("2026-11-10", "es"), "10/11");
+  assert.equal(fechaCortaIdioma("2026-11-10", "en"), "11/10");
+  assert.equal(fechaCortaIdioma(null, "es"), null);
+  const base = { id: "claude-haiku-5-5", familia: "haiku", proveedor: "claude", origen: "artificial-analysis", aaFecha: "2026-11-10", estimada: false } as const;
+  assert.deepEqual(procedenciaAA([fila({ origen: "defecto", estimada: false }), fila({ ...base, aaFoto: true })]), { fecha: "2026-11-10", sinClave: true });
+  assert.deepEqual(procedenciaAA([fila(base)]), { fecha: "2026-11-10", sinClave: false });
+  assert.equal(procedenciaAA([fila({ origen: "defecto", estimada: false })]), null);
 });
 
 test("nombreVisible: en inglés se traduce lo que va entre paréntesis; en español no se toca", () => {
