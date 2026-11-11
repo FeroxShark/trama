@@ -95,3 +95,19 @@ export function monogramas(nombres: readonly string[]): string[] {
     return elegido;
   });
 }
+
+/**
+ * slug → monograma sin repetir, para todos los proyectos a la vez (el riel y la
+ * cabecera de cada carpeta lo leen igual). El nombre es el título o, si no hay,
+ * el slug. Orden por slug: no depende del orden en que se muestran los proyectos.
+ */
+export function mapaMonogramas(slugs: readonly string[], titulos: Readonly<Record<string, string | undefined>>): Record<string, string> {
+  const orden = [...new Set(slugs)].sort();
+  const letras = monogramas(orden.map((s) => titulos[s] || s));
+  return Object.fromEntries(orden.map((s, i) => [s, letras[i]]));
+}
+
+/** El monograma de un proyecto: el de `mapaMonogramas` si está; si no, el suyo (con su título). */
+export function monogramaDe(mapa: Readonly<Record<string, string | undefined>>, proyecto: string, titulo?: string | null): string {
+  return mapa[proyecto] ?? monograma(titulo || proyecto);
+}

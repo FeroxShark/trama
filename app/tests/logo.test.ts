@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { monograma, monogramas, PALETA, tono } from "../src/barra/logo-logica.ts";
+import { mapaMonogramas, monograma, monogramaDe, monogramas, PALETA, tono } from "../src/barra/logo-logica.ts";
 import { candidatos, iconoDe, iconosDe, LUGARES } from "../electron/iconos.ts";
 
 test("monograma: dos letras de una palabra, iniciales de dos", () => {
@@ -30,6 +30,21 @@ test("monogramas: dos iguales → distintos; tres → tres; sin choques, como ho
   assert.deepEqual(monogramas(["ab", "ab", "ab"]), ["Ab", "Ac", "Ad"]);
   // sin letras no hay con qué distinguirlos
   assert.deepEqual(monogramas(["--", "--"]), ["·", "·"]);
+});
+
+test("mapaMonogramas: el mismo mapa en cualquier orden de la lista; el nombre es el título o el slug", () => {
+  const mapa = mapaMonogramas(["shell", "shark", "brote"], {});
+  assert.deepEqual(mapa, { brote: "Br", shark: "Sh", shell: "Sl" });
+  assert.deepEqual(mapaMonogramas(["brote", "shell", "shark", "shell"], {}), mapa);
+  // con título: ese nombre es el que se monogramea
+  assert.deepEqual(mapaMonogramas(["p1", "p2"], { p1: "shark", p2: "shell" }), { p1: "Sh", p2: "Sl" });
+});
+
+test("monogramaDe: el del mapa si está; si no, el suyo", () => {
+  const mapa = mapaMonogramas(["shell", "shark"], {});
+  assert.equal(monogramaDe(mapa, "shell", "Otro nombre"), "Sl");
+  assert.equal(monogramaDe(mapa, "nuevo", "Atlas Web"), "AW");
+  assert.equal(monogramaDe(mapa, "atlas"), "At");
 });
 
 test("el tono es de la paleta y siempre el mismo para el mismo nombre", () => {
