@@ -201,8 +201,8 @@ function Fila({ f, b, cambiar, dom }: { f: FilaTabla; b: Borrador; cambiar: (n: 
             {u.efecto ? <span className="wk-est" data-origen="esfuerzo">{t("ajustes.mdlWkAlEsfuerzo", { effort: t(`ajustes.mdlWkEffort_${u.efecto}`) })}{u.estimado ? ` · ${t("ajustes.mdlWkChipEstimado")}` : ""}</span> : null}
           </>
         )}
-        <span className="wk-est" data-origen={o.tipo} data-tip={o.tipo === "estimada" || o.tipo === "defecto" ? t("ajustes.mdlWkSinDatoAAQue") : o.tipo === "usuario" ? t("ajustes.mdlWkOrigenUsuarioQue") : o.tipo === "aa" ? t("ajustes.mdlWkOrigenAAQue", { fecha: o.fecha ?? "" }) : undefined}>
-          {o.tipo === "estimada" || o.tipo === "defecto" ? t("ajustes.mdlWkSinDatoAA") : o.tipo === "usuario" ? t("ajustes.mdlWkOrigenUsuario") : o.tipo === "aa" ? t("ajustes.mdlWkOrigenAA", { fecha: o.fecha ?? "" }) : ""}
+        <span className="wk-est" data-origen={o.tipo} data-tip={o.tipo === "sup-estimada" ? t("ajustes.mdlWkSupEstimadaQue") : o.tipo === "estimada" || o.tipo === "defecto" ? t("ajustes.mdlWkSinDatoAAQue") : o.tipo === "usuario" ? t("ajustes.mdlWkOrigenUsuarioQue") : o.tipo === "aa" ? t("ajustes.mdlWkOrigenAAQue", { fecha: o.fecha ?? "" }) : undefined}>
+          {o.tipo === "sup-estimada" ? t("ajustes.mdlWkSupEstimada") : o.tipo === "estimada" || o.tipo === "defecto" ? t("ajustes.mdlWkSinDatoAA") : o.tipo === "usuario" ? t("ajustes.mdlWkOrigenUsuario") : o.tipo === "aa" ? t("ajustes.mdlWkOrigenAA", { fecha: o.fecha ?? "" }) : ""}
         </span>
       </div>
     </li>

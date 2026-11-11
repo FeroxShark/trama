@@ -226,6 +226,11 @@ test("origenDe: lo fijado en el borrador es tuyo; AA lleva su fecha; estimada y 
   const aa = fila({ id: "claude-haiku-5-5", familia: "haiku", proveedor: "claude", origen: "artificial-analysis", aaFecha: "2026-10-25", estimada: false });
   assert.deepEqual(origenDe(aa, b0), { tipo: "aa", fecha: "25/10" });
   assert.deepEqual(origenDe(aa, ponerInteligencia(b0, aa, 70)), { tipo: "usuario", fecha: null });
+  // Sólo de la tabla propia y aproximada: se rotula «estimada»; con un esfuerzo de la API o de la tabla sin aproximar, sigue siendo de AA.
+  const sup = fila({ id: "agy:gpt-oss-120b", origen: "artificial-analysis", aaFecha: "2026-11-10", estimada: false, calidadPorEffort: { medium: 38.7 }, fuentePorEffort: { medium: "suplemento~" } });
+  assert.deepEqual(origenDe(sup, b0), { tipo: "sup-estimada", fecha: "10/11" });
+  assert.equal(origenDe({ ...sup, calidadPorEffort: { medium: 38.7, high: 40 }, fuentePorEffort: { medium: "suplemento~", high: "api" } }, b0).tipo, "aa");
+  assert.equal(origenDe({ ...sup, fuentePorEffort: { medium: "suplemento" } }, b0).tipo, "aa");
   assert.equal(origenDe(fila({ origen: "usuario" }), b0).tipo, "usuario");
   assert.equal(origenDe(fila({ origen: "estimada", estimada: true }), b0).tipo, "estimada");
   assert.equal(origenDe(fila({ origen: "defecto", estimada: false }), b0).tipo, "defecto");

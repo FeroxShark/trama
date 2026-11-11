@@ -3097,6 +3097,8 @@ export const en = {
   "ajustes.mdlWkOrigenAA": "AA · {fecha}",
   "ajustes.mdlWkOrigenAAQue": "Measured by Artificial Analysis (its intelligence index, unscaled). Data from {fecha}.",
   "ajustes.mdlWkOrigenEstimada": "estimated",
+  "ajustes.mdlWkSupEstimada": "estimated · own table",
+  "ajustes.mdlWkSupEstimadaQue": "Artificial Analysis did not measure this model: the figure is an estimate from the own table (datos/aa-suplemento.json), not AA data. Type a number to set it.",
   "ajustes.mdlWkSinDatoAA": "no AA data",
   "ajustes.mdlWkSinDatoAAQue": "Artificial Analysis does not measure this model: the figure is an estimate (from the name or the built-in one) converted to its units. Type a number to set it.",
   "ajustes.mdlWkEfforts": "Allowed efforts of {modelo}",

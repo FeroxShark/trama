@@ -478,10 +478,12 @@ export const TABLA_REPARTO = (aa = false): TablaReparto => {
   const conAA = (f: FilaTabla): FilaTabla => {
     if (!aa || f.estimada || f.origen !== "defecto" || f.familia === "sonnet" || f.id.includes("big-pickle")) return f;
     // Índice de inteligencia de AA al esfuerzo que se usaría (high; si no está medido, estimado); costo y tokens por tarea como los trae AA.
-    const q: Record<string, number> = { "claude-opus-5-5": 50.2, "claude-haiku-5-5": 37.8, "gemini-4-argon": 51, "gemini-3.8-flash": 45, "agy:gpt-oss-120b": 32, "codex:gpt-6.1-sol": 53, "opencode:opencode/glm-5.3-flash-free": 42, "opencode:opencode/nemotron-3-ultra-free": 47 };
+    const q: Record<string, number> = { "claude-opus-5-5": 50.2, "claude-haiku-5-5": 37.8, "gemini-4-argon": 51, "gemini-3.8-flash": 45, "agy:gpt-oss-120b": 38.7, "codex:gpt-6.1-sol": 53, "opencode:opencode/glm-5.3-flash-free": 42, "opencode:opencode/nemotron-3-ultra-free": 47 };
     const por: Record<string, Partial<FilaTabla>> = {
       // Opus 5.5: AA sólo midió max; el resto se estima (y así se rotula).
       "claude-opus-5-5": { calidadPorEffort: { max: 57.6 }, effortsEstimados: ["low", "medium", "high", "xhigh"], calidadEstimadaPorEffort: { low: 39.2, medium: 44.7, high: 50.2, xhigh: 54.7 }, fuentePorEffort: { max: "api" }, tokensPorEffort: { max: 1400000 }, tiempoPorEffort: { max: 520 } },
+      // GPT-OSS 120B: AA no lo mide; la cifra sale de la tabla propia, aproximada (se rotula «estimada · tabla propia»).
+      "agy:gpt-oss-120b": { calidadPorEffort: { medium: 38.7 }, effortsEstimados: [], calidadEstimadaPorEffort: {}, fuentePorEffort: { medium: "suplemento~" } },
       // Haiku 5.5: low, high y xhigh de AA; max de la tabla propia (aproximado); medium estimado. Coding y agentic sólo como extra del tooltip.
       "claude-haiku-5-5": { calidadPorEffort: { low: 29.5, high: 37.8, xhigh: 41.2, max: 43.4 }, effortsEstimados: ["medium"], calidadEstimadaPorEffort: { medium: 33.6 }, fuentePorEffort: { low: "api", high: "api", xhigh: "api", max: "suplemento~" }, costoPorEffort: { max: 0.2 }, codingPorEffort: { high: 52.1 }, agenticPorEffort: { high: 40.3 } },
     };

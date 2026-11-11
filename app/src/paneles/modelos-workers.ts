@@ -140,7 +140,7 @@ export const effortsMostrados = (f: FilaTabla): EffortCalidad[] =>
 /** ¿La cifra de ese esfuerzo es una estimación (no la midió Artificial Analysis ni la fijó el dueño)? */
 export const esEstimado = (f: FilaTabla, e: EffortCalidad): boolean => f.calidadPorEffort[e] === undefined && f.effortsEstimados.includes(e);
 
-export type OrigenVista = { tipo: "usuario" | "aa" | "estimada" | "defecto"; /** `26/10`: el día del dato de Artificial Analysis. */ fecha: string | null };
+export type OrigenVista = { tipo: "usuario" | "aa" | "sup-estimada" | "estimada" | "defecto"; /** `26/10`: el día del dato de Artificial Analysis. */ fecha: string | null };
 
 /** `AAAA-MM-DD` → `DD/MM`; `null` si no es una fecha. */
 export function fechaCorta(iso: string | null): string | null {
@@ -160,10 +160,16 @@ export function procedenciaAA(filas: readonly FilaTabla[]): { fecha: string | nu
   return f ? { fecha: f.aaFecha, sinClave: f.aaFoto === true } : null;
 }
 
+/** ¿Toda la cifra medida del modelo sale de la tabla propia con valores aproximados (`suplemento~`), sin ninguna de la API ni de la foto de AA? Entonces es una estimación: se rotula «estimada». */
+export const soloSuplementoAprox = (f: FilaTabla): boolean => {
+  const fu = Object.entries(f.fuentePorEffort ?? {}).filter(([e]) => f.calidadPorEffort[e as EffortCalidad] !== undefined).map(([, v]) => v);
+  return fu.length > 0 && fu.every((v) => v === "suplemento~");
+};
+
 /** De dónde sale la cifra que se ve: lo fijado en el borrador es «tuyo» aunque todavía no se guardó; si no, lo que dice `reparto` (que ya aplicó usuario > Artificial Analysis > defecto > estimada). */
 export function origenDe(f: FilaTabla, b: Borrador): OrigenVista {
   if (b.calidad[claveCalidad(f)] !== undefined) return { tipo: "usuario", fecha: null };
-  if (f.origen === "artificial-analysis") return { tipo: "aa", fecha: fechaCorta(f.aaFecha) };
+  if (f.origen === "artificial-analysis") return { tipo: soloSuplementoAprox(f) ? "sup-estimada" : "aa", fecha: fechaCorta(f.aaFecha) };
   return { tipo: f.origen === "usuario" ? "usuario" : f.estimada || f.origen === "estimada" ? "estimada" : "defecto", fecha: null };
 }
 

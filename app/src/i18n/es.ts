@@ -3083,6 +3083,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "ajustes.mdlWkOrigenAA": "AA · {fecha}",
   "ajustes.mdlWkOrigenAAQue": "Medida por Artificial Analysis (su índice de inteligencia, sin escalar). Dato del {fecha}.",
   "ajustes.mdlWkOrigenEstimada": "estimada",
+  "ajustes.mdlWkSupEstimada": "estimada · tabla propia",
+  "ajustes.mdlWkSupEstimadaQue": "Artificial Analysis no midió este modelo: la cifra es una estimación de la tabla propia (datos/aa-suplemento.json), no un dato de AA. Escribí un número para fijarla.",
   "ajustes.mdlWkSinDatoAA": "sin dato AA",
   "ajustes.mdlWkSinDatoAAQue": "Artificial Analysis no mide este modelo: la cifra es una estimación (por el nombre o la de fábrica) llevada a sus unidades. Escribí un número para fijarla.",
   "ajustes.mdlWkEfforts": "Esfuerzos permitidos de {modelo}",
