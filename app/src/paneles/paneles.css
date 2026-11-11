@@ -2586,66 +2586,16 @@
   gap: var(--esp-2-5);
   padding: 0 var(--esp-4) var(--esp-4);
 }
-/* Cada ventana: nombre, barra y % usado en una línea; debajo, cuándo vuelve. Angosta (la tarjeta, no la pantalla), la barra baja a su renglón. */
+/* El cuerpo de una tarjeta chica: su ancho (el de la tarjeta, no el de la pantalla) es el que mide lo de adentro. */
 .cu-cuerpo {
   container-type: inline-size;
 }
-.cu-vent {
-  display: grid;
-  align-items: center;
-  gap: var(--esp-0-5) var(--esp-3);
-  grid-template-columns: minmax(6rem, 8rem) minmax(0, 1fr) minmax(4.5rem, auto);
-  grid-template-areas: "n bar pct" ". vuelve vuelve";
-}
-.cu-vent-n {
-  grid-area: n;
-  color: var(--texto);
-  font-size: var(--letra-4);
-}
-.cu-pct,
-.cu-insignia {
-  grid-area: pct;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--esp-1);
-  color: var(--texto);
-  font-size: var(--letra-4);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.cu-pct[data-estado="bajo"] {
-  color: var(--aviso);
-}
-/* Agotada: insignia con icono y palabra (no sólo el rojo). */
-.cu-insignia {
-  padding: 0 var(--esp-2);
-  border-radius: var(--radio-pastilla);
-  background: var(--critico-tinte);
-  color: var(--critico);
-  font-weight: 500;
-}
 .cu-vuelve {
-  grid-area: vuelve;
   color: var(--apagado);
   font-size: var(--letra-3);
   font-variant-numeric: tabular-nums;
 }
-.cu-vent[data-estado="lleno"] .cu-vuelve {
-  color: var(--texto);
-}
-/* No rige ahora: texto apagado en cursiva y una barra hueca rayada, nada de un 0 %. */
-.cu-off {
-  grid-area: off;
-  color: var(--apagado);
-  font-size: var(--letra-4);
-  font-style: italic;
-}
-.cu-vent[data-estado="off"] {
-  grid-template-areas: "n off off" ". nota nota";
-}
 .cu-nota {
-  grid-area: nota;
   color: var(--apagado);
   font-size: var(--letra-3);
 }
@@ -2671,22 +2621,6 @@
 }
 .cu-ritmo[data-nivel="encima"] {
   color: var(--aviso);
-}
-.cu-vent > .cu-sin {
-  grid-column: 2 / -1;
-}
-@container (max-width: 22rem) {
-  .cu-vent,
-  .cu-vent[data-estado="off"] {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "n pct" "bar bar" "vuelve vuelve";
-  }
-  .cu-vent[data-estado="off"] {
-    grid-template-areas: "n n" "off off" "nota nota";
-  }
-  .cu-vent > .cu-sin {
-    grid-column: 1 / -1;
-  }
 }
 /* La línea de estado de arriba de cada tarjeta y de cada grupo: icono + texto, con el tono sólo como refuerzo. */
 .cu-pildora {

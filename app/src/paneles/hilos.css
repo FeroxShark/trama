@@ -1,0 +1,28 @@
+/* Los hilos del riel (Hilos.tsx). Medidas en rem. */
+/* Los hilos: cada uno prendido es uso. El último prendido brilla cuando pide atención (además de la cifra, el ícono y la palabra). */
+.cu-hilos {
+  display: flex;
+  width: 11.4375rem;
+  max-width: 100%;
+  height: 0.875rem;
+  gap: var(--esp-0-5);
+  color: var(--acento);
+}
+.cu-hilos i {
+  min-width: 0;
+  flex: 1 1 0;
+  border-radius: 0.09375rem;
+  background: color-mix(in srgb, var(--blanco) 14%, transparent);
+}
+.cu-hilos i[data-on] {
+  background: currentColor;
+}
+.cu-hilos[data-nivel="poco"] {
+  color: var(--aviso);
+}
+.cu-hilos[data-nivel="sin"] {
+  color: var(--critico);
+}
+.cu-hilos:is([data-nivel="poco"], [data-nivel="sin"]) i[data-tope] {
+  box-shadow: 0 0 0.3125rem color-mix(in srgb, currentColor 75%, transparent);
+}

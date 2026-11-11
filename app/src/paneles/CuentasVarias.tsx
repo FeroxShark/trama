@@ -166,7 +166,7 @@ export function AvisosCuenta({ perfil, acc }: { perfil: PerfilCuenta; acc: Retur
 /**
  * Una cuenta en la bienvenida: nombre editable, conectada o no, «En uso» o «Usar» (la elegida es la que usan los líderes y workers nuevos de su
  * proveedor; no toca lo que ya corre ni cambia sola cuando se agota el cupo), Conectar y Quitar (la de siempre no se quita). `children`: su cupo.
- * En Ajustes > Plan y cupos la misma cuenta es un renglón de la tela (`CuposTejido.tsx`).
+ * En Ajustes > Plan y cupos la misma cuenta es un renglón de la tela (`CuentaCupo.tsx`).
  */
 export function CuentaFila({ perfil, alCambiar, children }: { perfil: PerfilCuenta; alCambiar: () => void; children?: ReactNode }) {
   useIdioma();

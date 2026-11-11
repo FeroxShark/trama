@@ -10,7 +10,7 @@ import { cuentaParaElegir, filasDeCupos, type ListaCuentas } from "../datos/cuen
 import { t, textoMain } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
-import { Hilos } from "../paneles/CuposTejido";
+import { Hilos } from "../paneles/Hilos";
 import { abrirAjustes } from "../paneles/ajustes-nav";
 import type { Pintor } from "../reloj";
 import { VIEJO_S, cuandoFuturo, pintorHace, pintorVisto } from "../tiempo";

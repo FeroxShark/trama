@@ -1,73 +1,51 @@
-// Ajustes > Plan y cupos, la tela: una sola tarjeta por proveedor con un renglón por cuenta y, en cada uno, dos carriles de hilos (5 h y semana) pegados y
-// alineados con los de las otras cuentas. Cada hilo prendido es uso. El estado va en palabras bajo el nombre, nunca sólo en color. «Usar» cambia la
-// cuenta sólo cuando la persona lo toca: Trama no rota sola.
+// Ajustes > Plan y cupos, la tela: una sola tarjeta por proveedor con un renglón por cuenta y, en cada uno, sus dos límites (5 h y semana) como barras
+// lisas (`BarraCupo`, variante normal), uno al lado del otro. El estado va en palabras bajo el nombre, nunca sólo en color. «Usar» cambia la cuenta
+// sólo cuando la persona lo toca: Trama no rota sola.
 import { Check, CircleX, Clock, TriangleAlert, Unplug, X } from "lucide-react";
 import type { ReactNode } from "react";
 import type { VentanaCupo } from "../datos/contrato";
 import type { PerfilCuenta } from "../datos/cuentas";
 import { t } from "../i18n";
-import { cuandoFuturoCorto } from "../tiempo";
 import { AvisosCuenta, Nombre, useAccionesCuenta } from "./CuentasVarias";
-import { HILOS, carrilesCompletos, hilosPrendidos, nivelCarril, type EstadoCuenta, type Hallazgo } from "./cupos-tejido";
+import { BarraCupo } from "../ui/BarraCupo";
+import { carrilesCompletos, nivelCarril, type EstadoCuenta, type Hallazgo } from "./cupos-tejido";
 import "./cupos-tela.css";
 
 const nombreCarril = (id: string) => (id === "5h" ? t("cu.tj.5h") : id === "7d" ? t("cu.tj.7d") : id === "1m" ? t("cu.tj.1m") : id);
 
-/** Los hilos de un carril (el número lo dice el renglón: esto es sólo para el ojo). */
-export function Hilos({ pct, nivel, total = HILOS }: { pct: number | null; nivel: string; /** Cuántos hilos: la barra, que es angosta, usa menos. */ total?: number }) {
-  const on = hilosPrendidos(pct, total);
-  return (
-    <span className="cu-hilos" data-nivel={nivel} aria-hidden="true">
-      {Array.from({ length: total }, (_, i) => (
-        <i key={i} data-on={i < on ? "" : undefined} data-tope={i === on - 1 ? "" : undefined} />
-      ))}
-    </span>
-  );
-}
-
-/** Un carril: nombre, hilos, cifra y cuándo vuelve, en cuatro celdas de la grilla de `.cu-par`. Sin porcentaje, la cuenta de pedidos o «sin dato». */
-function Carril({ v }: { v: VentanaCupo }) {
+/**
+ * Un límite (5 h, semana, mes) como barra lisa. Lo que no es un porcentaje se dice con palabras, sin 0 %: «no aplica» (no rige ahora) y la cuenta de
+ * pedidos de los gratis sin tope. `nombre`: el que se ve (corto en la tela, entero en el detalle de una tarjeta chica).
+ */
+export function LimiteCupo({ v, nombre }: { v: VentanaCupo; nombre: string }) {
   const nivel = nivelCarril(v);
-  const hay = nivel !== "off" && nivel !== "nada";
-  const nota =
-    nivel === "off"
-      ? t("cu.w.noAplicaCorto")
-      : v.pedidos !== undefined && v.tope
-        ? t("cu.w.pedidosDe", { n: v.pedidos.toLocaleString(), tope: v.tope.toLocaleString() })
-        : v.pedidos !== undefined
-          ? t("cu.tj.pedidos", { n: v.pedidos.toLocaleString() })
-          : !hay
-            ? t("comun.sinDato")
-            : null;
+  const pedidos = v.pedidos !== undefined ? v.pedidos.toLocaleString() : null;
+  if (nivel === "off" || (nivel === "nada" && pedidos !== null)) {
+    return (
+      <div className="cu-lim cu-lim-txt" role="group" aria-label={nombre}>
+        <span className="cu-lim-n">{nombre}</span>
+        <span className="cu-lim-d">{nivel === "off" ? t("cu.w.noAplicaCorto") : t("cu.tj.pedidos", { n: pedidos ?? "" })}</span>
+      </div>
+    );
+  }
   return (
-    <>
-      <span className="cu-l">{nombreCarril(v.id)}</span>
-      <Hilos pct={hay ? v.pct : null} nivel={nivel} />
-      <span className="cu-n" data-nivel={nivel}>
-        {hay ? (
-          <>
-            {Math.round(v.pct ?? 0)}
-            <small> %</small>
-          </>
-        ) : (
-          "—"
-        )}
-      </span>
-      <span className="cu-v">{hay && v.vuelve !== null ? t("cu.w.vuelve", { cuando: cuandoFuturoCorto(v.vuelve) }) : hay ? null : nota}</span>
-    </>
+    <div className="cu-lim">
+      <BarraCupo nombre={nombre} pct={v.pct} vuelve={v.vuelve} />
+      {pedidos !== null && v.tope ? <span className="cu-lim-ped">{t("cu.w.pedidosDe", { n: pedidos, tope: v.tope.toLocaleString() })}</span> : null}
+    </div>
   );
 }
 
 /**
- * Los dos carriles de una cuenta, juntos: son una sola pieza. Si falta uno (5 h o semana) se pinta igual con «sin dato»; nunca queda el renglón
+ * Los dos límites de una cuenta, juntos: son una sola pieza. Si falta uno (5 h o semana) se pinta igual con «sin dato»; nunca queda el renglón
  * vacío ni una sola ventana que parezca la cuenta entera. Un proveedor con otra ventana (mensual) no se completa con las que no tiene.
  */
 export function Carriles({ ventanas }: { ventanas: VentanaCupo[] }) {
   const [a, b] = carrilesCompletos(ventanas);
   return (
     <div className="cu-par">
-      {a ? <Carril v={a} /> : null}
-      {b ? <Carril v={b} /> : null}
+      {a ? <LimiteCupo v={a} nombre={nombreCarril(a.id)} /> : null}
+      {b ? <LimiteCupo v={b} nombre={nombreCarril(b.id)} /> : null}
     </div>
   );
 }

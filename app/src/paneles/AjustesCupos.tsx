@@ -1,4 +1,4 @@
-// Ajustes > Plan y cupos: Claude en una sola tarjeta con un renglón por cuenta (CuposTejido.tsx); las demás suscripciones (Google AI Pro, OpenCode, ChatGPT,
+// Ajustes > Plan y cupos: Claude en una sola tarjeta con un renglón por cuenta (CuentaCupo.tsx); las demás suscripciones (Google AI Pro, OpenCode, ChatGPT,
 // NVIDIA NIM) en una tarjeta chica con su estado y su cupo en una línea, que se abre para ver cada ventana, el plan y conectarla, y que con varias cuentas
 // pasa a ser una tela como la de Claude. Abajo, lo que se escribe en `modelos.json` (guardar un % para mis sesiones y qué hace `pa` si un proveedor se
 // queda sin cupo). Trabaja sobre el borrador de AjustesModelos (nada se escribe hasta Guardar). Los textos que cambian con el tiempo ("vuelve en 20 h") los
@@ -21,7 +21,7 @@ import { enOtros } from "../i18n/Fijo";
 import { useIdioma } from "../i18n/react";
 import { Reloj } from "../barra/piezas";
 import { cuandoFuturo, fechaCorta, pintorVuelve } from "../tiempo";
-import { estadoVentana, resumenGrupo, resumenSusc, type ResumenSusc } from "../barra/cuposVista";
+import { resumenGrupo, resumenSusc, type ResumenSusc } from "../barra/cuposVista";
 import { nombreGrupo, nombreGrupoCorto, queGrupo } from "../barra/cuposNombres";
 import { textoEstado, textoSusc } from "../barra/cuposTextos";
 import { carcasa } from "../carcasa";
@@ -33,8 +33,8 @@ import { avisosTope } from "./cupos-aviso";
 import { cambiado, fabricaDe, poner, restaurar, topeDe, TOPE_MAX, TOPE_MIN, type IdTope } from "./cupos-topes";
 import { GrupoAjustes, FilaAjuste } from "./AjustesPiezas";
 import { irA, pendienteDeMostrar, suscribir } from "./ajustes-nav";
-import { FilaCuenta, FilaFija, Hilos, LineaHallazgo, LineaNota, nombreVentanaMin } from "./CuposTejido";
-import { esEnUso, estadoCuenta, hallazgo, nivelCarril, ventanasDeSusc, type FilaResumen } from "./cupos-tejido";
+import { FilaCuenta, FilaFija, LimiteCupo, LineaHallazgo, LineaNota, nombreVentanaMin } from "./CuentaCupo";
+import { esEnUso, estadoCuenta, hallazgo, ventanasDeSusc, type FilaResumen } from "./cupos-tejido";
 import { PERFILES, SIN_CUPO, type Borrador, type Perfil, type SinCupo } from "./modelos-borrador";
 import { reservaDePerfil, ritmoSemanal, type Ritmo } from "./cupos-ritmo";
 
@@ -69,41 +69,8 @@ const nombreVentana = (id: string) => (id === "5h" ? t("cu.v.5h") : id === "7d" 
 
 const ICONO_NIVEL = { ok: Check, bajo: TriangleAlert, lleno: Ban, parcial: Ban, marcado: Clock, sin: Minus } as const;
 
-/** Una ventana de cupo: nombre, barra, % usado y cuándo vuelve. Agotada: insignia y cuándo vuelve; que no rige: «no aplica ahora», sin 0 %. */
-function Ventana({ v }: { v: VentanaCupo }) {
-  const est = estadoVentana(v);
-  const nombre = nombreVentana(v.id);
-  return (
-    <div className="cu-vent" data-estado={est} role="group" aria-label={nombre}>
-      <span className="cu-vent-n">{nombre}</span>
-      {est === "off" ? (
-        <>
-          <span className="cu-off" title={t("cu.w.noAplicaQue")}>{t("cu.w.noAplica")}</span>
-          <span className="cu-nota">{t("cu.w.noAplicaQue")}</span>
-        </>
-      ) : est === "sin" ? (
-        <span className="cu-sin">{v.pedidos !== undefined ? t("cu.w.pedidosSin", { n: v.pedidos.toLocaleString() }) : t("uso.sinDatoCupo")}</span>
-      ) : (
-        <>
-          <Hilos pct={v.pct} nivel={nivelCarril(v)} />
-          {est === "lleno" ? (
-            <span className="cu-insignia" data-tono="critico">
-              <Ban size={12} strokeWidth={2.4} aria-hidden="true" />
-              {t("cu.w.agotada")}
-            </span>
-          ) : (
-            <span className="cu-pct" data-estado={est}>
-              {est === "bajo" ? <TriangleAlert size={12} strokeWidth={2.4} aria-hidden="true" /> : null}
-              {t("cu.w.usado", { pct: Math.round(v.pct ?? 0) })}
-            </span>
-          )}
-          {v.pedidos !== undefined && v.tope ? <span className="cu-nota">{t("cu.w.pedidosDe", { n: v.pedidos.toLocaleString(), tope: v.tope.toLocaleString() })}</span> : null}
-          <Vuelve epoch={v.vuelve} />
-        </>
-      )}
-    </div>
-  );
-}
+/** Una ventana de cupo como barra lisa (`BarraCupo`): nombre, % usado, la barra y cuándo vuelve; agotada, «sin cupo» en palabras; que no rige, «no aplica ahora». */
+const Ventana = ({ v }: { v: VentanaCupo }) => <LimiteCupo v={v} nombre={nombreVentana(v.id)} />;
 
 /**
  * Cómo va la semana contra el ritmo que la termina en ~100 %: icono y palabras (el color solo no alcanza con daltonismo rojo-verde).
