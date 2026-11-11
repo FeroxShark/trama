@@ -463,14 +463,14 @@ test("responder: el CLI guarda la respuesta en el item sin cerrarlo ni moverlo; 
   assert.equal(pq.respuesta?.opcionTexto, "Una base");
   assert.equal(pu.respuesta?.anda, false);
   assert.equal(pu.respuesta?.texto, "falla el 3");
-  // Con respuesta ya no esperan; el número del pie baja de a dos.
-  assert.equal(await esperan(), antes - 2);
+  // El pie cuenta sólo preguntas: contestar la pregunta lo baja de a uno; la prueba (no cuenta) no lo mueve.
+  assert.equal(await esperan(), antes - 1);
 
   // Texto libre en una pregunta, y volver a contestar.
   await fuenteTablero.responder(q, { tipo: "pregunta", texto: "ninguna de las dos" });
   assert.equal((await fuenteTablero.leer()).columnas["espera-dueno"].find((i) => i.id === q)!.respuesta?.texto, "ninguna de las dos");
   await fuenteTablero.responder(q, null);
   assert.equal((await fuenteTablero.leer()).columnas["espera-dueno"].find((i) => i.id === q)!.respuesta, null);
-  assert.equal(await esperan(), antes - 1);
+  assert.equal(await esperan(), antes);
   await assert.rejects(fuenteTablero.responder(q, { tipo: "pregunta", opcion: "z" }), /./);
 });
