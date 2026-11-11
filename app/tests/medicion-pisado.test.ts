@@ -152,10 +152,10 @@ test("un revert: retrabajo 1", async () => {
   assert.equal(f.get(ID_A)?.retrabajo, "1");
 });
 
-test("el header lleva la columna pisado al final", async () => {
+test("el header lleva la columna pisado antes de indivisible, al final", async () => {
   const { header } = await correr({ inicioB: T0 - 3600 });
   const cols = header.split("\t");
-  assert.equal(cols[cols.length - 1], "pisado");
+  assert.equal(cols[cols.length - 2], "pisado");
   assert.equal(cols.length, MEDICION_HEADER.split("\t").length);
 });
 
@@ -163,5 +163,5 @@ test("un archivo viejo (sin la columna pisado) se lee igual y el header se actua
   const { filas: f, header } = await correr({ inicioB: T0 - 3600, headerViejo: true });
   assert.equal(f.get(ID_A)?.retrabajo, "0");
   assert.equal(f.get(ID_A)?.pisado, "1");
-  assert.equal(header.split("\t").at(-1), "pisado");
+  assert.equal(header.split("\t").at(-2), "pisado");
 });
