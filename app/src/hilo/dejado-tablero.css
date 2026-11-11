@@ -74,6 +74,80 @@
 .dejado-c[data-estado="cerrado"] .dejado-t b {
   color: var(--apagado);
 }
+/* El PROBAR de un worker como renglón: casilla de verdad (44 px de área con dedo) y, al lado, la fila de siempre, que abre el item. */
+.dejado-r {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--esp-1);
+}
+.dejado-fila {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.dejado-ck {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--alto-boton);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  cursor: pointer;
+}
+.dejado-ck:hover {
+  background: var(--capa-hover);
+}
+.dejado-ck input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.dejado-caja {
+  display: inline-flex;
+  width: 1.125rem;
+  height: 1.125rem;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--borde-4);
+  border-radius: var(--r-xs);
+  color: transparent;
+}
+.dejado-ck input:checked + .dejado-caja {
+  border-color: var(--verde);
+  background: var(--verde);
+  color: var(--negro);
+}
+.dejado-ck input:focus-visible + .dejado-caja {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+.dejado-ck input:disabled + .dejado-caja {
+  opacity: 0.55;
+}
+.dejado-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--rojo-claro);
+  font-size: var(--letra-4);
+}
+.dejado-c[data-estado="probado"] .dejado-e {
+  color: var(--ok);
+}
+.dejado-c[data-estado="probado"] .dejado-t b {
+  color: var(--apagado);
+}
+@media (pointer: coarse), (max-width: 40rem) {
+  .dejado-ck {
+    width: 2.75rem;
+  }
+}
 /* Angosto o con dedo: el renglón se parte en dos (frase y título arriba, estado debajo) y mide 44 px. */
 @media (pointer: coarse), (max-width: 40rem) {
   .dejado-c {

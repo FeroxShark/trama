@@ -2895,6 +2895,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "dejado.abierto": "Te espera",
   "dejado.respondido": "Ya respondiste",
   "dejado.cerrado": "Ya se cerró",
+  "dejado.probado": "Ya lo probaste",
+  "dejado.tildar": "Marcar como probado: {texto}",
   "dejado.abrir": "Abrir en el tablero: {titulo}",
   "dejado.mas": "y {n} más en el tablero",
   "oferta.cuenta.pasar": "Pasar este chat a {otra}",

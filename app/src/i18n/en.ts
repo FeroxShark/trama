@@ -2909,6 +2909,8 @@ export const en = {
   "dejado.abierto": "Waiting for you",
   "dejado.respondido": "You answered",
   "dejado.cerrado": "Closed",
+  "dejado.probado": "You tested it",
+  "dejado.tildar": "Mark as tested: {texto}",
   "dejado.abrir": "Open on the board: {titulo}",
   "dejado.mas": "and {n} more on the board",
   "oferta.cuenta.pasar": "Move this chat to {otra}",

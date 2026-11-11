@@ -4,7 +4,8 @@
 // de la conversación, debajo de lo que la dejó. Qué items hay y su estado: src/hilo/tablero-dejado.ts; la lectura del tablero se comparte
 // (tablero-dejado-fuente.ts).
 import { Check, ChevronRight, ClipboardList, Clock, Send, type LucideIcon } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { fuenteTablero } from "../datos/fuenteTablero";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { pedirItem } from "../paneles/tablero-abrir";
@@ -15,7 +16,8 @@ import "./dejado-tablero.css";
 /** Más que esto en un solo lugar y el resto se cuenta («y 2 más»): la tarjeta es un aviso, la lista entera vive en el tablero. */
 const MAX = 3;
 
-const ESTADO: Record<Exclude<EstadoDejado, "sin-leer">, { clave: "dejado.abierto" | "dejado.respondido" | "dejado.cerrado"; Icono: LucideIcon }> = {
+const ESTADO: Record<Exclude<EstadoDejado, "sin-leer">, { clave: "dejado.abierto" | "dejado.respondido" | "dejado.cerrado" | "dejado.probado"; Icono: LucideIcon }> = {
+  probado: { clave: "dejado.probado", Icono: Check },
   abierto: { clave: "dejado.abierto", Icono: Clock },
   respondido: { clave: "dejado.respondido", Icono: Send },
   cerrado: { clave: "dejado.cerrado", Icono: Check },
@@ -30,7 +32,7 @@ export function DejadoTablero({ refs }: { refs: readonly RefDejado[] }) {
   return (
     <ul className="dejado" data-guia="dejado-tablero" aria-label={t("dejado.frase")}>
       {vistas.map((c) => (
-        <Fila key={c.key} c={c} />
+        c.renglon ? <FilaRenglon key={c.key} c={c} n={c.renglon.n} hecho={c.renglon.hecho} /> : <Fila key={c.key} c={c} />
       ))}
       {lista.length > MAX ? (
         <li className="dejado-mas">
@@ -44,10 +46,52 @@ export function DejadoTablero({ refs }: { refs: readonly RefDejado[] }) {
   );
 }
 
+/**
+ * El PROBAR de un worker que vive como renglón del item «Probar <proyecto> (…)»: una casilla de verdad (tildar = `tablero:tildar`, el
+ * mismo canal del tablero) y al lado la fila de siempre, que abre el item. Tildado dice «Ya lo probaste» (palabra e ícono, no sólo color).
+ */
+function FilaRenglon({ c, n, hecho }: { c: Carta; n: number; hecho: boolean }) {
+  const [tildado, setTildado] = useState(hecho);
+  const [ocupado, setOcupado] = useState(false);
+  const [falla, setFalla] = useState<string | null>(null);
+  // Una lectura nueva del tablero (tildado desde el panel o desde otro lado) pisa lo local.
+  useEffect(() => setTildado(hecho), [hecho]);
+  const tildar = (nuevo: boolean) => {
+    setTildado(nuevo);
+    setOcupado(true);
+    setFalla(null);
+    fuenteTablero.tildar(c.id, [n], nuevo).then(
+      () => setOcupado(false),
+      (e: Error) => {
+        setTildado(!nuevo);
+        setOcupado(false);
+        setFalla(t("pd.pasoFalla", { error: e.message }));
+      },
+    );
+  };
+  return (
+    <li className="dejado-r">
+      <label className="dejado-ck" data-hecho={tildado ? "" : undefined}>
+        <input type="checkbox" checked={tildado} disabled={ocupado} aria-label={t("dejado.tildar", { texto: c.titulo })} onChange={(e) => tildar(e.target.checked)} />
+        <span className="dejado-caja" aria-hidden="true">
+          <Check size={12} strokeWidth={3} />
+        </span>
+      </label>
+      <Fila c={{ ...c, estado: tildado ? "probado" : c.estado === "probado" ? "abierto" : c.estado }} />
+      {falla ? (
+        <p className="dejado-error" role="alert">
+          {falla}
+        </p>
+      ) : null}
+    </li>
+  );
+}
+
 function Fila({ c }: { c: Carta }) {
   const e = c.estado === "sin-leer" ? null : ESTADO[c.estado];
+  const Envoltura = c.renglon ? "div" : "li";
   return (
-    <li>
+    <Envoltura className={c.renglon ? "dejado-fila" : undefined}>
       <button type="button" className="dejado-c" data-estado={c.estado} aria-label={t("dejado.abrir", { titulo: c.titulo })} onClick={() => pedirItem({ id: c.id })}>
         <ClipboardList className="dejado-i" size={14} strokeWidth={1.8} aria-hidden="true" />
         <span className="dejado-t">
@@ -61,6 +105,6 @@ function Fila({ c }: { c: Carta }) {
         ) : null}
         <ChevronRight className="dejado-f" size={14} strokeWidth={2} aria-hidden="true" />
       </button>
-    </li>
+    </Envoltura>
   );
 }
