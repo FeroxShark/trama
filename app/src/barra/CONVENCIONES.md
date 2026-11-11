@@ -74,6 +74,7 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 | Reloj + `En cola` | Espera puesto o lugar: no trabaja todavía. El motivo, en el tooltip. | | igual |
 | ✕ en círculo coral, halo + `falló` y fila tintada | Murió sin que nadie lo frenara. El tooltip dice `Murió` o `No arrancó`. | Se ve desde lejos. | recuperado el tooltip |
 | ? en círculo ámbar, halo + `decidir` y fila tintada | Pide que elijas algo. | `decidir` en vez de `pide decisión`: lo pide la línea única. | cambió la palabra (la frase, en el tooltip) |
+| **Chip ámbar suave con `i` + `le falta info`** (`needs info`), y el mismo en la cabecera del worker | Frenó porque le faltó información (`FALTA:` en su resultado, estado `falta-info`): no terminó ni falló, espera un dato. Ámbar de aviso (`--decision-*`), nunca el coral del fallo; ícono y palabra siempre. No tiñe la fila ni suma a los chips de arriba (no espera al dueño, sino a su líder), y **no se pliega en «N terminados»**: el chip es lo que dice que quedó a medias. El tooltip dice qué pasó. | Un worker que se frena a medias no puede verse como un `✓`. | nueva |
 | Se calma al resolverse | Lo relanzado, integrado o visto deja de resaltar y de contar (`atencion-vigente.ts`). | `539ce20`: un fallo viejo ya atendido no puede seguir gritando. | igual |
 | ✓ turquesa | Sólo en la fila de un worker que **terminó**. El tooltip y el lector de pantalla dicen `Terminó`. | Ahí sí es verdad. | igual, y sin palabra visible porque el pliegue ya dice «terminados» |
 | Título en negrita (`data-nuevo`) | Trajo algo que todavía no abriste. | | igual |
@@ -118,7 +119,7 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 | `Trama no cambia de cuenta sola` sólo con varias cuentas; pie `Ver Plan y cupos` | La nota sólo dice algo si hay una cuenta para cambiar. El enlace abre Ajustes > Plan y cupos. | Sin cuentas la frase era ruido (#1924). | cambió |
 | `En uso` con tilde / `Usar primero` | Qué cuenta usa cada motor. Es la única palomita de cupos: va con su palabra. Trama no rota de cuenta sola. | `959f3b4`. | igual |
 | Número en el Tablero | Cuántos ítems te esperan ahí. | | igual |
-| Avisos de workers al pie | Uno por worker: turquesa terminó, ámbar decisión, coral falló; botón de relanzar. | | igual |
+| Avisos de workers al pie | Uno por worker: turquesa terminó, ámbar decisión o `le falta info`, coral falló; botón de relanzar. | | igual |
 
 ## Secciones especiales
 

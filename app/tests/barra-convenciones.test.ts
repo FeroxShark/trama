@@ -47,6 +47,8 @@ createRequire(import.meta.url)("react").useSyncExternalStore = (_suscribir: unkn
 const { renderToStaticMarkup } = await import("react-dom/server");
 const { createElement: h } = await import("react");
 const { cambiarIdioma } = await import("../src/i18n/index.ts");
+const { es } = await import("../src/i18n/es.ts");
+const { en } = await import("../src/i18n/en.ts");
 const { Fila, FilaLider, PliegueTerminados } = await import("../src/barra/Fila.tsx");
 const { pintorCache, pintorDura, pintorHace } = await import("../src/tiempo.ts");
 cambiarIdioma("es");
@@ -209,6 +211,23 @@ test("la palomita dice terminó: sólo en el worker que terminó, y con la palab
   assert.ok(conPalomita(html));
   assert.match(html, /Terminó · 2 commits/);
   for (const e of ["trabajando", "murio", "colgado", "integrado"] as const) assert.ok(!conPalomita(pintaFila(hilo(e))), e);
+});
+
+test("le falta info: chip con ícono y palabra (es y en), en ámbar de aviso, sin palomita y sin el coral del fallo", () => {
+  const html = pintaFila(hilo("falta-info", { commits: 1 }));
+  assert.match(html, /class="chip-at"[^>]*data-at="falta"/);
+  assert.match(html, /lucide-info/, "el chip lleva su ícono");
+  assert.match(html, />le falta info</, "y su palabra: nunca sólo el color");
+  assert.ok(!conPalomita(html), "no terminó: no lleva palomita");
+  assert.doesNotMatch(html, /data-atencion=/, "no es un fallo ni una decisión: no tiñe la fila");
+  assert.match(html, /data-g="falta"/);
+  const atencion = leer("../src/barra-atencion.css");
+  const regla = atencion.match(/\.chip-at\[data-at="falta"\] \{[^}]*\}/)?.[0] ?? "";
+  assert.match(regla, /var\(--decision-/, "color de aviso (ámbar)");
+  assert.doesNotMatch(regla, /fallo/, "nunca el coral del fallo");
+  assert.match(leer("../src/barra/CONVENCIONES.md"), /`le falta info`/, "la convención del chip está escrita");
+  assert.equal(es["fila.chipFalta"], "le falta info");
+  assert.equal(en["fila.chipFalta"], "needs info");
 });
 
 test("lo que corre late (el punto, no un triángulo que se confunde con una flecha); lo trabado gira y lo dice", () => {

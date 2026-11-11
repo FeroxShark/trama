@@ -11,6 +11,8 @@ export type Estado =
   | "colgado"
   | "listo"
   | "decision"
+  /** Frenó porque le faltó información (FALTA en su resultado): el líder tiene que dársela. No es un fallo ni «terminó». */
+  | "falta-info"
   | "entregado"
   | "archivado"
   | "integrado"
@@ -540,7 +542,7 @@ export const cerrado = (e: Estado) => CERRADOS.has(e);
  * Settle (darlo por cerrado) sólo lo que terminó y sigue en la lista: queda
  * a la vista hasta entonces.
  */
-export const cerrable = (e: Estado) => e === "listo" || e === "decision" || e === "entregado" || e === "murio";
+export const cerrable = (e: Estado) => e === "listo" || e === "decision" || e === "falta-info" || e === "entregado" || e === "murio";
 
 /**
  * Qué hace el Settle (la misma regla que electron/settle.ts, que es la que

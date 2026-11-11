@@ -27,6 +27,20 @@
   background: var(--decision-relleno);
   color: var(--decision-sobre);
 }
+/* Le falta información (`falta-info`): ámbar de aviso, más suave que «pide decisión» (relleno pleno): no espera al dueño, espera datos. */
+.chip-at[data-at="falta"] {
+  background: var(--decision-fondo-fuerte);
+  color: var(--decision-texto);
+}
+.chip-at svg {
+  flex: none;
+}
+/* En la cabecera del worker: el mismo chip, a la altura de la cápsula de estado. */
+.migas:has(.ruta-sub) .chip-falta-cab {
+  height: 1.875rem;
+  padding: 0 var(--esp-3);
+  font-size: var(--letra-4);
+}
 button.chip-at {
   cursor: pointer;
 }

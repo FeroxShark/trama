@@ -227,7 +227,7 @@ function settleDe(r: Rama | null): number | null {
 }
 
 /** Lo que trae novedad para el usuario: va en negrita hasta que lo abre. Lo de un líder es para el líder. */
-const NOVEDAD: ReadonlySet<Estado> = new Set(["decision", "listo", "murio"]);
+const NOVEDAD: ReadonlySet<Estado> = new Set(["decision", "falta-info", "listo", "murio"]);
 const novedad = (h: Hilo, estado: Estado, leidos: Leidos) =>
   !deLider(h) && NOVEDAD.has(estado) && h.frenado_en == null && !((leidos[h.id] ?? 0) >= fin(h));
 

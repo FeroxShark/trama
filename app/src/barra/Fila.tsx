@@ -13,7 +13,7 @@ import { chipModelo, chipModeloTip, ficha, type ChipModelo } from "./ficha";
 import { Glifo, glifoDe } from "./Glifo";
 import { latir } from "./latido";
 import { tonoRiel } from "./logo-logica";
-import { cierre as cierreDe, Punto, Reloj, tareaDe, textoEstado, tipoDe } from "./piezas";
+import { cierre as cierreDe, ChipFalta, Punto, Reloj, tareaDe, textoEstado, tipoDe } from "./piezas";
 import { Resalte } from "./Resalte";
 import { t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
@@ -134,6 +134,7 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
               {tr(at === "fallo" ? "fila.chipFallo" : "barra.chipDecidir")}
             </span>
           ) : null}
+          {t?.tipo === "falta" && !at ? <ChipFalta /> : null}
           {error ? (
             <span className="pal error" data-tip={error}>
               {textoError(error)}

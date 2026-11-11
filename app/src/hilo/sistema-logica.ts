@@ -68,14 +68,14 @@ export function sistemaDe(m: Mensaje): Sistema | null {
   return m.rol === "user" ? deUsuario(m) : deModelo(m);
 }
 
-/** El tono de la fila de un worker en un aviso: verde si terminó (o terminó sin resumen), ámbar si pide una decisión, rojo si falló. */
-export const tonoDeEstado = (e: EstadoAviso): "ok" | "aviso" | "critico" => (e === "falla" ? "critico" : e === "decision" ? "aviso" : "ok");
+/** El tono de la fila de un worker en un aviso: verde si terminó (o terminó sin resumen), ámbar si pide una decisión o le falta información, rojo si falló. */
+export const tonoDeEstado = (e: EstadoAviso): "ok" | "aviso" | "critico" => (e === "falla" ? "critico" : e === "decision" || e === "faltaInfo" ? "aviso" : "ok");
 
 /** Con más filas que esto en un aviso, las terminadas se pliegan en «N terminados». */
 export const PLIEGUE_AVISO = 5;
 
 /** Primero las que piden decisión, después las que fallaron, después las terminadas (ese orden de atención). */
-const PESO_AVISO: Record<EstadoAviso, number> = { decision: 0, falla: 1, termino: 2, sinResumen: 2 };
+const PESO_AVISO: Record<EstadoAviso, number> = { decision: 0, faltaInfo: 0, falla: 1, termino: 2, sinResumen: 2 };
 
 /**
  * Las filas de un aviso en el orden de la vista. Con más de `PLIEGUE_AVISO`, las terminadas van en `plegadas`

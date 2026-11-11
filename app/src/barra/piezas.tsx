@@ -1,5 +1,6 @@
 // Piezas chicas compartidas: el span del reloj y los puntos de estado.
 import { useEffect, useLayoutEffect, useRef, type HTMLAttributes } from "react";
+import { Info } from "lucide-react";
 import type { Estado, Hilo } from "../datos/contrato";
 import { t, type ClaveSola } from "../i18n";
 import { suscribir, type Pintor } from "../reloj";
@@ -16,7 +17,7 @@ export function Reloj({ pintor, ...resto }: { pintor: Pintor } & HTMLAttributes<
 }
 
 /** Cómo se ve cada estado activo: la palabra, su color y qué punto lleva. */
-export type Tipo = "trab" | "nec" | "term" | "trabado" | "fallo" | "frenado" | "cola";
+export type Tipo = "trab" | "nec" | "falta" | "term" | "trabado" | "fallo" | "frenado" | "cola";
 
 // `texto` es un getter: dice la palabra en el idioma de ahora.
 const tipo = (tipo: Tipo, clave: ClaveSola) => ({
@@ -29,6 +30,7 @@ const tipo = (tipo: Tipo, clave: ClaveSola) => ({
 export const TIPO: Partial<Record<Estado, { tipo: Tipo; readonly texto: string }>> = {
   trabajando: tipo("trab", "estado.trabajando"),
   decision: tipo("nec", "estado.decision"),
+  "falta-info": tipo("falta", "estado.faltaInfo"),
   listo: tipo("term", "estado.termino"),
   entregado: tipo("term", "estado.termino"),
   colgado: tipo("trabado", "estado.trabado"),
@@ -123,6 +125,8 @@ export function Punto({ tipo, clave }: { tipo: Tipo; clave: string }) {
           <span className="pt pt-nec late" data-lento="" />
         </>
       );
+    case "falta":
+      return <span className="pt pt-falta" />;
     case "term":
       return <span className="pt pt-term" data-visto={visto ? "" : undefined} />;
     case "trabado":
@@ -134,4 +138,17 @@ export function Punto({ tipo, clave }: { tipo: Tipo; clave: string }) {
     case "cola":
       return <span className="pt pt-cola" />;
   }
+}
+
+/**
+ * El chip de un worker que frenó por falta de información (`falta-info`): ícono y palabra, en ámbar de aviso (no el coral del
+ * fallo: el trabajo no se cayó, le falta algo que dar). Es el mismo en la fila de la barra y en la cabecera del worker.
+ */
+export function ChipFalta({ className }: { className?: string }) {
+  return (
+    <span className={cn("chip-at", className)} data-at="falta" data-tip={t("fila.chipFaltaTip")}>
+      <Info size={11} strokeWidth={2.4} aria-hidden="true" />
+      {t("fila.chipFalta")}
+    </span>
+  );
 }

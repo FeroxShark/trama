@@ -20,7 +20,7 @@ import { MODO } from "../modo";
 import { latir } from "../barra/latido";
 import type { Como, Salida } from "../barra/arbol";
 import { AccionesWorker, CerrarLider, SettleLider } from "../barra/Fila";
-import { cierre, Reloj, tareaDe, textoEstado, tipoDe } from "../barra/piezas";
+import { cierre, ChipFalta, Reloj, tareaDe, textoEstado, tipoDe } from "../barra/piezas";
 import { lineaCabeceraWorker } from "./cabecera-worker";
 import { Leyendo } from "./Leyendo";
 import { t as tr } from "../i18n";
@@ -141,10 +141,14 @@ export function Vista({
               </span>
             </div>
             <MaquinaMigas maquina={h.maquina} />
-            <span className={`estado c-${t?.tipo ?? "cerrado"}`}>
-              <i>{t?.tipo === "nec" ? <span className="halo" /> : null}</i>
-              <span className="estado-t">{textoEstado(h, estado) ?? cierre(estado)}</span>
-            </span>
+            {t?.tipo === "falta" ? (
+              <ChipFalta className="chip-falta-cab" />
+            ) : (
+              <span className={`estado c-${t?.tipo ?? "cerrado"}`}>
+                <i>{t?.tipo === "nec" ? <span className="halo" /> : null}</i>
+                <span className="estado-t">{textoEstado(h, estado) ?? cierre(estado)}</span>
+              </span>
+            )}
             {conPasos ? <WorkerExtras h={h} vista={conPasos} vive={vive} /> : null}
           </>
         ) : sub && !lider ? (
@@ -454,10 +458,14 @@ function Cuerpo({ h, estado, settle, alCerrar, alRetomar, alPasar, alAbrirHilo }
               {pasando ? tr("vista.pasando") : tr("vista.pasar")}
             </button>
           ) : (
-            <span className={`estado c-${tipoDe(h, estado)?.tipo ?? "cerrado"}`}>
-              <i />
-              {textoEstado(h, estado) ?? cierre(estado)}
-            </span>
+            tipoDe(h, estado)?.tipo === "falta" ? (
+              <ChipFalta />
+            ) : (
+              <span className={`estado c-${tipoDe(h, estado)?.tipo ?? "cerrado"}`}>
+                <i />
+                {textoEstado(h, estado) ?? cierre(estado)}
+              </span>
+            )
           )}
           {settle && !vive ? <AccionesWorker key={h.id} id={h.id} salida={settle} como={comoSettle(h)} alCerrar={alCerrar} alRetomar={alRetomar} className="btn2" /> : null}
         </div>

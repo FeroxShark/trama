@@ -1017,6 +1017,9 @@
   background: var(--fallo-relleno);
   color: var(--fallo-sobre);
 }
+.g[data-g="falta"] {
+  color: var(--decision-texto);
+}
 .g[data-g="pide"] {
   background: var(--decision-relleno);
   color: var(--decision-sobre);

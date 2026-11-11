@@ -55,6 +55,8 @@ export type AvisoWorker = {
   leer?: boolean;
   /** `fin`: terminó pidiendo una decisión. */
   decision?: boolean;
+  /** `fin`: frenó porque le faltó información (FALTA en su resultado; estado `falta-info`): no «terminó», dejó algo que el líder tiene que dar. */
+  faltaInfo?: boolean;
   /** `fin`: terminó sin el bloque RESULTADO, pero con commits y el repo limpio (el trabajo está). */
   sinResumen?: boolean;
   /** `fin`: su resultado compacto (`compactarResultado`: RESULTADO, VERIFICACION, DECISION y SIGUE, ≤ 1500 caracteres); `recortado`: se cortó. */
@@ -277,7 +279,7 @@ export function crearAvisosWorker(d: Deps) {
       return true;
     }
     if (TERMINADOS.has(h.estado)) {
-      const extra = h.estado === "decision" ? { decision: true } : {};
+      const extra = h.estado === "decision" ? { decision: true } : h.estado === "falta-info" ? { faltaInfo: true } : {};
       if (rc !== undefined && rc !== 0) {
         // Sin el bloque RESULTADO pero con commits y el repo limpio: el trabajo está, no es una falla (se lo dice «terminó sin resumen»).
         const rastro = await d.leerRastro(h).catch(() => "");
@@ -397,6 +399,7 @@ const hora = (epochS: number, ahoraMs: number) => {
 
 /** Cómo terminó un worker, en una oración sin su nombre: «terminó…» o «falló: …». */
 function comoTermino(a: AvisoWorker): string {
+  if (a.tipo === "fin" && a.faltaInfo) return "frenó: le falta información.";
   if (a.tipo === "fin") return `terminó${a.decision ? " pidiendo una decisión" : a.sinResumen ? " sin resumen" : ""}.`;
   if (a.tipo === "colgado") return `falló: parece colgado, sin actividad hace ${a.minutos ?? 15} min.`;
   if (a.tipo === "cupo") {
@@ -499,16 +502,16 @@ export function textoParaLider(a: AvisoWorker): string {
   return [cabeza, ...detalleDe(a, "    ")].join("\n");
 }
 
-/** Cómo quedó un worker en un aviso: terminó, terminó pidiendo una decisión, terminó sin resumen, o falló. */
-export type EstadoAviso = "termino" | "decision" | "sinResumen" | "falla";
+/** Cómo quedó un worker en un aviso: terminó, terminó pidiendo una decisión, terminó sin resumen, frenó por falta de información, o falló. */
+export type EstadoAviso = "termino" | "decision" | "sinResumen" | "faltaInfo" | "falla";
 
 /** Lo que la vista saca de un aviso ya escrito: qué workers, cuáles fallaron. Una tanda trae una entrada por worker. */
 export type AvisoTexto = { tanda: boolean; falla: boolean; trabajos: { id: string; tarea: string; falla: boolean; estado: EstadoAviso }[] };
 
 /** El estado de un worker a partir de lo que dice su aviso («terminó», «terminó pidiendo una decisión», «terminó sin resumen», «falló»). */
-const estadoDe = (dicho: string): EstadoAviso => (dicho === "falló" ? "falla" : dicho.includes("decisión") ? "decision" : dicho.includes("sin resumen") ? "sinResumen" : "termino");
+const estadoDe = (dicho: string): EstadoAviso => (dicho === "falló" ? "falla" : dicho.includes("decisión") ? "decision" : dicho.includes("sin resumen") ? "sinResumen" : dicho.startsWith("frenó") ? "faltaInfo" : "termino");
 /** Lo que se dice de un worker al principio de su línea o de su aviso solo: el verbo y lo que lo califica. */
-const DICHO = "(terminó(?: pidiendo una decisión| sin resumen)?|falló)";
+const DICHO = "(terminó(?: pidiendo una decisión| sin resumen)?|frenó: le falta información|falló)";
 
 /** ¿Es un aviso automático de Trama? Por la marca con que empieza (`MARCA_AVISO_TRAMA`). */
 export const esAvisoTrama = (texto: string): boolean => texto.trimStart().startsWith(MARCA_AVISO_TRAMA);

@@ -198,7 +198,7 @@ export function textoMotivo(a: AvisoWorker, ahoraS = Date.now() / 1000): string 
 /** El título y el cuerpo de la notificación de un aviso. */
 export function textoAviso(a: AvisoWorker, ahoraS = Date.now() / 1000): { titulo: string; cuerpo: string } {
   if (a.tipo === "tanda") return { titulo: t("avisoW.tTanda"), cuerpo: a.fallas ? t("avisoW.cTandaFallas", { n: a.n ?? 0, f: a.fallas }) : t("avisoW.cTanda", { n: a.n ?? 0 }) };
-  const titulo = t(a.tipo === "cupo" ? "avisoW.tCupo" : a.tipo === "colgado" ? "avisoW.tColgado" : a.tipo === "fin" ? "avisoW.tFin" : "avisoW.tFalla");
-  const motivo = a.tipo === "fin" ? (a.decision ? t("avisoW.decision") : "") : textoMotivo(a, ahoraS);
+  const titulo = t(a.tipo === "cupo" ? "avisoW.tCupo" : a.tipo === "colgado" ? "avisoW.tColgado" : a.tipo === "fin" ? (a.faltaInfo ? "avisoW.tFaltaInfo" : "avisoW.tFin") : "avisoW.tFalla");
+  const motivo = a.tipo === "fin" ? (a.decision ? t("avisoW.decision") : a.faltaInfo ? t("avisoW.faltaInfo") : "") : textoMotivo(a, ahoraS);
   return { titulo, cuerpo: [a.tarea, motivo].filter(Boolean).join(": ") };
 }

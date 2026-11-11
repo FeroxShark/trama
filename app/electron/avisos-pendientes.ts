@@ -310,6 +310,7 @@ export function crearAvisosPendientes(d: Deps) {
           jefe: h.jefe ?? null,
           motivo: h.estado === "murio" ? detalle : "",
           ...(h.estado === "decision" ? { decision: true } : {}),
+          ...(h.estado === "falta-info" ? { faltaInfo: true } : {}),
           ...(h.sin_arrancar ? { sinArrancar: true } : {}),
           ...(resumen.texto ? { resumen: resumen.texto, ...(resumen.recortado ? { recortado: true } : {}) } : {}),
           ts: ahora(),

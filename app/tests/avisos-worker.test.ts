@@ -32,6 +32,23 @@ test("terminó pidiendo una decisión", async () => {
   assert.match(textoParaLider(avisos[0]), /terminó pidiendo una decisión/);
 });
 
+test("frenó por falta de información: estado propio, no «terminó»; el aviso al líder dice «frenó: le falta información»", async () => {
+  const { av, avisos } = armar();
+  await av.hilos([fila("a", "trabajando")]);
+  await av.hilos([fila("a", "falta-info", { resultado: "RESULTADO: frené\nFALTA: la clave de la API" })]);
+  assert.equal(avisos[0].tipo, "fin");
+  assert.equal(avisos[0].faltaInfo, true);
+  assert.equal(avisos[0].decision, undefined);
+  const texto = textoParaLider(avisos[0]);
+  assert.match(texto, /frenó: le falta información/);
+  assert.doesNotMatch(texto, /terminó/);
+  // La vista lo lee de vuelta como estado propio, sin marcarlo como falla.
+  const uno = "[Aviso automático de Trama] Worker «dos» frenó: le falta información. Id: 2. Revisalo con `pa --hilo 2`.";
+  assert.deepEqual(avisoDeTexto(uno)?.trabajos, [{ tarea: "dos", id: "2", falla: false, estado: "faltaInfo" }]);
+  const tanda = "[Aviso automático de Trama] Terminaron los 2 workers que lanzaste:\n- «uno» (1): terminó.\n- «dos» (2): frenó: le falta información.\nRevisá cada uno con `pa --hilo <id>`.";
+  assert.deepEqual(avisoDeTexto(tanda)?.trabajos.map((x) => [x.id, x.estado, x.falla]), [["1", "termino"], ["2", "faltaInfo"]].map(([i, e]) => [i, e, false]));
+});
+
 test("falló por cupo (el caso real: un proveedor dice quota reached al arrancar): proveedor, cuándo vuelve", async () => {
   const ahoraS = 1_000_000_000;
   const { av, avisos } = armar(

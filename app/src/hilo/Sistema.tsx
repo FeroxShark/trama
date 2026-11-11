@@ -174,6 +174,7 @@ const ESTADO_AVISO: Record<EstadoAviso, { Icono: LucideIcon; rotulo: ClaveSola }
   termino: { Icono: CircleCheck, rotulo: "sistema.avisoTermino" },
   sinResumen: { Icono: FileText, rotulo: "sistema.avisoSinResumen" },
   decision: { Icono: MessageCircleQuestion, rotulo: "sistema.avisoChipDecision" },
+  faltaInfo: { Icono: Info, rotulo: "sistema.avisoFaltaInfo" },
   falla: { Icono: TriangleAlert, rotulo: "sistema.avisoFallo" },
 };
 

@@ -133,7 +133,8 @@ export const activo = (it: Item) => it.estado === "trabajando" || it.estado === 
  * espera una decisión y lo que dejó una rama con commits sin integrar.
  */
 export function seOculta(it: Item, conLider: boolean): boolean {
-  if (activo(it) || it.estado === "murio") return false;
+  // Le falta información: no se pliega en «N terminados», el chip es lo que dice que el trabajo quedó a medias.
+  if (activo(it) || it.estado === "murio" || it.estado === "falta-info") return false;
   if (conLider || cerrado(it.estado)) return true;
   // Sin líder la decisión es del usuario, aunque la haya lanzado uno (`estadoVisto` la muestra como terminada).
   if (it.estado === "decision" || it.h.estado === "decision") return false;
@@ -146,7 +147,7 @@ export function seOculta(it: Item, conLider: boolean): boolean {
  * falló y sigue pidiendo atención lo vuelve a subir `aRiel`. Una rama con commits sin integrar no ocupa la
  * barra: la lista el panel de Ramas.
  */
-export const aLaVista = (it: Item, conLider: boolean): boolean => activo(it) || it.estado === "decision" || (!conLider && it.h.estado === "decision");
+export const aLaVista = (it: Item, conLider: boolean): boolean => activo(it) || it.estado === "decision" || it.estado === "falta-info" || (!conLider && it.h.estado === "decision");
 
 /**
  * Lo que pide atención en la lista (rediseño 0.4): un worker que falló (no lo frenó a propósito `pa --parar`) o que pide una
