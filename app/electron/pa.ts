@@ -66,9 +66,21 @@ let tmps = 0;
 /**
  * Espera las escrituras atómicas pendientes (las que se dispararon sin esperarlas: `void guardar()`). Al cerrar un líder, sin
  * esto un tmp o un rename caían después del cierre: el `rmSync` de la casa de pruebas daba ENOTEMPTY sobre `estado/`.
+ * Con `topeMs`, si siguen pendientes pasado el tope devuelve `false` (y las deja) en vez de colgar a quien cierra; `true` si terminaron.
  */
-export async function esperarEscrituras(): Promise<void> {
-  while (escribiendo.size) await Promise.allSettled([...escribiendo.values()]);
+export async function esperarEscrituras(topeMs?: number, pendientes: Map<string, Promise<void>> = escribiendo): Promise<boolean> {
+  const todas = (async () => {
+    while (pendientes.size) await Promise.allSettled([...pendientes.values()]);
+    return true;
+  })();
+  if (topeMs === undefined) return todas;
+  let reloj: NodeJS.Timeout | undefined;
+  const tope = new Promise<boolean>((ok) => (reloj = setTimeout(() => ok(false), topeMs)));
+  try {
+    return await Promise.race([todas, tope]);
+  } finally {
+    clearTimeout(reloj);
+  }
 }
 
 export function escribirAtomico(archivo: string, texto: string): Promise<void> {

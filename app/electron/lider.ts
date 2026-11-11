@@ -783,15 +783,19 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
 }
 
 /** Cuánto se espera a que un proceso salga solo al cerrarle el stdin, antes de SIGTERM. */
-const GRACIA_EOF_MS = 8_000;
+export const GRACIA_EOF_MS = 8_000;
+/** Lo mismo al cerrar trama con un líder ocioso (sin turno en curso): no tiene nada que terminar, no hace falta esperar tanto. */
+export const GRACIA_EOF_OCIOSO_MS = 2_000;
+/** Cuánto se espera, como mucho, a las escrituras pendientes al cerrar trama; si siguen, se sigue y queda en el log. */
+export const TOPE_ESCRITURAS_MS = 3_000;
 /** Y cuánto después de SIGTERM, antes de SIGKILL (y de darlo por perdido). */
 const GRACIA_TERM_MS = 5_000;
 
 /**
- * Espera que un proceso ocioso salga (stdin cerrado). Con tope: si no sale en `GRACIA_EOF_MS` va SIGTERM, y si tampoco
+ * Espera que un proceso ocioso salga (stdin cerrado). Con tope: si no sale en `graciaEofMs` (`GRACIA_EOF_MS`) va SIGTERM, y si tampoco
  * en `GRACIA_TERM_MS` más, SIGKILL; nunca queda colgado quien espera (cerrar, cambio de modelo, rebobinar, reiniciar ociosos).
  */
-function terminar(x: Proc): Promise<void> {
+export function terminar(x: Pick<Proc, "p">, graciaEofMs = GRACIA_EOF_MS): Promise<void> {
   return new Promise((ok) => {
     const salio = () => x.p.exitCode !== null || x.p.signalCode !== null;
     if (salio()) return ok();
@@ -812,7 +816,7 @@ function terminar(x: Proc): Promise<void> {
             relojes.push(setTimeout(listo, 2_000));
           }, GRACIA_TERM_MS),
         );
-      }, GRACIA_EOF_MS),
+      }, graciaEofMs),
     );
     try { x.p.stdin!.end(); } catch { /* stdin ya cerrado */ }
   });
@@ -2056,7 +2060,7 @@ export async function cerrarTodos(forzar: boolean, topeMs: number = TOPE_SALIDA_
     vivos.map(async ([sid, p]) => {
       p.adrede = true;
       if (forzar && p.ocupado) p.p.kill("SIGTERM");
-      if (!p.ocupado || forzar) await terminar(p);
+      if (!p.ocupado || forzar) await terminar(p, p.ocupado ? GRACIA_EOF_MS : GRACIA_EOF_OCIOSO_MS);
       else await new Promise<void>((ok) => p.libre.push(() => void terminar(p).then(ok)));
       hechos.add(sid);
     }),
@@ -2066,7 +2070,7 @@ export async function cerrarTodos(forzar: boolean, topeMs: number = TOPE_SALIDA_
   const pasoElTope = await Promise.race([todos.then(() => false), tarde]);
   clearTimeout(reloj);
   // Lo que los líderes que salieron dejaron escribiéndose (guardar, uso, relevos): antes de devolver, para que nada caiga después.
-  await esperarEscrituras();
+  if (!(await esperarEscrituras(TOPE_ESCRITURAS_MS))) log.escribir("aviso", "salida", `las escrituras pendientes no terminaron en ${TOPE_ESCRITURAS_MS / 1000} s; se sigue sin esperarlas`);
   if (!pasoElTope) return [];
   const sin = vivos.filter(([sid]) => !hechos.has(sid));
   for (const [, p] of sin) if (p.p.exitCode === null && p.p.signalCode === null) p.p.kill("SIGTERM");
