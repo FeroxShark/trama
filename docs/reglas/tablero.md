@@ -29,3 +29,9 @@ lleva los renglones numerados con `[ ]`/`[x]`, así la interfaz que no sabe de r
 `vX.Y.Z…` más nuevo de main (o del HEAD) no es el `version_base` del item, ese item pasa a «Probar vX.Y.Z (…)» con clave `…@vX.Y.Z` (queda abierto, no recibe más) y el
 renglón abre otro. `tablero tildar <id> <n…> [--no]` tilda renglones; todos tildados = `hecho`, destildar reabre. Los items viejos (`pa:<id>:p1`) no se tocan. El `pa`
 bash congelado sigue con `agregar`. Límite: «Te dejé esto en el tablero» busca la clave `pa:<id>:p1`, que ahora vive en el renglón. Lo controla `tests/tablero-probar.test.ts`.
+
+- **La prueba con renglones en la interfaz (`app/src/datos/tablero-renglones.ts`, `PruebaRenglones` en `app/src/paneles/TableroNuevo.tsx`):** `renglonesDe(prueba)` lee los
+`N. [ ] texto` / `N. [x] texto` (puro; texto suelto o numeración rara = `null`, y el item se ve como antes, con Anda / No anda). Con renglones la tarjeta es una lista de casillas
+(una `<input type="checkbox">` real por renglón, fila de 2.25 rem, 2.75 rem en táctil) y «N de M probados»; tildar llama al canal `tablero:tildar` (`id`, `[n]`, `hecho`) = `tablero tildar`
+(también en `windows/src/canales.json` y `maquinas-contrato.ts`) y el CLI cierra el item al tildar todos. `tildarRenglon` recibe la fuente por parámetro (lo prueba
+`tests/tablero-renglones.test.ts`). Un item con renglones no suma al «N de M pruebas» del pie ni se manda con «Mandar»: su respuesta es tildar. Captura: `HILOS_VARIANTE=abajo scripts/captura.sh tablero-nuevo-proyecto`.
