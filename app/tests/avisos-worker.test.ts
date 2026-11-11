@@ -19,7 +19,7 @@ test("terminó: avisa 'fin' al pasar de trabajando a entregado; la primera lectu
   assert.equal(avisos.length, 1);
   assert.equal(avisos[0].tipo, "fin");
   assert.equal(avisos[0].jefe_id, "jefe-1");
-  assert.equal(avisos[0].tarea, "tarea de a");
+  assert.equal(avisos[0].tarea, "Tarea de a");
   await av.hilos([fila("a", "entregado")]);
   assert.equal(avisos.length, 1, "una sola vez");
 });
@@ -174,9 +174,9 @@ test("por defecto, el líder recibe un solo mensaje al terminar la tanda, con un
   assert.deepEqual(alLider.map((a) => a.tipo), ["tanda"]);
   const texto = textoParaLider(alLider[0]);
   assert.match(texto, /^\[Aviso automático de Trama\] Terminaron los 3 workers que lanzaste, 1 con falla:\n/);
-  assert.match(texto, /^- «tarea de 1» \(1\): terminó\.$/m);
-  assert.match(texto, /^- «tarea de 2» \(2\): falló: el proceso se cortó sin dejar mensaje\.$/m);
-  assert.match(texto, /^- «tarea de 3» \(3\): terminó\.$/m);
+  assert.match(texto, /^- «Tarea de 1» \(1\): terminó\.$/m);
+  assert.match(texto, /^- «Tarea de 2» \(2\): falló: el proceso se cortó sin dejar mensaje\.$/m);
+  assert.match(texto, /^- «Tarea de 3» \(3\): terminó\.$/m);
   assert.equal(alDueno.filter((a) => a.tipo === "tanda").length, 1, "el dueño sigue viendo el resumen de la tanda");
 });
 
@@ -205,7 +205,7 @@ test("por worker, cada fin o falla va al líder al momento y no sale tanda", asy
   assert.deepEqual(alLider.map((a) => [a.tipo, a.id]), [["fin", "1"]]);
   await av.hilos([fila("1", "entregado"), fila("2", "murio")]);
   assert.deepEqual(alLider.map((a) => a.tipo), ["fin", "falla"]);
-  assert.equal(textoParaLider(alLider[1]), "[Aviso automático de Trama] Worker «tarea de 2» falló: el proceso se cortó sin dejar mensaje. Id: 2. Revisalo con `pa --hilo 2`.");
+  assert.equal(textoParaLider(alLider[1]), "[Aviso automático de Trama] Worker «Tarea de 2» falló: el proceso se cortó sin dejar mensaje. Id: 2. Revisalo con `pa --hilo 2`.");
 });
 
 test("un worker solo: el líder recibe lo de siempre, con su id", async () => {
@@ -213,7 +213,7 @@ test("un worker solo: el líder recibe lo de siempre, con su id", async () => {
   await av.hilos([fila("1", "trabajando")]);
   await av.hilos([fila("1", "entregado")]);
   assert.equal(alLider.length, 1);
-  assert.equal(textoParaLider(alLider[0]), "[Aviso automático de Trama] Worker «tarea de 1» terminó. Id: 1. Revisalo con `pa --hilo 1`.");
+  assert.equal(textoParaLider(alLider[0]), "[Aviso automático de Trama] Worker «Tarea de 1» terminó. Id: 1. Revisalo con `pa --hilo 1`.");
 });
 
 test("utilidades: cupo, proveedor, motivo en una línea, tarea corta, cuándo vuelve", () => {
@@ -276,7 +276,7 @@ test("rc 78 (terminó sin el bloque RESULTADO) con commits y el repo limpio: ter
   av.eventos([{ tipo: "fin", id: "a", rc: 78 }]);
   await av.hilos([fila("a", "entregado", { commits: 2 })]);
   assert.deepEqual(avisos.map((a) => [a.tipo, a.sinResumen]), [["fin", true]]);
-  assert.equal(textoParaLider(avisos[0]), "[Aviso automático de Trama] Worker «tarea de a» terminó sin resumen. Id: a. Revisalo con `pa --hilo a`.");
+  assert.equal(textoParaLider(avisos[0]), "[Aviso automático de Trama] Worker «Tarea de a» terminó sin resumen. Id: a. Revisalo con `pa --hilo a`.");
 });
 
 test("rc 78 sin commits, o con el repo sucio: sigue siendo falla, con su última línea", async () => {
@@ -284,7 +284,7 @@ test("rc 78 sin commits, o con el repo sucio: sigue siendo falla, con su última
   await sinCommits.av.hilos([fila("a", "trabajando", { commits: 0 })]);
   sinCommits.av.eventos([{ tipo: "fin", id: "a", rc: 78 }]);
   await sinCommits.av.hilos([fila("a", "entregado", { commits: 0 })]);
-  assert.equal(textoParaLider(sinCommits.avisos[0]), "[Aviso automático de Trama] Worker «tarea de a» falló: Dejé cambios sin commitear. Id: a. Revisalo con `pa --hilo a`.");
+  assert.equal(textoParaLider(sinCommits.avisos[0]), "[Aviso automático de Trama] Worker «Tarea de a» falló: Dejé cambios sin commitear. Id: a. Revisalo con `pa --hilo a`.");
 
   const sucio = armar({ a: "pa: Lo que quedó sucio por esta corrida: 3 archivos. Cerralo con: pa 'trama' --seguir" });
   await sucio.av.hilos([fila("a", "trabajando", { commits: 2 })]);

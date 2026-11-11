@@ -276,7 +276,7 @@ test("un simple 'terminó' con el líder ocioso lo despierta a los 20 s con un t
   assert.deepEqual(t.llegado(), []);
   await t.pasar(1_500);
   assert.equal(t.mandados.length, 1, "turno nuevo (mandar), no a mitad de uno");
-  assert.match(t.llegado()[0], /Worker «tarea de a» terminó/);
+  assert.match(t.llegado()[0], /Worker «Tarea de a» terminó/);
   assert.equal(t.estados()["a:fin"], "entregado");
   await t.pasar(60_000);
   assert.equal(t.llegado().length, 1, "no se repite");
