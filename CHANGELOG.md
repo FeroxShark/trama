@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.70
+
+- Tablero: la lista «Probar …» se abre con una casilla por renglón («1 de 4 probados»); tildar todo la cierra. Los items viejos se ven como antes.
+- La tarjeta «Te dejé esto» encuentra la prueba de cada worker dentro de esa lista y se tilda desde ahí; el panel clásico del tablero también muestra los renglones.
+
 ## 0.2.69
 
 - Medición: cada modelo tiene un solo nombre al leer (`sonnet` y `claude-sonnet-5-5` son la misma fila; el effort pegado al nombre de agy, codex y dsh va a su columna). `pa --rinde` bajó de 107 a 91 filas y el reparto junta antes las 10 corridas que pide.

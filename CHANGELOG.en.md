@@ -1,5 +1,10 @@
 # Changes
 
+## 0.2.70
+
+- Board: the "Probar …" list opens with a checkbox per line ("1 of 4 tested"); ticking all closes it. Old items look as before.
+- The "I left this on the board" card finds each worker's test inside that list and can tick it there; the classic board panel also shows the lines.
+
 ## 0.2.69
 
 - Measurement: each model has a single name when read (`sonnet` and `claude-sonnet-5-5` are the same row; effort glued to agy, codex and dsh names goes to its column). `pa --rinde` went from 107 to 91 rows and routing gathers its 10 runs sooner.
