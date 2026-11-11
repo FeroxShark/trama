@@ -44,13 +44,20 @@ function binarios(this: Record<string, unknown>, k: string, v: unknown) {
  * Se conecta al motor y anota los canales. Devuelve cuando ya están anotados (antes de crear la ventana:
  * un pedido sin manejador fallaría). `recargar` vuelve a cargar la página (un motor nuevo).
  * Con un build nuevo el motor avisa `saliendo` (el cartel, `reinicio:cambio`): `motorSaliendo` anota cómo estaba la
- * ventana y, cuando contesta el motor nuevo, `motorNuevo` relanza el proceso en vez de sólo recargar la página.
+ * ventana y, cuando contesta el motor nuevo, `motorNuevo` toma el build: relanza el proceso o, si main y preload no
+ * cambiaron (relanzar.ts `tomarBuild`), recarga la página y dice `"recargar"` (este proceso sigue y queda listo para otro).
  * `sello` (la huella del build, relanzar.ts `selloDe`) se toma acá, al arrancar: si el motor vuelve con `resinc` sin
- * haber dicho `saliendo` y el build en disco ya no es ése, se relanza igual que con un build nuevo (`vueltaDelMotor`).
+ * haber dicho `saliendo` y el build en disco ya no es ése, se toma igual que con un build nuevo (`vueltaDelMotor`).
  */
-export async function armarCliente(o: { sock: string; recargar: () => void; irse: () => void; motorSaliendo?: () => void; motorNuevo?: () => void; sello?: () => string | null }): Promise<Cliente> {
+export async function armarCliente(o: { sock: string; recargar: () => void; irse: () => void; motorSaliendo?: () => void; motorNuevo?: () => "recargar" | "relanzar" | void; sello?: () => string | null }): Promise<Cliente> {
   const id = randomBytes(12).toString("hex");
-  const selloAlArrancar = o.sello?.() ?? null;
+  let selloAlArrancar = o.sello?.() ?? null;
+  // `motorNuevo` eligió recargar la página (main y preload no cambiaron): este proceso sigue, y cuando contesta el motor
+  // nuevo se vuelve a empezar como si recién arrancara (con la huella del build que tomó), listo para el próximo build.
+  let seQueda = false;
+  const motorNuevo = () => {
+    seQueda = o.motorNuevo?.() === "recargar";
+  };
   let conectado = false;
   let caida = false;
   let fallos = 0;
@@ -151,8 +158,8 @@ export async function armarCliente(o: { sock: string; recargar: () => void; irse
     // (la ventana nueva espera al motor nuevo, electron/main.ts `esperarMotorNuevo`).
     if (motorSeVa && o.motorNuevo && !relanzando) {
       relanzando = true;
-      log.escribir("info", "cliente", "el motor se fue por un build nuevo: se relanza la ventana sin esperarlo");
-      o.motorNuevo();
+      log.escribir("info", "cliente", "el motor se fue por un build nuevo: se toma la ventana sin esperarlo");
+      motorNuevo();
     }
     const f = flujo;
     flujo = null;
@@ -194,14 +201,20 @@ export async function armarCliente(o: { sock: string; recargar: () => void; irse
       // Un build nuevo sin el `saliendo` (esta ventana no lo oyó): si el disco ya no es el que cargó, se relanza como con ese aviso.
       if (!motorSeVa && o.motorNuevo && o.sello && vueltaDelMotor(selloAlArrancar, o.sello()) === "relanzar") {
         motorSeVa = true;
-        log.escribir("info", "cliente", "el build en disco cambió sin aviso: se relanza la ventana");
+        log.escribir("info", "cliente", "el build en disco cambió sin aviso: se toma como un build nuevo");
         o.motorSaliendo?.();
       }
       if (motorSeVa && o.motorNuevo) {
         if (!relanzando) {
           relanzando = true;
-          log.escribir("info", "cliente", "motor nuevo tras un build: se relanza la ventana");
-          o.motorNuevo();
+          log.escribir("info", "cliente", "motor nuevo tras un build: se toma la ventana");
+          motorNuevo();
+        }
+        if (seQueda) {
+          seQueda = false;
+          motorSeVa = false;
+          relanzando = false;
+          selloAlArrancar = o.sello?.() ?? null;
         }
         return;
       }

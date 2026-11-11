@@ -99,6 +99,10 @@ export function crearGuardadoVolver(o: { archivo: string; ventana: () => Ventana
       if (t) clearTimeout(t);
       t = null;
     },
+    /** Vuelve a escribir solo: el reinicio que congeló terminó en una recarga de la página y este proceso sigue. */
+    seguir() {
+      quieto = false;
+    },
   };
 }
 

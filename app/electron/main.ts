@@ -495,20 +495,35 @@ async function arrancar() {
     // El motor tiene el núcleo, la cola, los líderes, el remoto y el cartel del build nuevo: acá sólo la ventana.
     logAparte("ventana.log");
     const { armarCliente } = await import("./ventana-cliente.js");
-    const { selloDe } = await import("./relanzar.js");
+    const { selloDe, huellaProceso, tomarBuild } = await import("./relanzar.js");
+    const raizBuild = process.env.HILOS_BUILD || path.join(aqui, "..");
+    // Lo que cargó este proceso (main y preload): con un build nuevo que no los toca alcanza con recargar la página.
+    const huellaInicial = huellaProceso(raizBuild);
     cliente = await armarCliente({
       sock,
       recargar: () => recargarVentana(),
       irse: irseDelTodo,
       // La huella del build con que arrancó este proceso (la misma raíz que mira el cartel de build nuevo, reinicio.ts).
-      sello: () => selloDe(process.env.HILOS_BUILD || path.join(aqui, "..")),
+      sello: () => selloDe(raizBuild),
       // El motor se va por un build nuevo: se anota cómo estaba la ventana, y cuando el motor nuevo contesta se relanza
       // este proceso también (la ventana queda en Reconectando entre uno y otro, sin cortar nada).
       motorSaliendo: () => {
         marcar("ventana", "ventana-aviso");
         if (residente) guardando = anotarVolver().then(() => void marcar("ventana", "ventana-guardo"));
       },
-      motorNuevo: () => (residente ? void guardando.then(relanzarProceso) : recargarVentana()),
+      // Si el build nuevo no tocó main ni preload (`tomarBuild`), no hace falta otro proceso: se recarga la página con el
+      // cartel de "Actualizando Trama…". Ante la duda (una huella ilegible), se relanza como siempre.
+      motorNuevo: () => {
+        if (!residente) {
+          recargarVentana();
+          return "recargar";
+        }
+        const como = tomarBuild(huellaInicial, huellaProceso(raizBuild));
+        log.escribir("info", "main", como === "recargar" ? "build nuevo sin cambios en main ni preload: se recarga la página" : "build nuevo con otro main o preload: se relanza la ventana");
+        if (como === "relanzar") void guardando.then(relanzarProceso);
+        else void guardando.then(recargarPorBuild);
+        return como;
+      },
     });
     marcar("ventana", "cliente-armado");
     query.cliente = "1";
@@ -529,6 +544,19 @@ async function arrancar() {
   armarLaBandeja();
   // El cartel del build nuevo: en modo cliente lo tiene el motor (la ventana se relanza cuando vuelve).
   if (residente && !cliente) await armarRelanzoVentana();
+}
+
+/**
+ * Un build nuevo que sólo cambió la interfaz: este proceso sigue y la página vuelve con el cartel de "Actualizando Trama…"
+ * y con lo que tenía abierto (lo anotó `anotarVolver`, que también congeló `volver.json` y dejó `mostrar` para un proceso
+ * nuevo que no va a llegar: se deshacen las dos cosas).
+ */
+function recargarPorBuild() {
+  ponerVistas(leerVolver(VOLVER)?.vistas ?? {});
+  guardadoVolver?.seguir();
+  rmSync(MOSTRAR, { force: true });
+  const v = ventanas()[0];
+  if (v && !v.isDestroyed()) cargar(v, { actualizando: "1" });
 }
 
 /** Vuelve a cargar la página (un motor nuevo: se pone al día), como el Recargar del cartel. */
