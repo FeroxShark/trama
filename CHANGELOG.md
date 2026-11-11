@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.72
+
+- «Actualizar» del aviso de Trama nueva anda también desde otra máquina por la tailnet (antes decía que sólo se podía desde la computadora). Hace falta que esa máquina ya tenga esta versión.
+
 ## 0.2.71
 
 - Chats de Claude con la caché vencida: aunque esté elegido «Empezar con resumen», Trama ya no abre sola otra conversación; pregunta cada vez y el botón marcado es «Seguir la misma sesión». Si elegís el resumen, el chat nuevo sigue con la cuenta del original.

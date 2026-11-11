@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.72
+
+- "Update" in the new Trama notice also works from another machine over the tailnet (before it said it could only be done from the computer). That machine needs to already have this version.
+
 ## 0.2.71
 
 - Claude chats with an expired cache: even if "Start with a summary" is selected, Trama no longer opens another conversation on its own; it asks every time and the highlighted button is "Continue the same session". If you choose the summary, the new chat keeps the original's account.
