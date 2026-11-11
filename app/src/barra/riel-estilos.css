@@ -931,7 +931,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.proy-cab .cuenta,
+.proy-cab .cuenta {
+  flex: none;
+  margin-left: auto;
+  color: var(--apagado);
+  font-size: 0.71875rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
 .proy-mas {
   flex: none;
   margin-left: auto;
@@ -939,6 +946,11 @@
   font-size: 0.71875rem;
   font-weight: 400;
   white-space: nowrap;
+  height: 1.375rem;
+  padding: 0 var(--esp-1-5);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
 }
 /* "2 en marcha": lo vivo del proyecto, en su color y con palabra. */
 .en-marcha {
@@ -954,13 +966,6 @@
 }
 .en-marcha + .proy-mas {
   margin-left: 0;
-}
-.proy-mas {
-  height: 1.375rem;
-  padding: 0 var(--esp-1-5);
-  border: 0;
-  border-radius: var(--r-xs);
-  background: transparent;
 }
 .proy-mas:hover {
   background: var(--capa-hover);
