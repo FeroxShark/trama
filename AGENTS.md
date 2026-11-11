@@ -1,7 +1,7 @@
 # Trama
 
-App de escritorio para manejar los workers de `pa` (Electron + motor). El traspaso completo, con lo hecho y lo que
-falta, está en `motor/docs/traspaso.md`.
+App de escritorio para manejar los workers de `pa` (Electron + motor). El traspaso completo, con lo que
+falta y datos útiles, está en `motor/docs/traspaso.md`.
 
 Las reglas de cada área están en `docs/reglas/` (van enteras, sin resumir); la tabla de abajo dice cuál leer.
 
