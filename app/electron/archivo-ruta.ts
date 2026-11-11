@@ -104,7 +104,7 @@ export function tipoDeArchivo(ruta: string): { tipo: TipoArchivo; mime: string }
 
 /** Formatos de documentos y de medios que el visor no muestra pero que la app del sistema sí abre (sin macros ni nada que se ejecute). */
 const ABRIBLES = new Set(
-  "doc docx dot dotx xls xlsx ppt pptx odt ods odp rtf epub zip 7z rar tar gz tgz bz2 xz psd ai heic heif tif tiff mkv avi wmv flv aac wma 3gp".split(" "),
+  "doc docx dot dotx xls xlsx ppt pptx odt ods odp rtf epub zip 7z rar tar gz tgz bz2 xz psd ai heic heif tif tiff mkv avi wmv flv aac wma 3gp log".split(" "),
 );
 
 /**

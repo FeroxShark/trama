@@ -81,6 +81,12 @@ const CAPTURAS = [
   // Lo mismo con trabajo en curso (Actualizar cuando terminen / ya) y con la Trama nueva ya instalada.
   "trama-ocupado",
   "trama-instalada",
+  // Trama instalándose, el aviso abierto con el avance en cada paso («Compilando · paso 2 de 4», cuánto lleva); `-lento`: un paso sin línea nueva hace más de 3 minutos.
+  "instalando-bajando",
+  "instalando-compilando",
+  "instalando-motor",
+  "instalando-ventana",
+  "instalando-lento",
   // Las novedades de la versión recién instalada en el pie: cerrada y abierta (`HILOS_VARIANTE=abierto`).
   "novedades",
   // "Falta configurar" en el pie (Handy y Ollama por instalar), cerrada y abierta.

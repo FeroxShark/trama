@@ -161,9 +161,12 @@ export type Ocupacion = { lideres: number; workers: number; otras: number; leyen
 export const total = (o: Ocupacion) => o.lideres + o.workers + o.otras + (o.leyendo ? 1 : 0);
 /**
  * En qué paso real va la instalación (`instalando`): bajando (git + lo que baja el instalador), compilando (npm ci + build de la app),
- * motor (la unit del motor) y ventana (Electron + lanzador). `desde`: ms desde epoch en que empezó ese paso. Ambos opcionales: un JSON viejo no los trae.
+ * motor (la unit del motor) y ventana (Electron + lanzador). `desde`: ms desde epoch en que empezó ese paso. `ultima`: ms desde epoch de la última
+ * línea nueva que se vio en el log (con resolución de {@link RESOLUCION_ULTIMA_MS}); `registro`: la ruta de ese log (para «Ver registro»). Todos opcionales: un JSON viejo no los trae.
  */
 export type PasoAct = "bajando" | "compilando" | "motor" | "ventana";
+/** Cada cuánto se republica `ultima` mientras el log sigue creciendo (el aviso de «tarda de más» salta a los 3 min: 30 s alcanzan). */
+export const RESOLUCION_ULTIMA_MS = 30_000;
 export const PASOS_ACT: readonly PasoAct[] = ["bajando", "compilando", "motor", "ventana"];
 export const pasoActValido = (x: unknown): x is PasoAct => typeof x === "string" && (PASOS_ACT as readonly string[]).includes(x);
 
@@ -187,7 +190,7 @@ export function pasoDesdeLog(texto: string, previo?: { paso?: PasoAct; desde?: n
 export type EstadoAct =
   | { fase: "nada" }
   | { fase: "esperando"; version: string }
-  | { fase: "instalando"; version: string; paso?: PasoAct; desde?: number }
+  | { fase: "instalando"; version: string; paso?: PasoAct; desde?: number; ultima?: number; registro?: string }
   | { fase: "hecho"; version: string }
   | { fase: "error"; error: string };
 export type Modo = "ya" | "esperar";
@@ -458,7 +461,7 @@ export function crearActualizacionTrama(deps: Deps = {}) {
       const v = typeof j.version === "string" ? j.version : "";
       const pid = typeof j.pid === "number" ? j.pid : undefined;
       if (j.fase === "esperando" && v) act = { fase: "esperando", version: v };
-      else if (j.fase === "instalando" && v) act = { fase: "instalando", version: v, ...(pid ? { pid } : {}), ...(pasoActValido(j.paso) ? { paso: j.paso } : {}), ...(typeof j.desde === "number" && Number.isFinite(j.desde) ? { desde: j.desde } : {}) };
+      else if (j.fase === "instalando" && v) act = { fase: "instalando", version: v, ...(pid ? { pid } : {}), ...(pasoActValido(j.paso) ? { paso: j.paso } : {}), ...(typeof j.desde === "number" && Number.isFinite(j.desde) ? { desde: j.desde } : {}), ...(typeof j.ultima === "number" && Number.isFinite(j.ultima) ? { ultima: j.ultima } : {}), ...(typeof j.registro === "string" && j.registro ? { registro: j.registro } : {}) };
       else if (j.fase === "hecho" && v) act = { fase: "hecho", version: v };
       else if (j.fase === "error" && typeof j.error === "string") act = { fase: "error", error: j.error };
       else act = { fase: "nada" };
@@ -583,7 +586,8 @@ export function crearActualizacionTrama(deps: Deps = {}) {
       // El estado que se va armando mientras instala: el pid y el paso (git baja primero; el log del instalador marca los demás).
       let pidAct: number | undefined;
       let pasoAct: { paso: PasoAct; desde: number } = { paso: "bajando", desde: Date.now() };
-      const instalando = () => poner({ fase: "instalando", version, ...(pidAct ? { pid: pidAct } : {}), ...pasoAct });
+      let ultimaAct = Date.now();
+      const instalando = () => poner({ fase: "instalando", version, ...(pidAct ? { pid: pidAct } : {}), ...pasoAct, ultima: ultimaAct, registro });
       await instalando();
       // Actualizar seguro: la versión que corre queda guardada antes de pisarla (si algo sale mal, no frena la actualización).
       await antes().catch(silencio("actualizacion-trama"));
@@ -591,10 +595,15 @@ export function crearActualizacionTrama(deps: Deps = {}) {
       for (const paso of pasosActualizar(tag, checkout, registro)) {
         // El instalador reinicia al motor: este proceso puede morir acá. El pid queda anotado para que el motor nuevo sepa si sigue.
         // Con el instalador corriendo se mira su log cada tanto: si marcó otro paso, se anota con la hora en que se lo vio.
+        let largo = -1;
         const mirar = paso.registro ? setInterval(() => {
           void readFile(paso.registro!, "utf8").then((t) => {
             const n = pasoDesdeLog(t, pasoAct);
-            if (n && n.paso !== pasoAct.paso) { pasoAct = n; void instalando(); }
+            const ahora = Date.now();
+            const creció = largo >= 0 && t.length !== largo;
+            largo = t.length;
+            if (n && n.paso !== pasoAct.paso) { pasoAct = n; ultimaAct = ahora; void instalando(); }
+            else if (creció && ahora - ultimaAct >= RESOLUCION_ULTIMA_MS) { ultimaAct = ahora; void instalando(); }
           }).catch(silencio("actualizacion-trama"));
         }, deps.pasoMs ?? 2000) : null;
         mirar?.unref();

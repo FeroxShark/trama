@@ -13,6 +13,7 @@
 // o "Actualizar ya" (con confirmación que dice qué se corta). El avance (esperando, instalando, instalada) lo lleva el main y
 // sobrevive al reinicio del motor; instalada, ofrece reiniciar la ventana con un toque.
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { Avance } from "../ui/Avance";
 import { fuente, SIN_OCUPAR, type AvisoClaude as Aviso, type EstadoActTrama, type OcupacionTrama } from "../datos/fuente";
 import { useFoco } from "../foco";
 import { t } from "../i18n";
@@ -67,7 +68,7 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
   const agy = cual === "agy";
   const trama = cual === "trama";
   const [aviso, setAviso] = useState<Aviso | null>(null);
-  const [abierto, setAbierto] = useState(MODO.captura === "claude-abierto" || MODO.captura === "claude-actualizado" || (trama && (MODO.captura === "trama-abierto" || MODO.captura === "trama-sucio")));
+  const [abierto, setAbierto] = useState(MODO.captura === "claude-abierto" || MODO.captura === "claude-actualizado" || (trama && (MODO.captura === "trama-abierto" || MODO.captura === "trama-sucio" || MODO.captura?.startsWith("instalando-") === true)));
   const [fase, setFase] = useState<Fase>(faseInicial);
   // Sólo Trama: en qué anda Actualizar (lo lleva el main), qué cortaría hoy, y si se está confirmando "Actualizar ya".
   const [act, setAct] = useState<EstadoActTrama>({ fase: "nada" });
@@ -239,9 +240,10 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
               {t("trama.esperando", { que: queHay(ocup) || "…" })}
             </div>
           ) : faseEf.tipo === "actualizando" && trama ? (
-            <div className="avc-n" role="status">
-              {t("trama.instalando")}
-            </div>
+            <>
+              {act.fase === "instalando" ? <Avance estado={act} /> : null}
+              <div className="avc-n">{t("trama.instalando")}</div>
+            </>
           ) : faseEf.tipo === "nada" || faseEf.tipo === "actualizando" ? (
             <div className="avc-n">
               {confirmando

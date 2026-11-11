@@ -366,8 +366,12 @@ export const SIN_OCUPAR: OcupacionTrama = { lideres: 0, workers: 0, otras: 0, le
 /** En qué anda Actualizar (electron/actualizacion-trama.ts `EstadoAct`). */
 export type EstadoActTrama =
   | { fase: "nada" }
-  | { fase: "esperando" | "instalando" | "hecho"; version: string }
+  | { fase: "esperando" | "hecho"; version: string }
+  | { fase: "instalando"; version: string; paso?: PasoInstalacion; desde?: number; ultima?: number; registro?: string }
   | { fase: "error"; error: string };
+/** En qué paso va la instalación (electron/actualizacion-trama.ts `PasoAct`). */
+export type PasoInstalacion = "bajando" | "compilando" | "motor" | "ventana";
+export const PASOS_INSTALACION: readonly PasoInstalacion[] = ["bajando", "compilando", "motor", "ventana"];
 
 export type Actualizado = { ok: true; version: string; abiertos: number } | { ok: false; error: string; abiertos: number };
 
@@ -513,7 +517,13 @@ const ocupacionValida = (x: unknown): OcupacionTrama => {
 };
 const estadoActValido = (x: unknown): EstadoActTrama => {
   const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
-  if ((o.fase === "esperando" || o.fase === "instalando" || o.fase === "hecho") && typeof o.version === "string" && o.version) return { fase: o.fase, version: o.version };
+  if (o.fase === "instalando" && typeof o.version === "string" && o.version) {
+    const ms = (x: unknown) => (typeof x === "number" && Number.isFinite(x) && x > 0 ? x : undefined);
+    const paso = PASOS_INSTALACION.find((p) => p === o.paso);
+    const [desde, ultima] = [ms(o.desde), ms(o.ultima)];
+    return { fase: "instalando", version: o.version, ...(paso ? { paso } : {}), ...(desde ? { desde } : {}), ...(ultima ? { ultima } : {}), ...(typeof o.registro === "string" && o.registro ? { registro: o.registro } : {}) };
+  }
+  if ((o.fase === "esperando" || o.fase === "hecho") && typeof o.version === "string" && o.version) return { fase: o.fase, version: o.version };
   if (o.fase === "error" && typeof o.error === "string") return { fase: "error", error: o.error };
   return { fase: "nada" };
 };
@@ -534,13 +544,24 @@ const oyentesAviso = new Set<(a: AvisoClaude | null) => void>();
 const sinAvisoAgy = async () => null;
 // El de Trama sólo sale en sus capturas, forzando una versión vieja (la instalada 0.1.0 contra la última 0.2.0).
 let avisoTramaFijo: AvisoClaude | null =
-  MODO.captura === "trama" || MODO.captura === "trama-abierto" || MODO.captura === "trama-sucio" || MODO.captura === "trama-ocupado" || MODO.captura === "trama-instalada"
+  MODO.captura === "trama" || MODO.captura === "trama-abierto" || MODO.captura === "trama-sucio" || MODO.captura === "trama-ocupado" || MODO.captura === "trama-instalada" || MODO.captura?.startsWith("instalando-")
     ? { instalada: "0.1.0", ultima: "0.2.0", notas: "https://github.com/trama/trama/releases/tag/v0.2.0", ...(MODO.captura === "trama-sucio" ? { sucio: true } : {}) }
     : null;
 const oyentesAvisoTrama = new Set<(a: AvisoClaude | null) => void>();
 // Actualizar con fixtures: la captura "trama-ocupado" tiene trabajo en curso; la "trama-instalada", la nueva ya instalada.
 let ocupacionTramaFija: OcupacionTrama = MODO.captura === "trama-ocupado" ? { lideres: 2, workers: 3, otras: 0, leyendo: false } : SIN_OCUPAR;
-let actTramaFija: EstadoActTrama = MODO.captura === "trama-instalada" ? { fase: "hecho", version: "0.2.0" } : { fase: "nada" };
+// Las capturas `instalando-*` (y Ajustes con `HILOS_VARIANTE=trama-instalando`): Trama instalándose en cada paso, con el reloj fijo
+// (`INSTANTE_CAPTURA`) para que el tiempo y lo lento salgan siempre iguales. `-lento`: el paso lleva 7 min y el log calló hace 4.
+const CAPTURA_INSTALANDO = MODO.captura?.startsWith("instalando-") ? MODO.captura.slice("instalando-".length) : MODO.captura === "ajustes" && MODO.variante === "trama-instalando" ? "compilando" : null;
+const T0_CAPTURA = Date.UTC(2026, 10, 11, 12, 0, 0);
+export const INSTANTE_CAPTURA: number | undefined = CAPTURA_INSTALANDO ? T0_CAPTURA + (CAPTURA_INSTALANDO === "lento" ? 7 * 60_000 : 72_000) : undefined;
+const instalandoFijo = (): EstadoActTrama | null => {
+  if (!CAPTURA_INSTALANDO) return null;
+  const lento = CAPTURA_INSTALANDO === "lento";
+  const paso = lento ? "compilando" : PASOS_INSTALACION.find((p) => p === CAPTURA_INSTALANDO);
+  return { fase: "instalando", version: "0.2.0", ...(paso ? { paso } : {}), desde: T0_CAPTURA, ...(lento ? { ultima: T0_CAPTURA + 3 * 60_000 } : {}), registro: "/tmp/trama-actualizacion.log" };
+};
+let actTramaFija: EstadoActTrama = MODO.captura === "trama-instalada" ? { fase: "hecho", version: "0.2.0" } : (instalandoFijo() ?? { fase: "nada" });
 const oyentesActTrama = new Set<(e: EstadoActTrama) => void>();
 const ponerActTrama = (e: EstadoActTrama) => {
   actTramaFija = e;

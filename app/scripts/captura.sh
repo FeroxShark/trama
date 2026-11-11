@@ -11,7 +11,7 @@
 #           lider-trabajando | lider-mcp | lider-avisos | settle-confirmar | worker-vista | worker-vista-vivo |
 #           estadisticas-30 | estadisticas-medido | estadisticas-vacia | claude | claude-abierto | ocultos |
 #           lider-sistema | lider-tablero-dejado[HILOS_VARIANTE=respondida|cerrada|muchas] | lider-cambio-motor[menu|confirmar] | cuenta-lider | sistema | herramientas | lider-compactando |
-#           trama|trama-abierto|trama-sucio|trama-ocupado|trama-instalada (el aviso de una Trama nueva, con una instalada vieja forzada) |
+#           trama|trama-abierto|trama-sucio|trama-ocupado|trama-instalada|instalando-bajando|instalando-compilando|instalando-motor|instalando-ventana|instalando-lento (el aviso de una Trama nueva, con una instalada vieja forzada) |
 #           novedades (el aviso «Novedades de la vX.Y.Z» del pie, abierto; con `ajustes` + HILOS_VARIANTE=novedades, Ajustes > Actualizaciones con el historial) |
 #           lider-relevo | lider-imagenes | lider-editar | lider-puntos[HILOS_VARIANTE=abierto|confirmar] | lider-tabla | lider-formato | lider-listas | lider-pensando | lider-intermedios | lider-cola[HILOS_VARIANTE=uno|largo|largo-tres|fallo|camino|aviso|visor|muchos] | lider-gemini | herramientas-resultados | lider-hover | te-espera | atencion[-300] |
 #           tablero | tablero-detalle | tablero-proyectos | tablero-iniciar | tablero-pospuestos | tablero-maquinas | tablero-vacio | maquinas-selector[-caida] | tablero-nuevo[-proyecto|-chat|-avisar] | lider-muerto | lider-app-muerto |

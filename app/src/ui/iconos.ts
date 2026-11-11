@@ -30,6 +30,7 @@ export {
   Shrink as IcCompactar,
   Smartphone as IcCelular,
   Sparkles as IcModelos,
+  TriangleAlert as IcAtencion,
   Type as IcTipografia,
   X as IcCerrar,
 } from "lucide-react";

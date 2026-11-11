@@ -69,7 +69,7 @@ function logoDeBytes(crudo, ext, nativeImage) {
 // (menos SVG), PDF, audio, video, markdown y documentos conocidos; nunca un programa o un script, que abrirlo es ejecutarlo.
 const ABRIBLES = new Set(
   ("png jpg jpeg gif webp bmp avif ico pdf md markdown mp3 wav ogg oga m4a flac opus mp4 webm mov m4v ogv " +
-    "doc docx dot dotx xls xlsx ppt pptx odt ods odp rtf epub zip 7z rar tar gz tgz bz2 xz psd ai heic heif tif tiff mkv avi wmv flv aac wma 3gp").split(" "),
+    "doc docx dot dotx xls xlsx ppt pptx odt ods odp rtf epub zip 7z rar tar gz tgz bz2 xz psd ai heic heif tif tiff mkv avi wmv flv aac wma 3gp log").split(" "),
 );
 
 /** La ruta de Windows (`C:\a\b.pdf`) que vale para abrir: absoluta, sin `..`, sin nulos ni saltos de línea y de un tipo que no se ejecuta; `null` si no. */

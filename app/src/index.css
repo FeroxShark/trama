@@ -5394,6 +5394,101 @@ summary.sis-div-t:hover,
   }
 }
 
+/* --- Avance de la instalación (src/ui/Avance.tsx) -------------------------------------------------
+   Barra + el paso en palabras + cuánto lleva; si tarda de más, el aviso con ícono y «Ver registro». Sin porcentaje la
+   barra lleva un tramo que va y viene (sólo transform); con prefers-reduced-motion el tramo queda quieto, lleno hasta el paso. */
+.avz {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  min-width: 0;
+}
+.pn-car-av {
+  max-width: 22rem;
+  margin-top: var(--esp-2);
+}
+.avz-b {
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: var(--radio-pastilla);
+  background: var(--sup-4);
+}
+.avz-b i {
+  display: block;
+  height: 100%;
+  border-radius: var(--radio-pastilla);
+  background: var(--azul);
+  transform: scaleX(var(--p, 0));
+  transform-origin: left;
+  transition: transform 200ms ease-out;
+}
+.avz-b[data-solo] i {
+  width: 40%;
+  transform: none;
+  animation: avz-va 1.6s ease-in-out infinite alternate;
+}
+@keyframes avz-va {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(150%);
+  }
+}
+.avz-f {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--esp-3);
+  font-size: var(--letra-3);
+}
+.avz-t {
+  color: var(--txt-2);
+}
+.avz-r {
+  flex: none;
+  color: var(--texto-6);
+  font-variant-numeric: tabular-nums;
+}
+.avz-l {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1-5) var(--esp-2);
+  color: var(--decision-texto);
+  font-size: var(--letra-3);
+  line-height: 1.4;
+}
+.avz-l svg {
+  flex: none;
+}
+.avc-a .avz-v,
+.avz-v {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--txt-1);
+  font-size: var(--letra-3);
+  text-decoration: underline;
+  text-decoration-color: var(--texto-8);
+  text-underline-offset: 0.1875rem;
+  cursor: pointer;
+}
+.avz-v:hover {
+  color: var(--texto-1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .avz-b i {
+    transition: none;
+  }
+  .avz-b[data-solo] i {
+    width: auto;
+    animation: none;
+    transform: scaleX(var(--pasos, 0.25));
+  }
+}
+
 /* El cartel de un error al pintar (src/ErrorBoundary.ts): ocupa la ventana en vez de dejarla en blanco. Una
    caja quieta con qué pasó en una línea y dos botones. */
 .er {
