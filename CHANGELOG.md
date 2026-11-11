@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.71
+
+- Chats de Claude con la caché vencida: aunque esté elegido «Empezar con resumen», Trama ya no abre sola otra conversación; pregunta cada vez y el botón marcado es «Seguir la misma sesión». Si elegís el resumen, el chat nuevo sigue con la cuenta del original.
+- Barra en «Recientes»: adentro de cada proyecto, los chats a la vista van por fecha, también los que están quietos.
+- La app abre más rápido: Ajustes, el tablero, el chat y cada idioma se cargan recién cuando hacen falta.
+- Al cerrar un chat, Trama barre los procesos que dejó colgando.
+
 ## 0.2.70
 
 - Tablero: la lista «Probar …» se abre con una casilla por renglón («1 de 4 probados»); tildar todo la cierra. Los items viejos se ven como antes.

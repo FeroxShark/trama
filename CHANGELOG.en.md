@@ -1,5 +1,12 @@
 # Changes
 
+## 0.2.71
+
+- Claude chats with an expired cache: even if "Start with a summary" is selected, Trama no longer opens another conversation on its own; it asks every time and the highlighted button is "Continue the same session". If you choose the summary, the new chat keeps the original's account.
+- Sidebar in "Recent": inside each project, visible chats go by date, quiet ones too.
+- The app opens faster: Settings, the board, the chat and each language load only when needed.
+- When a chat closes, Trama sweeps the processes it left hanging.
+
 ## 0.2.70
 
 - Board: the "Probar …" list opens with a checkbox per line ("1 of 4 tested"); ticking all closes it. Old items look as before.
