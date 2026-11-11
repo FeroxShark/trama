@@ -348,6 +348,24 @@ export const HILOS: RespuestaHilos = {
       commits: 2,
       resultado: "Arranque 410 ms → 290 ms sacando un import perezoso.",
     }),
+    // Las capturas con HILOS_VARIANTE=falta-info (`normal`, `worker-vista`): un worker de ana-a3 que frenó porque le falta información.
+    ...(MODO.variante === "falta-info"
+      ? [
+          hilo({
+            id: "20261003-110000-49900",
+            ...deLider(A3),
+            proyecto: "atlas",
+            tarea: "Sincronizar envíos con el proveedor de rutas",
+            estado: "falta-info",
+            inicio: AHORA - 12 * MIN,
+            duracion_s: 5 * MIN,
+            puesto: "3",
+            rama: "pa/atlas/20261003-110000-49900",
+            commits: 1,
+            resultado: "RESULTADO: Frené antes de integrar.\nFALTA: la URL del sandbox del proveedor y un token de prueba.",
+          }),
+        ]
+      : []),
   ],
 };
 

@@ -79,7 +79,7 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
   // La palabra que acompaña al tiempo, sólo si dice algo que el glifo solo no alcanza: en cola, trabado, frenado, cerrado.
   const palabra = at || !t ? (t ? null : cierreDe(estado)) : t.tipo === "cola" || t.tipo === "trabado" || t.tipo === "frenado" || t.tipo === "fallo" ? (t.tipo === "cola" ? t.texto : textoEstado(h, estado)) : null;
   // Lo que esperó su turno o pide una decisión no dice tiempo: importa que espera, no desde cuándo.
-  const sinTiempo = at === "decision" || t?.tipo === "cola";
+  const sinTiempo = at === "decision" || t?.tipo === "cola" || t?.tipo === "falta";
   const titulo = h.titulo || tareaDe(h);
   // Lo que ya no entra en una línea, en el tooltip: el título entero, el estado con sus commits, y dónde y con qué corrió.
   const estadoTip = [t ? textoEstado(h, estado) : cierreDe(estado), h.commits > 0 ? tr(h.commits === 1 ? "comun.commit" : "comun.commits", { n: h.commits }) : null].filter(Boolean).join(" · ");

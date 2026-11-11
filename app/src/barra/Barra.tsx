@@ -1300,7 +1300,7 @@ export function Barra() {
     if (c === "arrancando") setActiva(ARRANCANDO.id);
     else if (c === "frenado") setActiva(FRENADO.id);
     else if (c === "worker-en-cola") setActiva(EN_COLA.id);
-    else if (c === "worker-vista") setActiva(primero(MODO.variante === "falla" ? "murio" : MODO.variante === "decision" ? "decision" : "listo"));
+    else if (c === "worker-vista") setActiva(primero(MODO.variante === "falla" ? "murio" : MODO.variante === "decision" ? "decision" : MODO.variante === "falta-info" ? "falta-info" : "listo"));
     else if (c === "worker-vista-vivo") setActiva(primero("trabajando"));
     else if (c === "worker-vista-hilo") setActiva(primero(MODO.variante === "trabado" ? "colgado" : MODO.variante === "termino" ? "listo" : MODO.variante === "fallo" ? "murio" : "trabajando"));
     else if (c === "worker-vista-rutas") setActiva(primero("listo"));
