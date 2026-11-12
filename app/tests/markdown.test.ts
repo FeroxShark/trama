@@ -4,7 +4,7 @@
 // todavía está llegando (`vivo`).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bloques, esRuta, rutaCarpeta, sueltas, trozos, type Bloque } from "../src/hilo/markdown.ts";
+import { bloques, carpetaRelativa, esRuta, rutaCarpeta, sueltas, trozos, type Bloque } from "../src/hilo/markdown.ts";
 
 type Tabla = Extract<Bloque, { tipo: "tabla" }>;
 const tabla = (texto: string): Tabla => {
@@ -385,4 +385,9 @@ test("lista: mientras llega, un código sin cerrar dentro de un ítem ya es cód
   const b = bloques("1. Corré:\n   ```bash\n   npm te", { vivo: true });
   assert.equal(b.length, 1);
   assert.deepEqual((b[0] as ListaB).items[0].bloques, [{ tipo: "pre", texto: "npm te", lang: "bash" }]);
+});
+
+test("carpetaRelativa: la carpeta que nombra el chat sin ruta entera se vuelve botón (con barra al final o ./); el texto común no", () => {
+  for (const si of ["prompts/ficticios/", "fotos/ficticios/cafe-brunch/", "./fotos", "src\\hilo\\", "diseño/"]) assert.equal(carpetaRelativa(si), si, si);
+  for (const no of ["and/or", "TCP/IP", "comfi-coffee.txt", "../afuera/", "a b/", "https://x.y/", "/abs/", "~/x/", "12/34/", ""]) assert.equal(carpetaRelativa(no), null, no);
 });

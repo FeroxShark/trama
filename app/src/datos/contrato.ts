@@ -230,6 +230,8 @@ export type Lider = {
   inferido?: string | null;
   /** Es la sesión de Shark (su cwd es `$SHARK_HOME`): va a la carpeta `SHARK`. Sin venir, no. */
   shark?: boolean;
+  /** La carpeta donde corre (su cwd): contra ella se abren las carpetas relativas que nombra el chat (`prompts/x/`). Sin venir, no se sabe. */
+  cwd?: string;
   /**
    * Quedó sin proceso y no es de la app: no se le escribe hasta retomarlo (`fuente.liderRetomar`).
    * "murio": lo mataron (OOM, kill -9; lo dice el main o `caidos`). "cerro": ya no está su sesión

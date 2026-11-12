@@ -63,7 +63,7 @@ import { transcriptLeido } from "./contextoVivo";
 import { Avisos, HaceChat, useQuietoDesde } from "./Hace";
 import type { AvisoVisto } from "./avisos";
 import { SeguirCon } from "./SeguirCon";
-import { Texto } from "./Texto";
+import { CarpetaDelChat, Texto } from "./Texto";
 import { Hora, pintorAviso, tokens, Turno } from "./Turno";
 import { PuntoTurno } from "./Punto";
 import { puntoDeTurno } from "./punto-logica";
@@ -1245,29 +1245,31 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
           {pag && pag.desde > 0 ? <div className="conv-mas">{tr("vista.anteriores")}</div> : null}
           {sid && !pag && !error && !items.length ? <Leyendo /> : null}
           <GastoSubagentesCtx.Provider value={ctxGasto}>
-            <Mensajes
-              items={items}
-              ultimoTurno={ultimoTurno}
-              ultimoLimite={ultimoLimite}
-              alSeguir={l && !ocupado ? abrirSeguir : undefined}
-              app={app}
-              ocupado={ocupado}
-              pasando={pasando}
-              pensando={app && ocupado && vivo.ind.hace?.que === "pensando"}
-              fin={app && !ocupado ? vivo.fin : null}
-              razon={app && piensa}
-              relevo={relevo}
-              sigue={sigue}
-              nombre={l?.nombre}
-              alAbrirLider={alAbrirLider}
-              alAbrirHilo={alAbrirHilo}
-              acciones={acciones}
-              editar={editar}
-              guardar={guardarArchivo}
-              sid={sid}
-              puntos={puntos}
-              alVolverPunto={alVolverPunto}
-            />
+            <CarpetaDelChat.Provider value={l?.cwd ?? null}>
+              <Mensajes
+                items={items}
+                ultimoTurno={ultimoTurno}
+                ultimoLimite={ultimoLimite}
+                alSeguir={l && !ocupado ? abrirSeguir : undefined}
+                app={app}
+                ocupado={ocupado}
+                pasando={pasando}
+                pensando={app && ocupado && vivo.ind.hace?.que === "pensando"}
+                fin={app && !ocupado ? vivo.fin : null}
+                razon={app && piensa}
+                relevo={relevo}
+                sigue={sigue}
+                nombre={l?.nombre}
+                alAbrirLider={alAbrirLider}
+                alAbrirHilo={alAbrirHilo}
+                acciones={acciones}
+                editar={editar}
+                guardar={guardarArchivo}
+                sid={sid}
+                puntos={puntos}
+                alVolverPunto={alVolverPunto}
+              />
+            </CarpetaDelChat.Provider>
           </GastoSubagentesCtx.Provider>
           {volver ? (
             <div className="am-volvio">

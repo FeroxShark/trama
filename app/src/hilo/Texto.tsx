@@ -2,7 +2,7 @@
 // parseo es de markdown.ts (párrafos, listas, bloques ```, títulos, citas, tablas
 // y lo de adentro de un renglón) y el resaltado de los bloques, de resaltar.ts;
 // los saltos de línea se respetan por CSS.
-import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, Fragment, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, Copy, FolderOpen, FolderX } from "lucide-react";
 import { copiarConAviso } from "../copiar";
 import { fuente } from "../datos/fuente";
@@ -13,7 +13,8 @@ import { useIdioma } from "../i18n/react";
 import { esVentana } from "../puente";
 import { esComodin, rutaImagen } from "../../electron/imagen-ruta";
 import { ImagenInsertada, ImagenLocal, VerImagenLocal } from "./Imagenes";
-import { bloques, esRuta, rutaCarpeta, sueltas, trozos, type Bloque, type Lista, type Trozo } from "./markdown";
+import { bloques, carpetaRelativa, esRuta, rutaCarpeta, sueltas, trozos, type Bloque, type Lista, type Trozo } from "./markdown";
+import { rutaEnCwd } from "./worker-datos";
 import { resaltar } from "./resaltar";
 
 // Un enlace sale de la app: en la ventana lo abre el navegador del sistema (el main, que sólo
@@ -43,14 +44,25 @@ function Imagen({ x }: { x: Extract<Trozo, { tipo: "img" }> }) {
   return <ImagenLocal ruta={x.url} alt={x.texto} />;
 }
 
-/** Una carpeta nombrada en un mensaje: un clic la abre en el explorador de archivos. Si no se pudo (no existe, o es un archivo), lo dice el ícono y el aviso. */
-function Carpeta({ ruta }: { ruta: string }) {
+/** La carpeta del chat que se está leyendo (`Lider.cwd`): contra ella se abren las carpetas relativas que nombra (`prompts/x/`). */
+export const CarpetaDelChat = createContext<string | null>(null);
+
+/**
+ * Una carpeta nombrada en un mensaje: un clic la abre en el explorador de archivos. Si no se pudo (no existe, o es un archivo), lo dice
+ * el ícono y el aviso. Una relativa se resuelve con la carpeta del chat; sin ella queda como texto, igual que antes.
+ */
+function Carpeta({ texto }: { texto: string }) {
   useIdioma();
+  const base = useContext(CarpetaDelChat);
+  const absoluta = rutaCarpeta(texto);
+  const rel = absoluta ? null : carpetaRelativa(texto);
+  const ruta = absoluta ?? (rel ? rutaEnCwd(rel, base) : null);
   const [res, setRes] = useState<ResultadoCarpeta | null>(null);
   const fallo = res !== null && res !== "abierta";
   const clave = res === "app" ? "archivo.carpetaReiniciar" : res === "no-carpeta" ? "archivo.carpetaNoAbrio" : "archivo.carpetaAbrir";
-  const dice = t(clave, { ruta });
+  const dice = t(clave, { ruta: ruta ?? texto });
   const Ico = fallo ? FolderX : FolderOpen;
+  if (!ruta) return <code data-ruta="">{texto}</code>;
   return (
     <button
       type="button"
@@ -60,7 +72,7 @@ function Carpeta({ ruta }: { ruta: string }) {
       data-tip={dice}
       onClick={() => void resultadoCarpeta(() => fuente.carpetaAbrir(ruta), (e) => reportar("carpeta", detalleDe(e))).then(setRes)}
     >
-      <code data-ruta="">{ruta}</code>
+      <code data-ruta="">{absoluta ?? texto}</code>
       <Ico size={12} strokeWidth={2} aria-hidden="true" />
     </button>
   );
@@ -69,8 +81,8 @@ function Carpeta({ ruta }: { ruta: string }) {
 function enLinea(texto: string, op: { vivo?: boolean; enlaces?: boolean } = {}): ReactNode[] {
   const adentro = (s: string) => enLinea(s, { enlaces: op.enlaces });
   return trozos(texto, op).map((x, i) =>
-    x.tipo === "code" && op.enlaces !== false && esVentana() && rutaCarpeta(x.texto) ? (
-      <Carpeta key={i} ruta={rutaCarpeta(x.texto)!} />
+    x.tipo === "code" && op.enlaces !== false && esVentana() && (rutaCarpeta(x.texto) || carpetaRelativa(x.texto)) ? (
+      <Carpeta key={i} texto={x.texto} />
     ) : x.tipo === "code" ? (
       <Fragment key={i}>
         <code data-ruta={esRuta(x.texto) ? "" : undefined}>{x.texto}</code>

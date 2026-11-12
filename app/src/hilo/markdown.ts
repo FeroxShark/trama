@@ -412,6 +412,16 @@ export function rutaCarpeta(t: string): string | null {
   return /[^.]\.[A-Za-z0-9]+$/.test(partes.at(-1) ?? "") ? null : s;
 }
 
+/**
+ * Una carpeta relativa que nombra un mensaje (`prompts/ficticios/`, `./fotos`): se abre desde la carpeta del chat. Pide barra al final
+ * o `./` al principio, así `and/or` o `TCP/IP` no se vuelven botón. Sin `..`, espacios ni esquema.
+ */
+export function carpetaRelativa(t: string): string | null {
+  const s = t.trim();
+  if (s.length > 300 || !/\p{L}/u.test(s) || s.split(/[\\/]/).includes("..")) return null;
+  return /^(?:\.[\\/])?[\p{L}\p{N}_.@+-]+(?:[\\/][\p{L}\p{N}_.@+-]+)*[\\/]$/u.test(s) || /^\.[\\/][\p{L}\p{N}_.@+-]+(?:[\\/][\p{L}\p{N}_.@+-]+)*$/u.test(s) ? s : null;
+}
+
 /** Un `código` en línea que es una ruta de archivo (`src/hilo/Texto.tsx:12`, `~/x`, `package.json`): se pinta distinto. */
 export function esRuta(t: string): boolean {
   if (t.length > 200 || /\s/.test(t) || t.includes("://") || !/[a-z]/i.test(t)) return false;

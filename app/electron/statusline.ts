@@ -107,6 +107,9 @@ export function modeloLindo(m: string): string {
 /** La carpeta de Shark (el asistente de voz): `$SHARK_HOME`. Su sesión jefe corre ahí. Sin la variable no hay nada marcado como Shark. */
 const SHARK_HOME = process.env.SHARK_HOME || null;
 /** `{ shark: true }` si el cwd es el de Shark (o algo adentro); si no, nada. */
+/** La carpeta del líder para la interfaz (abre las carpetas relativas que nombra el chat); vacía o sin venir, nada. */
+const cwdDe = (cwd: string | null | undefined): { cwd?: string } => (cwd ? { cwd } : {});
+
 async function sharkDe(cwd: string | null | undefined): Promise<{ shark?: true }> {
   if (!cwd || !SHARK_HOME) return {};
   const dentro = (c: string, r: string) => c === r || c.startsWith(r + "/");
@@ -312,6 +315,7 @@ export async function leerStatusline(): Promise<Statusline> {
       ...(mia ? { modo: g.modo, ...(g.cuenta ? { cuenta: g.cuenta } : {}) } : {}),
       inferido: t.inferido,
       ...(await sharkDe((g ? (g.cwd ?? null) : s.cwd))),
+      ...cwdDe(g ? g.cwd : s.cwd),
     });
     deApp.delete(s.id);
   }
@@ -340,6 +344,7 @@ export async function leerStatusline(): Promise<Statusline> {
       ...(g.cuenta ? { cuenta: g.cuenta } : {}),
       inferido: t.inferido,
       ...(await sharkDe(g.cwd)),
+      ...cwdDe(g.cwd),
       // Lo mataron (no lo cerró la app) y nadie lo retomó: Murió, con Retomar en vez de la caja.
       ...(g.murio && !p ? { caido: "murio" as const, ...(g.motivo ? { motivo: g.motivo } : {}), ...(g.otraCuenta ? { otraCuenta: g.otraCuenta } : {}) } : {}),
     });
@@ -365,6 +370,7 @@ export async function leerStatusline(): Promise<Statusline> {
       effort: null,
       inferido: t.inferido,
       ...(await sharkDe(c.cwd)),
+      ...cwdDe(c.cwd),
       caido: "murio",
     });
   }
