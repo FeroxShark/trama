@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.75
+
+- A worker that stops because it lacks information no longer leaves you a decision on the board: it goes to the leader that launched it, with how to answer and continue the same worker (or give it Chrome and the other MCPs with `--mcp`). It only reaches you if the leader adds it because it is truly your decision. `lanzar_worker` accepts `id` (continue that worker) and `mcp`.
+
 ## 0.2.74
 
 - In the chat, a folder named without its full path (`prompts/ficticios/`, `./fotos`) is also a button that opens it in the file manager, from that chat's folder. Before it only worked with the full path or `~`.

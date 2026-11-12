@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.75
+
+- Un worker que frena porque le falta información ya no te deja una decisión en el tablero: le llega al líder que lo lanzó, con cómo contestarle y seguir el mismo worker (o darle Chrome y los demás MCP con `--mcp`). A vos sólo te llega si el líder lo anota porque es una decisión tuya de verdad. `lanzar_worker` acepta `id` (seguir ese worker) y `mcp`.
+
 ## 0.2.74
 
 - En el chat, una carpeta nombrada sin la ruta entera (`prompts/ficticios/`, `./fotos`) también es un botón que la abre en el explorador de archivos, desde la carpeta de ese chat. Antes sólo andaba con la ruta completa o con `~`.
