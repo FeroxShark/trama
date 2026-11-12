@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.76
+
+- When Trama updates, the window catches up only once: if it already reloaded itself with the new version, the notice to restart it no longer shows.
+
 ## 0.2.75
 
 - A worker that stops because it lacks information no longer leaves you a decision on the board: it goes to the leader that launched it, with how to answer and continue the same worker (or give it Chrome and the other MCPs with `--mcp`). It only reaches you if the leader adds it because it is truly your decision. `lanzar_worker` accepts `id` (continue that worker) and `mcp`.
