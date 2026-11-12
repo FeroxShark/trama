@@ -9,7 +9,7 @@ import type { Pa } from "./entorno.ts";
 import type { Ganchos, Lanzamiento } from "./lanzar.ts";
 import type { Llamada } from "./politica.ts";
 import { isoSegundos, tableroMudo } from "./ramas.ts";
-import { contarCompactaciones, decisionDe, decisionEsNada, frenoDe, leerSalida, sigueDe, textoResultado, transcriptDe } from "./resultado-lanzar.ts";
+import { contarCompactaciones, decisionDe, decisionEsNada, faltaDe, frenoDe, leerSalida, sigueDe, textoResultado, transcriptDe } from "./resultado-lanzar.ts";
 
 export const MEDICION_HEADER_VIEJO = "fecha\tid\tproyecto\tmodelo\teffort\tleer\tseguir\tis_error\tnum_turns\tduration_s\ttokens\tcosto_usd\tbien";
 // Las últimas son `pisado` y `indivisible` (el motivo de `--indivisible`; sólo TS). `pisado`: 1 = otra corrida que ya corría en paralelo cuando esta se integró le reescribió
@@ -254,10 +254,25 @@ export function pruebaEsComando(texto: string): boolean {
 
 const corte = (t: string, n: number) => Array.from(t).slice(0, n).join("");
 
-/** `anotar_tablero`: lo que la corrida dejó abierto entra solo al tablero. */
+/** El `jefe_id` es el id de una sesión (la que hizo `pa --async` o `lanzar_worker`): hay un líder que recibe el aviso del worker. */
+const SESION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Sólo-TS: ¿lo que dejó abierto la corrida lo resuelve su líder y no el dueño? Sí cuando frenó por falta de información (FALTA de
+ * verdad) y la lanzó una sesión: el líder recibe el aviso «frenó: le falta información», contesta con `pa --seguir --id` (mismo
+ * worker), lo relanza con lo que haga falta (`--mcp` si le faltó una herramienta) o lo cierra. Al dueño sólo le llega si el líder lo
+ * anota él, siendo una decisión suya de verdad. Sin sesión (un `pa` a mano), como siempre: al tablero.
+ */
+export function faltaParaLider(res: string, jefeId: string): boolean {
+  const f = faltaDe(res);
+  return SESION.test(jefeId.trim()) && f.replace(/\*/g, "").trim() !== "" && !decisionEsNada(f);
+}
+
+/** `anotar_tablero`: lo que la corrida dejó abierto entra solo al tablero. Si frenó por falta de información y tiene líder, no (`faltaParaLider`). */
 export async function anotarTablero(pa: Pa, l: Lanzamiento): Promise<void> {
   const c = l.c;
   const res = textoResultado(leerSalida(l.out));
+  if (faltaParaLider(res, c.jefeId)) return;
   const d = decisionDe(res);
   const decision = decisionEsNada(d) ? "" : decisionDe(res, true);
   const s = sigueDe(res);

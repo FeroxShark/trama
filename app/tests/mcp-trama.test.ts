@@ -120,6 +120,13 @@ test("el servidor arranca por stdio, lista las herramientas y llama estado, busc
     assert.deepEqual(llamadas.at(-1), ["demo", "--async", "-m", "claude-x", "--effort", "high", "--", "-x una tarea con guion"], "la tarea va después de --");
     assert.ok(llamadas.some((a) => a.join(" ") === "--hilos --json --todo"), "buscar mira también lo viejo");
 
+    // Contestarle a un worker que frenó por falta de información: sigue el mismo id, con los MCP de la persona si le faltó Chrome.
+    const seguir = await s.pedir("tools/call", { name: "lanzar_worker", arguments: { proyecto: "demo", tarea: "Ya tenés Chrome: seguí", id: "20261112-112822-1495239", mcp: true } });
+    assert.equal(seguir.result.isError, undefined, seguir.result.content[0].text);
+    assert.deepEqual(JSON.parse(readFileSync(pa.log, "utf8").trim().split("\n").at(-1)!), ["demo", "--async", "--seguir", "--id", "20261112-112822-1495239", "--mcp", "--", "Ya tenés Chrome: seguí"]);
+    const idMalo = await s.pedir("tools/call", { name: "lanzar_worker", arguments: { proyecto: "demo", tarea: "t", id: "../x" } });
+    assert.equal(idMalo.result.isError, true);
+
     const mandar = await s.pedir("tools/call", { name: "mandar_mensaje", arguments: { sid: SID, texto: "¿terminaste?" } });
     assert.equal(mandar.result.isError, undefined, mandar.result.content[0].text);
     assert.match(mandar.result.content[0].text, /lider-a/);

@@ -69,6 +69,11 @@ reales de su salida. DECISION: qué decide el usuario, o "nada". SIGUE: el próx
   Una rama sin commits: `--descartar`.
 - Traé la DECISION del worker tal cual, sin decidir por el usuario. **Mirá VERIFICACION**: si dice
   `— SIN VERIFICAR`, pedí la evidencia con `--seguir --id` o corré el chequeo vos.
+- **Un worker que frenó con `FALTA:` (aviso «frenó: le falta información») lo resolvés vos, no el usuario.** Si es un
+  dato, contestale y sigue el mismo worker: `pa <p> --async --seguir --id <id> "<respuesta>"` (o `lanzar_worker` con `id`).
+  Si le faltó una herramienta (Chrome, Gmail, Notion), seguilo con `--mcp` o relanzalo con otro método; si alcanza con lo
+  que hay, cerralo. Su DECISION y su SIGUE no entran al tablero: al usuario sólo le pasás lo que es decisión suya de verdad
+  (cambia lo que ve, cuesta plata o no se deshace) con `tablero agregar --simple …`.
 - Antes de integrar algo importante: `pa <p> --auditar <id> [-m MODELO]` y `motor/bin/gate` (lo corre el líder:
   alcance, test congelado, anti-patrones y rojos); tests con `--integrar <id> --tests`.
 - Códigos de salida: `0` ok · `1` el worker falló (leé el motivo) · `2` uso · `75` puesto o tope ocupado ·

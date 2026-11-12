@@ -87,13 +87,15 @@ const corto = (s: unknown, n: number) => {
 };
 const SLUG = /^[A-Za-z0-9._][A-Za-z0-9._-]*$/;
 const SUELTO = /^[A-Za-z0-9][A-Za-z0-9._:/@-]*$/;
+/** El id de una corrida de pa (`20261112-112822-1495239`). */
+const CORRIDA = /^\d{8}-\d{6}-\d+$/;
 const SID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const HERRAMIENTAS = [
   {
     name: "lanzar_worker",
     description:
-      "Lanza un worker de pa en un proyecto (pa <proyecto> --async): vuelve enseguida con el id de la corrida. El resultado llega después como aviso de Trama, o con estado_workers.",
+      "Lanza un worker de pa en un proyecto (pa <proyecto> --async): vuelve enseguida con el id de la corrida. El resultado llega después como aviso de Trama, o con estado_workers. Con `id`, sigue ese mismo worker (pa --seguir --id): así se le contesta a uno que frenó por falta de información.",
     inputSchema: {
       type: "object",
       properties: {
@@ -102,6 +104,8 @@ export const HERRAMIENTAS = [
         modelo: { type: "string", description: "Opcional: el modelo (-m). Sin él, pa elige según --tipo y el cupo." },
         effort: { type: "string", description: "Opcional: el esfuerzo (--effort)." },
         tipo: { type: "string", description: "Opcional: el tipo de tarea (--tipo), para que pa elija el modelo." },
+        id: { type: "string", description: "Opcional: el id de un worker para seguirlo (--seguir --id) en vez de lanzar uno nuevo; `tarea` es lo que se le dice (la respuesta a su FALTA)." },
+        mcp: { type: "boolean", description: "Opcional: darle los MCP de la persona (Chrome, Gmail, Notion…) con --mcp. Por defecto el worker va sin ellos." },
       },
       required: ["proyecto", "tarea"],
     },
@@ -197,7 +201,10 @@ export async function llamarHerramienta(nombre: string, a: J, d: Deps, env: Env 
       if (!SUELTO.test(v)) falla(`${k} inválido: ${corto(v, 40)}`);
       extra.push(flag, v);
     }
-    const r = await d.pa([proyecto, "--async", ...extra, "--", tarea], 120_000);
+    const id = texto(a.id);
+    if (id && !CORRIDA.test(id)) falla(`id inválido: ${corto(id, 40)}`);
+    const seguir = id ? ["--seguir", "--id", id] : [];
+    const r = await d.pa([proyecto, "--async", ...seguir, ...(a.mcp === true ? ["--mcp"] : []), ...extra, "--", tarea], 120_000);
     const salida = [r.out.trim(), r.err.trim()].filter(Boolean).join("\n");
     if (r.rc !== 0) falla(`pa salió con ${r.rc}${salida ? `:\n${salida}` : ""}`);
     return salida || "lanzado";

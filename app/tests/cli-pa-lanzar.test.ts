@@ -10,7 +10,7 @@ import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
 import { alSalir, argsCierre, argsClaude, armarLanzamiento, configClaudeDe, contratoClaude, envDeLaLlamada, lineaSkillsDiseno, promptDe, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
-import { medir } from "../electron/cli/pa/ganchos.ts";
+import { anotarTablero, faltaParaLider, medir } from "../electron/cli/pa/ganchos.ts";
 import { campoDe, decisionEsNada, epochReset, verificadoDe } from "../electron/cli/pa/resultado-lanzar.ts";
 
 const PA = path.join(import.meta.dirname, "..", "..", "motor", "bin", "pa");
@@ -303,4 +303,34 @@ test("herramientas: un --leer puede buscar en internet (WebSearch/WebFetch) sin 
   assert.match(contratoClaude(pa, corrida(raiz, { leer: true })), /WebSearch y WebFetch/);
   // El bash (respaldo en Linux) pasa la misma lista.
   assert.ok(readFileSync(PA, "utf8").includes(`--tools "${leer.join(",")}"`), "motor/bin/pa debe pasar la misma lista");
+});
+
+// El caso real (canto-estudio, 12/11): un worker lanzado por un líder frenó con FALTA (Chrome) y además dejó DECISION y SIGUE; la
+// DECISION le llegó al dueño como espera-dueno. Lo que falta lo resuelve el líder que lo lanzó (le llega el aviso): no entra al tablero.
+const LIDER = "f234d27f-b1b4-4e5e-9431-ac0382576761";
+const CON_FALTA = "RESULTADO: relevé 6 estudios sin Chrome.\n\nDECISION: Decidir si repetimos con Chrome.\n\nSIGUE: Con Chrome, abrir los perfiles.\n\nFALTA: Chrome con la sesión del dueño iniciada en Instagram.";
+
+test("faltaParaLider: FALTA de verdad y una sesión que lo lanzó; sin sesión, FALTA vacía o «nada», no", () => {
+  assert.equal(faltaParaLider(CON_FALTA, LIDER), true);
+  assert.equal(faltaParaLider(CON_FALTA, ""), false, "un pa a mano: va al tablero como siempre");
+  assert.equal(faltaParaLider(CON_FALTA, "trama-fa76"), false, "un nombre no es una sesión");
+  assert.equal(faltaParaLider("RESULTADO: listo\nDECISION: elegir color", LIDER), false);
+  assert.equal(faltaParaLider("RESULTADO: listo\nFALTA: nada", LIDER), false);
+});
+
+testPosix("anotarTablero: con FALTA y líder no anota nada para el dueño; sin líder, la DECISION entra como siempre", async () => {
+  for (const [jefeId, espera] of [[LIDER, false], ["", true]] as const) {
+    const raiz = mkdtempSync(path.join(os.tmpdir(), "anotar-falta-"));
+    const log = path.join(raiz, "tablero.log");
+    const tb = path.join(raiz, "tablero");
+    writeFileSync(tb, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\n`, { mode: 0o755 });
+    const pa = { ...paFalso(raiz), env: { PATH: process.env.PATH ?? "", PA_TABLERO: tb, TABLERO_DIR: raiz } };
+    const l = armarLanzamiento(pa, corrida(raiz, { jefeId }));
+    mkdirSync(path.dirname(l.out), { recursive: true });
+    writeFileSync(l.out, JSON.stringify({ result: CON_FALTA }));
+    await anotarTablero(pa, l);
+    const anotado = existsSync(log) ? readFileSync(log, "utf8") : "";
+    assert.equal(/espera-dueno/.test(anotado), espera, anotado || "(nada)");
+    rmSync(raiz, { recursive: true, force: true });
+  }
 });

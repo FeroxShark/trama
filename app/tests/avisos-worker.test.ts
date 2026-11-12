@@ -42,6 +42,12 @@ test("frenó por falta de información: estado propio, no «terminó»; el aviso
   const texto = textoParaLider(avisos[0]);
   assert.match(texto, /frenó: le falta información/);
   assert.doesNotMatch(texto, /terminó/);
+  // Lo resuelve el líder, no el dueño: cómo seguir el mismo worker (con --mcp si le faltó una herramienta) y cuándo sí va al dueño.
+  assert.match(texto, /no se lo pases al dueño/);
+  assert.match(texto, /--seguir --id a /);
+  assert.match(texto, /--seguir --mcp --id a /);
+  assert.match(texto, /tablero agregar --simple/);
+  assert.deepEqual(avisoDeTexto(texto)?.trabajos.map((x) => [x.id, x.estado]), [["a", "faltaInfo"]], "las líneas de cómo resolverlo no se leen como otro worker");
   // La vista lo lee de vuelta como estado propio, sin marcarlo como falla.
   const uno = "[Aviso automático de Trama] Worker «dos» frenó: le falta información. Id: 2. Revisalo con `pa --hilo 2`.";
   assert.deepEqual(avisoDeTexto(uno)?.trabajos, [{ tarea: "dos", id: "2", falla: false, estado: "faltaInfo" }]);

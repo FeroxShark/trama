@@ -469,6 +469,21 @@ export function compactarResultado(result: string): { texto: string; recortado: 
   return { texto: lineas.join("\n"), recortado };
 }
 
+/**
+ * Qué hace el líder con un worker que frenó por falta de información. Va en el aviso (es una instrucción para un modelo): lo resuelve
+ * él y sigue el mismo worker; al dueño sólo le pasa lo que es de verdad suyo, como las preguntas obvias del CLAUDE.md.
+ */
+export function comoResolverFalta(a: Pick<AvisoWorker, "id" | "proyecto">): string[] {
+  const proy = a.proyecto || "<proyecto>";
+  return [
+    "Resolvelo vos; no se lo pases al dueño. Según lo que falte:",
+    `- un dato que sabés o podés averiguar: contestale y sigue el mismo worker, \`pa ${proy} --async --seguir --id ${a.id} "<la respuesta>"\` (o lanzar_worker con id);`,
+    `- una herramienta (Chrome, Gmail, Notion…): seguilo con \`--mcp\` (\`pa ${proy} --async --seguir --mcp --id ${a.id} "<qué hacer>"\`), o relanzalo con otro método;`,
+    "- si con lo que hay alcanza: dalo por terminado.",
+    "Al dueño sólo si es una decisión suya (cambia lo que ve, cuesta plata o no se deshace): `tablero agregar --simple …`.",
+  ];
+}
+
 /** Las líneas de más de un aviso `fin` con resultado: su integración y su resultado compacto, con sangría (así no se confunden con la línea del worker). */
 function detalleDe(a: AvisoWorker, sangria: string): string[] {
   const extra: string[] = [];
@@ -477,6 +492,8 @@ function detalleDe(a: AvisoWorker, sangria: string): string[] {
   if (a.resumen && a.recortado) extra.push(`(recortado; el resto: \`pa --hilo ${a.id}\`)`);
   // Una lectura no se integra: lo que dice el líder (`bien`) es lo único que le dice al reparto si rindió.
   if (a.leer && a.tipo === "fin") extra.push(`¿Sirvió? \`pa --bien ${a.id} si|no|parcial\``);
+  // Frenó por falta de información: lo resuelve el líder que lo lanzó, no el dueño (no entra al tablero: `faltaParaLider`, ganchos.ts).
+  if (a.tipo === "fin" && a.faltaInfo) extra.push(...comoResolverFalta(a));
   return extra.map((l) => sangria + l);
 }
 

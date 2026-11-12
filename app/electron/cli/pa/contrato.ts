@@ -12,7 +12,7 @@ export const FRASE_COMPACTA = "Si tu contexto se compacta, cerrá el pedazo que 
  */
 export const LINEAS_OPCIONALES = [
   "HALLAZGO: (opcional) algo que no te pidieron y el jefe tiene que saber. Sólo acá, al terminar: nada de avisos a mitad de tarea.",
-  "FALTA: (opcional) si frenaste por falta de información: cuál te faltó y qué necesitás para seguir.",
+  "FALTA: (opcional) si frenaste por falta de información: cuál te faltó y qué necesitás para seguir. Lo recibe quien te lanzó, que te contesta y seguís; no lo dejes como DECISION para el dueño.",
 ].join("\n");
 
 const CONTRATO_L = [
