@@ -207,7 +207,8 @@ export const familiaDeModelo = (modelo: string): "claude" | "gemini" | "dsh" | "
 export const EFFORTS_GEMINI = ["low", "medium", "high"] as const;
 /** Los niveles que agy acepta en el nombre: Hydrogen suma `xhigh`. */
 const NIVEL_AGY = /-(low|medium|high|xhigh)$/;
-const NIVELES_AGY: readonly string[] = [...EFFORTS_GEMINI, "xhigh"];
+/** Los esfuerzos que vale ese modelo: `xhigh` sólo en Hydrogen. */
+const nivelesDe = (modelo: string): readonly string[] => (modelo.includes("hydrogen") ? [...EFFORTS_GEMINI, "xhigh"] : EFFORTS_GEMINI);
 export const EFFORT_GEMINI_DEFECTO = "high";
 
 /**
@@ -224,12 +225,12 @@ export function partirGemini(id: string, effort?: string | null): { modelo: stri
   const m = /^((?:gemini-|agy:).+?)-(low|medium|high|xhigh)$/.exec(id);
   if (m) return { modelo: m[1], effort: m[2] };
   const def = id === "agy:gpt-oss-120b" ? "medium" : EFFORT_GEMINI_DEFECTO;
-  return { modelo: id, effort: effort && NIVELES_AGY.includes(effort) ? effort : def };
+  return { modelo: id, effort: effort && nivelesDe(id).includes(effort) ? effort : def };
 }
 
 /** Lo que se le pasa a `agy --model`: el modelo con su esfuerzo (`gemini-3.8-flash-low`). */
 export const idAgy = (modelo: string, effort: string) =>
-  NIVEL_AGY.test(modelo) || SIN_NIVEL.has(modelo) ? modelo : `${modelo}-${NIVELES_AGY.includes(effort) ? effort : EFFORT_GEMINI_DEFECTO}`;
+  NIVEL_AGY.test(modelo) || SIN_NIVEL.has(modelo) ? modelo : `${modelo}-${nivelesDe(modelo).includes(effort) ? effort : EFFORT_GEMINI_DEFECTO}`;
 
 const TABLA_AGY: Record<string, string> = {
   "gpt-oss-120b-low": "gpt-oss-120b-medium",
