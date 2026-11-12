@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.74
+
+- En el chat, una carpeta nombrada sin la ruta entera (`prompts/ficticios/`, `./fotos`) también es un botón que la abre en el explorador de archivos, desde la carpeta de ese chat. Antes sólo andaba con la ruta completa o con `~`.
+
 ## 0.2.73
 
 - Contexto del modelo local: «Opciones para más contexto» (MTP, precisión del KV, KV en RAM, capas en la GPU) y el botón «Máximo contexto», hasta 262144 tokens, con la RAM que usa.

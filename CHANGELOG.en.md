@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.74
+
+- In the chat, a folder named without its full path (`prompts/ficticios/`, `./fotos`) is also a button that opens it in the file manager, from that chat's folder. Before it only worked with the full path or `~`.
+
 ## 0.2.73
 
 - Local model context: "More context options" (MTP, KV precision, KV in RAM, GPU layers) and the "Maximum context" button, up to 262144 tokens, with the RAM it uses.
