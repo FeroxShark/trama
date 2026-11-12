@@ -15,6 +15,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Avance } from "../ui/Avance";
 import { fuente, SIN_OCUPAR, type AvisoClaude as Aviso, type EstadoActTrama, type OcupacionTrama } from "../datos/fuente";
+import { yaEstrenada } from "./version-pagina";
 import { useFoco } from "../foco";
 import { t } from "../i18n";
 import { enOtros, Fijo, Reserva } from "../i18n/Fijo";
@@ -80,11 +81,16 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
       ? { tipo: "esperando" }
       : act.fase === "instalando"
         ? { tipo: "actualizando" }
-        : act.fase === "hecho"
+        : act.fase === "hecho" && !yaEstrenada(act.version)
           ? { tipo: "instalada", version: act.version }
           : act.fase === "error"
             ? { tipo: "error", texto: act.error }
             : fase;
+  // La ventana ya estrenó la instalada: el «hecho» del main se limpia solo, sin pedir otro reinicio.
+  const estrenada = trama && act.fase === "hecho" && yaEstrenada(act.version);
+  useEffect(() => {
+    if (estrenada) fuente.limpiarTrama();
+  }, [estrenada]);
   // Actualizado, el main ya no avisa (null): el globito sigue con lo último hasta cerrarlo.
   const visto = useRef<Aviso | null>(null);
   const enFase = useRef(faseEf.tipo !== "nada");

@@ -32,6 +32,8 @@ export default defineConfig({
   // Relativo: el build se abre con loadFile (file://), no desde un servidor.
   base: "./",
   clearScreen: false,
+  // La versión de este build: el aviso de Trama nueva (src/barra/AvisoClaude.tsx) sabe si la página ya corre la que se instaló.
+  define: { __TRAMA_VERSION__: JSON.stringify((JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string }).version) },
   server: {
     port: 1430,
     strictPort: true,
