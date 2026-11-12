@@ -83,13 +83,21 @@ function correr(motor: "ts" | "py", t: string, fijos: string, mod: string, med: 
  * Corre en TS y en python, exige la misma salida y devuelve una. La política de modelos de 2026-11-10 vive sólo en el TS (el python está
  * congelado): diseno con piso sonnet, sin Opus en frontend/codigo-multi y, con `ahorro`, historial exigido a lo que no gasta cupo (y `historial` en cada candidato). Ahí corre sólo el TS.
  */
+/** La salida sin los candidatos de Gemini 4 Hydrogen (familia sólo del TS, 2026-11-12): lo que el python congelado puede igualar. */
+const sinHydrogen = (crudo: string) => {
+  const j = JSON.parse(crudo) as Sal;
+  return JSON.stringify({ ...j, candidatos: j.candidatos.filter((c) => !c.modelo.startsWith("gemini-4-hydrogen")) });
+};
 const DIVERGEN_DEL_PY = ["diseno", "frontend", "codigo-multi"];
 function tipo(t: string, fijos: string, mod: string, med = SIN_HISTORIAL) {
   const ts = correr("ts", t, fijos, mod, med);
   const ahorro = JSON.parse(readFileSync(mod, "utf8")).perfil === "ahorro";
   if (DIVERGEN_DEL_PY.includes(t) || ahorro) return { ...ts, py: ts };
   const py = correr("py", t, fijos, mod, med);
-  assert.equal(ts.crudo, py.crudo, `ts y python difieren en ${t}`);
+  // Gemini 4 Hydrogen (2026-11-12) es una familia sólo del TS: si el motivo lo nombra, el python no puede decir lo mismo; si no, se
+  // compara sin sus candidatos.
+  if (/Hydrogen/.test(ts.sal.motivo)) return { ...ts, py: ts };
+  assert.equal(sinHydrogen(ts.crudo), sinHydrogen(py.crudo), `ts y python difieren en ${t}`);
   return { ...ts, py };
 }
 const cand = (s: Sal, m: string) => s.candidatos.find((c) => c.modelo === m)!;
@@ -201,7 +209,7 @@ test("sin ningún otro modelo que sirva, el gratis sin historial vuelve a entrar
   const solo = arch({ version: 1, leido: AHORA, suscripciones: [] });
   const r = correr("ts", "codigo-acotado", solo, modelos({ perfil: "agresivo", excluir: ["claude-*", "gemini-*", "agy:*"] }), SIN_HISTORIAL);
   const py = correr("py", "codigo-acotado", solo, modelos({ perfil: "agresivo", excluir: ["claude-*", "gemini-*", "agy:*"] }), SIN_HISTORIAL);
-  assert.equal(r.crudo, py.crudo);
+  assert.equal(sinHydrogen(r.crudo), sinHydrogen(py.crudo));
   assert.equal(r.sal.modelo, BIG, r.sal.motivo);
   assert.match(r.sal.motivo, /No queda ningún otro modelo que sirva: entra .* aunque no tiene historial en codigo-acotado \(perfil agresivo\)/);
 });

@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.77
+
+- The split uses Gemini 4 Hydrogen (with the Gemini quota and the quality measured by Artificial Analysis) and goes back to using Claude and GPT through Google while agy serves them.
+
 ## 0.2.76
 
 - When Trama updates, the window catches up only once: if it already reloaded itself with the new version, the notice to restart it no longer shows.

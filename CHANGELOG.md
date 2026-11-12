@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.77
+
+- El reparto usa Gemini 4 Hydrogen (con el cupo de Gemini y la calidad medida por Artificial Analysis) y vuelve a usar Claude y GPT por Google mientras agy los sirva.
+
 ## 0.2.76
 
 - Al actualizar Trama la ventana se pone al día una sola vez: si ya se recargó sola con la versión nueva, no aparece el aviso de reiniciarla.

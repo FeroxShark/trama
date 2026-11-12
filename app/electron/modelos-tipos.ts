@@ -17,6 +17,10 @@ export const GEMINI = [
   "gemini-4-argon-low",
   "gemini-4-argon-medium",
   "gemini-4-argon-high",
+  "gemini-4-hydrogen-low",
+  "gemini-4-hydrogen-medium",
+  "gemini-4-hydrogen-high",
+  "gemini-4-hydrogen-xhigh",
   "gemini-3.8-flash-low",
   "gemini-3.8-flash-medium",
   "gemini-3.8-flash-high",
@@ -54,7 +58,7 @@ export const sinCupoDe = (v: SinClaude): SinCupo => (v === "claude" ? "otro" : v
 /** Cuánto del cupo de Claude no tocan los workers cuando el archivo no dice nada (`RESERVA` de `reparto`: 15 % libre = tope de 85 %). */
 export const TOPE_CLAUDE_DEFECTO = 85;
 /** Familias de modelo que `reparto` conoce por nombre (`excluir` las acepta además de ids y patrones con `*`). */
-export const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "argon", "flash", "gpt-oss"] as const;
+export const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "argon", "hydrogen", "flash", "gpt-oss"] as const;
 /** Más entradas en `excluir` que esto no es una lista que alguien arme a mano. */
 export const EXCLUIR_MAX = 50;
 /** Una entrada de `excluir`: una familia, un id o un prefijo con `*` al final; sin espacios ni comillas. */
@@ -183,7 +187,7 @@ export const esAgy = (m: string) => m.startsWith("agy:");
 /** El modelo para el que viene prendido; el resto, apagado hasta que se prende en Ajustes. */
 export const DESTRABAR_DE_FABRICA = ["gemini-3.8-flash"] as const;
 /** `gemini-3.8-flash-low` → `gemini-3.8-flash`; `agy:claude-opus-5-5-high` → `agy:claude-opus-5-5`. La clave del ajuste por modelo. */
-export const claveDestrabo = (modelo: string): string => modelo.replace(/-(low|medium|high)$/, "");
+export const claveDestrabo = (modelo: string): string => modelo.replace(/-(low|medium|high|xhigh)$/, "");
 /** Prendido de fábrica sólo para Gemini 3.8 Flash. */
 export const destrabarPorDefecto = (modelo: string): boolean => (DESTRABAR_DE_FABRICA as readonly string[]).includes(claveDestrabo(modelo));
 /** Lo que dice el ajuste (`destrabar` de modelos.json: sólo las claves que se tocaron) o, sin decir, la fábrica. */

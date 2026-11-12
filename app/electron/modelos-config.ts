@@ -205,6 +205,9 @@ export const familiaDeModelo = (modelo: string): "claude" | "gemini" | "dsh" | "
 };
 
 export const EFFORTS_GEMINI = ["low", "medium", "high"] as const;
+/** Los niveles que agy acepta en el nombre: Hydrogen suma `xhigh`. */
+const NIVEL_AGY = /-(low|medium|high|xhigh)$/;
+const NIVELES_AGY: readonly string[] = [...EFFORTS_GEMINI, "xhigh"];
 export const EFFORT_GEMINI_DEFECTO = "high";
 
 /**
@@ -213,20 +216,20 @@ export const EFFORT_GEMINI_DEFECTO = "high";
  */
 let SIN_NIVEL = new Set<string>();
 export function recordarAgySinNivel(ids: readonly string[]): void {
-  SIN_NIVEL = new Set(ids.filter((i) => !/-(low|medium|high)$/.test(i)));
+  SIN_NIVEL = new Set(ids.filter((i) => !NIVEL_AGY.test(i)));
 }
 
 /** `gemini-4-argon-high` → `{ modelo: "gemini-4-argon", effort: "high" }`; sin sufijo, el esfuerzo es el default. */
 export function partirGemini(id: string, effort?: string | null): { modelo: string; effort: string } {
-  const m = /^((?:gemini-|agy:).+?)-(low|medium|high)$/.exec(id);
+  const m = /^((?:gemini-|agy:).+?)-(low|medium|high|xhigh)$/.exec(id);
   if (m) return { modelo: m[1], effort: m[2] };
   const def = id === "agy:gpt-oss-120b" ? "medium" : EFFORT_GEMINI_DEFECTO;
-  return { modelo: id, effort: effort && (EFFORTS_GEMINI as readonly string[]).includes(effort) ? effort : def };
+  return { modelo: id, effort: effort && NIVELES_AGY.includes(effort) ? effort : def };
 }
 
 /** Lo que se le pasa a `agy --model`: el modelo con su esfuerzo (`gemini-3.8-flash-low`). */
 export const idAgy = (modelo: string, effort: string) =>
-  /-(low|medium|high)$/.test(modelo) || SIN_NIVEL.has(modelo) ? modelo : `${modelo}-${(EFFORTS_GEMINI as readonly string[]).includes(effort) ? effort : EFFORT_GEMINI_DEFECTO}`;
+  NIVEL_AGY.test(modelo) || SIN_NIVEL.has(modelo) ? modelo : `${modelo}-${NIVELES_AGY.includes(effort) ? effort : EFFORT_GEMINI_DEFECTO}`;
 
 const TABLA_AGY: Record<string, string> = {
   "gpt-oss-120b-low": "gpt-oss-120b-medium",
@@ -238,7 +241,7 @@ const TABLA_AGY: Record<string, string> = {
 export function modeloAgy(modelo: string): string {
   const sin = modelo.startsWith("agy:") ? modelo.slice("agy:".length) : modelo;
   if (SIN_NIVEL.has(modelo)) return sin;
-  const con = /-(low|medium|high)$/.test(sin) ? sin : `${sin}-${sin === "gpt-oss-120b" ? "medium" : EFFORT_GEMINI_DEFECTO}`;
+  const con = NIVEL_AGY.test(sin) ? sin : `${sin}-${sin === "gpt-oss-120b" ? "medium" : EFFORT_GEMINI_DEFECTO}`;
   return TABLA_AGY[con] ?? con;
 }
 

@@ -163,6 +163,9 @@ const divergePolitica = (c: Caso): Caso => ({ ...c, divergenciaSalida: DIVERGE_P
 /** Sólo en el TS (2026-11-10): la banda de `preferido_por_tipo` se ancla en el preferido sólo si está vivo. En estos casos el preferido de codigo-acotado (haiku) no tiene cupo: elige el mismo modelo, pero el python suma al motivo «se prefiere la calidad de haiku». */
 const DIVERGE_PREFERIDO = "la banda del preferido sólo vale si el preferido está vivo (sólo en el TS; reparto de python congelado)";
 const divergePreferido = (c: Caso): Caso => ({ ...c, divergenciaSalida: DIVERGE_PREFERIDO });
+/** Gemini 4 Hydrogen (2026-11-12) es una familia sólo del TS: donde entra como candidato o en el camino de hoy, el python no lo nombra. */
+const DIVERGE_HYDROGEN = "Gemini 4 Hydrogen sólo en el TS (reparto de python congelado)";
+const divergeHydrogen = (c: Caso): Caso => ({ ...c, divergenciaSalida: DIVERGE_HYDROGEN });
 
 const TIPOS = ["debug", "diseno", "codigo-multi", "frontend", "final", "codigo-acotado", "lectura", "mecanico"];
 
@@ -286,13 +289,13 @@ const casosSustituir: Caso[] = [
     [["--sustituir", "claude-opus-5-5", "--tipo", "debug", "--registrar", "--json"], 0],
     [["--sustituir", "claude-haiku-5-5", "--registrar"], 1],
   ], { cupos: CUPOS_AGY_LIBRE }),
-  rs("--resumen con el camino de hoy: agy gana", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE }),
-  rs("--resumen con el camino de hoy: agy casi lleno", ["--resumen"], 0, { cupos: CUPOS_AGY_POCO }),
-  rs("--resumen con los gratis de OpenCode agotados", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE, preparar: (c) => escribir(path.join(c.estado, "agotado.json"), { "opencode-free": { hasta: "2026-10-27T00:00:00Z" } }) }),
-  rs("--resumen con opus excluido: el camino de hoy no lo nombra", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE, modelos: { version: 1, excluir: ["opus"] } }),
-  rs("--resumen sin OpenCode", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE, env: { REPARTO_OPENCODE: "0" } }),
-  ...["mecanico", "lectura", "codigo-acotado"].map((t) => rs(`--tipo ${t} con chequeo ofrece primero los gratis de OpenCode`, ["--tipo", t, "--json"], 0, { cupos: CUPOS_AGY_LIBRE, env: { REPARTO_CON_CHEQUEO: "1" } })),
-  rs("--tipo mecanico con chequeo y el límite gratis agotado", ["--tipo", "mecanico"], 0, { env: { REPARTO_CON_CHEQUEO: "1" }, preparar: (c) => escribir(path.join(c.estado, "agotado.json"), { "opencode-free": { hasta: "2026-10-27T00:00:00Z" } }) }),
+  divergeHydrogen(rs("--resumen con el camino de hoy: agy gana", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE })),
+  divergeHydrogen(rs("--resumen con el camino de hoy: agy casi lleno", ["--resumen"], 0, { cupos: CUPOS_AGY_POCO })),
+  divergeHydrogen(rs("--resumen con los gratis de OpenCode agotados", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE, preparar: (c) => escribir(path.join(c.estado, "agotado.json"), { "opencode-free": { hasta: "2026-10-27T00:00:00Z" } }) })),
+  divergeHydrogen(rs("--resumen con opus excluido: el camino de hoy no lo nombra", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE, modelos: { version: 1, excluir: ["opus"] } })),
+  divergeHydrogen(rs("--resumen sin OpenCode", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE, env: { REPARTO_OPENCODE: "0" } })),
+  ...["mecanico", "lectura", "codigo-acotado"].map((t) => divergeHydrogen(rs(`--tipo ${t} con chequeo ofrece primero los gratis de OpenCode`, ["--tipo", t, "--json"], 0, { cupos: CUPOS_AGY_LIBRE, env: { REPARTO_CON_CHEQUEO: "1" } }))),
+  divergeHydrogen(rs("--tipo mecanico con chequeo y el límite gratis agotado", ["--tipo", "mecanico"], 0, { env: { REPARTO_CON_CHEQUEO: "1" }, preparar: (c) => escribir(path.join(c.estado, "agotado.json"), { "opencode-free": { hasta: "2026-10-27T00:00:00Z" } }) })),
   rs("--tipo lectura con chequeo y --mismo-proveedor no cambia", ["--tipo", "lectura", "--mismo-proveedor", "claude"], 0, { env: { REPARTO_CON_CHEQUEO: "1" } }),
 ];
 

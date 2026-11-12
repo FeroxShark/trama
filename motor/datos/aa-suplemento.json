@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-27",
+  "fecha": "2026-11-12",
   "fuente": "artificialanalysis.ai (páginas de modelo y leaderboard), cargado por el dueño",
   "comentario": "Modelos o esfuerzos que la API de Artificial Analysis no trae. reparto (aa_cargar) los usa SOLO si la API no trae esa entrada (mismo modelo y mismo esfuerzo): la API manda. Para ampliar la tabla: agregá una entrada a `modelos` con el nombre al estilo de AA, el esfuerzo entre paréntesis ('(High)', '(Max)'...), `intelligence` (índice de inteligencia general, la base de calidad) y, si los tenés, `cost` (USD que cuesta correr el índice de inteligencia completo: «Cost to Run» de AA), `tokens` (tokens de salida de esa corrida), `time` (segundos, como lo publica AA), `coding`, `agentic`. `aproximado: true` si la cifra es una lectura aproximada del gráfico. Actualizá `fecha` al cargar datos nuevos.",
   "modelos": [
@@ -19,6 +19,10 @@
     { "name": "Claude Haiku 5.5 (Medium)", "slug": "claude-haiku-5-5-medium", "intelligence": 34.46, "cost": 56.36, "tokens": 53785057, "time": 119.4 },
     { "name": "Claude Haiku 5.5 (Low)", "slug": "claude-haiku-5-5-low", "intelligence": 29.45, "cost": 34.31, "tokens": 32289694, "time": 61.5 },
     { "name": "Gemini 4 Argon (High)", "slug": "gemini-4-argon", "intelligence": 52.56, "cost": 2101.26, "tokens": 112847057, "time": 723.0 },
+    { "name": "Gemini 4 Hydrogen (XHigh)", "slug": "gemini-4-hydrogen-xhigh", "intelligence": 54, "nota": "Artificial Analysis, índice v5.0.1 (2026-11-12)." },
+    { "name": "Gemini 4 Hydrogen (High)", "slug": "gemini-4-hydrogen", "intelligence": 51, "nota": "Artificial Analysis, índice v5.0.1 (2026-11-12)." },
+    { "name": "Gemini 4 Hydrogen (Medium)", "slug": "gemini-4-hydrogen-medium", "intelligence": 41, "nota": "Artificial Analysis, índice v5.0.1 (2026-11-12)." },
+    { "name": "Gemini 4 Hydrogen (Low)", "slug": "gemini-4-hydrogen-low", "intelligence": 27, "nota": "Artificial Analysis, índice v5.0.1 (2026-11-12)." },
     { "name": "Gemini 3.8 Flash (High)", "slug": "gemini-3-8-flash", "intelligence": 40.93, "cost": 3769.96, "tokens": 172228415, "time": 519.8 },
     { "name": "Gemini 3.8 Flash (Medium)", "slug": "gemini-3-8-flash-medium", "intelligence": 39.77 },
     { "name": "Gemini 3.8 Flash (Low)", "slug": "gemini-3-8-flash-low", "intelligence": 33.45 },

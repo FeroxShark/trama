@@ -88,7 +88,7 @@ export function viejaAAa(q: number): number {
 
 // --- defaults ----------------------------------------------------------------------------------------
 const CALIDAD: Obj = {
-  opus: 100, sonnet: 88, argon: 85, haiku: 60, "gpt-oss": 45, flash: 60,
+  opus: 100, sonnet: 88, hydrogen: 88, argon: 85, haiku: 60, "gpt-oss": 45, flash: 60,
   astra: 85, sol: 88, luna: 60,
   "dsh:opencode/big-pickle": 60, "dsh:opencode/deepseek-v4.1-flash-free": 60, "dsh:opencode/glm-5.3-flash-free": 55,
   "dsh:opencode/longcat-2.5-preview-free": 45, "dsh:opencode/flint-40b-free": 40,
@@ -117,12 +117,12 @@ const EFFORT_POR_TIPO: Obj = {
   debug: "high", diseno: "high", "codigo-multi": "high", frontend: "high", final: "high",
   "codigo-acotado": "medium", lectura: "medium", mecanico: "high",
 };
-const COSTO: Obj = { opus: 1.0, argon: 0.6, sonnet: 0.35, "gpt-oss": 0.15, haiku: 0.12, flash: 0.2, astra: 1.0, sol: 0.6, luna: 0.08 };
+const COSTO: Obj = { opus: 1.0, argon: 0.6, sonnet: 0.35, hydrogen: 0.3, "gpt-oss": 0.15, haiku: 0.12, flash: 0.2, astra: 1.0, sol: 0.6, luna: 0.08 };
 const COSTO_FLOAT = ["opus", "astra"]; // los 1.0 de COSTO (en JS no se distinguen de un 1)
 const RESERVA = null;
 const AVISO_USO = 0.85;
 const SIN_CUPO = ["otro", "esperar", "fallar"];
-const FAMILIAS_EXCLUIBLES = ["fable", "opus", "sonnet", "haiku", "argon", "flash", "gpt-oss", "astra", "sol", "luna"];
+const FAMILIAS_EXCLUIBLES = ["fable", "opus", "sonnet", "haiku", "argon", "hydrogen", "flash", "gpt-oss", "astra", "sol", "luna"];
 const LLENA = 0.03;
 const MARGEN = 3.0;
 const PESO_SOBRA = 0.5;
@@ -159,15 +159,18 @@ const AGY_MIN_LIBRE_5H = 0.3;
 const AGY_MIN_LIBRE_TIPOS = ["codigo-*", "frontend", "debug", "diseno"];
 const CACHE_S = 120.0;
 const CACHE_CORTA_S = 30.0;
-const GRUPOS_HASTA: Obj = { "claude-gpt": "2026-11-02" };
+// Sin vencimiento por defecto: si Google deja de servir Claude/GPT por agy, `agy models` ya no los lista y reparto no los ofrece.
+// Quien quiera cortarlos en una fecha la pone en modelos.json (`grupos_hasta`).
+const GRUPOS_HASTA: Obj = {};
 
 type Grupo = [string, string, string[], string[]];
 const GRUPOS_GOOGLE: Grupo[] = [
-  ["gemini", "Gemini", ["5h", "7d"], ["gemini-3.8-flash"]],
+  ["gemini", "Gemini", ["5h", "7d"], ["gemini-4-hydrogen", "gemini-3.8-flash"]],
   ["claude-gpt", "Claude y GPT por Google", ["5h", "7d"], ["agy:claude-opus-5-5", "agy:claude-sonnet-5-5", "agy:gpt-oss-120b"]],
   ["gemini-4-argon", "Gemini 4 Argon", ["7d"], ["gemini-4-argon"]],
 ];
 const EFFORTS_AGY = ["low", "medium", "high"];
+const EFFORTS_HYDROGEN = ["low", "medium", "high", "xhigh"];
 const GRUPOS_OPENAI: Grupo[] = [["codex", "Codex (ChatGPT)", ["5h", "7d"], ["codex:gpt-6.1-sol", "codex:gpt-6-luna", "codex:gpt-6-astra"]]];
 const EFFORTS_CODEX = ["low", "medium", "high"];
 const DSH_OPENCODE_GRATIS = ["big-pickle", "deepseek-v4.1-flash-free", "glm-5.3-flash-free", "flint-40b-free", "longcat-2.5-preview-free"];
@@ -201,6 +204,7 @@ const FAMILIAS: Familia[] = [
   ["agy:claude-sonnet-5-5", "sonnet", "Claude Sonnet 5.5 (por Google)", "google", "claude-gpt", "claude-sonnet-5-5", EFFORTS_AGY],
   ["agy:gpt-oss-120b", "gpt-oss", "GPT-OSS 120B", "google", "claude-gpt", "gpt-oss-120b", ["medium"]],
   ["gemini-4-argon", "argon", "Gemini 4 Argon", "google", "gemini-4-argon", "gemini-4-argon", EFFORTS_AGY],
+  ["gemini-4-hydrogen", "hydrogen", "Gemini 4 Hydrogen", "google", "gemini", "gemini-4-hydrogen", EFFORTS_HYDROGEN],
   ["gemini-3.8-flash", "flash", "Gemini 3.8 Flash", "google", "gemini", "gemini-3.8-flash", EFFORTS_AGY],
   ["codex:gpt-6.1-sol", "sol", "GPT-6.1 Sol (Codex)", "openai", "codex", "gpt-6.1-sol", EFFORTS_CODEX],
   ["codex:gpt-6-astra", "astra", "GPT-6 Astra (Codex)", "openai", "codex", "gpt-6-astra", EFFORTS_CODEX],
@@ -1307,7 +1311,7 @@ function cuposGoogle(cfg: Obj, state: string, now: Date, cuenta: Obj | null = nu
   const grupos: Obj[] = [];
   for (const [gid, nombre, wids, baseModelos] of GRUPOS_GOOGLE) {
     const modelos: string[] = [];
-    for (const b of baseModelos) for (const e of b.includes("gpt-oss") ? ["medium"] : EFFORTS_AGY) modelos.push(`${b}-${e}`);
+    for (const b of baseModelos) for (const e of b.includes("gpt-oss") ? ["medium"] : b.includes("hydrogen") ? EFFORTS_HYDROGEN : EFFORTS_AGY) modelos.push(`${b}-${e}`);
     const vs = porId[gid] ?? {};
     const g: Obj = { id: gid, nombre, modelos, ventanas: wids.map((w) => vs[w] || ventana(w, null, null)) };
     const h = cfg.grupos_hasta[gid];
@@ -3312,6 +3316,7 @@ function paraQueSirve(f: Obj): string {
     sonnet: "pedido ambiguo, varias partes, o si Haiku ya falló",
     haiku: "default si la tarea se describe con precisión (archivos, qué cambiar, listo, chequeo): lectura, mecánico, código e interfaz chica",
     argon: "diseño y segunda opinión; contexto largo (1M)",
+    hydrogen: "código e interfaz al nivel de Sonnet; cupo de Gemini (el mismo que Flash)",
     flash: "lectura y mecánico con chequeo; cupo de Google",
     "gpt-oss": "mecánico simple; sigue poco el contrato",
     astra: "tareas grandes (ChatGPT); pa todavía no lo lanza", sol: "código medio (ChatGPT); pa todavía no lo lanza",
