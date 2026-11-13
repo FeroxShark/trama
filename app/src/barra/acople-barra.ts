@@ -2,6 +2,7 @@ import {
   CLAVE_ACOPLE,
   abrir,
   acopleDeFabrica,
+  alternarPlegado,
   cerrar,
   leerAcople,
   mover,
@@ -24,9 +25,15 @@ export function acopleInicialBarra(p: ParamsInicialAcople): Acople {
   if (p.datosFijos) {
     let a = acopleDeFabrica();
     if (p.captura === "acople-app-movido") a = mover(a, "contexto", "izq");
-    else if (p.captura === "oculta") a = cerrar(a, "chats");
+    else if (p.captura === "acople-cupo") {
+      a = alternarPlegado(a, "cupo");
+      if (p.variante === "abajo") a = mover(a, "cupo", "abajo");
+    } else if (p.captura === "oculta") a = cerrar(a, "chats");
     if (p.variante?.endsWith("-angosta") || p.variante?.endsWith("-300")) a = redimensionar(a, "izq", p.ancho);
-    if (!p.consumo) a = cerrar(a, "contexto");
+    if (!p.consumo) {
+      a = cerrar(a, "contexto");
+      a = cerrar(a, "cupo");
+    }
     return a;
   }
 

@@ -276,6 +276,7 @@ const CAPTURAS = [
   "acople-demo-movido",
   "acople-app",
   "acople-app-movido",
+  "acople-cupo",
 ] as const;
 
 export type Captura = (typeof CAPTURAS)[number];
@@ -329,7 +330,7 @@ export const MODO = {
   fixtures: q.has("fixtures") ? q.get("fixtures") !== "0" : true,
   /** La vista de la barra al abrir (preferencias.json): todo o sólo líderes. */
   /** El panel de contexto (a la derecha) a la vista al abrir (preferencias.json); sin nada guardado, oculto. */
-  consumo: q.get("consumo") === "1" || (captura?.startsWith("contexto-panel") ?? false) || (captura?.startsWith("acople-app") ?? false) || captura === "worker-vista-rutas",
+  consumo: q.get("consumo") === "1" || (captura?.startsWith("contexto-panel") ?? false) || (captura?.startsWith("acople-app") ?? false) || captura === "acople-cupo" || captura === "worker-vista-rutas",
   /** Cómo se llama esta máquina (lo pasa el main con datos reales): va en la ficha de cada worker. */
   maquina: q.get("maquina"),
   /** La ventana es cliente del motor (electron/ventana-cliente.ts): lo que se cae es el motor, no la PC. */

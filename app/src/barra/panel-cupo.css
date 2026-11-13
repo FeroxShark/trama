@@ -1,0 +1,440 @@
+// Estilos del panel acoplable de Cupo, sólo con tokens de diseño y responsivo por container queries.
+.panel-cupo {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+  color: var(--texto);
+  font-size: var(--letra-4);
+}
+
+.pc-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-3);
+  border-bottom: 1px solid var(--borde-1);
+}
+
+.pc-act {
+  font-size: var(--letra-3);
+  color: var(--inactivo);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pc-act[data-fallo] {
+  color: var(--cupo-agotado-texto);
+}
+
+.pc-releer {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--borde-3);
+  background: var(--capa-tile);
+  color: var(--apagado);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pc-releer:hover:not(:disabled) {
+  color: var(--texto);
+  border-color: var(--borde-5);
+}
+
+.pc-releer:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pc-releer:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+
+.pc-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+  padding: var(--esp-3);
+  overflow: auto;
+  flex: 1 1 0%;
+  min-height: 0;
+}
+
+.panel-cupo[data-viejo] .pc-cifra,
+.panel-cupo[data-viejo] .pc-val {
+  color: var(--inactivo);
+}
+
+.pc-error {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin: var(--esp-3);
+  padding: var(--esp-2-5) var(--esp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--cupo-agotado-borde);
+  background: var(--cupo-agotado-fondo);
+  color: var(--cupo-agotado-texto);
+  font-size: var(--letra-4);
+}
+
+.pc-bloque {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+  padding: var(--esp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--borde-3);
+  background: var(--capa-card);
+}
+
+.pc-ritmo[data-nivel="agotado"] {
+  border-color: var(--cupo-agotado-borde);
+}
+
+.pc-ritmo[data-nivel="atencion"] {
+  border-color: var(--decision-borde);
+}
+
+.pc-bloque-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  flex-wrap: wrap;
+}
+
+.pc-tit-grupo {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.pc-tit-grupo h3,
+.pc-tit-grupo h4 {
+  margin: 0;
+  font-size: var(--letra-5);
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.pc-subtitulo {
+  font-size: var(--letra-3);
+  color: var(--inactivo);
+}
+
+.pc-pill-uso {
+  padding: var(--esp-0-5) var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--acento-tinte);
+  border: 1px solid var(--ajustes-acento-borde);
+  color: var(--texto);
+  font-size: var(--letra-2);
+  font-weight: 500;
+}
+
+.pc-cuenta-acc {
+  flex-shrink: 0;
+}
+
+.pc-cifra {
+  font-size: var(--letra-7);
+  font-weight: 600;
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-val {
+  font-size: var(--letra-4);
+  font-weight: 600;
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-val-apagado {
+  color: var(--inactivo);
+  font-weight: 400;
+}
+
+.pc-v-der {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  flex-shrink: 0;
+}
+
+.pc-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: var(--esp-0-5) var(--esp-2);
+  border-radius: var(--r-cap);
+  font-size: var(--letra-2);
+  font-weight: 500;
+  background: var(--capa-tile);
+  color: var(--apagado);
+  border: 1px solid var(--borde-3);
+}
+
+.pc-estado[data-nivel="bien"] {
+  background: var(--ok-tinte);
+  border-color: var(--ajustes-ok-borde);
+  color: var(--ok);
+}
+
+.pc-estado[data-nivel="atencion"] {
+  background: var(--aviso-tinte);
+  border-color: var(--decision-borde);
+  color: var(--cupo-poco-texto);
+}
+
+.pc-estado[data-nivel="agotado"] {
+  background: var(--cupo-agotado-fondo);
+  border-color: var(--cupo-agotado-borde);
+  color: var(--cupo-agotado-texto);
+}
+
+.pc-medidor {
+  position: relative;
+  padding: var(--esp-1) 0;
+}
+
+.pc-pista {
+  height: var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+  overflow: hidden;
+}
+
+.pc-relleno {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-cap);
+  background: var(--ok);
+}
+
+.pc-relleno[data-nivel="atencion"] {
+  background: var(--aviso);
+}
+
+.pc-relleno[data-nivel="agotado"] {
+  background: var(--critico);
+}
+
+.pc-marca {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--esp-0-5);
+  margin-left: -1px;
+  background: var(--texto);
+  border-radius: var(--r-cap);
+}
+
+.pc-ritmo-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  flex-wrap: wrap;
+}
+
+.pc-veredicto {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  margin: 0;
+  font-size: var(--letra-3);
+  font-weight: 500;
+  color: var(--apagado);
+}
+
+.pc-veredicto[data-nivel="bien"] {
+  color: var(--ok);
+}
+
+.pc-veredicto[data-nivel="atencion"] {
+  color: var(--cupo-poco-texto);
+}
+
+.pc-veredicto[data-nivel="agotado"] {
+  color: var(--cupo-agotado-texto);
+}
+
+.pc-sin-ritmo {
+  margin: 0;
+  padding: var(--esp-2-5) var(--esp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--borde-2);
+  color: var(--inactivo);
+  font-size: var(--letra-3);
+}
+
+.pc-sec-tit {
+  margin: var(--esp-1) 0 0;
+  font-size: var(--letra-3);
+  font-weight: 600;
+  color: var(--inactivo);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pc-tarjetas {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--esp-2-5);
+}
+
+.pc-grupos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+}
+
+.pc-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+
+.pc-grupo + .pc-grupo {
+  padding-top: var(--esp-2);
+  border-top: 1px solid var(--borde-1);
+}
+
+.pc-grupo-cab {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--esp-2);
+}
+
+.pc-grupo-nom {
+  font-size: var(--letra-4);
+  font-weight: 500;
+  color: var(--apagado);
+}
+
+.pc-ventanas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+
+.pc-ventana {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+}
+
+.pc-v-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  flex-wrap: wrap;
+}
+
+.pc-v-nom {
+  font-size: var(--letra-3);
+  color: var(--apagado);
+}
+
+.pc-barra {
+  height: var(--esp-1-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+  overflow: hidden;
+}
+
+.pc-barra-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-cap);
+  background: var(--ok);
+}
+
+.pc-barra-fill[data-nivel="atencion"] {
+  background: var(--aviso);
+}
+
+.pc-barra-fill[data-nivel="agotado"] {
+  background: var(--critico);
+}
+
+.pc-sub {
+  font-size: var(--letra-3);
+  color: var(--inactivo);
+}
+
+.pc-sub:empty {
+  display: none;
+}
+
+.pc-sin-limite {
+  margin: 0;
+  font-size: var(--letra-3);
+  color: var(--inactivo);
+}
+
+.pc-pie {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  padding-top: var(--esp-1);
+}
+
+.pc-nota {
+  margin: 0;
+  font-size: var(--letra-3);
+  color: var(--inactivo);
+  line-height: 1.4;
+}
+
+.pc-ver {
+  padding: var(--esp-1-5) var(--esp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--borde-3);
+  background: var(--capa-tile);
+  color: var(--texto);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.pc-ver:hover {
+  border-color: var(--borde-5);
+}
+
+.pc-ver:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+
+@container (min-width: 27.5rem) {
+  .pc-tarjetas {
+    grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr));
+    align-items: start;
+  }
+}
+
+@container (max-width: 18.75rem) {
+  .pc-scroll {
+    padding: var(--esp-2);
+    gap: var(--esp-2);
+  }
+  .pc-bloque {
+    padding: var(--esp-2-5);
+  }
+}

@@ -21,7 +21,7 @@ import {
   type Ref,
 } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
-import { BarChart3, ChevronDown, Crown, GitBranch, Layers, MessageSquare, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, type LucideIcon } from "lucide-react";
+import { BarChart3, ChevronDown, Crown, Gauge, GitBranch, Layers, MessageSquare, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, type LucideIcon } from "lucide-react";
 import { cerrable, cerrado, comoSettle, GENERAL, VERSION, type Caido, type ConvClaudeCode, type Estado, type EventoPa, type Hilo, type Leidos, type Lider, type Nombres, type Orden, type RespuestaLideres } from "../datos/contrato";
 import { compactarFijo, escenaFija, fuente } from "../datos/fuente";
 import { ARRANCANDO, EN_COLA, FRENADO, imagenFija } from "../datos/fixtures";
@@ -140,6 +140,7 @@ import { huboCambio } from "../hilo/cambios";
 import { alLeerVista, vueltaInicial } from "../volver";
 import { copiarConAviso } from "../copiar";
 import { CuposRiel } from "./CuposRiel";
+import { PanelCupo } from "./PanelCupo";
 import { Glifo } from "./Glifo";
 import { latir } from "./latido";
 import { estiloProyecto, Riel } from "./Riel";
@@ -2282,7 +2283,7 @@ export function Barra() {
         {/* El panel de contexto, a la derecha de todo: el líder que se mira (o el del worker que se mira) y sus workers. */}
     </Fragment>
   );
-  const VIVOS_APP: readonly PanelId[] = ["chats", "contexto"];
+  const VIVOS_APP: readonly PanelId[] = ["chats", "contexto", "cupo"];
   const panelesAcople: Partial<Record<PanelId, PanelDef>> = {
     chats: {
       titulo: tr("acople.chats"),
@@ -2297,6 +2298,11 @@ export function Barra() {
           <PanelContexto acoplado lider={liderContexto} workers={workersContexto} alCerrar={alternarConsumo} alAbrirHilo={abrir} />
         </Suspense>
       ),
+    },
+    cupo: {
+      titulo: tr("acople.cupo"),
+      icono: <Gauge size={16} strokeWidth={1.8} aria-hidden></Gauge>,
+      contenido: <PanelCupo />,
     },
   };
 

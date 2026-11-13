@@ -6,8 +6,6 @@
 // `claude` el uso como lo dice claude.ai (`get_usage`); si no puede, lo dice y deja lo viejo apagado, nunca como si fuera de ahora.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RotateCw } from "lucide-react";
-import type { Uso } from "../datos/contrato";
-import { fuente } from "../datos/fuente";
 import { cuentaParaElegir, filasDeCupos, type ListaCuentas } from "../datos/cuentas";
 import { t, textoMain } from "../i18n";
 import { useIdioma } from "../i18n/react";
@@ -22,10 +20,9 @@ import { textoVuelve } from "./cuposNota";
 import { ElegirCuenta, useCuentasBarra } from "./ElegirCuenta";
 import { PerfilRiel } from "./PerfilRiel";
 import { Reloj } from "./piezas";
+import { pintorActualizado, useUso } from "./useUso";
 import { formatearFalta, type Unidades } from "./usoFila";
 
-/** Después de un clic el botón de releer descansa esto. */
-const PAUSA_MS = 5000;
 
 /** Las capturas `uso*` dejan el detalle abierto. */
 const VER_ABIERTO = !!MODO.captura?.startsWith("uso");
@@ -79,12 +76,6 @@ function Insignia({ nivel }: { nivel: NivelAnillo }) {
   );
 }
 
-/** «Actualizado hace 2 m»; si la última lectura falló, «No se pudo actualizar · datos de hace 8 m». */
-const pintorActualizado = (ts: number, fallo: boolean): Pintor => (a) => {
-  const h = ts ? pintorHace(ts)(a) : null;
-  if (fallo) return { texto: h ? t("riel.noActualizoVisto", { hace: h.texto }) : t("riel.noActualizo"), en: h?.en ?? Infinity };
-  return { texto: h ? t("riel.actualizado", { hace: h.texto }) : "", en: h?.en ?? Infinity };
-};
 
 const unidades = (): Unidades => ({ d: t("tiempo.unidadD"), h: t("tiempo.unidadH"), min: t("tiempo.unidadMin"), s: t("tiempo.unidadS"), ya: t("tiempo.ya") });
 
@@ -213,33 +204,11 @@ function Linea({ l, cuentas, alCambiar, titulo }: { l: LineaRiel; cuentas: Lista
 
 export function CuposRiel() {
   useIdioma();
-  // `undefined`: todavía no llegó. `null`: llegó y no hay de dónde sacarlo.
-  const [uso, setUso] = useState<Uso | null | undefined>(undefined);
-  const [pausa, setPausa] = useState(false);
-  // La última lectura a pedido falló: lo que se ve es lo de antes, y se muestra apagado y diciéndolo.
-  const [fallo, setFallo] = useState(false);
+  const { uso, fallo, pausa, releer } = useUso();
   const [abierto, setAbierto] = useState(VER_ABIERTO);
-  const reloj = useRef(0);
   const caja = useRef<HTMLDivElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
   const [cuentas, releerCuentas] = useCuentasBarra();
-
-  useEffect(() => {
-    let vivo = true;
-    void fuente.uso().then(
-      (u) => vivo && setUso(u),
-      () => vivo && setUso(null),
-    );
-    const soltar = fuente.alCambiarUso((u) => {
-      setUso(u);
-      if (u && !("error" in u)) setFallo(false);
-    });
-    return () => {
-      vivo = false;
-      soltar();
-      clearTimeout(reloj.current);
-    };
-  }, []);
 
   // Se cierra con Esc (el foco vuelve a los anillos) o con un clic afuera.
   useEffect(() => {
@@ -261,23 +230,6 @@ export function CuposRiel() {
     };
   }, [abierto]);
 
-  const releer = () => {
-    setPausa(true);
-    reloj.current = window.setTimeout(() => setPausa(false), PAUSA_MS);
-    void fuente.releerUso().then(
-      (u) => {
-        if (u && !("error" in u)) {
-          setUso(u);
-          setFallo(false);
-        } else {
-          setFallo(true);
-          // Sin nada anterior que mostrar, el error ocupa el lugar de los números.
-          setUso((antes) => (antes && !("error" in antes) ? antes : u));
-        }
-      },
-      () => setFallo(true),
-    );
-  };
 
   const error = uso && "error" in uso ? uso.error : null;
   const datos = uso && !("error" in uso) ? uso : null;
