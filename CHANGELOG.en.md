@@ -3,6 +3,7 @@
 ## 0.2.78
 
 - The «Context before compacting» setting now also applies to leaders: an Opus leader set to 300,000 compacts at that size on start and on resume, and the context panel shows that cap as its limit instead of 1,000,000.
+- Settings > Models: the «Context before compacting» chips look like chips again and the «Unstick» list sits under its title.
 
 ## 0.2.77
 
