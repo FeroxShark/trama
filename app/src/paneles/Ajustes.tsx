@@ -83,11 +83,11 @@ function Apariencia() {
               data-tema-id={id}
               onClick={() => elegirApariencia({ tema: id })}
             >
-              {/* La muestra pinta con los tokens del tema de la propia muestra (temas-colores.css); "sistema" es mitad oscuro, mitad claro. */}
+              {/* La muestra pinta con los tokens del tema de la propia muestra (temas-colores.css); "sistema" es mitad grafito, mitad claro. */}
               <span className="pn-muestra" aria-hidden="true">
                 {id === "sistema" ? (
                   <>
-                    <i data-tema="oscuro" />
+                    <i data-tema="grafito" />
                     <i data-tema="claro" />
                   </>
                 ) : (

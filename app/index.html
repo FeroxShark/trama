@@ -12,13 +12,13 @@
       (function () {
         var t = new URLSearchParams(location.search).get("tema");
         try { if (!t) t = localStorage.getItem("trama.tema"); } catch (e) {}
-        if (["sistema", "oscuro", "claro", "bosque", "atardecer", "grafito", "contraste"].indexOf(t) < 0) t = "oscuro";
-        if (t === "sistema") t = matchMedia("(prefers-color-scheme: light)").matches ? "claro" : "oscuro";
+        if (["sistema", "grafito", "tinta", "carbon", "shell", "catppuccin", "tokyo", "gruvbox", "nord", "rosepine", "dracula", "claro", "contraste"].indexOf(t) < 0) t = "grafito";
+        if (t === "sistema") t = matchMedia("(prefers-color-scheme: light)").matches ? "claro" : "grafito";
         document.documentElement.setAttribute("data-tema", t);
       })();
     </script>
     <style>
-      html, body { background: #0a0a0a; margin: 0; }
+      html, body { background: #08080a; margin: 0; }
       html[data-tema="claro"], html[data-tema="claro"] body { background: #e9ecf1; }
     </style>
   </head>

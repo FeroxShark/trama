@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { esTema, resolverTema, TEMAS } from "../src/temas.ts";
+import { esTema, resolverTema, TEMAS, TEMA_DEF } from "../src/temas.ts";
 import { normalizar } from "../src/tipografia.ts";
 
 const raiz = path.join(import.meta.dirname, "..");
@@ -110,8 +110,8 @@ for (const id of PINTADOS) {
   });
 }
 
-test("el bloque oscuro de temas-colores.css no se separa de :root", () => {
-  const o = declaraciones(bloque(temasCss, '[data-tema="oscuro"]'));
+test("el bloque grafito de temas-colores.css no se separa de :root", () => {
+  const o = declaraciones(bloque(temasCss, '[data-tema="grafito"]'));
   for (const [k, v] of Object.entries(o)) assert.equal(v, raizTokens[k], `${k} difiere de :root`);
 });
 
@@ -133,10 +133,32 @@ test("el script de index.html conoce los mismos ids que src/temas.ts", () => {
 
 test("resolver y normalizar", () => {
   assert.equal(resolverTema("sistema", true), "claro");
-  assert.equal(resolverTema("sistema", false), "oscuro");
-  assert.equal(resolverTema("bosque", true), "bosque");
+  assert.equal(resolverTema("sistema", false), "grafito");
+  assert.equal(resolverTema("catppuccin", true), "catppuccin");
   assert.ok(esTema("grafito") && !esTema("rosa") && !esTema(null));
   assert.equal(normalizar({ tema: "claro" }).tema, "claro");
-  assert.equal(normalizar({ tema: "violeta" }).tema, "oscuro");
-  assert.equal(normalizar(null).tema, "oscuro");
+  assert.equal(normalizar({ tema: "violeta" }).tema, "grafito");
+  assert.equal(normalizar(null).tema, "grafito");
+  // Los ids de la piel de vidrio no son temas: una preferencia guardada con uno de ellos pasa a grafito.
+  for (const viejo of ["oscuro", "bosque", "atardecer"]) {
+    assert.ok(!esTema(viejo), viejo);
+    assert.equal(normalizar({ tema: viejo }).tema, "grafito", viejo);
+  }
+});
+
+test("el juego de temas es el de la piel lisa y grafito es el de por defecto", () => {
+  assert.deepEqual([...TEMAS], ["sistema", "grafito", "tinta", "carbon", "shell", "catppuccin", "tokyo", "gruvbox", "nord", "rosepine", "dracula", "claro", "contraste"]);
+  assert.equal(TEMA_DEF, "grafito");
+});
+
+test("piel lisa: tokens.css y temas-colores.css no tienen degradados ni sombra de panel, y cada tema define los papeles nuevos", () => {
+  assert.doesNotMatch(tokensCss + temasCss, /(linear|radial|conic)-gradient/);
+  assert.match(raizTokens["--sombra-vidrio"], /^0 0 0 0 transparent/);
+  for (const id of PINTADOS) {
+    const t = declaraciones(bloque(temasCss, `[data-tema="${id}"]`));
+    for (const k of ["--probar", "--carpeta", "--fam-opus", "--fam-sonnet", "--fam-haiku"]) assert.ok(t[k], `${id} no define ${k}`);
+    assert.match(t["--fondo-ventana"], /^#[0-9a-f]{6}$/i, `${id}: el fondo de la ventana es un color liso`);
+    assert.equal(t["--vidrio-opaco"], t["--vidrio"], `${id}: el panel es opaco`);
+    assert.equal(t["--sombra-vidrio"], undefined, `${id}: el tema no pone sombra al panel`);
+  }
 });
