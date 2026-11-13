@@ -1,19 +1,23 @@
 // Panel acoplable de Cupo: muestra todas las suscripciones configuradas, el uso y reinicio de sus ventanas,
 // selector de cuenta cuando hay varias, y el ritmo semanal de Claude contra lo esperado a esta altura de la semana.
-import { Fragment, useMemo } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Minus, RotateCw } from "lucide-react";
 import { cuentaParaElegir } from "../datos/cuentas";
-import { t, textoMain } from "../i18n";
+import { fuente, type EstadoPlanDia, type ModoPlanDia } from "../datos/fuente";
+import { t, textoMain, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { abrirAjustes } from "../paneles/ajustes-nav";
+import { mensaje } from "../puente";
 import type { Pintor } from "../reloj";
 import { VIEJO_S, pintorVisto } from "../tiempo";
-import { IcAtencion, IcCerrar, IcOk, IcSinCupo } from "../ui/iconos";
+import { IcAtencion, IcAviso, IcCerrar, IcOk, IcPerfilAgresivo, IcPerfilAhorro, IcPerfilEquilibrado, IcSinCupo } from "../ui/iconos";
 import { LogoCaja, type Proveedor } from "../ui/logos";
 import { textoVuelve } from "./cuposNota";
 import { ElegirCuenta, useCuentasBarra } from "./ElegirCuenta";
 import {
   armarSuscripcionesPanel,
+  formatearAusente,
+  MARCHAS_PLAN_DIA,
   ritmoPanel,
   type NivelVentana,
   type RitmoPanel,
@@ -165,6 +169,141 @@ function TarjetaRitmo({ r }: { r: RitmoPanel }) {
   );
 }
 
+const ICONOS_MARCHA = {
+  ahorrar: IcPerfilAhorro,
+  normal: IcPerfilEquilibrado,
+  gastar: IcPerfilAgresivo,
+} as const;
+
+const CLAVES_MARCHA: Record<ModoPlanDia, { nombre: ClaveSola; que: ClaveSola }> = {
+  ahorrar: { nombre: "pcupo.planDiaAhorrar", que: "pcupo.planDiaAhorrarQue" },
+  normal: { nombre: "pcupo.planDiaNormal", que: "pcupo.planDiaNormalQue" },
+  gastar: { nombre: "pcupo.planDiaGastar", que: "pcupo.planDiaGastarQue" },
+};
+
+function TarjetaPlanDia() {
+  const [plan, setPlan] = useState<EstadoPlanDia>({ modo: "normal", ausente: [] });
+  const [cargado, setCargado] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const vivo = useRef(true);
+  const ocupado = useRef(false);
+
+  const leer = useCallback(() => {
+    void fuente.planDia().then(
+      (p) => {
+        if (!vivo.current || ocupado.current) return;
+        setPlan(p);
+        setCargado(true);
+        setError(null);
+      },
+      (x) => {
+        if (!vivo.current || ocupado.current) return;
+        setCargado(true);
+        setError(t("pcupo.planDiaLeerFallo", { motivo: mensaje(x) }));
+      },
+    );
+  }, []);
+
+  useEffect(() => {
+    vivo.current = true;
+    leer();
+    window.addEventListener("focus", leer);
+    return () => {
+      vivo.current = false;
+      window.removeEventListener("focus", leer);
+    };
+  }, [leer]);
+
+  const elegir = async (nuevo: ModoPlanDia) => {
+    if (ocupado.current) return;
+    if (cargado && nuevo === plan.modo && !error) return;
+    const antes = plan;
+    ocupado.current = true;
+    setGuardando(true);
+    setError(null);
+    setPlan({ ...antes, modo: nuevo });
+    try {
+      const quedo = await fuente.fijarPlanDia(nuevo);
+      if (vivo.current) {
+        setPlan(quedo);
+        setCargado(true);
+      }
+    } catch (x) {
+      if (vivo.current) {
+        setPlan(antes);
+        setError(t("pcupo.planDiaFallo", { motivo: mensaje(x) }));
+      }
+    } finally {
+      ocupado.current = false;
+      if (vivo.current) setGuardando(false);
+    }
+  };
+
+  const flechas = (e: KeyboardEvent<HTMLDivElement>) => {
+    const d = e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : e.key === "ArrowUp" || e.key === "ArrowLeft" ? -1 : 0;
+    if (!d) return;
+    const ops = [...e.currentTarget.querySelectorAll<HTMLButtonElement>("button")];
+    const i = ops.indexOf(document.activeElement as HTMLButtonElement);
+    e.preventDefault();
+    ops[(i + d + ops.length) % ops.length]?.focus();
+  };
+
+  return (
+    <section className="pc-bloque pc-plan-dia" aria-label={t("pcupo.planDiaTitulo")}>
+      <header className="pc-bloque-cab">
+        <div className="pc-tit-grupo">
+          <h3>{t("pcupo.planDiaTitulo")}</h3>
+        </div>
+        {guardando ? (
+          <span className="pc-plan-estado" role="status">
+            {t("pcupo.planDiaGuardando")}
+          </span>
+        ) : null}
+      </header>
+
+      <div className="pc-marchas" role="radiogroup" aria-label={t("pcupo.planDiaTitulo")} onKeyDown={flechas}>
+        {MARCHAS_PLAN_DIA.map((id) => {
+          const Ic = ICONOS_MARCHA[id];
+          const elegido = id === plan.modo;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={elegido}
+              className="pc-marcha"
+              data-marcha={id}
+              disabled={guardando && !elegido}
+              onClick={() => void elegir(id)}
+            >
+              <Ic size={14} strokeWidth={1.9} aria-hidden="true" />
+              <span>{t(CLAVES_MARCHA[id].nombre)}</span>
+              {elegido ? <IcOk size={12} strokeWidth={2.5} className="pc-marcha-ok" aria-hidden="true" /> : null}
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="pc-plan-que">{t(CLAVES_MARCHA[plan.modo].que)}</p>
+
+      {plan.ausente.length > 0 ? (
+        <p className="pc-plan-aviso" role="note">
+          <IcAviso size={13} strokeWidth={2} aria-hidden="true" />
+          <span>{t("pcupo.planDiaAusente", { fechas: formatearAusente(plan.ausente) })}</span>
+        </p>
+      ) : null}
+
+      {error ? (
+        <p className="pc-plan-error" role="alert">
+          <IcCerrar size={13} strokeWidth={2.2} aria-hidden="true" />
+          <span>{error}</span>
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export function PanelCupo() {
   useIdioma();
   const { uso, fallo, pausa, releer } = useUso();
@@ -214,6 +353,7 @@ export function PanelCupo() {
             ) : (
               <p className="pc-sin-ritmo">{t("pcupo.sinRitmo")}</p>
             )}
+            <TarjetaPlanDia />
 
             <h3 className="pc-sec-tit">{t("pcupo.suscripciones")}</h3>
             <div className="pc-tarjetas">

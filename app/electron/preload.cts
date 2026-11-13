@@ -78,6 +78,10 @@ contextBridge.exposeInMainWorld("hilos", {
     leer: (idioma?: string): Promise<unknown> => invocar("novedades:leer", idioma),
     cerrar: (version: string): Promise<void> => invocar("novedades:cerrar", version),
   },
+  planDia: {
+    leer: (): Promise<unknown> => invocar("planDia:leer"),
+    fijar: (modo: string): Promise<unknown> => invocar("planDia:fijar", modo),
+  },
   /** El panel de consumo (a la derecha): lo que consumió cada modelo y cómo va cada sesión. */
   consumo: {
     mirar: (pedido: unknown): Promise<unknown> => invocar("consumo:mirar", pedido),

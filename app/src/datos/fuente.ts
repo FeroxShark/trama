@@ -9,6 +9,7 @@ import { estimar, type Opciones } from "../../electron/locales-calc";
 import type { EstadoLocales, ResultadoProbar } from "../../electron/locales";
 import type { ModeloDetectado, ResultadoDeteccion, ServidorLocal } from "../../electron/locales-deteccion";
 import type { EstadoVram, ResultadoLiberar } from "../../electron/vram";
+import type { EstadoPlanDia, ModoPlanDia } from "../../electron/plan-dia";
 import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electron/dictado-modelos";
 import type { PrefCache } from "../../electron/cache-pregunta";
 import { aplicarOpGuias, GUIAS_VACIO, normalizarGuias, type EstadoGuias, type OpGuias } from "../../electron/guias-estado";
@@ -28,6 +29,8 @@ import { pasosFijos, pasosRutasFijos, pasosSubFijos, pasosHiloFijos, type Varian
 import { crearCola, type AvisoCola, type Encolado } from "../../electron/cola";
 import type { Aviso as AvisoProgramados, Estado as EstadoProgramados } from "../../electron/programados";
 import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaLimite, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaPensando, charlaDejado, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_ATENCION, HILOS_ATENCION_RESUELTO, HILOS_EN_COLA, HILOS_RIEL, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDERES_ATENCION, LIDERES_ATENCION_RESUELTO, LIDERES_RIEL, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_TRES, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_CUPO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
+
+export type { EstadoPlanDia, ModoPlanDia };
 
 export interface Fuente {
   /** La última lista buena de una corrida anterior, para pintar algo mientras `pa` contesta. */
@@ -58,6 +61,10 @@ export interface Fuente {
   alCambiarUso(fn: (u: Uso | null) => void): () => void;
   /** El botón de las barras: le pide a `claude` el uso como lo dice claude.ai y vuelve a leer todo. */
   releerUso(): Promise<Uso | null>;
+  /** El plan del día de `pa` (`plan.json`): ahorrar / normal / gastar, más los días ausentes vigentes. */
+  planDia(): Promise<EstadoPlanDia>;
+  /** Fija el plan del día (`normal` borra el del día sin tocar los días ausentes). Rechaza con el motivo si falla. */
+  fijarPlanDia(modo: ModoPlanDia): Promise<EstadoPlanDia>;
   /** Qué abrió el usuario y cuándo (`~/.local/state/hilos/leidos.json`). */
   leidos(): Promise<Leidos>;
   marcarLeido(id: string, ts: number): void;
@@ -1155,6 +1162,20 @@ const crecido = new Map<string, number>();
  * Los tres casos del uso: todo (`USO`), el 5 h sin hora de reinicio (`uso-sin-hora`) y ningún límite
  * sabido (`uso-sin-dato`, o `HILOS_VARIANTE=sin-uso` para lo mismo en otra captura).
  */
+let planDiaFijo: EstadoPlanDia = {
+  modo: MODO.variante === "plan-ahorrar" ? "ahorrar" : MODO.variante === "plan-gastar" ? "gastar" : "normal",
+  ausente: MODO.variante === "plan-ausente" ? ["2026-11-15", "2026-11-16"] : [],
+};
+
+const esModoPlanDia = (x: unknown): x is ModoPlanDia => x === "ahorrar" || x === "normal" || x === "gastar";
+const planDiaValido = (x: unknown): EstadoPlanDia => {
+  const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+  const modo: ModoPlanDia = esModoPlanDia(o.modo) ? o.modo : "normal";
+  const reFecha = new RegExp("^\d{4}-\d{2}-\d{2}$");
+  const ausente = Array.isArray(o.ausente) ? o.ausente.filter((d): d is string => typeof d === "string" && reFecha.test(d)) : [];
+  return { modo, ausente };
+};
+
 const usoFixture = (): Uso => {
   if (MODO.captura === "uso-sin-hora") return USO_SIN_HORA;
   if (MODO.captura === "uso-sin-dato" || MODO.variante === "sin-uso") return { version: 1, ts: 0, five_hour: null, seven_day: null };
@@ -1679,6 +1700,13 @@ const fija: Fuente = {
   },
   async releerUso() {
     return usoFixture();
+  },
+  async planDia() {
+    return { modo: planDiaFijo.modo, ausente: [...planDiaFijo.ausente] };
+  },
+  async fijarPlanDia(modo) {
+    planDiaFijo = { ...planDiaFijo, modo };
+    return { modo: planDiaFijo.modo, ausente: [...planDiaFijo.ausente] };
   },
   async leidos() {
     return leidosFijos;
@@ -2426,6 +2454,20 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     const s = await nueva;
     statusline = nueva;
     return s.uso;
+  },
+  async planDia() {
+    return planDiaValido(
+      await m.planDia.leer().catch((e) => {
+        throw new Error(mensaje(e));
+      }),
+    );
+  },
+  async fijarPlanDia(modo) {
+    return planDiaValido(
+      await m.planDia.fijar(modo).catch((e) => {
+        throw new Error(mensaje(e));
+      }),
+    );
   },
   async leidos() {
     return m.leidos.leer().catch(() => ({}));

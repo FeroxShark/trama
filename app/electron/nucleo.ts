@@ -88,6 +88,7 @@ import { modelosClaudeCuenta } from "./claude-catalogo.ts";
 import { actualizarOpencode, effortsOpencode, modelosOpencode, vistaOpencode } from "./opencode-ajustes.ts";
 import { estadoNim, guardarModelosNim, probarNim } from "./nvidia-nim.ts";
 import { guardarPlanOpencode, mantenerTopesGo, planOpencode, vistaPlanGo } from "./opencode-go.ts";
+import { fijarPlanDia, leerPlanDia } from "./plan-dia.ts";
 import { guardarClave, leerClaves } from "./claves.ts";
 import { estadoAA, refrescarAA } from "./artificial-analysis.ts";
 import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
@@ -143,7 +144,7 @@ const manejadores = new Map<string, Manejador>();
  * Actualizar Trama (`trama:*`) sí se puede por la tailnet: baja el release del tag de GitHub y corre el instalador del checkout,
  * igual que desde la PC (el dueño lo pidió para actualizar la máquina de otro sin estar sentado ahí).
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "proyectos:papelera", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "planDia:fijar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "proyectos:papelera", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -966,6 +967,8 @@ export function armarNucleo() {
     await guardarAjustes(cambio, ejecutar);
     return leerAjustes();
   });
+  manejar("planDia:leer", () => leerPlanDia());
+  manejar("planDia:fijar", (_e, modo: unknown) => fijarPlanDia(modo));
   // Quién entra por la tailnet no lo cambia nadie que haya entrado por ella: por red se contesta que no es editable.
   manejar("remoto:leer", async (e) => {
     // Por red (el celular, o un navegador sin ser el local) no hay acceso por la tailnet que editar. En la PC sin Tailscale se explica cómo instalarlo.

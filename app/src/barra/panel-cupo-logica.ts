@@ -6,6 +6,19 @@ import { ritmoSemanal } from "../paneles/cupos-ritmo.ts";
 import { AMBAR_DESDE, cuentasClaude, estadoAnillo } from "./cupos-riel-logica.ts";
 import { nombreGrupo } from "./cuposNombres.ts";
 import { renglonesDeGrupos } from "./cuposVista.ts";
+import { formatearHasta } from "./usoFila.ts";
+
+export const MARCHAS_PLAN_DIA = ["ahorrar", "normal", "gastar"] as const;
+
+/** Formatea fechas YYYY-MM-DD de ausencia para mostrar en una línea del panel Cupo. */
+export function formatearAusente(fechas: readonly string[]): string {
+  return fechas
+    .map((f) => {
+      const h = formatearHasta(f);
+      return h ? `${h.d}/${h.m}` : f;
+    })
+    .join(", ");
+}
 
 export type NivelVentana = "bien" | "atencion" | "agotado" | "sin" | "off";
 

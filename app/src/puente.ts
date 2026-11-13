@@ -90,6 +90,11 @@ type Main = {
     leer(idioma?: string): Promise<unknown>;
     cerrar(version: string): Promise<void>;
   };
+  /** El plan del día de `pa` (`plan.json`): ahorrar / normal / gastar, más los días ausentes vigentes. */
+  planDia: {
+    leer(): Promise<unknown>;
+    fijar(modo: "ahorrar" | "normal" | "gastar"): Promise<unknown>;
+  };
   /** El panel de consumo (electron/consumo.ts): lo que contesta va sin validar (`consumoDe`). */
   consumo: {
     mirar(pedido: { lideres: string[]; workers: string[] }): Promise<unknown>;

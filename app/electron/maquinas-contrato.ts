@@ -123,6 +123,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   // Ajustes y el acceso del celular: el plan, la red de seguridad y remoto.json son de esta máquina.
   "ajustes:leer": "local",
   "ajustes:guardar": "local",
+  "planDia:leer": "local",
+  "planDia:fijar": "local",
   "remoto:leer": "local",
   "remoto:guardar": "local",
   "contexto:umbral": "local",

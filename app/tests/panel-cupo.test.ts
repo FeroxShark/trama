@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Uso } from "../src/datos/contrato.ts";
 import type { ListaCuentas } from "../src/datos/cuentas.ts";
-import { armarSuscripcionesPanel, redondearPct, ritmoPanel, ventanaDeCupo } from "../src/barra/panel-cupo-logica.ts";
+import { armarSuscripcionesPanel, formatearAusente, MARCHAS_PLAN_DIA, redondearPct, ritmoPanel, ventanaDeCupo } from "../src/barra/panel-cupo-logica.ts";
 
 const NOMBRES = { claude: "Claude", principal: "Principal" };
 const AHORA = 1_750_000_000;
@@ -170,5 +170,13 @@ describe("ritmoPanel", () => {
   it("devuelve null sin porcentaje semanal", () => {
     const r = ritmoPanel({ version: 1, ts: AHORA, five_hour: { pct: 20, resets_at: null }, seven_day: null }, null, AHORA, NOMBRES);
     assert.equal(r, null);
+  });
+});
+
+describe("plan del día en panel Cupo", () => {
+  it("expone las tres marchas en orden y formatea los días ausentes", () => {
+    assert.deepEqual(MARCHAS_PLAN_DIA, ["ahorrar", "normal", "gastar"]);
+    assert.equal(formatearAusente(["2026-11-15", "2026-11-16"]), "15/11, 16/11");
+    assert.equal(formatearAusente([]), "");
   });
 });

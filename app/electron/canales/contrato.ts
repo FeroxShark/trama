@@ -135,6 +135,8 @@ export const CANALES = [
   ["lider:transcript", "on"],
   ["ajustes:leer", "invoke"],
   ["ajustes:guardar", "invoke"],
+  ["planDia:leer", "invoke"],
+  ["planDia:fijar", "invoke"],
   ["contexto:umbral", "invoke"],
   ["medicion:leer", "invoke"],
   ["historial:consultar", "invoke"],

@@ -2123,15 +2123,15 @@ function urgenciaVentana(v: Obj, now: Date, topeH: number | null = null): number
 
 // --- plan y ritmo ------------------------------------------------------------------------------------
 const diaLocal = (now: Date) => fechaLocal(now);
-const rutaPlan = () => path.join(stateDir(), "plan.json");
-type Plan = { ausente: string[]; hoy: string | null; actualizado: string | null };
+export const rutaPlan = () => path.join(stateDir(), "plan.json");
+export type Plan = { ausente: string[]; hoy: string | null; actualizado: string | null };
 
-function planLeer(now: Date): Plan {
+export function planLeer(now: Date, ruta = rutaPlan()): Plan {
   const hoy = diaLocal(now);
   const out: Plan = { ausente: [], hoy: null, actualizado: null };
   let d: unknown;
   try {
-    d = leerJson(readFileSync(rutaPlan(), "utf8"));
+    d = leerJson(readFileSync(ruta, "utf8"));
   } catch {
     return out;
   }
@@ -2147,8 +2147,8 @@ function planLeer(now: Date): Plan {
   return out;
 }
 
-function planGrabar(plan: Plan, now: Date) {
-  const f = rutaPlan();
+export function planGrabar(plan: Plan, now: Date, ruta = rutaPlan()) {
+  const f = ruta;
   if (!plan.ausente.length && !plan.hoy) {
     try {
       unlinkSync(f);

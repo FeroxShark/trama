@@ -271,6 +271,117 @@
   color: var(--cupo-agotado-texto);
 }
 
+.pc-plan-estado {
+  font-size: var(--letra-2);
+  color: var(--inactivo);
+}
+
+.pc-marchas {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--esp-1);
+  padding: var(--esp-1);
+  border-radius: var(--r-md);
+  background: var(--capa-hover);
+  border: 1px solid var(--borde-2);
+}
+
+.pc-marcha {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-1);
+  min-height: 2rem;
+  min-width: 0;
+  padding: var(--esp-1) var(--esp-1-5);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--apagado);
+  font: inherit;
+  font-size: var(--letra-3);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--t-snappy),
+    border-color var(--t-snappy),
+    color var(--t-snappy);
+}
+
+.pc-marcha:hover:not(:disabled) {
+  color: var(--texto);
+  background: var(--capa-tile);
+}
+
+.pc-marcha:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+
+.pc-marcha:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.pc-marcha[aria-checked="true"] {
+  background: var(--acento-tinte);
+  border-color: var(--ajustes-acento-borde);
+  color: var(--texto);
+  font-weight: 600;
+}
+
+.pc-marcha-ok {
+  color: var(--acento);
+  flex-shrink: 0;
+}
+
+.pc-plan-que {
+  margin: 0;
+  font-size: var(--letra-3);
+  color: var(--apagado);
+  line-height: 1.35;
+}
+
+.pc-plan-aviso {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  margin: 0;
+  padding: var(--esp-1-5) var(--esp-2);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--decision-borde);
+  background: var(--decision-fondo);
+  color: var(--decision-texto);
+  font-size: var(--letra-3);
+  line-height: 1.35;
+}
+
+.pc-plan-aviso svg,
+.pc-plan-error svg {
+  flex-shrink: 0;
+}
+
+.pc-plan-error {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  margin: 0;
+  padding: var(--esp-1-5) var(--esp-2);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--cupo-agotado-borde);
+  background: var(--cupo-agotado-fondo);
+  color: var(--cupo-agotado-texto);
+  font-size: var(--letra-3);
+  line-height: 1.35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-marcha {
+    transition: none;
+  }
+}
+
 .pc-sin-ritmo {
   margin: 0;
   padding: var(--esp-2-5) var(--esp-3);
