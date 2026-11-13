@@ -1,4 +1,4 @@
-// Paneles acoplables (src/barra/acople-logica.ts + acople.css): tres zonas (izq, der, abajo) alrededor del centro.
+// Paneles acoplables (src/barra/acople-logica.ts + acople-paneles.css): tres zonas (izq, der, abajo) alrededor del centro.
 // Cada panel tiene encabezado con agarradera, ícono, título, plegar, menú "…" y cerrar; se arrastra con puntero o se mueve por teclado.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ChevronDown, Ellipsis, GripVertical, PanelBottom, PanelLeft, PanelRight, X } from "lucide-react";
@@ -21,7 +21,7 @@ import {
   type Zona,
 } from "./acople-logica";
 import { useAcople, type UseAcople } from "./useAcople";
-import "./acople.css";
+import "./acople-paneles.css";
 
 export type PanelDef = {
   titulo: string;
