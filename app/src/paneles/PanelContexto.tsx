@@ -935,6 +935,7 @@ type Props = {
   workers: Hilo[];
   alCerrar: () => void;
   alAbrirHilo: (id: string) => void;
+  acoplado?: boolean;
 };
 
 type Pestana = "sesiones" | "skills" | "previa";
@@ -1103,7 +1104,7 @@ function VistaPreviaTab({ refresco }: { refresco: number }) {
   );
 }
 
-export const PanelContexto = memo(function PanelContexto({ lider, workers, alCerrar, alAbrirHilo }: Props) {
+export const PanelContexto = memo(function PanelContexto({ lider, workers, alCerrar, alAbrirHilo, acoplado = false }: Props) {
   useIdioma();
   const angosto = useAngosto();
   const [pestana, setPestana] = useState<Pestana>(MODO.captura === "contexto-panel-skills" ? "skills" : MODO.captura === "contexto-panel-previa" ? "previa" : "sesiones");
@@ -1246,18 +1247,33 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
       return n;
     });
 
+  const botonRefrescar = (
+    <button type="button" className="cp-ico" aria-label={t("ctxp.actualizar")} data-tip={t("ctxp.actualizar")} onClick={refrescar}>
+      <RefreshCw size={14} strokeWidth={1.8} />
+    </button>
+  );
+  const tablist = (
+    <div className="cp-pestanas" role="tablist" aria-label={t("ctxp.pestanas")}>
+      {pestanas.map(([k, etq]) => (
+        <button key={k} type="button" role="tab" id={`cp-tab-${k}`} data-pestana={k} aria-selected={pestana === k} aria-controls={`cp-pan-${k}`} tabIndex={pestana === k ? 0 : -1} onClick={() => setPestana(k)} onKeyDown={tecla}>
+          {t(etq as "ctxp.sesiones")}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <Acc.Provider value={acciones}>
-      <aside className="cs cp" aria-label={t("ctxp.titulo")}>
+      <aside className="cs cp" aria-label={t("ctxp.titulo")} data-acoplado={acoplado ? "" : undefined}>
+        {acoplado ? null : (
         <header className="cp-cab">
           <button type="button" className="lado" aria-label={angosto ? t("comun.aLista") : t("ctxp.ocultar")} data-tip={angosto ? t("comun.aLista") : t("ctxp.ocultar")} onClick={alCerrar}>
             {angosto ? <ArrowLeft size={18} strokeWidth={1.8} /> : <PanelRightClose size={16} strokeWidth={1.8} />}
           </button>
           <b>{t("ctxp.titulo")}</b>
-          <button type="button" className="cp-ico" aria-label={t("ctxp.actualizar")} data-tip={t("ctxp.actualizar")} onClick={refrescar}>
-            <RefreshCw size={14} strokeWidth={1.8} />
-          </button>
+          {botonRefrescar}
         </header>
+        )}
         <div className="cp-aviso">
           <Info size={15} strokeWidth={1.8} aria-hidden />
           <p>{puede ? t("ctxp.aviso") : t("ctxp.soloPc")}</p>
@@ -1265,13 +1281,14 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
             {aviso?.texto}
           </p>
         </div>
-        <div className="cp-pestanas" role="tablist" aria-label={t("ctxp.pestanas")}>
-          {pestanas.map(([k, etq]) => (
-            <button key={k} type="button" role="tab" id={`cp-tab-${k}`} data-pestana={k} aria-selected={pestana === k} aria-controls={`cp-pan-${k}`} tabIndex={pestana === k ? 0 : -1} onClick={() => setPestana(k)} onKeyDown={tecla}>
-              {t(etq as "ctxp.sesiones")}
-            </button>
-          ))}
-        </div>
+        {acoplado ? (
+          <div className="cp-barra-tabs">
+            {tablist}
+            {botonRefrescar}
+          </div>
+        ) : (
+          tablist
+        )}
         <div className="cp-cuerpo-panel" role="tabpanel" id={`cp-pan-${pestana}`} aria-labelledby={`cp-tab-${pestana}`}>
           {pestana === "sesiones" ? (
             !lider ? (

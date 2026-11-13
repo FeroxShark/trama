@@ -3847,6 +3847,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "acople.restablecer": "Restablecer paneles",
   "acople.movimientoCancelado": "Movimiento cancelado",
   "acople.movido": "{panel} movido",
+  "acople.chats": "Chats",
+  "acople.contexto": "Contexto",
   "acople.demo.chats": "Chats",
   "acople.demo.contexto": "Contexto",
   "acople.demo.cupo": "Cupo",

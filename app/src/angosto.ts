@@ -30,6 +30,7 @@ export function useAngosto() {
  */
 const MEDIO = "(max-width: 67rem)";
 const medio = consulta(MEDIO);
+export const esMedio = () => medio?.matches ?? false;
 const suscribirMedio = (fn: () => void) => {
   medio?.addEventListener("change", fn);
   return () => medio?.removeEventListener("change", fn);

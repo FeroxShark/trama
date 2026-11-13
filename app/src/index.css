@@ -124,6 +124,12 @@ body,
 .app[data-oculta] {
   gap: 0;
 }
+.app[data-acople],
+.app[data-acople][data-oculta] {
+  padding: var(--esp-2);
+  gap: var(--esp-2);
+  background: var(--fondo);
+}
 :where(.app) button {
   cursor: pointer;
 }
@@ -1742,6 +1748,16 @@ img.logo {
 .ctx-boton[aria-pressed="true"] {
   background: var(--sup-2);
   color: var(--texto-1);
+}
+.app[data-acople] .acople-centro > .hilo {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app[data-acople] .acople-centro > .ctx-boton {
+  position: absolute;
+  top: 1rem;
+  right: var(--esp-3);
 }
 /* Ventana de Windows sin barra de título (la carcasa: src/titulo.ts pone `data-titulo-nativo`): la app empieza debajo de
    la franja, que es el fondo y arrastra la ventana salvo donde están los tres botones nativos. Son medidas de Windows

@@ -16,11 +16,12 @@ test("con un panel del pie abierto el consumo no se ve, y sin panel manda lo rec
 
 test("la barra usa esa lógica y el CSS lo esconde sin desmontarlo, a cualquier ancho", () => {
   const barra = readFileSync(new URL("../src/barra/Barra.tsx", import.meta.url), "utf8");
-  assert.match(barra, /consumoALaVista\(consumo, panel\)/);
+  assert.match(barra, /consumoALaVista\(consumo(?:Vista)?, panel\)/);
   assert.match(barra, /data-sin-consumo=/);
   assert.match(barra, /const tapa = consumoVisible && medio;/);
   const css = readFileSync(new URL("../src/paneles/contexto-panel.css", import.meta.url), "utf8");
   const regla = css.match(/\.app\[data-sin-consumo\] > \.cs,[^{]*\{[^}]*\}/);
+  assert.ok(regla[0].includes("acople-panel[data-panel=\"contexto\"]"));
   assert.ok(regla, "falta la regla de data-sin-consumo");
   assert.match(regla[0], /display:\s*none/);
   // No está dentro de una @media: vale a cualquier ancho.

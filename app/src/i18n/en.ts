@@ -3861,6 +3861,8 @@ export const en = {
   "acople.restablecer": "Reset panels",
   "acople.movimientoCancelado": "Move cancelled",
   "acople.movido": "{panel} moved",
+  "acople.chats": "Chats",
+  "acople.contexto": "Context",
   "acople.demo.chats": "Chats",
   "acople.demo.contexto": "Context",
   "acople.demo.cupo": "Quota",

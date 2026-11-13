@@ -32,6 +32,24 @@
   flex: 1;
   flex-direction: column;
 }
+.acople-panel-cuerpo > .barra-col {
+  flex: 1 1 0%;
+  height: 100%;
+  min-height: 0;
+}
+.app[data-acople] > .riel {
+  position: relative;
+  z-index: 15;
+  border: 1px solid var(--borde-3);
+  border-radius: var(--r-md);
+  background: var(--sup-0);
+  box-shadow: none;
+}
+.app[data-acople] > .riel .vuelo {
+  right: auto;
+  left: calc(100% + var(--esp-2));
+  width: 17.5rem;
+}
 
 /* --- Riel ---------------------------------------------------------------- */
 .riel {
@@ -1147,6 +1165,21 @@
   height: 1px;
   overflow: hidden;
   clip-path: inset(50%);
+}
+@container (max-width: 18.75rem) {
+  .acople-panel-cuerpo .lista .fila .chip-mod {
+    position: relative;
+  }
+  .acople-panel-cuerpo .lista .fila .chip-mod .mc-c {
+    display: inline;
+  }
+  .acople-panel-cuerpo .lista .fila .chip-mod .mc-l {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
 }
 .lista .fila .chip-at {
   height: 1rem;

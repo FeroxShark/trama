@@ -1159,7 +1159,95 @@
 
 /* Con un panel del pie abierto (Ajustes, Tablero, Ramas, Estadísticas) el panel de consumo no ocupa lugar ni se ve su botón,
    a ningún ancho (`data-sin-consumo`, lo pone la barra). Sigue montado: volver al chat no lo recarga ni lo anima. */
+
+.cs[data-acoplado] {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 0%;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.cs[data-acoplado] .cp-aviso {
+  margin-top: var(--esp-3);
+}
+.cp-barra-tabs {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  margin: 0 var(--esp-3);
+}
+.cp-barra-tabs .cp-pestanas {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+}
+
+@container (max-width: 21.25rem) {
+  .cs[data-acoplado] .cp-aviso,
+  .cs[data-acoplado] .cp-barra-tabs {
+    margin-inline: var(--esp-2-5);
+  }
+  .cs[data-acoplado] .cp-cuerpo-panel {
+    padding: var(--esp-2-5);
+  }
+  .cs[data-acoplado] .cp-ventana {
+    gap: var(--esp-3);
+    padding: var(--esp-3);
+  }
+  .cs[data-acoplado] .cp-anillo {
+    width: 3.25rem;
+    height: 3.25rem;
+  }
+  .cs[data-acoplado] .cp-cat h4 button {
+    grid-template-columns: 0.625rem minmax(0, 1fr) auto 2.5rem 0.875rem;
+    gap: var(--esp-1-5);
+  }
+  .cs[data-acoplado] .cp-w-btn {
+    grid-template-columns: 0.875rem minmax(0, 1fr) 4.5rem;
+  }
+  .cs[data-acoplado] .cp-sub .cp-w-btn {
+    grid-template-columns: 0.875rem minmax(0, 1fr) 5rem;
+  }
+}
+@container (max-width: 18.75rem) {
+  .cs[data-acoplado] .cp-ventana {
+    flex-wrap: wrap;
+  }
+  .cs[data-acoplado] .cp-ventana .cp-num {
+    white-space: normal;
+    text-align: left;
+  }
+  .cs[data-acoplado] .cp-pestanas button {
+    padding: 0 var(--esp-1-5);
+    font-size: var(--letra-4);
+  }
+}
+@container (min-width: 45rem) {
+  .cs[data-acoplado] .cp-det {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+    align-items: start;
+  }
+  .cs[data-acoplado] .cp-det > :not(.cp-cats) {
+    grid-column: 1;
+  }
+  .cs[data-acoplado] .cp-det > .cp-cats {
+    grid-column: 2;
+    grid-row-start: 1;
+    grid-row-end: 10;
+  }
+}
+
 .app[data-sin-consumo] > .cs,
-.app[data-sin-consumo] > .ctx-boton {
+.app[data-sin-consumo] .ctx-boton,
+.app[data-sin-consumo] .acople-panel[data-panel="contexto"],
+.app[data-sin-consumo] .acople-zona .acople-divisor:has(+ .acople-panel[data-panel="contexto"]),
+.app[data-sin-consumo] .acople-zona .acople-panel[data-panel="contexto"] + * > .acople-divisor,
+.app[data-sin-consumo] .acople-zona:not(:has(.acople-panel:not([data-panel="contexto"]))),
+.app[data-sin-consumo] .acople-zona[data-zona="izq"]:not(:has(.acople-panel:not([data-panel="contexto"]))) + .acople-divisor,
+.app[data-sin-consumo] .acople-divisor:has(+ .acople-zona[data-zona="der"]:not(:has(.acople-panel:not([data-panel="contexto"])))),
+.app[data-sin-consumo] .acople-divisor:has(+ .acople-zona[data-zona="abajo"]:not(:has(.acople-panel:not([data-panel="contexto"])))) {
   display: none;
 }

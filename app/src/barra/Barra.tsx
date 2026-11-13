@@ -4,6 +4,7 @@
 // con sus workers colgando en árbol (src/barra/arbol.ts). Lo cerrado que no
 // cuelga de nadie va a "Cerrados", al fondo.
 import {
+  Fragment,
   lazy,
   Suspense,
   useCallback,
@@ -20,7 +21,7 @@ import {
   type Ref,
 } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
-import { BarChart3, ChevronDown, Crown, GitBranch, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, type LucideIcon } from "lucide-react";
+import { BarChart3, ChevronDown, Crown, GitBranch, Layers, MessageSquare, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, type LucideIcon } from "lucide-react";
 import { cerrable, cerrado, comoSettle, GENERAL, VERSION, type Caido, type ConvClaudeCode, type Estado, type EventoPa, type Hilo, type Leidos, type Lider, type Nombres, type Orden, type RespuestaLideres } from "../datos/contrato";
 import { compactarFijo, escenaFija, fuente } from "../datos/fuente";
 import { ARRANCANDO, EN_COLA, FRENADO, imagenFija } from "../datos/fixtures";
@@ -50,7 +51,7 @@ import { useEsperan } from "./esperan";
 import { resueltosDe } from "./atencion-vigente";
 import { MODO } from "../modo";
 import { apariencia, LETRA_DEF } from "../tipografia";
-import { esAngosto, useAngosto, useAtras, useMedio } from "../angosto";
+import { esAngosto, esMedio, useAngosto, useAtras, useMedio } from "../angosto";
 import { correrGuionPaneles } from "../paneles/guion";
 import { Panel, PANELES, type CualPanel } from "../paneles/Panel";
 import { consumoALaVista } from "./consumo-logica";
@@ -142,6 +143,10 @@ import { CuposRiel } from "./CuposRiel";
 import { Glifo } from "./Glifo";
 import { latir } from "./latido";
 import { estiloProyecto, Riel } from "./Riel";
+import { Acople, type PanelDef } from "./Acople";
+import { acopleInicialBarra, chatsAbiertoEn, contextoAbiertoEn } from "./acople-barra";
+import type { PanelId } from "./acople-logica";
+import { useAcople, type UseAcople } from "./useAcople";
 import { aRiel, atencionCarpeta, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, filasCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, segunLista } from "./riel-logica";
 import { LogoCab } from "./Logo";
 import { LoBuscado, Resalte } from "./Resalte";
@@ -335,7 +340,29 @@ export function Barra() {
   const [abiertasCC, setAbiertasCC] = useState(() => new Set<string>());
   // El panel de consumo (a la derecha): arranca oculto y se recuerda en preferencias.json.
   // (Es el panel de contexto del líder que se mira y sus workers; la preferencia se sigue llamando "consumo".) En el celular nace cerrado.
-  const [consumo, setConsumo] = useState(MODO.consumo && (!esAngosto() || MODO.captura !== null));
+  const [ancho, setAncho] = useState(() => guardado(CLAVE_ANCHO, (c) => acotar(Number(c) || ANCHO), MODO.variante?.endsWith("-angosta") ? ANCHO_MIN : MODO.variante?.endsWith("-300") ? 300 : ANCHO));
+  const acopleInicial = useMemo(
+    () =>
+      acopleInicialBarra({
+        captura: MODO.captura,
+        variante: MODO.variante,
+        datosFijos: MODO.datosFijos,
+        consumo: MODO.consumo,
+        vueltaAbierta: vueltaInicial()?.abierta,
+        ancho,
+        storage: (clave) => {
+          try {
+            return localStorage.getItem(clave);
+          } catch {
+            return null;
+          }
+        },
+      }),
+    [],
+  );
+  const acopleCtrl = useAcople(acopleInicial);
+  const [consumo, setConsumo] = useState(() => (!esMedio() && !esAngosto() ? contextoAbiertoEn(acopleInicial) : MODO.consumo && (!esAngosto() || MODO.captura !== null)));
+  const [abierta, setAbierta] = useState(() => (!esMedio() && !esAngosto() ? chatsAbiertoEn(acopleInicial) : vueltaInicial()?.abierta ?? guardado(CLAVE_ABIERTA, (c) => c !== "0", true)));
   const [cerradosAbiertos, setCerradosAbiertos] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [cursor, setCursor] = useState<string | null>(null);
@@ -374,13 +401,9 @@ export function Barra() {
   // "Nueva tarea aquí": la carpeta del líder que está por nacer.
   const nuevaEn = useRef<string | null>(null);
   // Las capturas `HILOS_VARIANTE=<x>-angosta` abren la barra en su ancho mínimo y `<x>-300`, a 300 px.
-  const [ancho, setAncho] = useState(() => guardado(CLAVE_ANCHO, (c) => acotar(Number(c) || ANCHO), MODO.variante?.endsWith("-angosta") ? ANCHO_MIN : MODO.variante?.endsWith("-300") ? 300 : ANCHO));
-  const [abierta, setAbierta] = useState(() => vueltaInicial()?.abierta ?? guardado(CLAVE_ABIERTA, (c) => c !== "0", true));
   const reinicio = useReinicio();
   // Cuántas preguntas esperan al usuario, sin las pruebas (el número del botón del Tablero, en el pie).
   const esperan = useEsperan();
-  const vistaAhora = useRef({ activa, panel: panel as string | null, abierta });
-  vistaAhora.current = { activa, panel, abierta };
   useEffect(() => alLeerVista(() => vistaAhora.current), []);
   // La pastilla "Falta configurar" abre Ajustes en la categoría que corresponde.
   useEffect(
@@ -413,8 +436,15 @@ export function Barra() {
   // Con ancho intermedio el panel de consumo no cabe al lado de la conversación: la reemplaza (CSS, `data-consumo`) y
   // abrir otra cosa lo suelta (sin tocar lo guardado: con la ventana ancha vuelve al costado).
   const medio = useMedio();
+  const acoplado = !medio && !angosto;
+  const chatsAbierto = chatsAbiertoEn(acopleCtrl.acople);
+  const contextoAbierto = contextoAbiertoEn(acopleCtrl.acople);
+  const abiertaVista = acoplado ? chatsAbierto : abierta;
+  const consumoVista = acoplado ? contextoAbierto : consumo;
+  const vistaAhora = useRef({ activa, panel: panel as string | null, abierta: abiertaVista });
+  vistaAhora.current = { activa, panel, abierta: abiertaVista };
   // Con Ajustes, Tablero, Ramas o Estadísticas abiertos el panel no se ve (queda montado, escondido por CSS: volver no lo recarga).
-  const consumoVisible = consumoALaVista(consumo, panel);
+  const consumoVisible = consumoALaVista(consumoVista, panel);
   const tapa = consumoVisible && medio;
   const abierto = useRef({ activa, panel });
   useEffect(() => {
@@ -1043,18 +1073,34 @@ export function Barra() {
   // con un FLIP a mano: sólo `transform`.
   const antes = useRef<Map<HTMLElement, number> | null>(null);
   // Desde el celular o la tailnet se abre y se cierra sin guardar: sería cambiarle la preferencia a la PC.
+  const abrirChats = useCallback(() => {
+    if (acoplado) acopleCtrl.abrir("chats", true);
+    setAbierta(true);
+  }, [acoplado, acopleCtrl.abrir]);
+  const cerrarChats = useCallback(() => {
+    if (acoplado) acopleCtrl.cerrar("chats");
+    setAbierta(false);
+  }, [acoplado, acopleCtrl.cerrar]);
   const alternarConsumo = useCallback(() => {
-    setConsumo(!consumo);
-    if (esVentana()) fuente.guardarConsumo(!consumo);
-    // En el celular el panel ocupa la pantalla: la lista se va al abrirlo y vuelve al cerrarlo.
-    if (esAngosto()) setAbierta(consumo);
-  }, [consumo]);
-  // El enlace "Ver desglose" de la llamada Agent de la conversación: abre el panel de contexto (él despliega al subagente).
+    const sig = !consumoVista;
+    if (acoplado) {
+      if (sig) acopleCtrl.abrir("contexto", true);
+      else acopleCtrl.cerrar("contexto");
+    }
+    setConsumo(sig);
+    if (esVentana()) fuente.guardarConsumo(sig);
+    if (esAngosto()) setAbierta(!sig);
+  }, [acoplado, consumoVista, acopleCtrl.abrir, acopleCtrl.cerrar]);
   const pedidoSub = usePedidoSub();
   useEffect(() => {
-    if (pedidoSub && !consumo) alternarConsumo();
+    if (pedidoSub && !consumoVista) alternarConsumo();
   }, [pedidoSub?.n]);
   const alternarBarra = useCallback(() => {
+    if (acoplado) {
+      if (chatsAbierto) cerrarChats();
+      else abrirChats();
+      return;
+    }
     const el = raiz.current;
     if (el && !matchMedia("(prefers-reduced-motion: reduce)").matches)
       antes.current = new Map(
@@ -1064,7 +1110,12 @@ export function Barra() {
           .map((n) => [n, n.getBoundingClientRect().left]),
       );
     setAbierta((a) => !a);
-  }, []);
+  }, [acoplado, chatsAbierto, abrirChats, cerrarChats]);
+  useEffect(() => {
+    if (!acoplado) return;
+    setAbierta(chatsAbierto);
+    setConsumo(contextoAbierto);
+  }, [acoplado]);
   useLayoutEffect(() => {
     const m = antes.current;
     antes.current = null;
@@ -1083,8 +1134,8 @@ export function Barra() {
   useEffect(() => {
     guardar(CLAVE_ANCHO, String(ancho));
     // Angosto, `abierta` es qué se está viendo: no pisa lo que el usuario eligió en el escritorio.
-    if (!angosto) guardar(CLAVE_ABIERTA, abierta ? "1" : "0");
-  }, [ancho, abierta, angosto]);
+    if (!angosto) guardar(CLAVE_ABIERTA, abiertaVista ? "1" : "0");
+  }, [ancho, abiertaVista, angosto]);
 
   // Al achicarse a angosto queda adelante lo abierto (o la lista, si no hay nada); al volver a
   // ancho, la barra como estaba. Sin nada abierto no hay qué mostrar: la lista.
@@ -1169,9 +1220,16 @@ export function Barra() {
       }
       if (es("buscar", e)) {
         e.preventDefault();
-        setAbierta(true);
-        campo.current?.focus();
-        campo.current?.select();
+        abrirChats();
+        if (campo.current) {
+          campo.current.focus();
+          campo.current.select();
+        } else {
+          requestAnimationFrame(() => {
+            campo.current?.focus();
+            campo.current?.select();
+          });
+        }
         return;
       }
       // Ctrl+N (y Ctrl+Shift+N, el de antes): Nueva tarea es siempre un líder; los workers los lanza él.
@@ -1223,7 +1281,7 @@ export function Barra() {
     };
     window.addEventListener("keydown", tecla);
     return () => window.removeEventListener("keydown", tecla);
-  }, [ultimo, cerrar, abrir, abrirLiderNuevo, alternarConsumo]);
+  }, [ultimo, cerrar, abrir, abrirLiderNuevo, alternarConsumo, abrirChats]);
 
   useEffect(() => {
     // En captura el mouse real no cuenta: el estado es el forzado.
@@ -1369,7 +1427,7 @@ export function Barra() {
       }, 500);
     }
     if (c === "colapsado") setColapsados(new Set(proyectos.slice(1, 2)));
-    if (c === "oculta") setAbierta(false);
+    if (c === "oculta") cerrarChats();
     // Angosto se ve lo abierto; la lista, con HILOS_VARIANTE=lista (o si no hay nada que abrir).
     if (esAngosto()) setAbierta(MODO.variante === "lista" || c === "vacio" || c === "foco-barra" || c === "orden-arrastrando" || c === "orden-menu" || c === "orden-prioridad" || c === "activas" || c === "mover-menu" || (c.startsWith("maquinas") && c !== "maquinas-lider" && !c.startsWith("maquinas-selector")));
     if (c === "ajustes") setPanel("ajustes");
@@ -1429,7 +1487,7 @@ export function Barra() {
       ro.disconnect();
       ponerLista(null);
     };
-  }, []);
+  }, [abiertaVista, acoplado]);
 
   const hiloActivo = activa ? (todos.find((h) => h.id === activa) ?? null) : null;
   const sidActivo = activa?.startsWith(LIDER) && activa !== LIDER_NUEVO ? activa.slice(LIDER.length) : null;
@@ -1918,6 +1976,330 @@ export function Barra() {
     />
   );
 
+  const controlAcople = useMemo<UseAcople>(
+    () => ({
+      ...acopleCtrl,
+      cerrar: (p) => {
+        acopleCtrl.cerrar(p);
+        if (p === "chats") setAbierta(false);
+        if (p === "contexto") {
+          setConsumo(false);
+          if (esVentana()) fuente.guardarConsumo(false);
+        }
+      },
+      abrir: (p, desplegar) => {
+        acopleCtrl.abrir(p, desplegar);
+        if (p === "chats") setAbierta(true);
+        if (p === "contexto") {
+          setConsumo(true);
+          if (esVentana()) fuente.guardarConsumo(true);
+        }
+      },
+      restablecer: () => {
+        acopleCtrl.restablecer();
+        setAbierta(true);
+        setConsumo(true);
+        if (esVentana()) fuente.guardarConsumo(true);
+      },
+    }),
+    [acopleCtrl],
+  );
+  const rielEl = (
+  <Riel
+    items={itemsDelRiel}
+    filtro={filtroVigente}
+    viendo={carpetaActiva ?? null}
+    alFiltrar={setFiltroProy}
+    alMenu={menuDeRiel}
+    alOcultar={alternarBarra}
+    cupos={<CuposRiel />}
+    pie={
+      <footer className="pie" data-guia="pie">
+        {/* Cada botón abre su panel a la derecha; otro clic (o Esc) lo cierra. */}
+        {BOTONES_PIE.map(([cual, icono]) => (
+          <BotonPie
+            key={cual}
+            panel={cual}
+            icono={icono}
+            etq={tr(PANELES[cual])}
+            activo={panel === cual}
+            n={cual === "tablero" ? esperan : 0}
+            alClic={() => {
+              alFrente();
+              setPanel((p) => (p === cual ? null : cual));
+            }}
+          />
+        ))}
+        <BotonPie
+          panel="ajustes"
+          icono={Settings}
+          etq={tr(PANELES.ajustes)}
+          activo={panel === "ajustes"}
+          alClic={() => {
+            alFrente();
+            setPanel((p) => (p === "ajustes" ? null : "ajustes"));
+          }}
+        />
+      </footer>
+    }
+  />
+  );
+  const barraColEl = (
+  <div className="barra-col">
+  <div className="top">
+    <div className="fila-top">
+      <label className="buscar">
+        <Search size={14} strokeWidth={2} />
+        <input
+          ref={campo}
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder={tr("barra.buscarHilos")}
+          aria-label={tr("barra.buscarAria")}
+          spellCheck={false}
+        />
+        <kbd>{buscando ? tr("barra.nDeTotal", { n: hilosArbol(arbolVisto), total: hilosArbol(arbolSinBuscar) }) : "Ctrl K"}</kbd>
+      </label>
+      <button
+        type="button"
+        className="nueva"
+        data-guia="nueva"
+        aria-label={tr("lider.nuevo")}
+        data-tip={tr("lider.nuevoTipN")}
+        aria-pressed={activa === LIDER_NUEVO}
+        onClick={abrirLiderNuevo}
+      >
+        <Plus size={16} strokeWidth={2.2} />
+      </button>
+    </div>
+    <div className="resumen">
+      <Pendientes p={pend} ver={verVigente} alVer={alternarVer} />
+      {/* Cómo se acomoda lo que no se movió a mano. */}
+      <button
+        type="button"
+        className="orden"
+        data-guia="limpiar-chats"
+        aria-haspopup="menu"
+        aria-expanded={menuOrden !== null}
+        aria-label={tr("orden.aria")}
+        data-tip={tr("orden.aria")}
+        onClick={(e) => {
+          const c = e.currentTarget.getBoundingClientRect();
+          setMenuOrden({ x: c.left, y: c.bottom + 4, origen: e.currentTarget });
+        }}
+      >
+        {hayOrdenManual(nombres.orden) ? tr("orden.manual") : tr(modoOrden(nombres.orden) === "az" ? "orden.az" : "orden.recientes")}
+        <ChevronDown size={12} strokeWidth={2} />
+      </button>
+    </div>
+  </div>
+
+  <motion.div
+    ref={lista}
+    layoutScroll
+    className="lista"
+    // Barra angosta (≤ 340 px de la letra 13): el chip de modelo dice «S high» en vez de «Sonnet high».
+    data-estrecha={ancho <= ESTRECHA ? "" : undefined}
+    onScroll={virtual ? avisarVentana : undefined}
+    onPointerMove={() => !MODO.datosFijos && ultimo.current.cursor && setCursor(null)}
+    onPointerEnter={() => setMirando((m) => (m.mouse ? m : { ...m, mouse: true }))}
+    onPointerLeave={() => setMirando((m) => (m.mouse ? { ...m, mouse: false } : m))}
+    onFocus={() => setMirando((m) => (m.foco ? m : { ...m, foco: true }))}
+    onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setMirando((m) => (m.foco ? { ...m, foco: false } : m))}
+    onContextMenu={abrirMenu}
+  >
+    {/* El error de `pa` va arriba sin tapar lo último que se leyó bien. */}
+    {errorDatos ? (
+      <div className="lista-aviso" data-error="" role="alert">
+        {errorDatos}
+      </div>
+    ) : hilos ? null : (
+      <div className="lista-aviso">{tr("barra.leyendo")}</div>
+    )}
+    {hilos ? (
+      // Recién con los datos: si no, la primera carga entraría animada.
+      <LoBuscado.Provider value={busqueda}>
+      <AnimatePresence mode="popLayout" initial={false}>
+        {grupos.map((g) => (
+          <Carpeta
+            key={g.proyecto}
+            g={g}
+            viendo={g.proyecto === carpetaActiva}
+            liderActivo={activa}
+            alAbrirLider={abrirLider}
+            alCerrarLider={cerrarLider}
+            alSettleLider={settleLiderYa}
+            desplegada={desplegada}
+            alAlternar={alternar}
+            alPlegar={plegar}
+            fila={fila}
+            virtual={virtual}
+            resueltos={resueltos}
+            orden={nombres.orden}
+            recientes={recientes}
+            mueve={!buscando && !filtroVigente && !verVigente && !MODO.captura}
+            claude={buscando ? SIN_CONVS : (porCarpetaCC.get(g.proyecto) ?? SIN_CONVS)}
+            alAbrirClaude={abrirClaude}
+            alNueva={nuevaAqui}
+          />
+        ))}
+        {extrasCC.map((k) => (
+          <Carpeta
+            key={k}
+            g={{ proyecto: k, ramas: [], espera: [], dormidos: [], cuenta: 0 }}
+            viendo={false}
+            liderActivo={activa}
+            alAbrirLider={abrirLider}
+            alCerrarLider={cerrarLider}
+            alSettleLider={settleLiderYa}
+            desplegada={desplegada}
+            alAlternar={alternar}
+            alPlegar={plegar}
+            fila={fila}
+            virtual={virtual}
+            resueltos={resueltos}
+            mueve={false}
+            claude={porCarpetaCC.get(k) ?? SIN_CONVS}
+            alAbrirClaude={abrirClaude}
+          />
+        ))}
+        {grupos.length === 0 && extrasCC.length === 0 ? (
+          <motion.div
+            key="vacio"
+            layout="position"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="lista-aviso"
+          >
+            {buscando ? (cerrados.length ? tr("barra.soloCerrados") : tr("barra.sinResultados")) : tr("barra.nadaActivo")}
+          </motion.div>
+        ) : null}
+        {cerrados.length > 0 ? (
+          <motion.div
+            key="cerrados"
+            layout="position"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={RESORTE}
+            className="bloque-cerrados"
+          >
+            <button
+              type="button"
+              className="cerrados"
+              aria-expanded={verCerrados}
+              onClick={() => setCerradosAbiertos((a) => !a)}
+            >
+              <span>{tr("barra.cerrados", { n: cerrados.length })}</span>
+              <ChevronDown className="chevron" size={12} strokeWidth={2} />
+            </button>
+            <AnimatePresence mode="popLayout" initial={false}>
+              {verCerrados ? (
+                <motion.ul
+                  key="cerradas"
+                  className="cerradas"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.12 }}
+                >
+                  <Filas items={cerrados} virtual={virtual} fila={fila} />
+                </motion.ul>
+              ) : null}
+            </AnimatePresence>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+      </LoBuscado.Provider>
+    ) : null}
+    {/* Dónde cae lo que se arrastra: la ubica `arrastre.ts`, sin render. */}
+    <div ref={linea} className="cae" aria-hidden="true" />
+  </motion.div>
+
+  <AvisoMaquinas />
+  <Pc />
+  <Reinicio />
+  <AvisoClaude />
+  <AvisoClaude cual="agy" />
+  {/* En la carcasa de Windows el .exe se actualiza con lo suyo (Ajustes > Trama para Windows): acá no. */}
+  {carcasa() || carcasaActualiza ? null : <AvisoClaude cual="trama" />}
+  <AvisoNovedades />
+  <AvisoWorkers />
+  <AvisoProgramados />
+  <AvisoVuelta />
+  <AvisoSetup />
+  </div>
+  );
+  const centroEl = (
+    <Fragment>
+        <Suspense fallback={null}>
+          <Vista
+            h={hiloActivo}
+            estado={hiloActivo ? estadoVisto(hiloActivo, optimista.get(hiloActivo.id)) : null}
+            settle={hiloActivo ? salidaWorker(hiloActivo, estadoVisto(hiloActivo, optimista.get(hiloActivo.id)), arbol.aCargo) : null}
+            lider={liderActivo}
+            sub={subActivo}
+            settleLider={sidActivo ? settleDe(ramaDe(arbol, sidActivo)) : null}
+            liderNuevo={activa === LIDER_NUEVO}
+            alLiderCreado={liderCreado}
+            alLiderNuevo={abrirLiderNuevo}
+            alCerrarLider={cerrarLider}
+            alSettleLider={settleLiderYa}
+            lideres={arbol.lideres}
+            alAbrirLider={abrirLider}
+            alAbrirHilo={abrir}
+            barraAbierta={abiertaVista}
+            alAlternarBarra={angosto ? volverALista : alternarBarra}
+            alCerrar={cerrar}
+            alPasar={pasar}
+            alRetomar={retomarId}
+          />
+        </Suspense>
+        {/* El panel va al lado y la vista se esconde por CSS (`data-panel`): no se desmonta. */}
+        {panel ? (
+          <Panel
+            cual={panel}
+            barraAbierta={abiertaVista}
+            alAlternarBarra={angosto ? volverALista : alternarBarra}
+            alVolver={() => setPanel(null)}
+            ramas={{ hilos: vistos, optimista, errores, enCurso, alActuar: actuar, alAbrir: abrir, alRetomar: retomar, alArreglar: arreglar, alActualizar: actualizarRama, conflictos, analista }}
+            tablero={{ carpetas: slugsReg, lideres: lideresTablero, alIniciar: iniciarTarea, alAbrirLider: abrirLider, alRedactar: redactarTablero, avisar: { lideres: lideresAviso, jefeDe, alAvisar: avisarLider } }}
+          />
+        ) : null}
+        {/* El botón del panel de contexto vive arriba a la derecha de la ventana, fijo (CSS `.ctx-boton`): así se ve y cierra el panel
+            también cuando el panel tapa la conversación (ancho medio). No va en el pie: lo que abre cae sobre su costado. */}
+        <button
+          type="button"
+          className="ctx-boton"
+          aria-label={tr(consumoVista ? "ctxp.ocultar" : "ctxp.mostrar")}
+          data-tip={tr(consumoVista ? "ctxp.ocultar" : "ctxp.mostrar")}
+          aria-pressed={consumoVista}
+          onClick={alternarConsumo}
+        >
+          <PanelRight size={16} strokeWidth={1.8} />
+        </button>
+        {/* El panel de contexto, a la derecha de todo: el líder que se mira (o el del worker que se mira) y sus workers. */}
+    </Fragment>
+  );
+  const VIVOS_APP: readonly PanelId[] = ["chats", "contexto"];
+  const panelesAcople: Partial<Record<PanelId, PanelDef>> = {
+    chats: {
+      titulo: tr("acople.chats"),
+      icono: <MessageSquare size={16} strokeWidth={1.8} aria-hidden></MessageSquare>,
+      contenido: barraColEl,
+    },
+    contexto: {
+      titulo: tr("acople.contexto"),
+      icono: <Layers size={16} strokeWidth={1.8} aria-hidden></Layers>,
+      contenido: (
+        <Suspense fallback={null}>
+          <PanelContexto acoplado lider={liderContexto} workers={workersContexto} alCerrar={alternarConsumo} alAbrirHilo={abrir} />
+        </Suspense>
+      ),
+    },
+  };
+
   return (
     <SubAbierto value={subAbierto}>
     <MotionConfig reducedMotion="user">
@@ -1925,238 +2307,24 @@ export function Barra() {
         ref={raiz}
         className={`app ${MODO.captura && !MODO.interactivo ? "pointer-events-none" : ""}`}
         style={{ "--ancho-barra": `${ancho}px` } as CSSProperties}
-        data-oculta={abierta ? undefined : ""}
+        data-acople={acoplado ? "" : undefined}
+        data-oculta={abiertaVista ? undefined : ""}
         data-panel={panel ?? undefined}
         data-consumo={tapa ? "solo" : undefined}
-        data-sin-consumo={consumoVisible || !consumo ? undefined : ""}
+        data-sin-consumo={consumoVisible || !consumoVista ? undefined : ""}
         data-reinicio={reinicio.hay ? "" : undefined}
       >
-        <aside className="barra" aria-label={tr("barra.aria")} inert={!abierta}>
-          <div className="barra-cuerpo">
-            <Riel
-              items={itemsDelRiel}
-              filtro={filtroVigente}
-              viendo={carpetaActiva ?? null}
-              alFiltrar={setFiltroProy}
-              alMenu={menuDeRiel}
-              alOcultar={alternarBarra}
-              cupos={<CuposRiel />}
-              pie={
-                <footer className="pie" data-guia="pie">
-                  {/* Cada botón abre su panel a la derecha; otro clic (o Esc) lo cierra. */}
-                  {BOTONES_PIE.map(([cual, icono]) => (
-                    <BotonPie
-                      key={cual}
-                      panel={cual}
-                      icono={icono}
-                      etq={tr(PANELES[cual])}
-                      activo={panel === cual}
-                      n={cual === "tablero" ? esperan : 0}
-                      alClic={() => {
-                        alFrente();
-                        setPanel((p) => (p === cual ? null : cual));
-                      }}
-                    />
-                  ))}
-                  <BotonPie
-                    panel="ajustes"
-                    icono={Settings}
-                    etq={tr(PANELES.ajustes)}
-                    activo={panel === "ajustes"}
-                    alClic={() => {
-                      alFrente();
-                      setPanel((p) => (p === "ajustes" ? null : "ajustes"));
-                    }}
-                  />
-                </footer>
-              }
-            />
-            <div className="barra-col">
-            <div className="top">
-              <div className="fila-top">
-                <label className="buscar">
-                  <Search size={14} strokeWidth={2} />
-                  <input
-                    ref={campo}
-                    value={busqueda}
-                    onChange={(e) => setBusqueda(e.target.value)}
-                    placeholder={tr("barra.buscarHilos")}
-                    aria-label={tr("barra.buscarAria")}
-                    spellCheck={false}
-                  />
-                  <kbd>{buscando ? tr("barra.nDeTotal", { n: hilosArbol(arbolVisto), total: hilosArbol(arbolSinBuscar) }) : "Ctrl K"}</kbd>
-                </label>
-                <button
-                  type="button"
-                  className="nueva"
-                  data-guia="nueva"
-                  aria-label={tr("lider.nuevo")}
-                  data-tip={tr("lider.nuevoTipN")}
-                  aria-pressed={activa === LIDER_NUEVO}
-                  onClick={abrirLiderNuevo}
-                >
-                  <Plus size={16} strokeWidth={2.2} />
-                </button>
-              </div>
-              <div className="resumen">
-                <Pendientes p={pend} ver={verVigente} alVer={alternarVer} />
-                {/* Cómo se acomoda lo que no se movió a mano. */}
-                <button
-                  type="button"
-                  className="orden"
-                  data-guia="limpiar-chats"
-                  aria-haspopup="menu"
-                  aria-expanded={menuOrden !== null}
-                  aria-label={tr("orden.aria")}
-                  data-tip={tr("orden.aria")}
-                  onClick={(e) => {
-                    const c = e.currentTarget.getBoundingClientRect();
-                    setMenuOrden({ x: c.left, y: c.bottom + 4, origen: e.currentTarget });
-                  }}
-                >
-                  {hayOrdenManual(nombres.orden) ? tr("orden.manual") : tr(modoOrden(nombres.orden) === "az" ? "orden.az" : "orden.recientes")}
-                  <ChevronDown size={12} strokeWidth={2} />
-                </button>
-              </div>
+        {acoplado ? (
+          <Fragment>
+            {rielEl}
+            <Acople paneles={panelesAcople} vivos={VIVOS_APP} centro={centroEl} control={controlAcople}></Acople>
+          </Fragment>
+        ) : (
+          <aside className="barra" aria-label={tr("barra.aria")} inert={!abiertaVista}>
+            <div className="barra-cuerpo">
+              {rielEl}
+              {barraColEl}
             </div>
-
-            <motion.div
-              ref={lista}
-              layoutScroll
-              className="lista"
-              // Barra angosta (≤ 340 px de la letra 13): el chip de modelo dice «S high» en vez de «Sonnet high».
-              data-estrecha={ancho <= ESTRECHA ? "" : undefined}
-              onScroll={virtual ? avisarVentana : undefined}
-              onPointerMove={() => !MODO.datosFijos && ultimo.current.cursor && setCursor(null)}
-              onPointerEnter={() => setMirando((m) => (m.mouse ? m : { ...m, mouse: true }))}
-              onPointerLeave={() => setMirando((m) => (m.mouse ? { ...m, mouse: false } : m))}
-              onFocus={() => setMirando((m) => (m.foco ? m : { ...m, foco: true }))}
-              onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setMirando((m) => (m.foco ? { ...m, foco: false } : m))}
-              onContextMenu={abrirMenu}
-            >
-              {/* El error de `pa` va arriba sin tapar lo último que se leyó bien. */}
-              {errorDatos ? (
-                <div className="lista-aviso" data-error="" role="alert">
-                  {errorDatos}
-                </div>
-              ) : hilos ? null : (
-                <div className="lista-aviso">{tr("barra.leyendo")}</div>
-              )}
-              {hilos ? (
-                // Recién con los datos: si no, la primera carga entraría animada.
-                <LoBuscado.Provider value={busqueda}>
-                <AnimatePresence mode="popLayout" initial={false}>
-                  {grupos.map((g) => (
-                    <Carpeta
-                      key={g.proyecto}
-                      g={g}
-                      viendo={g.proyecto === carpetaActiva}
-                      liderActivo={activa}
-                      alAbrirLider={abrirLider}
-                      alCerrarLider={cerrarLider}
-                      alSettleLider={settleLiderYa}
-                      desplegada={desplegada}
-                      alAlternar={alternar}
-                      alPlegar={plegar}
-                      fila={fila}
-                      virtual={virtual}
-                      resueltos={resueltos}
-                      orden={nombres.orden}
-                      recientes={recientes}
-                      mueve={!buscando && !filtroVigente && !verVigente && !MODO.captura}
-                      claude={buscando ? SIN_CONVS : (porCarpetaCC.get(g.proyecto) ?? SIN_CONVS)}
-                      alAbrirClaude={abrirClaude}
-                      alNueva={nuevaAqui}
-                    />
-                  ))}
-                  {extrasCC.map((k) => (
-                    <Carpeta
-                      key={k}
-                      g={{ proyecto: k, ramas: [], espera: [], dormidos: [], cuenta: 0 }}
-                      viendo={false}
-                      liderActivo={activa}
-                      alAbrirLider={abrirLider}
-                      alCerrarLider={cerrarLider}
-                      alSettleLider={settleLiderYa}
-                      desplegada={desplegada}
-                      alAlternar={alternar}
-                      alPlegar={plegar}
-                      fila={fila}
-                      virtual={virtual}
-                      resueltos={resueltos}
-                      mueve={false}
-                      claude={porCarpetaCC.get(k) ?? SIN_CONVS}
-                      alAbrirClaude={abrirClaude}
-                    />
-                  ))}
-                  {grupos.length === 0 && extrasCC.length === 0 ? (
-                    <motion.div
-                      key="vacio"
-                      layout="position"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="lista-aviso"
-                    >
-                      {buscando ? (cerrados.length ? tr("barra.soloCerrados") : tr("barra.sinResultados")) : tr("barra.nadaActivo")}
-                    </motion.div>
-                  ) : null}
-                  {cerrados.length > 0 ? (
-                    <motion.div
-                      key="cerrados"
-                      layout="position"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={RESORTE}
-                      className="bloque-cerrados"
-                    >
-                      <button
-                        type="button"
-                        className="cerrados"
-                        aria-expanded={verCerrados}
-                        onClick={() => setCerradosAbiertos((a) => !a)}
-                      >
-                        <span>{tr("barra.cerrados", { n: cerrados.length })}</span>
-                        <ChevronDown className="chevron" size={12} strokeWidth={2} />
-                      </button>
-                      <AnimatePresence mode="popLayout" initial={false}>
-                        {verCerrados ? (
-                          <motion.ul
-                            key="cerradas"
-                            className="cerradas"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.12 }}
-                          >
-                            <Filas items={cerrados} virtual={virtual} fila={fila} />
-                          </motion.ul>
-                        ) : null}
-                      </AnimatePresence>
-                    </motion.div>
-                  ) : null}
-                </AnimatePresence>
-                </LoBuscado.Provider>
-              ) : null}
-              {/* Dónde cae lo que se arrastra: la ubica `arrastre.ts`, sin render. */}
-              <div ref={linea} className="cae" aria-hidden="true" />
-            </motion.div>
-
-            <AvisoMaquinas />
-            <Pc />
-            <Reinicio />
-            <AvisoClaude />
-            <AvisoClaude cual="agy" />
-            {/* En la carcasa de Windows el .exe se actualiza con lo suyo (Ajustes > Trama para Windows): acá no. */}
-            {carcasa() || carcasaActualiza ? null : <AvisoClaude cual="trama" />}
-            <AvisoNovedades />
-            <AvisoWorkers />
-            <AvisoProgramados />
-            <AvisoVuelta />
-            <AvisoSetup />
-            </div>
-          </div>
           <div
             role="separator"
             tabIndex={0}
@@ -2173,8 +2341,8 @@ export function Barra() {
             }}
             onKeyDown={teclaTirador}
           />
-        </aside>
-
+          </aside>
+        )}
         {seguirDe ? (
           <SeguirCon
             de={seguirDe.de}
@@ -2248,58 +2416,16 @@ export function Barra() {
             }}
           />
         ) : null}
-        <Suspense fallback={null}>
-          <Vista
-            h={hiloActivo}
-            estado={hiloActivo ? estadoVisto(hiloActivo, optimista.get(hiloActivo.id)) : null}
-            settle={hiloActivo ? salidaWorker(hiloActivo, estadoVisto(hiloActivo, optimista.get(hiloActivo.id)), arbol.aCargo) : null}
-            lider={liderActivo}
-            sub={subActivo}
-            settleLider={sidActivo ? settleDe(ramaDe(arbol, sidActivo)) : null}
-            liderNuevo={activa === LIDER_NUEVO}
-            alLiderCreado={liderCreado}
-            alLiderNuevo={abrirLiderNuevo}
-            alCerrarLider={cerrarLider}
-            alSettleLider={settleLiderYa}
-            lideres={arbol.lideres}
-            alAbrirLider={abrirLider}
-            alAbrirHilo={abrir}
-            barraAbierta={abierta}
-            alAlternarBarra={angosto ? volverALista : alternarBarra}
-            alCerrar={cerrar}
-            alPasar={pasar}
-            alRetomar={retomarId}
-          />
-        </Suspense>
-        {/* El panel va al lado y la vista se esconde por CSS (`data-panel`): no se desmonta. */}
-        {panel ? (
-          <Panel
-            cual={panel}
-            barraAbierta={abierta}
-            alAlternarBarra={angosto ? volverALista : alternarBarra}
-            alVolver={() => setPanel(null)}
-            ramas={{ hilos: vistos, optimista, errores, enCurso, alActuar: actuar, alAbrir: abrir, alRetomar: retomar, alArreglar: arreglar, alActualizar: actualizarRama, conflictos, analista }}
-            tablero={{ carpetas: slugsReg, lideres: lideresTablero, alIniciar: iniciarTarea, alAbrirLider: abrirLider, alRedactar: redactarTablero, avisar: { lideres: lideresAviso, jefeDe, alAvisar: avisarLider } }}
-          />
-        ) : null}
-        {/* El botón del panel de contexto vive arriba a la derecha de la ventana, fijo (CSS `.ctx-boton`): así se ve y cierra el panel
-            también cuando el panel tapa la conversación (ancho medio). No va en el pie: lo que abre cae sobre su costado. */}
-        <button
-          type="button"
-          className="ctx-boton"
-          aria-label={tr(consumo ? "ctxp.ocultar" : "ctxp.mostrar")}
-          data-tip={tr(consumo ? "ctxp.ocultar" : "ctxp.mostrar")}
-          aria-pressed={consumo}
-          onClick={alternarConsumo}
-        >
-          <PanelRight size={16} strokeWidth={1.8} />
-        </button>
-        {/* El panel de contexto, a la derecha de todo: el líder que se mira (o el del worker que se mira) y sus workers. */}
-        {consumo ? (
+        {acoplado ? null : (
+          <Fragment>
+            {centroEl}
+        {consumoVista ? (
           <Suspense fallback={null}>
             <PanelContexto lider={liderContexto} workers={workersContexto} alCerrar={alternarConsumo} alAbrirHilo={abrir} />
           </Suspense>
         ) : null}
+          </Fragment>
+        )}
       </div>
     </MotionConfig>
     </SubAbierto>

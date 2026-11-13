@@ -2,7 +2,8 @@
    dirección D: negro, hairlines, la misma escala de grises y el rojo. */
 
 /* El panel tapa la vista del hilo sin desmontarla: lo que se estaba escribiendo sigue ahí. */
-.app[data-panel] > .hilo:not(.pn-main) {
+.app[data-panel] > .hilo:not(.pn-main),
+.app[data-panel] .acople-centro > .hilo:not(.pn-main) {
   display: none;
 }
 .pie button[aria-pressed="true"] {
@@ -28,7 +29,8 @@
 .pn-main {
   animation: vista-entra 150ms ease-out;
 }
-.app:not([data-panel]) > .hilo:not(.pn-main) {
+.app:not([data-panel]) > .hilo:not(.pn-main),
+.app:not([data-panel]) .acople-centro > .hilo:not(.pn-main) {
   animation: vista-entra 150ms ease-out;
 }
 .pn-aviso,
@@ -3344,7 +3346,8 @@
 @media (prefers-reduced-motion: reduce) {
   .pn,
   .pn-main,
-  .app:not([data-panel]) > .hilo:not(.pn-main) {
+  .app:not([data-panel]) > .hilo:not(.pn-main),
+  .app:not([data-panel]) .acople-centro > .hilo:not(.pn-main) {
     animation: none !important;
     transition: none !important;
     transform: none !important;
@@ -3353,7 +3356,8 @@
 
 :root[data-quieto] .pn,
 :root[data-quieto] .pn-main,
-:root[data-quieto] .app:not([data-panel]) > .hilo:not(.pn-main) {
+:root[data-quieto] .app:not([data-panel]) > .hilo:not(.pn-main),
+:root[data-quieto] .app:not([data-panel]) .acople-centro > .hilo:not(.pn-main) {
   animation: none !important;
 }
 

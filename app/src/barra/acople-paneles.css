@@ -200,11 +200,23 @@
 }
 
 .acople-panel-cuerpo {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 0%;
   min-height: 0;
   overflow: auto;
+  container-type: inline-size;
   scrollbar-width: thin;
   scrollbar-color: var(--borde-5) transparent;
+}
+.app[data-acople] > .acople {
+  flex: 1 1 0%;
+  width: auto;
+  min-width: 0;
+  padding: 0;
+}
+.app[data-acople] .acople-centro {
+  position: relative;
 }
 .acople-panel[data-plegado] .acople-panel-cuerpo {
   display: none;
