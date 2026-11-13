@@ -200,14 +200,26 @@
 .pn-sel .pbtn {
   font-family: var(--font-sans);
 }
+/* Filas de control ancho (temas, acento, tema propio): el control baja a su propia línea, bajo el título, y arranca a la
+   izquierda. Al costado no entra sin aplastar el título y su explicación. */
+.pn-dato:has(> .pn-val > :is(.pn-temas, .pn-acento, .pn-mio)) {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--esp-3);
+}
+.pn-dato:has(> .pn-val > :is(.pn-temas, .pn-acento, .pn-mio)) > .pn-val {
+  text-align: left;
+  white-space: normal;
+}
+.pn-dato:has(> .pn-val > :is(.pn-temas, .pn-acento, .pn-mio)) .pn-que {
+  max-width: none;
+}
 /* Tema de color: una cápsula por tema con su muestra (fondo, panel, acento). Cada <i> lleva su `data-tema`, así toma
    los tokens de ese tema aunque la app tenga otro puesto. */
 .pn-temas {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: var(--esp-2);
-  max-width: 28rem;
 }
 .pn-temas button {
   display: inline-flex;
@@ -288,9 +300,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: var(--esp-2);
-  max-width: 28rem;
 }
 .pn-acento-tema,
 .pn-acento-propio {
