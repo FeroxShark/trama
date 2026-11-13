@@ -13,6 +13,7 @@ import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electr
 import type { PrefCache } from "../../electron/cache-pregunta";
 import { aplicarOpGuias, GUIAS_VACIO, normalizarGuias, type EstadoGuias, type OpGuias } from "../../electron/guias-estado";
 import { versionNormal } from "../../electron/novedades-cambios";
+import { topeSano, type TopeConf, type TopeEntorno } from "../../electron/autocompact-tope.ts";
 import { main, mensaje, type Lectura } from "../puente";
 import { aplicarDif, esDif } from "./hilos-dif";
 import { MODO } from "../modo";
@@ -379,7 +380,7 @@ export const PASOS_INSTALACION: readonly PasoInstalacion[] = ["bajando", "compil
 export type Actualizado = { ok: true; version: string; abiertos: number } | { ok: false; error: string; abiertos: number };
 
 /** Los umbrales del anillo de contexto (electron/contexto.ts); `null`, no se pudo leer. */
-export type Umbrales = { autoCompact: number | null };
+export type Umbrales = { autoCompact: number | null; /** «Contexto antes de compactar» (modelos.json y PA_AUTOCOMPACT), para resolver el tope de un líder por su modelo. */ tope?: { conf: TopeConf | null; env: TopeEntorno } };
 
 /** `sucio` (sólo el de Trama): el checkout de donde se instaló tiene cambios sin commitear y Actualizar no tocaría nada. */
 export type AvisoClaude = { instalada: string; ultima: string; sucio?: boolean; notas?: string };
@@ -2711,9 +2712,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     return r === "pendiente" ? "pendiente" : "vivo";
   },
   async umbralContexto() {
-    const u = (await m.paneles.umbralContexto().catch(() => null)) as { autoCompact?: unknown } | null;
+    const u = (await m.paneles.umbralContexto().catch(() => null)) as { autoCompact?: unknown; tope?: unknown } | null;
     const n = (x: unknown) => (typeof x === "number" && x > 0 ? x : null);
-    return { autoCompact: n(u?.autoCompact) };
+    return { autoCompact: n(u?.autoCompact), tope: topeSano(u?.tope) };
   },
   async liderCerrar(sid, motivo) {
     await m.lider.cerrar(sid, motivo).catch((e) => {

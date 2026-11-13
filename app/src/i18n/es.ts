@@ -2727,7 +2727,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "ajustes.mdlPermitirMax": "Permitir esfuerzo max",
   "ajustes.mdlPermitirMaxQue": "Gasta mucho cupo por poca mejora. Apagado, un worker con max necesita tu permiso.",
   "ajustes.mdlCompactar": "Contexto antes de compactar",
-  "ajustes.mdlCompactarQue": "Cuántos tokens junta la conversación de un worker antes de compactarse. Cada turno vuelve a leer todo el contexto: con más contexto, cada turno sale más caro. Nativo deja que decida Claude Code; Haiku usa 300 k si no elegís otro.",
+  "ajustes.mdlCompactarQue": "Cuántos tokens junta la conversación de un worker o de un líder antes de compactarse. Cada turno vuelve a leer todo el contexto: con más contexto, cada turno sale más caro. Nativo deja que decida Claude Code; Haiku usa 300 k si no elegís otro.",
   "ajustes.mdlCompactarDe": "Contexto antes de compactar: {modelo}",
   "ajustes.mdlCompactarNativo": "Nativo",
   "ajustes.mdlCompactarOtro": "Otro",

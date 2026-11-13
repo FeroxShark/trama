@@ -69,7 +69,7 @@ import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTr
 import { paraAcp, resueltos } from "./mcp-config.ts";
 import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
-import { claseDeModelo, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, type Clase } from "./modelos-config.js";
+import { claseDeModelo, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, topeDeLider, type Clase } from "./modelos-config.js";
 import { parsearModelo } from "./dsh.ts";
 import { parsearModelo as parsearOpencode } from "./opencode.ts";
 import { pedidoDe } from "./cache.ts";
@@ -185,6 +185,8 @@ type Proc = {
   clase: Clase;
   /** Un líder local: adónde le habla y con qué contexto arrancó (va en su entorno: cambiarlo es relanzarlo). */
   local?: Local;
+  /** El `--autocompact` con que arrancó (`null`: nativo). Otro modelo con otro tope es relanzar (`cambiarEnVivo`). */
+  tope?: number | null;
   /** El id de la cuenta agregada de Claude con que corre; sin él, la de siempre (su uso es el de `anotarUso`). */
   cuenta?: string;
   ocupado: boolean;
@@ -573,6 +575,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   if (!g.corriendo) g.corriendo = Math.floor(Date.now() / 1000);
   void guardar();
   const clase = claseDeModelo(g.modelo);
+  // «Contexto antes de compactar» de su familia (modelos.json, `PA_AUTOCOMPACT` pisa), como un worker de `pa`: al arrancar y al reanudar.
+  const tope = clase === "claude" && !local && !extra.ollama ? topeDeLider(g.modelo) : null;
   // La terminal de los agentes (Windows): PowerShell por defecto; en Linux no cambia nada (terminal-agentes.ts).
   const plat = plataformaActual();
   const terminal = terminalAgentesGuardada();
@@ -640,8 +644,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, lineaSistema: lineaTerminalAgentes(plat, terminal) ?? undefined }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
-  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, ...(cuenta ? { cuenta: cuenta.id } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
+      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, autocompact: tope, lineaSistema: lineaTerminalAgentes(plat, terminal) ?? undefined }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
+  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, ...(cuenta ? { cuenta: cuenta.id } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");
   p.stdout!.on("data", (trozo: string) => {
@@ -965,6 +969,8 @@ async function cambiarEnVivo(x: Proc, modelo: string, effort: string): Promise<b
   if (x.local || localDe(modelo)) return false;
   // Gemini y Ollama también van en el proceso (el puente, o el endpoint en el entorno): otro modelo de esas clases es relanzar.
   if (x.clase !== "claude" || claseDeModelo(modelo) !== "claude") return false;
+  // El tope de «Contexto antes de compactar» va en el argv del proceso: otra familia con otro tope se relanza (`--resume`), no se cambia en vivo.
+  if (x.modelo !== modelo && (x.tope ?? null) !== topeDeLider(modelo)) return false;
   if (x.modelo !== modelo) {
     const r = await control(x, (id) => lineaModelo(id, modelo));
     if (!r || (!r.ok && !r.error)) return false;

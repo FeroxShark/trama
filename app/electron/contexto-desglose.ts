@@ -71,6 +71,8 @@ export type Desglose = {
   ventana: number | null;
   /** La ventana no la dijo nadie: es la de siempre de ese modelo. */
   ventanaEstimada: boolean;
+  /** Líder de Claude con «Contexto antes de compactar»: ese tope es el límite que muestra el panel (en `ventana`, nunca más que la del modelo). */
+  tope?: number | null;
   categorias: FilaCategoria[];
   herramientas: FilaHerramienta[];
   mcp: FilaMcp[];
@@ -654,4 +656,14 @@ export async function memoriaDeSesion(
     if (limpio) r.push({ ruta: c.ruta, tipo: c.tipo, tokens: tokensAprox(limpio), estimado: true });
   }
   return r;
+}
+
+/**
+ * El límite que muestra el panel de un líder de Claude: el tope de «Contexto antes de compactar» (a ese tamaño compacta solo) en vez de la
+ * ventana del modelo (1 M). Nunca más que la ventana; sin tope (nativo) queda lo que dijo Claude Code. Un desglose nuevo: lo guardado no se toca.
+ */
+export function conTope(d: Desglose, tope: number | null): Desglose {
+  if (tope === null || d.fuente === "sin-desglose") return d;
+  const recortada = d.ventana !== null && tope < d.ventana;
+  return { ...d, ventana: d.ventana === null ? tope : Math.min(d.ventana, tope), ventanaEstimada: recortada ? false : d.ventanaEstimada, tope };
 }

@@ -64,6 +64,8 @@ export type ArmarLider = {
   mcpConfig?: string;
   /** El pedazo de settings del apagado global de Trama (`apagados.ts`): `--settings <archivo>`. Un líder local u Ollama no lo lleva (ya va con `--bare` o sin MCP). */
   apagados?: string;
+  /** «Contexto antes de compactar» de la familia del modelo, en tokens (`--autocompact`, como un worker de `pa`); sin él (`null`) compacta Claude Code a su manera. Un líder local u Ollama no lo lleva (su ventana va en el entorno). */
+  autocompact?: number | null;
 };
 
 /**
@@ -115,7 +117,7 @@ const argvLocal = (contexto?: string) => [
  * y los contesta la app. Sesión nueva: `--session-id` + `--name`; retomada:
  * `--resume` (el nombre ya está en el transcript).
  */
-export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo, lineaSistema, mcpConfig, apagados }: ArmarLider): string[] {
+export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo, lineaSistema, mcpConfig, apagados, autocompact }: ArmarLider): string[] {
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
   for (const u of [desde, rama?.de, rama?.hasta]) if (u !== undefined && !SID.test(u)) throw errorT("main.sesionRara", { v: u });
   if (!esModo(modo)) throw errorT("main.modoRaro", { v: String(modo) });
@@ -148,6 +150,7 @@ export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEF
     ...(lineaSistema ? ["--append-system-prompt", lineaSistema] : []),
     ...(mcpConfig && !local && !ollama ? ["--mcp-config", mcpConfig] : []),
     ...(apagados && !local && !ollama ? ["--settings", apagados] : []),
+    ...(autocompact && !local && !ollama ? ["--autocompact", String(autocompact)] : []),
   ];
   // Volver atrás y ramificar son del `claude` mismo (`--resume-session-at`, `--fork-session`): nunca se reescribe un transcript
   // ni se pasa por una compactación; el modelo recibe sólo la cadena hasta ese mensaje.

@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.78
+
+- The «Context before compacting» setting now also applies to leaders: an Opus leader set to 300,000 compacts at that size on start and on resume, and the context panel shows that cap as its limit instead of 1,000,000.
+
 ## 0.2.77
 
 - The split uses Gemini 4 Hydrogen (with the Gemini quota and the quality measured by Artificial Analysis) and goes back to using Claude and GPT through Google while agy serves them.

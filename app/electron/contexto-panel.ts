@@ -9,7 +9,7 @@ import { inventario, rutasClaude } from "./conectores-claude.ts";
 import { capturarBase } from "./contexto-base.ts";
 import { skillsDeSesion, vistaPrevia, type VistaPrevia } from "./contexto-previa.ts";
 import { sidDeWorker, transcriptDe as transcriptPorSid, TRANSCRIPTS } from "./consumo.ts";
-import { cwdDe, desdeClaude, desdeTranscript, medirConRespaldo, memoriaDeSesion, sinDesglose, ultimaCompactacion, usosDe, type Desglose, type Medicion } from "./contexto-desglose.ts";
+import { conTope, cwdDe, desdeClaude, desdeTranscript, medirConRespaldo, memoriaDeSesion, sinDesglose, ultimaCompactacion, usosDe, type Desglose, type Medicion } from "./contexto-desglose.ts";
 import { leerTranscript, type Transcript } from "./contexto-jsonl.ts";
 import { leerSesion } from "./contexto-sesion.ts";
 import { errorT } from "./errores.ts";
@@ -18,6 +18,7 @@ import { sinLado, ventanaSub, type GastoSubagentes } from "./subagentes-gasto.ts
 import { carpetaDeSubagentes, crearGastos } from "./subagentes-gasto-disco.ts";
 import type { Subagentes } from "./subagentes.ts";
 import { aplicarApagadosLideres, claseDeLider, contextoVivo, transcriptDe as transcriptDeLider } from "./lider.ts";
+import { topeDeLider } from "./modelos-config.ts";
 import { PA_STATE } from "./pa.ts";
 import { buscarSkills, catalogoSkills, DIAS_USOS, usosDeHistorial, type SkillCatalogo, type UsosCatalogo } from "./skills-catalogo.ts";
 
@@ -73,6 +74,15 @@ export async function gastoSubagentes(x: unknown, vivos?: { leer(): Promise<Suba
   return base ? g : { ...g, subagentes: g.subagentes.map((s) => (s.estado === "corriendo" ? { ...s, estado: "parado" as const } : s)) };
 }
 
+
+
+// El tope de ese líder hoy (el de su modelo en modelos.json): un líder de Gemini, local o de Ollama no lo lleva.
+async function conTopeDeLider(d: Desglose, sid: string): Promise<Desglose> {
+  const l = await claseDeLider(sid);
+  if (!l || l.clase !== "claude" || l.local || l.modelo.toLowerCase().startsWith("ollama:")) return d;
+  return conTope(d, topeDeLider(l.modelo));
+}
+
 /**
  * El desglose de un líder (`{ lider: sid }`) o de un worker de `pa` (`{ worker: id }`). Líder de Claude vivo: su `/context` (exacto). Si no:
  * su transcript (estimado). Gemini, dsh y OpenCode: sin desglose. `fresco` (el botón de refrescar) salta lo guardado.
@@ -83,7 +93,9 @@ export async function desgloseContexto(x: unknown): Promise<Desglose> {
   if (!clave) throw errorT("main.apagadoRaro", { v: "?" });
   const en = enVuelo.get(clave);
   if (en) return en;
-  const pedido = calcularDesglose(o, clave, o.fresco === true).finally(() => enVuelo.delete(clave));
+  const pedido = calcularDesglose(o, clave, o.fresco === true)
+    .then((d) => (typeof o.lider === "string" ? conTopeDeLider(d, o.lider) : d))
+    .finally(() => enVuelo.delete(clave));
   enVuelo.set(clave, pedido);
   return pedido;
 }

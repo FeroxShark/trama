@@ -13,6 +13,7 @@ import { hayAgy, hayClaude } from "./capacidades.ts";
 import type { ModeloClaudeCuenta } from "./claude-catalogo.ts";
 import { leerDestrabos, type CuentaDestrabos } from "./destrabar-registro.ts";
 import { errorT, textoT } from "./errores.ts";
+import { topeAutocompact, topeDeEntorno, type TopeConf, type TopeEntorno } from "./autocompact-tope.ts";
 import { destrabarActivo, leerConfig, unir, urlOllama, validarConfig, TIPOS, type ConfigModelos, type Eleccion, type Tipo } from "./modelos-tipos.ts";
 
 /** Dónde está el archivo (se mira cada vez: los tests lo cambian por el entorno). */
@@ -294,6 +295,25 @@ export function destrabarModelo(modelo: string): boolean {
     return destrabarActivo(modelo, undefined);
   }
 }
+
+/** El `autocompact` del archivo guardado (`null` si no hay archivo, no se entiende o no dice nada: vale lo de fábrica). */
+export function autocompactGuardado(): TopeConf | null {
+  try {
+    const { obj } = analizar(readFileSync(rutaModelos(), "utf8"), "");
+    return (obj ? leerConfig(obj).autocompact : undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** `PA_AUTOCOMPACT` del entorno de la app (el del líder no lo hereda: `entornoLider` saca todo `PA_*`; acá se lee antes). */
+export const topeEntorno = (env: NodeJS.ProcessEnv = process.env): TopeEntorno => topeDeEntorno(env.PA_AUTOCOMPACT);
+
+/**
+ * El tope de «Contexto antes de compactar» de un líder de Claude: las mismas reglas que `pa` para un worker (por modelo o familia,
+ * `null` = nativo, `PA_AUTOCOMPACT` pisa). `null`: no se pasa `--autocompact` y compacta Claude Code a su manera.
+ */
+export const topeDeLider = (modelo: string, env: NodeJS.ProcessEnv = process.env): number | null => topeAutocompact(modelo, autocompactGuardado(), topeEntorno(env));
 
 /** El local de Ollama que ese id nombra, del archivo; `null` si no está (un modelo `ollama:*` que no figura en `locales` no se lanza). */
 export const localOllama = (id: string, cfg: ModelosConfig | null = modelosConfig()): LocalOllama | null => cfg?.locales.find((l) => l.id === id) ?? null;

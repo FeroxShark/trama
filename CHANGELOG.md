@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.78
+
+- El ajuste «Contexto antes de compactar» ahora también vale para los líderes: un líder de Opus con 300 000 compacta a ese tamaño al arrancar y al reanudar, y el panel de contexto muestra ese tope como límite en vez de 1 000 000.
+
 ## 0.2.77
 
 - El reparto usa Gemini 4 Hydrogen (con el cupo de Gemini y la calidad medida por Artificial Analysis) y vuelve a usar Claude y GPT por Google mientras agy los sirva.

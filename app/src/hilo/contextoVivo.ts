@@ -134,7 +134,7 @@ export function suscribirUmbral(fn: () => void) {
 /** Relee los umbrales (al montar el anillo y al abrir su detalle; nunca por timer). */
 export function leerUmbral() {
   void fuente.umbralContexto().then((u) => {
-    if (u.autoCompact === umbrales.autoCompact) return;
+    if (u.autoCompact === umbrales.autoCompact && JSON.stringify(u.tope) === JSON.stringify(umbrales.tope)) return;
     umbrales = u;
     oyentesUmbral.forEach((f) => f());
   });

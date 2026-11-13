@@ -9,7 +9,7 @@ import { Reloj } from "../barra/piezas";
 import { locale, t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import type { Pintor } from "../reloj";
-import { cuenta, umbralDe, ventanaDe, ventanaDicha } from "./contexto-logica";
+import { cuenta, umbralDe, umbralDeLider, ventanaDe, ventanaDicha } from "./contexto-logica";
 import { contextoDe, escucharContexto, leerUmbral, suscribirContexto, suscribirUmbral, umbralLeido } from "./contextoVivo";
 import { modeloDe, nombreModelo } from "./opciones";
 import { cacheAplica } from "../../electron/cache";
@@ -47,7 +47,7 @@ export function Contexto({ sid, usage: fijo = null, modelo, vence = null, frio =
     useCallback((fn: () => void) => suscribirContexto(sid ?? "", fn), [sid]),
     () => contextoDe(sid ?? ""),
   );
-  const { autoCompact } = useSyncExternalStore(suscribirUmbral, umbralLeido);
+  const { autoCompact, tope } = useSyncExternalStore(suscribirUmbral, umbralLeido);
   const esLider = sid !== undefined;
   const [abierto, setAbierto] = useState(deEntrada);
   const boton = useRef<HTMLButtonElement>(null);
@@ -64,7 +64,8 @@ export function Contexto({ sid, usage: fijo = null, modelo, vence = null, frio =
 
   const usage = sid === undefined ? fijo : vivo.usage;
   const ventana = ventanaDicha(vivo.ventanas, modelo) ?? ventanaDe(modelo);
-  const c = cuenta(usage, umbralDe(autoCompact, ventana));
+  // Un líder compacta en el tope de su familia («Contexto antes de compactar»); un worker, por lo que diga el settings de Claude.
+  const c = cuenta(usage, esLider ? umbralDeLider(modelo, tope, autoCompact, ventana) : umbralDe(autoCompact, ventana));
   const cache = useMemo(() => (vence === null || !cacheAplica(modelo) ? null : pintorVence(vence, frio)), [vence, frio, modelo]);
 
   const cerrar = (conFoco = true) => {

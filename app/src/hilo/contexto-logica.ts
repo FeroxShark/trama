@@ -3,6 +3,8 @@
 // autocompact (líder y worker). Puro: lo prueba
 // `tests/contexto.test.ts`.
 import type { Tokens } from "../datos/contrato";
+import type { Umbrales } from "../datos/fuente";
+import { topeAutocompact } from "../../electron/autocompact-tope.ts";
 
 /** Lo que pesa la conversación: la entrada del último turno, cacheada o no. */
 export const usados = (u: Tokens | null | undefined): number =>
@@ -37,6 +39,15 @@ export function ventanaDicha(ventanas: Record<string, number> | null | undefined
  */
 export const umbralDe = (autoCompact: number | null | undefined, ventana: number): number =>
   autoCompact && autoCompact > 0 ? Math.min(autoCompact, ventana) : ventana;
+
+/**
+ * El umbral del anillo de un líder de Claude: su tope de «Contexto antes de compactar» (por familia, modelos.json; `PA_AUTOCOMPACT` pisa)
+ * si lo hay, nunca más que la ventana; sin tope (nativo) vale lo de `umbralDe` (`autoCompactWindow` o la ventana). Un modelo que no es de Claude no lo lleva.
+ */
+export function umbralDeLider(modelo: string | null | undefined, tope: Umbrales["tope"], autoCompact: number | null | undefined, ventana: number): number {
+  const t = modelo && tope && /^claude-/i.test(modelo) ? topeAutocompact(modelo, tope.conf, tope.env) : null;
+  return t ? Math.min(t, ventana) : umbralDe(autoCompact, ventana);
+}
 
 export type Nivel = "normal" | "ambar" | "rojo";
 

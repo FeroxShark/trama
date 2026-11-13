@@ -2741,7 +2741,7 @@ export const en = {
   "ajustes.mdlPermitirMax": "Allow max effort",
   "ajustes.mdlPermitirMaxQue": "Spends a lot of quota for little improvement. Off, a worker using max needs your permission.",
   "ajustes.mdlCompactar": "Context before compacting",
-  "ajustes.mdlCompactarQue": "How many tokens a worker's conversation can hold before it's compacted. Every turn re-reads the whole context, so more context makes each turn more expensive. Native lets Claude Code decide; Haiku uses 300 k unless you pick another.",
+  "ajustes.mdlCompactarQue": "How many tokens a worker's or a leader's conversation can hold before it's compacted. Every turn re-reads the whole context, so more context makes each turn more expensive. Native lets Claude Code decide; Haiku uses 300 k unless you pick another.",
   "ajustes.mdlCompactarDe": "Context before compacting: {modelo}",
   "ajustes.mdlCompactarNativo": "Native",
   "ajustes.mdlCompactarOtro": "Custom",
