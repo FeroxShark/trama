@@ -429,6 +429,40 @@
 .pn-cuenta .pn-estado {
   margin-bottom: 0;
 }
+/* Chips de filtro y atajos (Ramas, Ajustes > Modelos): acá y no en ramas-tarjetas.css, que sólo se carga con Ramas. */
+.pn-chip-f {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-1) var(--esp-2-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-pastilla);
+  background: none;
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.pn-chip-f b {
+  color: var(--texto-2);
+  font-weight: 600;
+}
+.pn-chip-f:hover {
+  color: var(--texto-1);
+}
+.pn-chip-f[aria-pressed="true"] {
+  border-color: var(--texto-4);
+  background: var(--borde-1);
+  color: var(--texto-1);
+}
+.pn-chip-f:focus-visible {
+  outline: 2px solid var(--texto-3);
+  outline-offset: 2px;
+}
+.pn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1-5);
+  margin-top: var(--esp-1);
+}
 .pn-disp {
   display: flex;
   min-width: 12.5rem;
@@ -2180,6 +2214,10 @@
   min-height: var(--alto-fila);
   align-items: center;
   border-top-color: var(--capa-div);
+}
+/* Con la lista de interruptores al lado, el título queda arriba, a la altura del primero (no centrado en el aire). */
+.aj-cat .pn-dato:has(.mdl-destrabar) {
+  align-items: flex-start;
 }
 .aj-cat .pn-sec > .pn-h + .pn-dato {
   border-top-color: transparent;

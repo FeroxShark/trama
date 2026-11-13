@@ -280,7 +280,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
   useEffect(() => {
     if (!visible || !ES_CAPTURA) return;
     // Captura: `mdl-agregar` deja a la vista los locales y su panel; el resto, la cabecera de la sección.
-    const mira = sec.current?.querySelector(VARIANTE === "mdl-agregar" ? ".mdl-panel" : VARIANTE === "mdl-bajando" || VARIANTE === "mdl-sinollama" || VARIANTE === "mdl-apagado" ? ".mdl-ollama" : VARIANTE.startsWith("mdl-wk") ? ".mdl-wk" : VARIANTE === "mdl-sugeridos" ? ".ol-sug" : VARIANTE === "mdl-servidores" || VARIANTE === "mdl-prender" || VARIANTE === "mdl-win" || VARIANTE === "mdl-guias" ? ".lc" : VARIANTE === "mdl-tope" ? ".mdl-cruce" : "x:not(x)");
+    const mira = sec.current?.querySelector(VARIANTE === "mdl-agregar" ? ".mdl-panel" : VARIANTE === "mdl-bajando" || VARIANTE === "mdl-sinollama" || VARIANTE === "mdl-apagado" ? ".mdl-ollama" : VARIANTE.startsWith("mdl-wk") ? ".mdl-wk" : VARIANTE === "mdl-sugeridos" ? ".ol-sug" : VARIANTE === "mdl-servidores" || VARIANTE === "mdl-prender" || VARIANTE === "mdl-win" || VARIANTE === "mdl-guias" ? ".lc" : VARIANTE === "mdl-tope" ? ".mdl-cruce" : VARIANTE === "mdl-compactar" ? ".mdl-compactar" : "x:not(x)");
     if (mira) mira.scrollIntoView({ block: "center" });
     else sec.current?.scrollIntoView({ block: "start" });
   }, [visible]);
