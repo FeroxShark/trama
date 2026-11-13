@@ -227,10 +227,10 @@
   color: var(--texto);
 }
 
-/* Cupos: dos anillos con la cifra; al tocarlos se abre el detalle. */
+/* Cupos: dos anillos de 3rem con estado por color e insignia; al tocarlos se abre el detalle. */
 .anillos {
   display: flex;
-  width: 2.5rem;
+  width: 100%;
   flex: none;
   flex-direction: column;
   align-items: center;
@@ -248,47 +248,76 @@
 .an {
   position: relative;
   display: grid;
-  gap: 1px;
+  gap: 0.125rem;
   justify-items: center;
   color: var(--apagado);
   font-size: var(--letra-3);
   line-height: 0.8125rem;
   text-align: center;
 }
-.an[data-viejo] {
+.an[data-viejo],
+.an:has(.an-n[data-viejo]) {
   opacity: 0.6;
 }
 .an-c {
   position: relative;
   display: grid;
-  width: 2rem;
-  height: 2rem;
+  width: 3rem;
+  height: 3rem;
   place-items: center;
   color: var(--texto);
-  font-size: var(--letra-4);
+  font-size: var(--letra-5);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
-.an-c svg {
+.an-c > svg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   fill: none;
-  stroke-width: 3;
-  transform: rotate(-90deg);
+  stroke-width: 0.3125rem;
 }
 .an-pista {
   stroke: var(--capa-track);
 }
 .an-uso {
-  stroke: var(--acento);
+  stroke: var(--ok);
   stroke-linecap: round;
 }
-/* El tooltip del anillo («5 horas: 5 % usado, vuelve en…») cubre todo el anillo; el clic pasa al botón. */
+.an-marca {
+  stroke: var(--texto);
+  stroke-width: 0.125rem;
+  stroke-linecap: butt;
+}
+.an-insig {
+  position: absolute;
+  top: -0.0625rem;
+  right: 0.0625rem;
+  display: grid;
+  place-items: center;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  border: 0.125rem solid var(--sup-1);
+  border-radius: var(--r-cap);
+}
+.an-insig svg {
+  width: 0.5625rem;
+  height: 0.5625rem;
+}
+.an-e {
+  white-space: nowrap;
+}
+/* El tooltip del anillo («5 horas: 5 % usado · va bien», «vuelve en…») cubre todo el anillo; el clic pasa al botón. */
 .an-tip {
   position: absolute;
   inset: 0;
+  z-index: 2;
+}
+.an[data-nivel="ok"] .an-insig {
+  background: var(--ok);
+  color: var(--acento-texto);
 }
 .an[data-nivel="ambar"] .an-uso {
   stroke: var(--aviso);
@@ -296,11 +325,19 @@
 .an[data-nivel="ambar"] .an-n {
   color: var(--cupo-poco-texto);
 }
+.an[data-nivel="ambar"] .an-insig {
+  background: var(--decision-relleno);
+  color: var(--decision-sobre);
+}
 .an[data-nivel="rojo"] .an-uso {
   stroke: var(--critico);
 }
 .an[data-nivel="rojo"] .an-n {
   color: var(--fallo-texto);
+}
+.an[data-nivel="rojo"] .an-insig {
+  background: var(--fallo-relleno);
+  color: var(--fallo-sobre);
 }
 
 /* El perfil de reparto, bajo los anillos: un ícono (cada perfil el suyo) que abre el menú con los cuatro. Con el equilibrado va apagado; con otro,

@@ -302,3 +302,17 @@ test("el encabezado de cada carpeta tiene el + de chat nuevo, con su nombre acce
   assert.match(leer("../src/barra/riel-estilos.css"), /\.proy-nueva:focus-visible \{[^}]*outline:/, "foco visible con teclado");
   assert.ok(leer("../src/barra/CONVENCIONES.md").includes("Chat nuevo en <proyecto>"), "documentado en CONVENCIONES.md");
 });
+
+
+test("anillos del riel: 3rem, insignia por estado, marquita semanal y tokens", () => {
+  const css = leer("../src/barra/riel-estilos.css");
+  assert.match(css, /\.an-c \{[^}]*width:\s*3rem[^}]*height:\s*3rem/);
+  assert.match(css, /\.an-c > svg \{[^}]*stroke-width:\s*0\.3125rem/);
+  assert.match(css, /tabular-nums/);
+  assert.match(css, /\.an-uso \{[^}]*stroke:\s*var\(--ok\)/);
+  assert.match(css, /\.an-insig/);
+  assert.match(css, /\.an-marca/);
+  const riel = leer("../src/barra/CuposRiel.tsx");
+  assert.match(riel, /<Insignia nivel=\{estado\.nivel\}/);
+  assert.match(riel, /semanal/);
+});

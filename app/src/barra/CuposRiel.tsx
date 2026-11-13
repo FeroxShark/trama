@@ -16,7 +16,8 @@ import { Hilos } from "../paneles/CuposTejido";
 import { abrirAjustes } from "../paneles/ajustes-nav";
 import type { Pintor } from "../reloj";
 import { VIEJO_S, cuandoFuturo, pintorHace, pintorVisto } from "../tiempo";
-import { AMBAR_DESDE, bloquesMotores, cuentasClaude, lineasCuentas, nivelCupo, type LineaRiel, type VentanaRiel } from "./cupos-riel-logica";
+import { IcAtencion, IcCerrar, IcOk } from "../ui/iconos";
+import { AMBAR_DESDE, bloquesMotores, cuentasClaude, estadoAnillo, lineasCuentas, marcaAnillo, nivelCupo, type LineaRiel, type NivelAnillo, type VentanaRiel } from "./cupos-riel-logica";
 import { textoVuelve } from "./cuposNota";
 import { ElegirCuenta, useCuentasBarra } from "./ElegirCuenta";
 import { PerfilRiel } from "./PerfilRiel";
@@ -42,18 +43,41 @@ const pintorNumero =
   };
 
 /** El tooltip de un anillo: «5 horas: 5 % usado, vuelve en 4 h 48 min». Sin uso (0 %) no hay nada que esperar; agotado dice «sin cupo». */
+const ANILLO_R = 19.5;
+
 const pintorAnilloTip =
-  (ventana: string, v: VentanaRiel, ts: number): Pintor =>
+  (ventana: string, v: VentanaRiel, ts: number, semanal: boolean): Pintor =>
   (a) => {
-    if (v.pct === null) return { texto: "", en: Infinity, attrs: { "data-tip": null } };
-    const falta = v.pct > 0 && v.hasta > a ? formatearFalta(v.hasta - a, unidades()) : null;
+    if (v.pct === null) return { texto: "", en: Infinity, attrs: { "data-tip": t("riel.anilloSinDato", { ventana }) } };
+    const u = unidades();
+    const estado = estadoAnillo(v, a, semanal);
+    const pct = Math.round(v.pct);
+    const estadoTxt =
+      estado.nivel === "rojo"
+        ? t("riel.anilloSinCupo")
+        : estado.seAcabaEn !== null
+          ? t("riel.anilloSeAcaba", { falta: formatearFalta(estado.seAcabaEn, u).texto })
+          : estado.nivel === "ambar"
+            ? t("riel.anilloPoco")
+            : t("riel.anilloBien");
+    const linea1 = `${t("riel.anilloTipSolo", { ventana, pct })} · ${estadoTxt}`;
+    const falta = v.pct > 0 && v.hasta > a ? formatearFalta(v.hasta - a, u) : null;
     const vuelve = falta ? t("cupos.vuelveEn", { falta: falta.texto }) : "";
-    const base = v.pct >= 100 ? (vuelve ? t("riel.anilloTipLleno", { ventana, vuelve }) : t("riel.anilloTipLlenoSolo", { ventana })) : vuelve ? t("riel.anilloTip", { ventana, pct: Math.round(v.pct), vuelve }) : t("riel.anilloTipSolo", { ventana, pct: Math.round(v.pct) });
     const d = a - ts;
     const viejo = !!ts && d >= VIEJO_S;
-    const texto = viejo ? `${base} · ${t("uso.visto", { hace: pintorHace(ts)(a).texto })}` : base;
-    return { texto: "", en: Math.min(falta?.en ?? Infinity, ts && !viejo ? VIEJO_S - d : Infinity, viejo ? 60 : Infinity), attrs: { "data-tip": texto } };
+    const hace = viejo ? t("uso.visto", { hace: pintorHace(ts)(a).texto }) : "";
+    const linea2 = vuelve && hace ? `${vuelve} · ${hace}` : vuelve || hace;
+    const texto = linea2 ? `${linea1}\n${linea2}` : linea1;
+    return { texto: "", en: Math.min(falta?.en ?? Infinity, ts && !viejo ? VIEJO_S - d : Infinity, viejo ? 60 : Infinity, semanal && estado.esperado !== null ? 600 : Infinity), attrs: { "data-tip": texto } };
   };
+
+function Insignia({ nivel }: { nivel: NivelAnillo }) {
+  return (
+    <span className="an-insig" aria-hidden="true">
+      {nivel === "rojo" ? <IcCerrar strokeWidth={3} /> : nivel === "ambar" ? <IcAtencion strokeWidth={2.5} /> : <IcOk strokeWidth={3} />}
+    </span>
+  );
+}
 
 /** «Actualizado hace 2 m»; si la última lectura falló, «No se pudo actualizar · datos de hace 8 m». */
 const pintorActualizado = (ts: number, fallo: boolean): Pintor => (a) => {
@@ -79,20 +103,24 @@ const pintorNota = (v: VentanaRiel, ts: number): Pintor =>
     true,
   );
 
-function Anillo({ v, etiqueta, ventana, ts }: { v: VentanaRiel; etiqueta: string; ventana: string; ts: number }) {
+export function Anillo({ v, etiqueta, ventana, ts, semanal = false, ahora }: { v: VentanaRiel; etiqueta: string; ventana: string; ts: number; semanal?: boolean; ahora?: number }) {
   const numero = useMemo(() => pintorNumero(v.pct ?? 0, ts), [v.pct, ts]);
-  const tip = useMemo(() => pintorAnilloTip(ventana, v, ts), [ventana, v, ts]);
+  const tip = useMemo(() => pintorAnilloTip(ventana, v, ts, semanal), [ventana, v, ts, semanal]);
+  const estado = estadoAnillo(v, ahora ?? Math.floor(Date.now() / 1000), semanal);
+  const marca = semanal && v.pct !== null && estado.esperado !== null ? marcaAnillo(estado.esperado, ANILLO_R) : null;
   return (
-    <span className="an" data-nivel={nivelCupo(v.pct)}>
-      <Reloj pintor={tip} className="an-tip" />
+    <span className="an" data-nivel={v.pct === null ? undefined : estado.nivel}>
       <span className="an-c">
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <circle className="an-pista" cx="16" cy="16" r="13" />
-          {v.pct !== null ? <circle className="an-uso" cx="16" cy="16" r="13" pathLength={100} strokeDasharray={`${Math.min(100, v.pct)} 100`} /> : null}
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <circle className="an-pista" cx="24" cy="24" r={ANILLO_R} />
+          {v.pct !== null && v.pct > 0 ? <circle className="an-uso" cx="24" cy="24" r={ANILLO_R} pathLength={100} strokeDasharray={`${Math.min(100, v.pct)} 100`} transform="rotate(-90 24 24)" /> : null}
+          {marca ? <line className="an-marca" x1={marca.x1} y1={marca.y1} x2={marca.x2} y2={marca.y2} /> : null}
         </svg>
         {v.pct === null ? <span className="an-n">—</span> : <Reloj pintor={numero} className="an-n" />}
+        {v.pct !== null ? <Insignia nivel={estado.nivel} /> : null}
       </span>
       <span className="an-e">{etiqueta}</span>
+      <Reloj pintor={tip} className="an-tip" />
     </span>
   );
 }
@@ -282,7 +310,7 @@ export function CuposRiel() {
         onClick={() => setAbierto((x) => !x)}
       >
         <Anillo v={enUso.h5} etiqueta={t("cupos.w5h")} ventana={t("riel.cinco")} ts={enUso.ts} />
-        <Anillo v={enUso.sem} etiqueta={t("riel.sem")} ventana={t("riel.semana")} ts={enUso.ts} />
+        <Anillo v={enUso.sem} etiqueta={t("riel.sem")} ventana={t("riel.semana")} ts={enUso.ts} semanal />
       </button>
       <PerfilRiel alAbrir={() => setAbierto(false)} />
       {abierto ? (

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { armarArbol, type Arbol, type Carpeta, type Item, type Rama } from "../src/barra/arbol.ts";
 import { aRiel, atencionCarpeta, carpetaViva, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, filasCarpeta, segunLista } from "../src/barra/riel-logica.ts";
-import { bloquesMotores, cuentasClaude, lineasCuentas, nivelCupo, vueltaDe } from "../src/barra/cupos-riel-logica.ts";
+import { bloquesMotores, cuentasClaude, estadoAnillo, lineasCuentas, marcaAnillo, nivelCupo, vueltaDe } from "../src/barra/cupos-riel-logica.ts";
 import { PALETA_RIEL, tonoRiel } from "../src/barra/logo-logica.ts";
 import { pintorHace } from "../src/tiempo.ts";
 import { cambiarIdioma } from "../src/i18n/index.ts";
@@ -295,4 +295,36 @@ test("retirados: el riel no tiene entrada del retirado con reemplazo, y filtrar 
   assert.deepEqual(itemsRiel(a.carpetas, null).map((x) => x.proyecto), ["trama"]);
   assert.equal(filtrarArbol(a, { proyecto: "trama", ver: null }).cerrados.length, a.cerrados.length);
   assert.equal(filtrarArbol(a, { proyecto: "trama", ver: null }).cerrados.length, 1);
+});
+
+
+test("estadoAnillo: ok, ámbar desde 80 o ritmo adelantado en sem, rojo en 100 y marquita esperada en sem", () => {
+  const ahoraS = Math.floor(AHORA / 1000);
+  const semanaS = 7 * 24 * 3600;
+  assert.deepEqual(estadoAnillo({ pct: null, hasta: 0 }, ahoraS, false), { nivel: "ok", esperado: null, seAcabaEn: null });
+  assert.deepEqual(estadoAnillo({ pct: 34, hasta: ahoraS + 7200 }, ahoraS, false), { nivel: "ok", esperado: null, seAcabaEn: null });
+  assert.deepEqual(estadoAnillo({ pct: 80, hasta: ahoraS + 7200 }, ahoraS, false), { nivel: "ambar", esperado: null, seAcabaEn: null });
+  assert.deepEqual(estadoAnillo({ pct: 100, hasta: ahoraS + 7200 }, ahoraS, false), { nivel: "rojo", esperado: null, seAcabaEn: null });
+
+  const vuelveEncima = ahoraS + (3 * 24 + 5) * 3600;
+  const estEncima = estadoAnillo({ pct: 61, hasta: vuelveEncima }, ahoraS, true);
+  assert.equal(estEncima.nivel, "ambar");
+  assert.ok(estEncima.esperado !== null && Math.abs(estEncima.esperado - 91 / 168) < 1e-6);
+  assert.ok(estEncima.seAcabaEn !== null && estEncima.seAcabaEn < vuelveEncima - ahoraS);
+
+  const vuelveBien = ahoraS + Math.round(0.25 * semanaS);
+  const estBien = estadoAnillo({ pct: 70, hasta: vuelveBien }, ahoraS, true);
+  assert.equal(estBien.nivel, "ok");
+  assert.equal(estBien.seAcabaEn, null);
+  assert.ok(estBien.esperado !== null && Math.abs(estBien.esperado - 0.75) < 1e-6);
+
+  const vuelveSobrado = ahoraS + 10 * 3600;
+  const estBajo = estadoAnillo({ pct: 85, hasta: vuelveSobrado }, ahoraS, true);
+  assert.equal(estBajo.nivel, "ambar");
+  assert.equal(estBajo.seAcabaEn, null);
+
+  assert.equal(estadoAnillo({ pct: 100, hasta: vuelveSobrado }, ahoraS, true).nivel, "rojo");
+
+  assert.deepEqual(marcaAnillo(0.5, 19.5), { x1: 24, y1: 40, x2: 24, y2: 47 });
+  assert.deepEqual(marcaAnillo(0.25, 19.5), { x1: 40, y1: 24, x2: 47, y2: 24 });
 });

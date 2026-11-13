@@ -4,6 +4,7 @@
 import type { Uso, VentanaCupo } from "../datos/contrato";
 import { MARCA, type FilaSusc, type ListaCuentas } from "../datos/cuentas.ts";
 import { columnas, estadoVentana, renglonesDeGrupos, resumenVentanas, type EstadoGrupo } from "./cuposVista.ts";
+import { ritmoSemanal } from "../paneles/cupos-ritmo.ts";
 import { nombreGrupo, nombreGrupoCorto, nombreGrupoDetalle } from "./cuposNombres.ts";
 import { filaDe } from "./usoFila.ts";
 
@@ -25,6 +26,47 @@ export const AMBAR_DESDE = 80;
 
 /** El color de un cupo: nada hasta el ámbar, `ambar` desde `AMBAR_DESDE` y `rojo` sólo sin cupo. Nunca solo: el texto lo dice igual. */
 export const nivelCupo = (pct: number | null): "ambar" | "rojo" | undefined => (pct === null ? undefined : pct >= 100 ? "rojo" : pct >= AMBAR_DESDE ? "ambar" : undefined);
+
+const SEMANA_S = 7 * 24 * 3600;
+
+export type NivelAnillo = "ok" | "ambar" | "rojo";
+export type EstadoAnillo = {
+  nivel: NivelAnillo;
+  esperado: number | null;
+  seAcabaEn: number | null;
+};
+
+/* Estado del anillo del riel: verde si va bien, ámbar desde 80 % o si al ritmo actual no llega al reinicio semanal, rojo si está agotado. */
+export function estadoAnillo(v: Pick<VentanaRiel, "pct" | "hasta">, ahoraS: number, semanal: boolean): EstadoAnillo {
+  const ritmo = semanal && v.hasta > 0 ? ritmoSemanal(v.pct, v.hasta, ahoraS) : null;
+  const esperado = ritmo ? ritmo.esperado : null;
+  let seAcabaEn: number | null = null;
+  if (semanal && v.pct !== null && v.pct > 0 && v.pct < 100 && v.hasta > ahoraS && ritmo?.nivel === "encima") {
+    const transcurridoS = ahoraS - (v.hasta - SEMANA_S);
+    if (transcurridoS > 0) {
+      const faltaS = ((100 - v.pct) / v.pct) * transcurridoS;
+      if (faltaS < v.hasta - ahoraS) seAcabaEn = Math.ceil(faltaS);
+    }
+  }
+  const nivel: NivelAnillo =
+    v.pct === null
+      ? "ok"
+      : v.pct >= 100
+        ? "rojo"
+        : v.pct >= AMBAR_DESDE || seAcabaEn !== null || ritmo?.nivel === "encima"
+          ? "ambar"
+          : "ok";
+  return { nivel, esperado, seAcabaEn };
+}
+
+/* Coordenadas de la marquita corta en la pista del anillo semanal para indicar dónde debería ir el uso hoy. */
+export function marcaAnillo(esperado: number, r: number, cx = 24, cy = 24, media = 3.5) {
+  const rad = Math.min(1, Math.max(0, esperado)) * Math.PI * 2 - Math.PI / 2;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const red = (n: number) => Math.round(n * 100) / 100;
+  return { x1: red(cx + (r - media) * cos), y1: red(cy + (r - media) * sin), x2: red(cx + (r + media) * cos), y2: red(cy + (r + media) * sin) };
+}
 
 /** Cuándo vuelve lo más usado de las ventanas que rigen (epoch s); `null` si no se sabe o no se usó nada (con 0 % no hay nada que esperar). */
 export function vueltaDe(ventanas: readonly VentanaCupo[]): number | null {
