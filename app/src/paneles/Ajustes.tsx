@@ -23,7 +23,7 @@ import { VolverVersion } from "./AjustesVolver";
 import { Proyectos } from "./AjustesProyectos";
 import { alCambiarCorrector, cambiarCorrector, corrector as correctorPref } from "./ajustes-corrector";
 import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar-auto";
-import { IcApariencia, IcAtajos, IcAviso, IcCodigo, ICONO, IcIdioma, IcLetra, IcTiernos, IcTipografia } from "../ui/iconos";
+import { IcAtajos, IcAviso, IcCodigo, ICONO, IcIdioma, IcLetra, IcTiernos, IcTipografia } from "../ui/iconos";
 import { carcasaActualiza } from "../carcasa";
 import { Carcasa } from "./AjustesCarcasa";
 import { Novedades } from "./AjustesNovedades";
@@ -39,7 +39,7 @@ import { esPrefCache } from "../../electron/cache-pregunta";
 import { alCambiarAvisarWorkers, alCambiarAvisoLider, avisarWorkers, avisoLider, cambiarAvisarWorkers, cambiarAvisoLider, type ModoAvisoLider } from "../avisos-worker";
 import { alCambiarTerminalAgentes, cambiarTerminalAgentes, esWindowsTerminal, terminalAgentes } from "../terminal-agentes";
 import { mensaje } from "../puente";
-import { TEMAS } from "../temas";
+import { AjustesTema } from "./AjustesTema";
 import { alCambiarApariencia, apariencia, FUENTES, LETRA_DEF, LETRA_MAX, LETRA_MIN, MONOS, type Fuente } from "../tipografia";
 
 /** Cada idioma con su nombre en ese idioma (así lo encuentra quien no lee el otro). */
@@ -72,33 +72,7 @@ function Apariencia() {
   const a = useSyncExternalStore(alCambiarApariencia, apariencia);
   return (
     <>
-      <Dato nombre="ajustes.tema" que="ajustes.temaQue" icono={<IcApariencia {...ICONO} />}>
-        <div className="pn-temas" role="radiogroup" aria-label={t("ajustes.tema")}>
-          {TEMAS.map((id) => (
-            <button
-              key={id}
-              type="button"
-              role="radio"
-              aria-checked={id === a.tema}
-              data-tema-id={id}
-              onClick={() => elegirApariencia({ tema: id })}
-            >
-              {/* La muestra pinta con los tokens del tema de la propia muestra (temas-colores.css); "sistema" es mitad grafito, mitad claro. */}
-              <span className="pn-muestra" aria-hidden="true">
-                {id === "sistema" ? (
-                  <>
-                    <i data-tema="grafito" />
-                    <i data-tema="claro" />
-                  </>
-                ) : (
-                  <i data-tema={id} />
-                )}
-              </span>
-              {t(`ajustes.tema.${id}`)}
-            </button>
-          ))}
-        </div>
-      </Dato>
+      <AjustesTema Dato={Dato} />
       <Dato nombre="ajustes.letra" que="ajustes.letraQue" icono={<IcLetra {...ICONO} />}>
         <div className="pn-letra" role="radiogroup" aria-label={t("ajustes.letra")}>
           {LETRAS.map((n) => (

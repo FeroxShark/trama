@@ -53,6 +53,7 @@ const CAPTURAS = [
   "aviso",
   // Los paneles del pie.
   "ajustes",
+  "ajustes-tema",
   "ramas",
   "ramas-confirmar",
   "ramas-analista",

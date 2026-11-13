@@ -87,7 +87,14 @@ export interface Fuente {
   /** El idioma de la interfaz (Ajustes), en el mismo archivo. */
   guardarIdioma(idioma: string): void;
   /** Tamaño de letra y fuentes (src/tipografia.ts): sólo lo que cambió. */
-  guardarApariencia(a: { letra?: number; fuente?: string; mono?: string; tema?: string }): void;
+  guardarApariencia(a: {
+    letra?: number;
+    fuente?: string;
+    mono?: string;
+    tema?: string;
+    acento?: string | null;
+    mio?: { fondo: string; superficie: string; texto: string; acento: string } | null;
+  }): void;
   /** Los mensajes tiernos (Ajustes), en el mismo archivo. */
   guardarTiernos(si: boolean): void;
   /** La notificación de "te espera" (Ajustes), en el mismo archivo. */

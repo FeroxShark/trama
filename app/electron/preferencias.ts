@@ -25,7 +25,42 @@ export type Idioma = "en" | "es";
  * Acá sólo se guardan: qué ids existen y entre qué px lo sabe el renderer
  * (src/tipografia.ts), que lleva a default lo que no conoce.
  */
-export type Apariencia = { letra?: number; fuente?: string; mono?: string; tema?: string };
+export type TemaMio = { fondo: string; superficie: string; texto: string; acento: string };
+
+export type Apariencia = {
+  letra?: number;
+  fuente?: string;
+  mono?: string;
+  tema?: string;
+  acento?: string | null;
+  mio?: TemaMio | null;
+};
+
+function normalizarHex(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return /^#[0-9a-fA-F]{6}$/.test(s) ? s.toLowerCase() : null;
+}
+
+function esTemaMio(v: unknown): v is TemaMio {
+  if (!v || typeof v !== "object") return false;
+  const o = v as Record<string, unknown>;
+  return (
+    normalizarHex(o.fondo) !== null &&
+    normalizarHex(o.superficie) !== null &&
+    normalizarHex(o.texto) !== null &&
+    normalizarHex(o.acento) !== null
+  );
+}
+
+function limpiarTemaMio(v: TemaMio): TemaMio {
+  return {
+    fondo: normalizarHex(v.fondo)!,
+    superficie: normalizarHex(v.superficie)!,
+    texto: normalizarHex(v.texto)!,
+    acento: normalizarHex(v.acento)!,
+  };
+}
 /** Qué muestra la barra: los líderes con sus workers colgando (`todo`) o sólo los líderes. */
 /** `tiernos`: los mensajes tiernos (B17); sin el campo, prendidos. */
 /** `autoIntegrar`: "Integrar solo lo seguro" de Ramas (B22); sin el campo, prendido. */
@@ -75,6 +110,8 @@ function desde(j: {
   fuente?: unknown;
   mono?: unknown;
   tema?: unknown;
+  acento?: unknown;
+  mio?: unknown;
   tiernos?: unknown;
   terminalAgentes?: unknown;
   avisarEspera?: unknown;
@@ -97,6 +134,9 @@ function desde(j: {
   if (esFuente(j.fuente)) p.fuente = j.fuente;
   if (esFuente(j.mono)) p.mono = j.mono;
   if (esFuente(j.tema)) p.tema = j.tema;
+  const ac = normalizarHex(j.acento);
+  if (ac) p.acento = ac;
+  if (esTemaMio(j.mio)) p.mio = limpiarTemaMio(j.mio);
   if (typeof j.tiernos === "boolean") p.tiernos = j.tiernos;
   if (esTerminalAgentes(j.terminalAgentes)) p.terminalAgentes = j.terminalAgentes;
   if (typeof j.avisarEspera === "boolean") p.avisarEspera = j.avisarEspera;
@@ -143,7 +183,14 @@ export function aparienciaGuardada(): Apariencia {
       return {};
     }
   }
-  return { letra: p.letra, fuente: p.fuente, mono: p.mono, tema: p.tema };
+  return {
+    letra: p.letra,
+    fuente: p.fuente,
+    mono: p.mono,
+    tema: p.tema,
+    acento: p.acento ?? null,
+    mio: p.mio ?? null,
+  };
 }
 
 const guardar = (p: Preferencias) => escribirAtomico(ARCHIVO, JSON.stringify({ version: VERSION, ...p })).catch(silencio("preferencias"));
@@ -167,13 +214,35 @@ export async function guardarIdioma(idioma: unknown) {
 /** Sólo lo que viene y es válido; lo demás queda como estaba. */
 export async function guardarApariencia(a: unknown) {
   if (!a || typeof a !== "object") return;
-  const { letra, fuente, mono, tema } = a as Record<string, unknown>;
+  const { letra, fuente, mono, tema, acento, mio } = a as Record<string, unknown>;
   const p = await leerPreferencias();
   let cambio = false;
   if (esLetra(letra) && p.letra !== letra) (p.letra = letra), (cambio = true);
   if (esFuente(fuente) && p.fuente !== fuente) (p.fuente = fuente), (cambio = true);
   if (esFuente(mono) && p.mono !== mono) (p.mono = mono), (cambio = true);
   if (esFuente(tema) && p.tema !== tema) (p.tema = tema), (cambio = true);
+  if (acento === null) {
+    if (p.acento !== undefined) (delete p.acento), (cambio = true);
+  } else {
+    const ac = normalizarHex(acento);
+    if (ac && p.acento !== ac) (p.acento = ac), (cambio = true);
+  }
+  if (mio === null) {
+    if (p.mio !== undefined) (delete p.mio), (cambio = true);
+    if (p.tema === "mio") (p.tema = "grafito"), (cambio = true);
+  } else if (esTemaMio(mio)) {
+    const limpio = limpiarTemaMio(mio);
+    if (
+      !p.mio ||
+      p.mio.fondo !== limpio.fondo ||
+      p.mio.superficie !== limpio.superficie ||
+      p.mio.texto !== limpio.texto ||
+      p.mio.acento !== limpio.acento
+    ) {
+      p.mio = limpio;
+      cambio = true;
+    }
+  }
   if (cambio) await guardar(p);
 }
 

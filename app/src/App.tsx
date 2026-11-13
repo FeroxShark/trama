@@ -1,5 +1,6 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Barra } from "./barra/Barra";
+import { abrirAjustes } from "./paneles/ajustes-nav";
 import { Conexion } from "./Conexion";
 import { Atajos } from "./paneles/Atajos";
 import { PasoLanzar } from "./paneles/PasoLanzar";
@@ -15,6 +16,9 @@ const Bench = lazy(() => import("./Bench").then((m) => ({ default: m.Bench })));
 const AcopleDemo = lazy(() => import("./barra/AcopleDemo").then((m) => ({ default: m.AcopleDemo })));
 
 export function App() {
+  useEffect(() => {
+    if (MODO.captura === "ajustes-tema") abrirAjustes("general");
+  }, []);
   if (MODO.guion === "b0")
     return (
       <Suspense fallback={null}>

@@ -4,7 +4,22 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { esTema, resolverTema, TEMAS, TEMA_DEF } from "../src/temas.ts";
+import {
+  ACENTOS,
+  BASE_TEMA_DEF,
+  contraste as contrasteReal,
+  derivarAcento,
+  derivarTema,
+  esTema,
+  leerTemaMioJson,
+  normalizarHex,
+  resolverTema,
+  TEMAS,
+  TEMA_DEF,
+  TEMA_MIO,
+  textoSobreAcento,
+  validarBaseTema,
+} from "../src/temas.ts";
 import { normalizar } from "../src/tipografia.ts";
 
 const raiz = path.join(import.meta.dirname, "..");
@@ -161,4 +176,65 @@ test("piel lisa: tokens.css y temas-colores.css no tienen degradados ni sombra d
     assert.equal(t["--vidrio-opaco"], t["--vidrio"], `${id}: el panel es opaco`);
     assert.equal(t["--sombra-vidrio"], undefined, `${id}: el tema no pone sombra al panel`);
   }
+});
+
+test("textoSobreAcento garantiza contraste >= 4.5 para muestras y extremos", () => {
+  const muestras = [...ACENTOS.map((m) => m.hex), "#000000", "#ffffff", "#777777", "#808080", "#e3b65a", "#3b82f6"];
+  for (const hex of muestras) {
+    const fg = textoSobreAcento(hex);
+    assert.ok(contrasteReal(fg, hex) >= 4.5, `${hex} con ${fg}: contraste < 4.5`);
+  }
+});
+
+test("derivarAcento no toca los tokens de estado (--ok, --aviso, --critico)", () => {
+  const vars = derivarAcento("#7fd1c7", false);
+  assert.equal(vars["--acento"], "#7fd1c7");
+  assert.ok(contrasteReal(vars["--acento-texto"], "#7fd1c7") >= 4.5);
+  for (const k of ["--ok", "--aviso", "--critico", "--verde", "--ambar", "--rojo"]) {
+    assert.equal(k in vars, false, `${k} no debe cambiar con el acento`);
+  }
+});
+
+test("derivarTema deriva bordes, texto suave y superficies con AA para base oscura y clara", () => {
+  const oscura = derivarTema(BASE_TEMA_DEF);
+  assert.equal(oscura.colorScheme, "dark");
+  assert.equal(oscura.vars["--fondo-ventana"], BASE_TEMA_DEF.fondo);
+  assert.equal(oscura.vars["--sup-0"], BASE_TEMA_DEF.superficie);
+  assert.equal(oscura.vars["--vidrio"], BASE_TEMA_DEF.superficie);
+  assert.notEqual(oscura.vars["--sup-1"], BASE_TEMA_DEF.superficie);
+  for (const sup of ["--sup-0", "--sup-1", "--sup-2"] as const) {
+    for (const txt of ["--texto-1", "--texto-5", "--inactivo", "--txt-3", "--txt-4"] as const) {
+      assert.ok(contrasteReal(oscura.vars[txt], oscura.vars[sup]) >= 4.5, `oscura ${txt} sobre ${sup}`);
+    }
+  }
+  const baseClara = { fondo: "#f4f5f7", superficie: "#ffffff", texto: "#14161a", acento: "#2563eb" };
+  const clara = derivarTema(baseClara);
+  assert.equal(clara.colorScheme, "light");
+  assert.notEqual(clara.vars["--ok"], oscura.vars["--ok"]);
+  for (const sup of ["--sup-0", "--sup-1", "--sup-2"] as const) {
+    for (const txt of ["--texto-1", "--texto-5", "--inactivo", "--txt-3", "--txt-4"] as const) {
+      assert.ok(contrasteReal(clara.vars[txt], clara.vars[sup]) >= 4.5, `clara ${txt} sobre ${sup}`);
+    }
+  }
+  // El estado de Mío nunca toma el acento del usuario.
+  assert.notEqual(derivarTema({ ...BASE_TEMA_DEF, acento: "#f0a08a" }).vars["--ok"], "#f0a08a");
+});
+
+test("validación de hex, BaseTema, json de mio e index.html", () => {
+  assert.equal(normalizarHex(" #AABBCC "), "#aabbcc");
+  assert.equal(normalizarHex("#abc"), null);
+  assert.equal(normalizarHex("rojo"), null);
+  assert.deepEqual(validarBaseTema({ fondo: "#101012", superficie: "#202024", texto: "#f0f0f2", acento: "#7FD1C7" }), {
+    fondo: "#101012",
+    superficie: "#202024",
+    texto: "#f0f0f2",
+    acento: "#7fd1c7",
+  });
+  assert.equal(validarBaseTema({ fondo: "#101012", superficie: "mal", texto: "#f0f0f2", acento: "#7fd1c7" }), null);
+  assert.ok(esTema(TEMA_MIO));
+  assert.ok(leerTemaMioJson(JSON.stringify(BASE_TEMA_DEF)));
+  assert.equal(leerTemaMioJson("{roto"), null);
+  const html = leer("index.html");
+  assert.ok(html.includes(`"${TEMA_MIO}"`), "index.html debe reconocer mio para pintar desde el primer frame");
+  assert.ok(html.includes("trama.acento") && html.includes("trama.temaMio"), "index.html debe leer acento y temaMio");
 });

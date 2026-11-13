@@ -76,7 +76,9 @@ export const ITEMS: readonly Item[] = [
   { cat: "proyectos", nombre: "lmp.dias", que: null, sin: "dias days antiguedad age viejo old limpiar limpieza clean cleanup worktrees ramas branches" },
 
   { cat: "general", nombre: "ajustes.idioma", que: "ajustes.idiomaQue", sin: "language english espanol ingles spanish traduccion idioma" },
-  { cat: "general", nombre: "ajustes.tema", que: "ajustes.temaQue", sin: "theme tema color colores oscuro dark claro light sistema system modo apariencia appearance grafito graphite tinta ink carbon charcoal shell catppuccin tokyo gruvbox nord rosepine dracula contraste contrast daltonismo" },
+  { cat: "general", nombre: "ajustes.tema", que: "ajustes.temaQue", sin: "theme tema color colores oscuro dark claro light sistema system modo apariencia appearance grafito graphite tinta ink carbon charcoal shell catppuccin tokyo gruvbox nord rosepine dracula contraste contrast daltonismo mio personalizado" },
+  { cat: "general", nombre: "ajustes.acento", que: "ajustes.acentoQue", sin: "accent acento color colors highlight primario boton focus foco muestra swatch paleta palette" },
+  { cat: "general", nombre: "ajustes.temaMio", que: "ajustes.temaMioQue", sin: "custom tema personalizado mio theme builder paleta palette fondo background superficie surface texto text contraste contrast" },
   { cat: "general", nombre: "ajustes.letra", que: "ajustes.letraQue", sin: "tamano size texto text zoom font fuente grande chico letra" },
   { cat: "general", nombre: "ajustes.fuente", que: "ajustes.fuenteQue", sin: "tipografia typeface font letra inter sistema system" },
   { cat: "general", nombre: "ajustes.mono", que: "ajustes.monoQue", sin: "monoespaciada monospace codigo code fira tipografia font fuente" },
@@ -227,7 +229,7 @@ export function deVariante(v: string | null | undefined): CatId | null {
   if (v.startsWith("mdl") || v === "sinmdl" || v === "modelo" || v === "dictado") return "modelos";
   if (v.startsWith("proyectos")) return "proyectos";
   if (v.startsWith("guia")) return "guia";
-  if (v === "fuente" || v === "mono" || v === "compactar" || v === "general") return "general";
+  if (v === "fuente" || v === "mono" || v === "compactar" || v === "general" || v === "tema" || v === "acento") return "general";
   return null;
 }
 

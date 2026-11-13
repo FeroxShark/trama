@@ -26,15 +26,18 @@ const raiz = path.join(import.meta.dirname, "..");
 const css = readFileSync(path.join(raiz, "src/index.css"), "utf8");
 
 test("el default es el estándar visual: 13 px, Inter y JetBrains Mono", () => {
-  assert.deepEqual(APARIENCIA_DEF, { letra: 13, fuente: "plex", mono: "plex-mono", tema: "grafito" });
+  assert.deepEqual(APARIENCIA_DEF, { letra: 13, fuente: "plex", mono: "plex-mono", tema: "grafito", acento: null, mio: null });
   assert.deepEqual(apariencia(), APARIENCIA_DEF);
   assert.ok(LETRA_MIN <= LETRA_DEF && LETRA_DEF <= LETRA_MAX);
 });
 
 test("normalizar: lo que no se entiende va a default, la letra se acota", () => {
   assert.deepEqual(normalizar(null), APARIENCIA_DEF);
-  assert.deepEqual(normalizar({ letra: "16", fuente: "inter", mono: "fira" }), { letra: 16, fuente: "inter", mono: "fira", tema: "grafito" });
-  assert.deepEqual(normalizar({ letra: 99, fuente: "comic", mono: 3 }), { letra: LETRA_MAX, fuente: "plex", mono: "plex-mono", tema: "grafito" });
+  assert.deepEqual(normalizar({ letra: "16", fuente: "inter", mono: "fira" }), { letra: 16, fuente: "inter", mono: "fira", tema: "grafito", acento: null, mio: null });
+  assert.deepEqual(normalizar({ letra: 99, fuente: "comic", mono: 3 }), { letra: LETRA_MAX, fuente: "plex", mono: "plex-mono", tema: "grafito", acento: null, mio: null });
+  assert.equal(normalizar({ tema: "mio", mio: null }).tema, "grafito");
+  assert.equal(normalizar({ acento: "#7FD1C7" }).acento, "#7fd1c7");
+  assert.equal(normalizar({ acento: "no-hex" }).acento, null);
   assert.equal(normalizar({ letra: 2 }).letra, LETRA_MIN);
   assert.equal(normalizar({ letra: "" }).letra, LETRA_DEF);
   assert.equal(normalizar({ letra: "grande" }).letra, LETRA_DEF);
@@ -88,11 +91,16 @@ test("cambiarApariencia avisa y devuelve sólo lo que cambió", () => {
     assert.deepEqual(cambiarApariencia({ letra: 15, fuente: "plex" }), { letra: 15 });
     assert.deepEqual(cambiarApariencia({ letra: 40, mono: "fira" }), { letra: 18, mono: "fira" });
     assert.equal(cambiarApariencia({ fuente: "no-existe" }), null);
-    assert.deepEqual(apariencia(), { letra: 18, fuente: "plex", mono: "fira", tema: "grafito" });
+    assert.deepEqual(apariencia(), { letra: 18, fuente: "plex", mono: "fira", tema: "grafito", acento: null, mio: null });
     assert.equal(avisos, 2);
     assert.deepEqual(cambiarApariencia({ tema: "claro" }), { tema: "claro" });
     assert.deepEqual(cambiarApariencia({ tema: "violeta" as never }), { tema: "grafito" }); // lo que no se entiende vuelve al default
-    assert.equal(avisos, 4);
+    assert.deepEqual(cambiarApariencia({ acento: "#7FD1C7" }), { acento: "#7fd1c7" });
+    assert.deepEqual(cambiarApariencia({ acento: null }), { acento: null });
+    const miBase = { fondo: "#101216", superficie: "#1b1f26", texto: "#f4f5f7", acento: "#8fb5f0" };
+    assert.deepEqual(cambiarApariencia({ mio: miBase, tema: "mio" }), { tema: "mio", mio: miBase });
+    assert.deepEqual(cambiarApariencia({ mio: null }), { tema: "grafito", mio: null });
+    assert.equal(avisos, 8);
   } finally {
     cambiarApariencia(APARIENCIA_DEF);
     soltar();

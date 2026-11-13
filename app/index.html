@@ -6,20 +6,87 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>trama</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <!-- El tema de color (src/temas.ts) antes del primer pintado: la query (`?tema=`) o, sin ella, el espejo que deja
-         src/tipografia.ts en localStorage. Los ids y esta cuenta tienen que coincidir con src/temas.ts. -->
+    <!-- El tema de color, acento y tema propio (src/temas.ts) antes del primer pintado: la query (`?tema=`, `?acento=`, `?mio=`)
+         o, sin ella, el espejo que deja src/tipografia.ts en localStorage. Los ids y esta cuenta tienen que coincidir con src/temas.ts. -->
     <script>
       (function () {
-        var t = new URLSearchParams(location.search).get("tema");
-        try { if (!t) t = localStorage.getItem("trama.tema"); } catch (e) {}
-        if (["sistema", "grafito", "tinta", "carbon", "shell", "catppuccin", "tokyo", "gruvbox", "nord", "rosepine", "dracula", "claro", "contraste"].indexOf(t) < 0) t = "grafito";
-        if (t === "sistema") t = matchMedia("(prefers-color-scheme: light)").matches ? "claro" : "grafito";
-        document.documentElement.setAttribute("data-tema", t);
+        var q = new URLSearchParams(location.search);
+        var root = document.documentElement;
+        var st = root.style;
+        var hex = function (v) { return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v.trim()) ? v.trim().toLowerCase() : null; };
+        var rgb = function (h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; };
+        var mix = function (a, b, p) {
+          var x = rgb(a), y = rgb(b), u = p / 100;
+          var c = function (i) { return Math.round(x[i] + (y[i] - x[i]) * u).toString(16).padStart(2, "0"); };
+          return "#" + c(0) + c(1) + c(2);
+        };
+        var lum = function (h) {
+          var c = rgb(h).map(function (v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+          return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+        };
+        var con = function (a, b) {
+          var la = lum(a), lb = lum(b);
+          return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+        };
+        var sobreAcento = function (ac) {
+          var co = con(ac, "#08080a"), cc = con(ac, "#ffffff");
+          if (co >= cc) return co >= 4.5 ? "#08080a" : "#000000";
+          return cc >= 4.5 ? "#ffffff" : "#000000";
+        };
+        var ponerAcento = function (ac) {
+          var c = rgb(ac);
+          st.setProperty("--acento", ac);
+          st.setProperty("--acento-texto", sobreAcento(ac));
+          st.setProperty("--acento-tinte", "rgb(" + c[0] + " " + c[1] + " " + c[2] + " / 0.22)");
+          st.setProperty("--enlace-subrayado", "rgb(" + c[0] + " " + c[1] + " " + c[2] + " / 0.35)");
+          st.setProperty("--sint-fn", ac);
+        };
+        var t = q.get("tema");
+        var ac = hex(q.get("acento"));
+        var mioRaw = q.get("mio");
+        try {
+          if (!t) t = localStorage.getItem("trama.tema");
+          if (!ac) ac = hex(localStorage.getItem("trama.acento"));
+          if (!mioRaw) mioRaw = localStorage.getItem("trama.temaMio");
+        } catch (e) {}
+        var mio = null;
+        try {
+          if (mioRaw) {
+            var m = JSON.parse(mioRaw);
+            if (m && hex(m.fondo) && hex(m.superficie) && hex(m.texto) && hex(m.acento)) {
+              mio = { fondo: hex(m.fondo), superficie: hex(m.superficie), texto: hex(m.texto), acento: hex(m.acento) };
+            }
+          }
+        } catch (e) {}
+        if (t === "mio" && mio) {
+          var claro = lum(mio.superficie) > 0.35;
+          st.setProperty("color-scheme", claro ? "light" : "dark");
+          st.setProperty("--fondo", mio.fondo);
+          st.setProperty("--fondo-ventana", mio.fondo);
+          st.setProperty("--vidrio", mio.superficie);
+          st.setProperty("--vidrio-a", mio.superficie);
+          st.setProperty("--vidrio-opaco", mio.superficie);
+          st.setProperty("--sup-0", mio.superficie);
+          st.setProperty("--sup-1", mix(mio.superficie, mio.texto, 5));
+          st.setProperty("--sup-2", mix(mio.superficie, mio.texto, 9));
+          st.setProperty("--texto", mio.texto);
+          st.setProperty("--texto-1", mio.texto);
+          st.setProperty("--txt-1", mio.texto);
+          st.setProperty("--apagado", mix(mio.superficie, mio.texto, 85));
+          st.setProperty("--inactivo", mix(mio.superficie, mio.texto, 65));
+          ponerAcento(ac || mio.acento);
+        } else {
+          if (["sistema", "grafito", "tinta", "carbon", "shell", "catppuccin", "tokyo", "gruvbox", "nord", "rosepine", "dracula", "claro", "contraste"].indexOf(t) < 0) t = "grafito";
+          if (t === "sistema") t = matchMedia("(prefers-color-scheme: light)").matches ? "claro" : "grafito";
+          if (ac) ponerAcento(ac);
+        }
+        root.setAttribute("data-tema", t);
       })();
     </script>
     <style>
       html, body { background: #08080a; margin: 0; }
       html[data-tema="claro"], html[data-tema="claro"] body { background: #e9ecf1; }
+      html[data-tema="mio"], html[data-tema="mio"] body { background: var(--fondo, #08080a); }
     </style>
   </head>
   <body>
