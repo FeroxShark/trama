@@ -30,6 +30,12 @@
   --fam-opus: #d98fb2;
   --fam-sonnet: #9cc58a;
   --fam-haiku: #cdb68a;
+  /* Marca de familia en el chip de modelo de la barra: cada tema hereda sus colores suaves. */
+  --familia-opus: var(--fam-opus);
+  --familia-sonnet: var(--fam-sonnet);
+  --familia-haiku: var(--fam-haiku);
+  --familia-fable: var(--probar);
+  --familia-otro: var(--inactivo);
 
   /* Capas blancas translúcidas: los fondos de control no son colores sólidos, así el vidrio y el acento se leen. */
   --capa-card: #1f1f23;

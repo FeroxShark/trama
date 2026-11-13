@@ -5,13 +5,9 @@ import type { Hilo } from "../datos/contrato.ts";
 import { t } from "../i18n/index.ts";
 import { esfuerzoDe, nivelDe } from "./esfuerzo.ts";
 
-export type Familia = "opus" | "sonnet" | "fable" | "haiku" | "otro";
+import { familiaDe, type Familia } from "./marca-familia.ts";
 
-const FAMILIAS: Exclude<Familia, "otro">[] = ["opus", "sonnet", "fable", "haiku"];
-
-/** "claude-sonnet-5-5[1m]" → "sonnet". Lo que no es de la casa (un local, etc.), "otro". */
-export const familiaDe = (modelo: string | null | undefined): Familia =>
-  FAMILIAS.find((f) => modelo?.toLowerCase().includes(f)) ?? "otro";
+export { familiaDe, type Familia };
 
 /** El nombre corto de cada familia: va en la fila tal cual (nada de letras sueltas que no se entienden). */
 export const CORTO: Record<Exclude<Familia, "otro">, string> = { opus: "Opus", sonnet: "Sonnet", fable: "Fable", haiku: "Haiku" };
@@ -62,7 +58,7 @@ export function ficha(h: Hilo, maquina: string | null): string {
 }
 
 /** El chip gris de la fila: la familia y el esfuerzo («Sonnet high»), y en la barra angosta la inicial («S high»). */
-export type ChipModelo = { largo: string; corto: string; nombre: string; nivel: string | null; modelo: string };
+export type ChipModelo = { familia: Familia; largo: string; corto: string; nombre: string; nivel: string | null; modelo: string };
 
 /**
  * Qué dice el chip de modelo y esfuerzo de un worker o de un líder. `null` sin modelo (no se inventa). Claude: la familia
@@ -76,7 +72,7 @@ export function chipModelo(modelo: string | null | undefined, effort: string | n
   const nombre = f !== "otro" ? CORTO[f] : m.split(" ")[0];
   const n = nivelDe(modelo, effort);
   const nivel = n && n !== "off" ? n : null;
-  return { largo: nivel ? `${nombre} ${nivel}` : nombre, corto: nivel ? `${nombre[0].toUpperCase()} ${nivel}` : nombre, nombre, nivel, modelo: m };
+  return { familia: f, largo: nivel ? `${nombre} ${nivel}` : nombre, corto: nivel ? `${nombre[0].toUpperCase()} ${nivel}` : nombre, nombre, nivel, modelo: m };
 }
 
 /** El tooltip del chip: el modelo con su versión y el esfuerzo en palabras. */

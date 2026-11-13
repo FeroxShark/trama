@@ -165,6 +165,7 @@ export const HILOS: RespuestaHilos = {
       proyecto: "atlas",
       tarea: "Medir el plan de las consultas lentas",
       estado: "trabajando",
+      modelo: "claude-haiku-5-5",
       inicio: AHORA - 95,
       puesto: "3",
       ...cache(HORA, 59 * MIN),

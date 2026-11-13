@@ -1143,12 +1143,31 @@
   height: 1rem;
   flex: none;
   align-items: center;
-  padding: 0 var(--esp-1-5);
+  gap: var(--esp-1);
+  padding: 0 var(--esp-1-5) 0 var(--esp-1);
   border-radius: var(--r-cap);
   background: var(--capa-card);
   color: var(--apagado);
   font-size: var(--letra-2);
   white-space: nowrap;
+}
+.lista .fila .chip-mod .mf {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  color: var(--familia-otro);
+}
+.lista .fila .chip-mod .mf[data-familia="opus"] {
+  color: var(--familia-opus);
+}
+.lista .fila .chip-mod .mf[data-familia="sonnet"] {
+  color: var(--familia-sonnet);
+}
+.lista .fila .chip-mod .mf[data-familia="haiku"] {
+  color: var(--familia-haiku);
+}
+.lista .fila .chip-mod .mf[data-familia="fable"] {
+  color: var(--familia-fable);
 }
 .lista .fila .chip-mod .mc-c {
   display: none;

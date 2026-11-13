@@ -143,8 +143,27 @@ test("el chip de modelo y esfuerzo va en cada worker y en el líder, con la form
   assert.match(pintaLider(lider()), /<span class="mc-l">Opus high<\/span>/);
   assert.doesNotMatch(pintaLider(lider({ modelo: null })), /data-chip-mod/);
   assert.doesNotMatch(pintaLider(lider({ caido: "murio" })), /data-chip-mod/, "un líder sin proceso ya dice Murió");
+  // Marca geométrica por familia delante del texto (líder y worker), con forma propia por familia.
+  assert.match(w, /data-chip-mod[^>]*><svg class="mf" data-familia="sonnet"[^>]*aria-hidden="true">.*<span class="mc-l">Sonnet high<\x2fspan>/);
+  assert.match(pintaLider(lider()), /data-chip-mod[^>]*><svg class="mf" data-familia="opus"[^>]*aria-hidden="true">.*<span class="mc-l">Opus high<\x2fspan>/);
+  const formas = new Set(
+    [
+      ["claude-opus-5-5", "opus"],
+      ["claude-sonnet-5-5", "sonnet"],
+      ["claude-haiku-5-5", "haiku"],
+      ["claude-fable-5-1", "fable"],
+      ["gemini-3.8-flash-high", "otro"],
+    ].map(([modelo, fam]) => {
+      const html = pintaFila(hilo("listo", { modelo }));
+      const m = html.match(new RegExp(`<svg class="mf" data-familia="${fam}"[^>]*>(.*?)<\\/svg>`));
+      assert.ok(m, `falta marca ${fam} en ${modelo}`);
+      return m[1];
+    }),
+  );
+  assert.equal(formas.size, 5, "cada familia tiene su propia forma sin depender del color");
   // La barra angosta abrevia con el CSS: la larga queda para el lector de pantalla, no se saca con display:none.
   const riel = leer("../src/barra/riel-estilos.css");
+  assert.match(riel, /\.lista \.fila \.chip-mod \{[^}]*flex:\s*none/, "el chip no cede");
   assert.match(riel, /\.lista\[data-estrecha\] \.fila \.chip-mod \.mc-l \{[^}]*clip-path/);
   assert.match(leer("../src/barra/CONVENCIONES.md"), /Sonnet high/);
 });

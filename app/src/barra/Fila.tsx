@@ -23,6 +23,7 @@ import { Hojas } from "../hilo/Posta";
 import { Tierno, useTiernos } from "../hilo/Tierno";
 import { motion } from "motion/react";
 import { IconoMaquina } from "./Maquina";
+import { MarcaFamilia } from "./MarcaFamilia";
 
 export const RESORTE = { type: "spring", stiffness: 520, damping: 42, mass: 1 } as const;
 
@@ -181,6 +182,7 @@ function ChipMod({ c }: { c: ChipModelo | null }) {
   if (!c) return null;
   return (
     <span className="chip-mod" data-chip-mod data-tip={chipModeloTip(c)}>
+      <MarcaFamilia familia={c.familia} />
       <span className="mc-l">{c.largo}</span>
       <span className="mc-c" aria-hidden="true">{c.corto}</span>
     </span>
