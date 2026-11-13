@@ -145,6 +145,15 @@ export function nombreRuta(ruta: string): string {
   return partes.at(-1) ?? (ruta || "/");
 }
 
+/** La carpeta que contiene a un archivo (`/a/b/x.html` da `/a/b`; `C:\\a\\x.html` da `C:\\a`). En la raíz devuelve la raíz. */
+export function carpetaDe(ruta: string): string {
+  const corte = Math.max(ruta.lastIndexOf("/"), ruta.lastIndexOf("\\"));
+  if (corte < 0) return ruta;
+  const padre = ruta.slice(0, corte);
+  if (padre === "" || /^[A-Za-z]:$/.test(padre)) return ruta.slice(0, corte + 1);
+  return padre;
+}
+
 /** Acorta una ruta por el medio manteniendo visibles el inicio y los tramos finales. */
 export function acortarRuta(ruta: string, max = 48): string {
   if (ruta.length <= max) return ruta;

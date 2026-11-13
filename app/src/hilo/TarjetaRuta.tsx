@@ -1,4 +1,6 @@
 // Tarjetas breves debajo de un mensaje del asistente para abrir carpetas o `.html` nombrados sin tocar el texto.
+// Un `.html` no se abre con la app del sistema (`abribleConSistema`, electron/archivo-ruta.ts, deja afuera lo que ejecuta
+// código): su botón muestra la carpeta que lo contiene.
 import { useMemo, useState } from "react";
 import type { Plataforma } from "../../electron/rutas";
 import { resultadoCarpeta } from "../datos/carpeta-abrir";
@@ -9,7 +11,7 @@ import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import { esVentana } from "../puente";
 import { ICONO, IcAbrirSistema, IcArchivo, IcCarpeta } from "../ui/iconos";
-import { acortarRuta, nombreRuta, rutasMencionadas, type RutaMencionada } from "./rutas-mencionadas";
+import { acortarRuta, carpetaDe, nombreRuta, rutasMencionadas, type RutaMencionada } from "./rutas-mencionadas";
 
 function plataformaActual(): Plataforma {
   if (typeof location !== "undefined" && new URLSearchParams(location.search).get("plataforma") === "win32") return "win32";
@@ -24,7 +26,9 @@ export function TarjetaRuta({ item }: { item: RutaMencionada }) {
   const nombre = nombreRuta(item.ruta);
   const corta = acortarRuta(item.ruta, 52);
   const Icono = item.tipo === "carpeta" ? IcCarpeta : IcArchivo;
-  const etiquetaAbrir = t(item.tipo === "carpeta" ? "ruta.abrirCarpeta" : "ruta.abrirArchivo", { nombre });
+  const esCarpeta = item.tipo === "carpeta";
+  const carpeta = esCarpeta ? item.ruta : carpetaDe(item.ruta);
+  const etiquetaAbrir = t(esCarpeta ? "ruta.abrirCarpeta" : "ruta.mostrarArchivo", { nombre });
 
   async function abrir() {
     if (abriendo) return;
@@ -35,19 +39,14 @@ export function TarjetaRuta({ item }: { item: RutaMencionada }) {
         setError(t("ruta.reiniciar"));
         return;
       }
-      if (item.tipo === "carpeta") {
-        const res = await resultadoCarpeta(
-          () => fuente.carpetaAbrir(item.ruta),
-          (e) => reportar("carpeta", detalleDe(e)),
-        );
-        if (res === "app") setError(t("ruta.reiniciar"));
-        else if (res === "no-carpeta") setError(t("archivo.carpetaNoAbrio", { ruta: item.ruta }));
-        return;
-      }
-      const ok = await fuente.archivoAbrir(item.ruta);
-      if (!ok) setError(t("ruta.archivoNoAbrio", { ruta: item.ruta }));
+      const res = await resultadoCarpeta(
+        () => fuente.carpetaAbrir(carpeta),
+        (e) => reportar("carpeta", detalleDe(e)),
+      );
+      if (res === "app") setError(t("ruta.reiniciar"));
+      else if (res === "no-carpeta") setError(t("archivo.carpetaNoAbrio", { ruta: carpeta }));
     } catch (e) {
-      reportar("archivo", detalleDe(e));
+      reportar("carpeta", detalleDe(e));
       setError(t("ruta.reiniciar"));
     } finally {
       setAbriendo(false);
@@ -73,7 +72,7 @@ export function TarjetaRuta({ item }: { item: RutaMencionada }) {
           disabled={abriendo}
           onClick={() => void abrir()}
         >
-          <span>{t("ruta.abrir")}</span>
+          <span>{t(esCarpeta ? "ruta.abrir" : "ruta.mostrar")}</span>
           <IcAbrirSistema size={13} strokeWidth={ICONO.strokeWidth} aria-hidden="true" />
         </button>
       </div>

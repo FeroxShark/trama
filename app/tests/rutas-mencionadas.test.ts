@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acortarRuta, nombreRuta, rutasMencionadas } from "../src/hilo/rutas-mencionadas.ts";
+import { acortarRuta, carpetaDe, nombreRuta, rutasMencionadas } from "../src/hilo/rutas-mencionadas.ts";
 
 test("detecta carpetas y archivos .html en Linux (prosa y código en línea)", () => {
   const texto = [
@@ -115,4 +115,12 @@ test("acortarRuta recorta por el medio manteniendo extremos legibles", () => {
   assert.ok(acWin.startsWith("C:\\Users"));
   assert.ok(acWin.includes("…"));
   assert.ok(acWin.endsWith("reporte-final.html"));
+});
+
+test("carpetaDe da la carpeta que contiene al archivo en Linux y Windows", () => {
+  assert.equal(carpetaDe("/home/ana/salida/resumen.html"), "/home/ana/salida");
+  assert.equal(carpetaDe("~/maquetas/e-taller.html"), "~/maquetas");
+  assert.equal(carpetaDe("/resumen.html"), "/");
+  assert.equal(carpetaDe("C:\\Users\\Ana\\reporte.html"), "C:\\Users\\Ana");
+  assert.equal(carpetaDe("C:\\reporte.html"), "C:\\");
 });
