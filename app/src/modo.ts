@@ -142,6 +142,8 @@ const CAPTURAS = [
   "lider-intermedios",
   // Mensajes en cola: la solapa arriba de la caja. `HILOS_VARIANTE=`: tres (default) | uno | largo (un mensaje, comando de 3 m) | largo-tres | fallo | camino | aviso | visor (la imagen ampliada) | muchos.
   "lider-cola",
+  // Tarjetas de rutas (carpeta y .html) debajo de un mensaje del asistente.
+  "chat-rutas",
   // Un líder de Gemini a mitad de un turno: su último paso de razonamiento en la tarjeta y cada comando con su estado.
   "lider-gemini",
   // Te espera: un líder de terminal que terminó y el de la app (abierto) que pide un permiso; fila y cabecera con la marca en ámbar.

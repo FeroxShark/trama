@@ -1,0 +1,134 @@
+/* Tarjetas breves debajo de un mensaje del asistente cuando nombra carpetas o archivos .html. */
+.tarjetas-ruta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  margin-top: var(--esp-2-5);
+  max-width: 34rem;
+}
+
+.tarjeta-ruta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  padding: var(--esp-2) var(--esp-2-5);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  border: 1px solid var(--borde-2);
+}
+
+.tarjeta-ruta-fila {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2-5);
+  min-width: 0;
+}
+
+.tarjeta-ruta-icono {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: var(--r-sm);
+  background: var(--carpeta-fondo);
+  border: 1px solid var(--carpeta-borde);
+  color: var(--carpeta);
+}
+
+.tarjeta-ruta-texto {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+}
+
+.tarjeta-ruta-nombre {
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tarjeta-ruta-ruta {
+  color: var(--inactivo);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tarjeta-ruta-abrir {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  min-height: max(28px, 1.75rem);
+  padding: var(--esp-1) var(--esp-2-5);
+  border-radius: var(--r-cap);
+  border: 1px solid var(--carpeta-borde);
+  background: var(--carpeta-fondo);
+  color: var(--carpeta);
+  font: inherit;
+  font-size: var(--letra-3);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--t-snappy), border-color var(--t-snappy);
+}
+
+.tarjeta-ruta-abrir:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--carpeta) 24%, transparent);
+  border-color: var(--carpeta);
+}
+
+.tarjeta-ruta-abrir:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+.tarjeta-ruta-abrir:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.tarjeta-ruta-error {
+  margin: 0;
+  padding-left: calc(1.875rem + var(--esp-2-5));
+  color: var(--fallo-texto);
+  font-size: var(--letra-3);
+  line-height: 1.35;
+}
+
+@media (pointer: coarse) {
+  .tarjeta-ruta-abrir {
+    min-height: 2.75rem;
+    padding: 0 var(--esp-3-5);
+  }
+}
+
+@media (max-width: 30rem) {
+  .tarjeta-ruta-fila {
+    flex-wrap: wrap;
+    row-gap: var(--esp-1-5);
+  }
+  .tarjeta-ruta-abrir {
+    margin-left: auto;
+  }
+  .tarjeta-ruta-error {
+    padding-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta-ruta-abrir {
+    transition: none;
+  }
+}

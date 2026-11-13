@@ -1650,7 +1650,13 @@ const fija: Fuente = {
     if (MODO.captura === "leyendo") return new Promise<RespuestaHilo>(() => {});
     // Recién lanzado: todavía no hay transcript que leer.
     if (h.id === ARRANCANDO.id || h.id === EN_COLA.id) return { version: 1, id: h.id, proyecto: h.proyecto, transcript: null, total: 0, desde: 0, hasta: 0, mensajes: [], usage: null, modelo: null };
-    return MODO.captura === "sistema" ? conversacionSistema(h) : conversacion(h, antes, 50, MODO.captura === "herramientas-resultados");
+    const resp = MODO.captura === "sistema" ? conversacionSistema(h) : conversacion(h, antes, 50, MODO.captura === "herramientas-resultados");
+    if (MODO.captura === "chat-rutas" && resp.mensajes.length > 0) {
+      const ult = resp.mensajes.length - 1;
+      const textoRutas = "Dejé los bocetos en \`~/Proyectos/trama/maquetas/taller\` y armé el prototipo en /home/ana/proyectos/trama/maquetas/taller/e-taller.html para revisar.";
+      return { ...resp, mensajes: resp.mensajes.map((m, i) => (i === ult && m.rol === "assistant" ? { ...m, texto: textoRutas } : m)) };
+    }
+    return resp;
   },
   async parar() {
     await espera(300);

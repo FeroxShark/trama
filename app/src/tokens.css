@@ -73,6 +73,9 @@
   --cupo-agotado-texto: var(--fallo-texto);
   /* Poco cupo (desde 70 %, ámbar): la cifra y la barra; el tinte sólo aparece al agotarse. */
   --cupo-poco-texto: var(--decision-texto);
+  /* Carpeta o HTML nombrado al pie de un mensaje: tinte suave del mismo naranja de carpeta. */
+  --carpeta-fondo: color-mix(in srgb, var(--carpeta) 14%, transparent);
+  --carpeta-borde: color-mix(in srgb, var(--carpeta) 34%, transparent);
 
   /* --- Forma --- */
   --r-xs: 0.375rem;

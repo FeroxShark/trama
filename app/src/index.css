@@ -3,6 +3,7 @@
 @import "./temas-colores.css";
 @import "./barra-atencion.css";
 @import "./hilo/tarjeta-frase.css";
+@import "./hilo/tarjeta-ruta.css";
 
 /* Dirección visual: el estándar pulido (vidrio quieto, acento celeste, cápsulas, grilla de 4 px,
    una sola fuente con cifras tabulares). Los tokens están en src/tokens.css; acá, el CSS de la app. */

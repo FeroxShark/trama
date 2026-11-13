@@ -13,6 +13,7 @@ import { useIdioma } from "../i18n/react";
 import { esVentana } from "../puente";
 import { esComodin, rutaImagen } from "../../electron/imagen-ruta";
 import { ImagenInsertada, ImagenLocal, VerImagenLocal } from "./Imagenes";
+import { TarjetasRuta } from "./TarjetaRuta";
 import { bloques, carpetaRelativa, esRuta, rutaCarpeta, sueltas, trozos, type Bloque, type Lista, type Trozo } from "./markdown";
 import { rutaEnCwd } from "./worker-datos";
 import { resaltar } from "./resaltar";
@@ -266,6 +267,7 @@ export const Texto = memo(function Texto({ texto, vivo = false, propio = false }
       {bs.map((b, i) => (
         <Pieza key={i} b={b} vivo={vivo && i === bs.length - 1} />
       ))}
+      {!propio && !vivo ? <TarjetasRuta texto={texto} /> : null}
     </>
   );
 });
