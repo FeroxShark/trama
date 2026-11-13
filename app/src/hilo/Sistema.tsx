@@ -10,11 +10,9 @@ import { memo, useState } from "react";
 import {
   BellRing,
   ChevronRight,
-  CircleCheck,
   CircleSlash,
   FileText,
   FoldVertical,
-  MessageCircleQuestion,
   Hourglass,
   Image,
   ArrowRightLeft,
@@ -33,6 +31,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { locale, t, type ClaveSola } from "../i18n";
+import { IcActividad, IcDecidir, IcFallo, IcOk, IcProbar } from "../ui/iconos";
 import { fuente } from "../datos/fuente";
 import { mensaje } from "../puente";
 import { useIdioma } from "../i18n/react";
@@ -40,8 +39,8 @@ import { MODO } from "../modo";
 import { hora } from "./Hace";
 import { Boton } from "../ui/componentes";
 import { nombreModelo } from "./opciones";
-import type { AvisoTexto, EstadoAviso } from "../../electron/avisos-worker.ts";
-import type { ClaseTarjeta, Linea, Sistema as S, Tarjeta } from "./sistema-logica";
+import type { AvisoTexto } from "../../electron/avisos-worker.ts";
+import type { ClaseTarjeta, EstadoFilaAviso, Linea, Sistema as S, Tarjeta } from "./sistema-logica";
 import { filasDeAviso, tonoDeEstado } from "./sistema-logica";
 import "./atencion.css";
 
@@ -170,19 +169,21 @@ function Tarjeta_({ s }: { s: Tarjeta }) {
 }
 
 /** Ícono y palabra de cada estado de un worker en un aviso: la palabra va siempre, el color (`tonoDeEstado`) sólo la acompaña. */
-const ESTADO_AVISO: Record<EstadoAviso, { Icono: LucideIcon; rotulo: ClaveSola }> = {
-  termino: { Icono: CircleCheck, rotulo: "sistema.avisoTermino" },
+const ESTADO_AVISO: Record<EstadoFilaAviso, { Icono: LucideIcon; rotulo: ClaveSola }> = {
+  termino: { Icono: IcOk, rotulo: "sistema.avisoTermino" },
   sinResumen: { Icono: FileText, rotulo: "sistema.avisoSinResumen" },
-  decision: { Icono: MessageCircleQuestion, rotulo: "sistema.avisoChipDecision" },
+  decision: { Icono: IcDecidir, rotulo: "sistema.avisoChipDecision" },
   faltaInfo: { Icono: Info, rotulo: "sistema.avisoFaltaInfo" },
-  falla: { Icono: TriangleAlert, rotulo: "sistema.avisoFallo" },
+  falla: { Icono: IcFallo, rotulo: "sistema.avisoFallo" },
+  probar: { Icono: IcProbar, rotulo: "sistema.avisoProbar" },
+  corre: { Icono: IcActividad, rotulo: "sistema.avisoCorre" },
 };
 
 /**
  * Una fila por worker, de la misma altura para todos: ícono y palabra de su estado, la tarea (entera al pasar el mouse) y, en la
  * misma línea, Relanzar si falló y «Abrir», que abre su hilo (el id va en su tooltip). No tiene fondo ni borde propios.
  */
-function FilaAviso({ x, alAbrirHilo }: { x: AvisoTexto["trabajos"][number]; alAbrirHilo?: (id: string) => void }) {
+function FilaAviso({ x, alAbrirHilo }: { x: { id: string; tarea: string; falla: boolean; estado: EstadoFilaAviso }; alAbrirHilo?: (id: string) => void }) {
   const { Icono, rotulo } = ESTADO_AVISO[x.estado];
   const falla = x.estado === "falla";
   const [relanzo, setRelanzo] = useState<"relanzando" | "hecho" | { error: string } | null>(null);

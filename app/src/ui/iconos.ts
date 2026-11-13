@@ -1,6 +1,7 @@
 // El set de íconos de la app: una sola familia (lucide, trazo de 1.8 px, 16 px por default) con los nombres de lo que significan, para
 // que nadie elija un ícono suelto por pantalla. `ICONO` es el tamaño y el grosor; los componentes de `src/ui` lo usan.
 export {
+  Activity as IcActividad,
   Archive as IcArchivar,
   Ban as IcSinCupo,
   Bell as IcAviso,
@@ -8,7 +9,9 @@ export {
   Check as IcOk,
   CaseSensitive as IcLetra,
   ChevronDown as IcAbrir,
+  CircleQuestionMark as IcDecidir,
   Code as IcCodigo,
+  FlaskConical as IcProbar,
   Cpu as IcLocal,
   Folder as IcCarpeta,
   GitBranch as IcRama,
@@ -34,6 +37,7 @@ export {
   TriangleAlert as IcAtencion,
   Type as IcTipografia,
   X as IcCerrar,
+  X as IcFallo,
 } from "lucide-react";
 
 export const ICONO = { size: 16, strokeWidth: 1.8 } as const;

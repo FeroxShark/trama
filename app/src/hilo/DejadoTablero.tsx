@@ -3,7 +3,8 @@
 // e ícono si sigue esperando, si ya respondió o si se cerró (nunca sólo con color). No suena, no avisa ni mueve el scroll: es una fila más
 // de la conversación, debajo de lo que la dejó. Qué items hay y su estado: src/hilo/tablero-dejado.ts; la lectura del tablero se comparte
 // (tablero-dejado-fuente.ts).
-import { Check, ChevronRight, ClipboardList, Clock, Send, type LucideIcon } from "lucide-react";
+import { Check, ChevronRight, Clock, Send, type LucideIcon } from "lucide-react";
+import { IcDecidir, IcProbar } from "../ui/iconos";
 import { useEffect, useMemo, useState } from "react";
 import { fuenteTablero } from "../datos/fuenteTablero";
 import { t } from "../i18n";
@@ -89,13 +90,17 @@ function FilaRenglon({ c, n, hecho }: { c: Carta; n: number; hecho: boolean }) {
 
 function Fila({ c }: { c: Carta }) {
   const e = c.estado === "sin-leer" ? null : ESTADO[c.estado];
+  const TipoIcono = c.tipo === "prueba" ? IcProbar : IcDecidir;
   const Envoltura = c.renglon ? "div" : "li";
   return (
     <Envoltura className={c.renglon ? "dejado-fila" : undefined}>
-      <button type="button" className="dejado-c" data-estado={c.estado} aria-label={t("dejado.abrir", { titulo: c.titulo })} onClick={() => pedirItem({ id: c.id })}>
-        <ClipboardList className="dejado-i" size={14} strokeWidth={1.8} aria-hidden="true" />
+      <button type="button" className="dejado-c" data-tipo={c.tipo} data-estado={c.estado} aria-label={t("dejado.abrir", { titulo: c.titulo })} onClick={() => pedirItem({ id: c.id })}>
+        <span className="dejado-tipo">
+          <TipoIcono className="dejado-i" size={14} strokeWidth={2} aria-hidden="true" />
+          <span>{t(c.tipo === "prueba" ? "dejado.tipo.prueba" : "dejado.tipo.pregunta")}</span>
+        </span>
         <span className="dejado-t">
-          <span className="dejado-q">{t("dejado.frase")}</span> <b>{c.titulo}</b>
+          <b>{c.titulo}</b>
         </span>
         {e ? (
           <span className="dejado-e">

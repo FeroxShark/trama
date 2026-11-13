@@ -1115,7 +1115,18 @@ export function charlaDejado(sid: string): Mensaje[] {
       modelo: l.modelo,
       det: [{ nombre: "Bash", entrada: { command: cmd, description: "Deja la pregunta en el tablero" }, resultado: { texto: "9001", error: false } }],
     },
-    { rol: "user", texto: "[Aviso automático de Trama] Worker «revisar el contrato» terminó pidiendo una decisión. Id: 7. Revisalo con `pa --hilo 7`.", herramientas: [], modelo: null },
+    {
+      rol: "user",
+      texto:
+        "[Aviso automático de Trama] Terminaron los 4 workers que lanzaste, 1 con falla:\n" +
+        "- «revisar el contrato» (7): terminó pidiendo una decisión.\n" +
+        "- «migración del índice» (8): terminó.\n" +
+        "- «tests del cauce» (9): falló: el proceso se cortó sin dejar mensaje.\n" +
+        "- «docs del cauce» (11): terminó sin resumen.\n" +
+        "Revisá cada uno con `pa --hilo <id>`.",
+      herramientas: [],
+      modelo: null,
+    },
     { rol: "assistant", texto: "El worker terminó y dejó una decisión y una prueba en el tablero.", herramientas: [], modelo: l.modelo },
   ];
   return crudos.map((x, i) => ({ ...x, i, ts: ts((crudos.length - i) * MIN) }));

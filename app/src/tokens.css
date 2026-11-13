@@ -65,6 +65,8 @@
   --decision-luz: color-mix(in srgb, var(--aviso) 55%, transparent);
   --decision-brillo: 0 0.25rem 1rem color-mix(in srgb, var(--aviso) 16%, transparent);
   --decision-halo: 0 0 0 0.1875rem color-mix(in srgb, var(--aviso) 26%, transparent), 0 0 0.875rem color-mix(in srgb, var(--aviso) 50%, transparent);
+  --probar-fondo: color-mix(in srgb, var(--probar) 11%, transparent);
+  --probar-borde: color-mix(in srgb, var(--probar) 38%, transparent);
   /* Un cupo agotado: tinte rojo suave y el borde que lo recorta; más quieto que un fallo (no pide actuar, pide esperar). */
   --cupo-agotado-fondo: color-mix(in srgb, var(--critico) 14%, transparent);
   --cupo-agotado-borde: color-mix(in srgb, var(--critico) 38%, transparent);

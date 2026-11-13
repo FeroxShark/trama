@@ -68,20 +68,26 @@ export function sistemaDe(m: Mensaje): Sistema | null {
   return m.rol === "user" ? deUsuario(m) : deModelo(m);
 }
 
-/** El tono de la fila de un worker en un aviso: verde si terminó (o terminó sin resumen), ámbar si pide una decisión o le falta información, rojo si falló. */
-export const tonoDeEstado = (e: EstadoAviso): "ok" | "aviso" | "critico" => (e === "falla" ? "critico" : e === "decision" || e === "faltaInfo" ? "aviso" : "ok");
+/** Estado visual posible para una fila de worker en un aviso automático. */
+export type EstadoFilaAviso = EstadoAviso | "probar" | "corre";
+/** Tono visual de cada estado en un aviso: acompaña al ícono y la palabra. */
+export type TonoAviso = "ok" | "aviso" | "critico" | "probar" | "corre";
+
+/** El tono de la fila de un worker en un aviso: turquesa si terminó, ámbar si pide una decisión o le falta info, rojo si falló, violeta si pide probar, azul si corre. */
+export const tonoDeEstado = (e: EstadoFilaAviso): TonoAviso =>
+  e === "falla" ? "critico" : e === "decision" || e === "faltaInfo" ? "aviso" : e === "probar" ? "probar" : e === "corre" ? "corre" : "ok";
 
 /** Con más filas que esto en un aviso, las terminadas se pliegan en «N terminados». */
 export const PLIEGUE_AVISO = 5;
 
-/** Primero las que piden decisión, después las que fallaron, después las terminadas (ese orden de atención). */
-const PESO_AVISO: Record<EstadoAviso, number> = { decision: 0, faltaInfo: 0, falla: 1, termino: 2, sinResumen: 2 };
+/** Primero las que piden decisión o probar, después las que fallaron, después las que corren y las terminadas (ese orden de atención). */
+const PESO_AVISO: Record<EstadoFilaAviso, number> = { decision: 0, faltaInfo: 0, probar: 0, falla: 1, corre: 2, termino: 3, sinResumen: 3 };
 
 /**
  * Las filas de un aviso en el orden de la vista. Con más de `PLIEGUE_AVISO`, las terminadas van en `plegadas`
  * (su desplegable) y `visibles` trae sólo lo que pide atención. Con pocas, todas van en `visibles`.
  */
-export function filasDeAviso<T extends AvisoTexto["trabajos"][number]>(trabajos: T[]): { visibles: T[]; plegadas: T[] } {
+export function filasDeAviso<T extends { id: string; tarea: string; falla: boolean; estado: EstadoFilaAviso }>(trabajos: T[]): { visibles: T[]; plegadas: T[] } {
   const ordenadas = [...trabajos].sort((a, b) => PESO_AVISO[a.estado] - PESO_AVISO[b.estado]);
   if (trabajos.length <= PLIEGUE_AVISO) return { visibles: ordenadas, plegadas: [] };
   const terminados = (x: T) => tonoDeEstado(x.estado) === "ok";

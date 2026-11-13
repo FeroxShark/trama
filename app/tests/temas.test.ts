@@ -238,3 +238,43 @@ test("validación de hex, BaseTema, json de mio e index.html", () => {
   assert.ok(html.includes(`"${TEMA_MIO}"`), "index.html debe reconocer mio para pintar desde el primer frame");
   assert.ok(html.includes("trama.acento") && html.includes("trama.temaMio"), "index.html debe leer acento y temaMio");
 });
+
+// Los bloques pendientes y de aviso (Probar sobre su tinte, Decidir sobre su tinte, falla sobre su tinte y Probar sobre superficie).
+const resolverValor = (t: Record<string, string>, v: string): [number, number, number, number] => {
+  const limpio = v.trim();
+  const varRef = limpio.match(/^var\((--[\w-]+)\)$/);
+  if (varRef) return resolverValor(t, t[varRef[1]]);
+  const mix = limpio.match(/^color-mix\(in srgb,\s*(.+?)\s+([\d.]+)%,\s*transparent\)$/);
+  if (mix) {
+    const [r, g, b] = resolverValor(t, mix[1]);
+    return [r, g, b, parseFloat(mix[2]) / 100];
+  }
+  return rgbDe(limpio);
+};
+
+const sobreRgba = (fg: [number, number, number, number], bg: [number, number, number]): [number, number, number] =>
+  [0, 1, 2].map((i) => fg[i] * fg[3] + bg[i] * (1 - fg[3])) as [number, number, number];
+
+for (const id of ["grafito", "catppuccin", "claro"] as const) {
+  test(`tema ${id}: los tintes de Probar, Decidir y falla superan WCAG AA (≥ 4,5)`, () => {
+    const t = tema(id);
+    const fallas: string[] = [];
+    const pares: readonly [string, string][] = [
+      ["--probar", "--probar-fondo"],
+      ["--decision-texto", "--decision-fondo"],
+      ["--fallo-texto", "--fallo-fondo"],
+    ];
+    for (const s of ["--sup-0", "--sup-1"] as const) {
+      const base = resolverValor(t, t[s]).slice(0, 3) as [number, number, number];
+      const probarC = contraste(sobreRgba(resolverValor(t, t["--probar"]), base), base);
+      if (probarC < 4.5) fallas.push(`--probar sobre ${s}: ${probarC.toFixed(2)}`);
+      for (const [fgTk, bgTk] of pares) {
+        const bg = sobreRgba(resolverValor(t, t[bgTk]), base);
+        const fg = sobreRgba(resolverValor(t, t[fgTk]), bg);
+        const c = contraste(fg, bg);
+        if (c < 4.5) fallas.push(`${fgTk} sobre ${bgTk} (${s}): ${c.toFixed(2)}`);
+      }
+    }
+    assert.deepEqual(fallas, []);
+  });
+}

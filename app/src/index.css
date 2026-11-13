@@ -4491,6 +4491,12 @@ summary.sis-div-t:hover,
 .sis-aviso-e[data-tono="critico"] {
   color: var(--critico);
 }
+.sis-aviso-e[data-tono="probar"] {
+  color: var(--probar);
+}
+.sis-aviso-e[data-tono="corre"] {
+  color: var(--azul);
+}
 .sis-aviso-tarea {
   flex: 1 1 0;
   min-width: 0;
@@ -4500,6 +4506,8 @@ summary.sis-div-t:hover,
   white-space: nowrap;
 }
 .sis-aviso-fila[data-estado="decision"] .sis-aviso-tarea,
+.sis-aviso-fila[data-estado="faltaInfo"] .sis-aviso-tarea,
+.sis-aviso-fila[data-estado="probar"] .sis-aviso-tarea,
 .sis-aviso-fila[data-estado="falla"] .sis-aviso-tarea {
   color: var(--texto);
 }

@@ -154,11 +154,13 @@ test("un aviso de Trama es una fila de sistema, con o sin su marca en la cola; l
   assert.deepEqual(forma(turnos([usuario(aviso)])), ["linea:aviso"]);
 });
 
-test("el tono de cada fila de un aviso: verde si terminó (o sin resumen), ámbar si pide una decisión, rojo si falló; la tarjeta no pinta a todas", () => {
+test("el tono de cada fila de un aviso: verde si terminó (o sin resumen), ámbar si pide una decisión, rojo si falló, violeta si pide probar, azul si corre; la tarjeta no pinta a todas", () => {
   const estados: EstadoAviso[] = ["termino", "sinResumen", "decision", "falla"];
   assert.deepEqual(estados.map(tonoDeEstado), ["ok", "ok", "aviso", "critico"]);
+  assert.deepEqual((["probar", "corre"] as const).map(tonoDeEstado), ["probar", "corre"]);
   const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
-  for (const tono of ["ok", "aviso", "critico"]) assert.match(css, new RegExp(`\\.sis-aviso-e\\[data-tono="${tono}"\\]\\s*\\{\\s*color:\\s*var\\(--${tono}\\)`));
+  for (const tono of ["ok", "aviso", "critico", "probar"]) assert.match(css, new RegExp(`\\.sis-aviso-e\\[data-tono="${tono}"\\]\\s*\\{\\s*color:\\s*var\\(--${tono}\\)`));
+  assert.match(css, /\.sis-aviso-e\[data-tono="corre"\]\s*\{\s*color:\s*var\(--azul\)/);
   assert.doesNotMatch(css, /\.sis-aviso\[data-tono="grave"\] \.sis-aviso-e/, "una fila terminada no se pinta de rojo por la tarjeta");
 });
 

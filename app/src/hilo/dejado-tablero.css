@@ -30,6 +30,46 @@
 .dejado-c:hover {
   background: var(--capa-hover);
 }
+/* Cada item pendiente que pide algo a la persona se distingue de un vistazo por tipo: Probar (violeta) o Decidir (ámbar). */
+.dejado-c[data-tipo="prueba"][data-estado="abierto"],
+.dejado-c[data-tipo="prueba"][data-estado="sin-leer"] {
+  border-color: var(--probar-borde);
+  border-left: 2px solid var(--probar);
+  background: var(--probar-fondo);
+}
+.dejado-c[data-tipo="prueba"][data-estado="abierto"]:hover,
+.dejado-c[data-tipo="prueba"][data-estado="sin-leer"]:hover {
+  background: color-mix(in srgb, var(--probar) 16%, transparent);
+}
+.dejado-c[data-tipo="pregunta"][data-estado="abierto"],
+.dejado-c[data-tipo="pregunta"][data-estado="sin-leer"] {
+  border-color: var(--decision-borde);
+  border-left: 2px solid var(--aviso);
+  background: var(--decision-fondo);
+}
+.dejado-c[data-tipo="pregunta"][data-estado="abierto"]:hover,
+.dejado-c[data-tipo="pregunta"][data-estado="sin-leer"]:hover {
+  background: color-mix(in srgb, var(--aviso) 18%, transparent);
+}
+.dejado-tipo {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dejado-c[data-tipo="prueba"] .dejado-tipo {
+  color: var(--probar);
+}
+.dejado-c[data-tipo="pregunta"] .dejado-tipo {
+  color: var(--decision-texto);
+}
+.dejado-c[data-estado="respondido"] .dejado-tipo,
+.dejado-c[data-estado="cerrado"] .dejado-tipo,
+.dejado-c[data-estado="probado"] .dejado-tipo {
+  color: var(--apagado);
+}
 .dejado-c:focus-visible {
   outline: 2px solid var(--acento);
   outline-offset: 2px;
@@ -156,13 +196,13 @@
     row-gap: var(--esp-0-5);
   }
   .dejado-t {
-    flex: 1 1 calc(100% - 3rem);
+    flex: 1 1 10rem;
     -webkit-line-clamp: 3;
   }
   .dejado-e {
     order: 3;
     flex-basis: 100%;
-    padding-left: calc(14px + var(--esp-2));
+    padding-left: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {

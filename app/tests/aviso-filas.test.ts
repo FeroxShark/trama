@@ -35,6 +35,7 @@ const { createElement: h } = await import("react");
 const { cambiarIdioma } = await import("../src/i18n/index.ts");
 const { lineaAviso } = await import("../src/hilo/sistema-logica.ts");
 const { Sistema } = await import("../src/hilo/Sistema.tsx");
+const { DejadoTablero } = await import("../src/hilo/DejadoTablero.tsx");
 
 const OCHO =
   "[Aviso automático de Trama] Terminaron los 8 workers que lanzaste, 1 con falla:\n" +
@@ -82,4 +83,41 @@ test("pocos workers (cinco o menos): todos en la lista, sin desplegable", () => 
   const html = pintar("[Aviso automático de Trama] Terminaron los 3 workers que lanzaste, 0 con falla:\n- «a» (1): terminó.\n- «b» (2): terminó pidiendo una decisión.\n- «c» (3): terminó.\nRevisá cada uno con `pa --hilo <id>`.");
   assert.equal((html.match(/class="sis-aviso-fila"/g) ?? []).length, 3);
   assert.doesNotMatch(html, /<details/);
+});
+
+test("Sistema también renderiza estados probar y corre con su tono e ícono + palabra", () => {
+  cambiarIdioma("es");
+  const html = renderToStaticMarkup(
+    h(Sistema, {
+      s: {
+        tipo: "linea",
+        clase: "aviso",
+        aviso: {
+          tanda: true,
+          falla: false,
+          trabajos: [
+            { id: "21", tarea: "revisar captura", falla: false, estado: "probar" } as never,
+            { id: "22", tarea: "correr tests", falla: false, estado: "corre" } as never,
+          ],
+        },
+      },
+      alAbrirHilo: () => {},
+    }),
+  );
+  assert.match(html, /data-tono="probar"[^>]*>.*?<span>probar<\/span>/);
+  assert.match(html, /data-tono="corre"[^>]*>.*?<span>corre<\/span>/);
+});
+
+test("DejadoTablero marca el tipo con ícono y palabra, y dejado-tablero.css distingue prueba y pregunta", () => {
+  cambiarIdioma("es");
+  const html = renderToStaticMarkup(
+    h(DejadoTablero, {
+      refs: [{ por: "llamada", id: 9001, titulo: "¿Publico la 0.3?" }],
+    }),
+  );
+  assert.match(html, /data-tipo="pregunta"/);
+  assert.match(html, />Decidir</);
+  const css = readFileSync(new URL("../src/hilo/dejado-tablero.css", import.meta.url), "utf8");
+  assert.match(css, /\[data-tipo="prueba"\]\[data-estado="abierto"\]/);
+  assert.match(css, /\[data-tipo="pregunta"\]\[data-estado="abierto"\]/);
 });
