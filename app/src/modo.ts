@@ -211,6 +211,9 @@ const CAPTURAS = [
   "contexto-panel-previa",
   // `-sub`: la lista de Subagentes del líder (2 inventados) con el primero abierto: su gasto y el desglose de su contexto.
   "contexto-panel-sub",
+  // Contexto acoplado a la izquierda bajo Chats (320 px) y en la zona de abajo (> 640 px, dos columnas).
+  "contexto-angosto",
+  "contexto-abajo",
   // "De Claude Code (N)": la sección plegable de atlas abierta, con el buscador y las conversaciones (con una de carpeta que ya no existe y una de otra cuenta).
   "claude-code",
   // El orden de la barra: a mitad de un arrastre (lo que se lleva apagado, la línea donde cae) y el menú de una carpeta con Subir / Bajar / Orden por defecto.
@@ -332,7 +335,7 @@ export const MODO = {
   fixtures: q.has("fixtures") ? q.get("fixtures") !== "0" : true,
   /** La vista de la barra al abrir (preferencias.json): todo o sólo líderes. */
   /** El panel de contexto (a la derecha) a la vista al abrir (preferencias.json); sin nada guardado, oculto. */
-  consumo: q.get("consumo") === "1" || (captura?.startsWith("contexto-panel") ?? false) || (captura?.startsWith("acople-app") ?? false) || captura === "acople-cupo" || captura === "worker-vista-rutas",
+  consumo: q.get("consumo") === "1" || (captura?.startsWith("contexto") ?? false) || (captura?.startsWith("acople-app") ?? false) || captura === "acople-cupo" || captura === "worker-vista-rutas",
   /** Cómo se llama esta máquina (lo pasa el main con datos reales): va en la ficha de cada worker. */
   maquina: q.get("maquina"),
   /** La ventana es cliente del motor (electron/ventana-cliente.ts): lo que se cae es el motor, no la PC. */

@@ -119,8 +119,6 @@
   border-radius: var(--r-cap);
   color: var(--txt-4);
   font-size: var(--letra-5);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .cp-pestanas button:hover {
@@ -202,6 +200,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--esp-3);
+}
+.cp-det-izq {
+  display: contents;
 }
 .cp-uso-total {
   display: flex;
@@ -1181,16 +1182,44 @@
 .cp-barra-tabs .cp-pestanas {
   min-width: 0;
   flex: 1;
+  flex-wrap: wrap;
   margin: 0;
+  overflow-x: visible;
+}
+.cp-barra-tabs .cp-pestanas button {
+  flex: 1 0 auto;
 }
 
-@container (max-width: 21.25rem) {
-  .cs[data-acoplado] .cp-aviso,
+/* En angosto las pestañas ocupan el ancho entero en una fila con letra un paso menor; si aun así no entran, pasan a dos filas. El botón de refrescar queda en su fila. */
+@container (max-width: 23.5rem) {
+  .cs[data-acoplado] .cp-barra-tabs {
+    flex-wrap: wrap;
+  }
+  .cs[data-acoplado] .cp-barra-tabs .cp-pestanas {
+    flex: 1 0 100%;
+    border-radius: var(--r-lg);
+  }
+  .cs[data-acoplado] .cp-barra-tabs .cp-pestanas button {
+    padding: 0 var(--esp-1-5);
+    font-size: var(--letra-4);
+  }
+  .cs[data-acoplado] .cp-barra-tabs > .cp-ico {
+    margin-left: auto;
+  }
+}
+
+/* Menos de 360 px: el aviso baja un paso de letra, la lista esconde la píldora de porcentaje antes que el número y los tokens envuelven limpio. */
+@container (max-width: 22.4375rem) {
+  .cs[data-acoplado] .cp-aviso {
+    margin-inline: var(--esp-2-5);
+    padding: var(--esp-2) var(--esp-2-5);
+    font-size: var(--letra-3);
+  }
   .cs[data-acoplado] .cp-barra-tabs {
     margin-inline: var(--esp-2-5);
   }
   .cs[data-acoplado] .cp-cuerpo-panel {
-    padding: var(--esp-2-5);
+    padding: var(--esp-3) var(--esp-2-5);
   }
   .cs[data-acoplado] .cp-ventana {
     gap: var(--esp-3);
@@ -1200,8 +1229,18 @@
     width: 3.25rem;
     height: 3.25rem;
   }
+  .cs[data-acoplado] .cp-ventana .cp-num {
+    white-space: normal;
+    text-align: left;
+  }
+  .cs[data-acoplado] .cp-bq {
+    padding: var(--esp-0-5) var(--esp-1);
+  }
+  .cs[data-acoplado] .cp-cat h4 .cp-pct {
+    display: none;
+  }
   .cs[data-acoplado] .cp-cat h4 button {
-    grid-template-columns: 0.625rem minmax(0, 1fr) auto 2.5rem 0.875rem;
+    grid-template-columns: 0.625rem minmax(0, 1fr) auto 0.875rem;
     gap: var(--esp-1-5);
   }
   .cs[data-acoplado] .cp-w-btn {
@@ -1210,33 +1249,37 @@
   .cs[data-acoplado] .cp-sub .cp-w-btn {
     grid-template-columns: 0.875rem minmax(0, 1fr) 5rem;
   }
+  .cs[data-acoplado] .cp-previa-tipos {
+    flex-wrap: wrap;
+  }
 }
 @container (max-width: 18.75rem) {
   .cs[data-acoplado] .cp-ventana {
     flex-wrap: wrap;
   }
-  .cs[data-acoplado] .cp-ventana .cp-num {
-    white-space: normal;
-    text-align: left;
+  .cs[data-acoplado] .cp-cuerpo {
+    padding-left: var(--esp-2-5);
   }
-  .cs[data-acoplado] .cp-pestanas button {
-    padding: 0 var(--esp-1-5);
-    font-size: var(--letra-4);
+  .cs[data-acoplado] .cp-compactar {
+    padding-left: var(--esp-2-5);
   }
 }
-@container (min-width: 45rem) {
+/* Más de 640 px (zona de abajo): anillo + barra + mapa a la izquierda y lista a la derecha en dos columnas. */
+@container (min-width: 40.0625rem) {
   .cs[data-acoplado] .cp-det {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
     align-items: start;
+    gap: var(--esp-3) var(--esp-4);
   }
-  .cs[data-acoplado] .cp-det > :not(.cp-cats) {
-    grid-column: 1;
+  .cs[data-acoplado] .cp-det-izq {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: var(--esp-3);
   }
-  .cs[data-acoplado] .cp-det > .cp-cats {
-    grid-column: 2;
-    grid-row-start: 1;
-    grid-row-end: 10;
+  .cs[data-acoplado] .cp-det > .cp-nada {
+    grid-column: 1 / -1;
   }
 }
 

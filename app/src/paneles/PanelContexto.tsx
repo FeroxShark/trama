@@ -523,6 +523,7 @@ function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; ui
   };
   return (
     <div className="cp-det">
+      <div className="cp-det-izq">
       {usado !== null && d.ventana ? (
         <div className="cp-ventana" data-nivel={frac !== null && frac >= 0.95 ? "lleno" : frac !== null && frac >= 0.85 ? "casi" : undefined}>
           {frac !== null ? (
@@ -557,6 +558,7 @@ function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; ui
       {d.desactualizado && d.medidoEn ? <p className="cp-nota">{t("ctxp.medidoA", { hora: new Date(d.medidoEn).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) })}</p> : null}
       <Barra cats={cats} d={d} />
       <Mapa d={d} apagados={apagados} alElegir={elegir} alMenu={lider ? menuMensajes : undefined} />
+      </div>
       <ul className="cp-cats">
         {cats.map((c) => {
           const crudo = d.categorias.filter((x) => x.id === c.id && !x.diferido).reduce((n, x) => n + x.tokens, 0);
