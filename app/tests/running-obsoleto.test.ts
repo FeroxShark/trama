@@ -57,7 +57,10 @@ async function conHilo(): Promise<{ h: ChildProcess; tid: number }> {
   return { h, tid };
 }
 
-const ID = "20261105-010000-4242";
+// Fecha actual en formato local YYYYMMDD para que el hilo no quede fuera de la ventana de 7 días de pa --hilos
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const hoy = (() => { const d = new Date(); return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`; })();
+const ID = `${hoy}-010000-4242`;
 function escribirRunning(f: string, campos: Record<string, string | number>, haceMs = 0) {
   writeFileSync(f, Object.entries(campos).map(([k, v]) => `${k}=${v}\n`).join(""));
   if (haceMs) utimesSync(f, new Date(Date.now() - haceMs), new Date(Date.now() - haceMs));
@@ -184,7 +187,7 @@ testPosix("pa --parar y --matar con un .running huérfano: cierran el rastro y n
     assert.equal(existsSync(s.running), false);
     assert.ok(viva(reciclado.pid!), "el pid reciclado no se señaló");
     // y un id sin nada: sigue siendo error
-    assert.equal((await pa(s.env, "--parar", "20261105-010000-1")).rc, 1);
+    assert.equal((await pa(s.env, "--parar", `${hoy}-010000-1`)).rc, 1);
   } finally {
     rmSync(s.raiz, { recursive: true, force: true });
   }
