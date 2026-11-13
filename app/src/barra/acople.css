@@ -1,0 +1,516 @@
+/* Paneles acoplables (src/barra/Acople.tsx): tres zonas (izq, der, abajo) alrededor del centro. */
+/* Sólo tokens de src/tokens.css, medidas en rem, sin sombras ni degradados. */
+.acople {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--esp-2);
+  background: var(--fondo);
+  color: var(--texto);
+  font-size: var(--letra-5);
+}
+.acople[data-tirando] {
+  user-select: none;
+}
+.acople[data-moviendo],
+.acople[data-moviendo] * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.acople-zona {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.acople-zona[data-zona="izq"],
+.acople-zona[data-zona="der"] {
+  flex-direction: column;
+  min-width: 12.5rem;
+}
+.acople-zona[data-zona="abajo"] {
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 10rem;
+  max-height: calc(100% - 14rem);
+}
+.acople-zona[data-zona="abajo"][data-todo-plegado] {
+  min-height: 0;
+  max-height: none;
+}
+
+.acople-medio {
+  display: flex;
+  flex: 1 1 20rem;
+  flex-direction: column;
+  min-width: 20rem;
+  min-height: 0;
+}
+
+.acople-centro {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--borde-3);
+  border-radius: var(--r-md);
+  background: var(--sup-0);
+}
+
+/* Divisores entre zonas y entre paneles apilados. */
+.acople-divisor {
+  position: relative;
+  flex: none;
+  width: var(--esp-2);
+  cursor: col-resize;
+  touch-action: none;
+}
+.acople-divisor[aria-orientation="horizontal"] {
+  width: auto;
+  height: var(--esp-2);
+  cursor: row-resize;
+}
+.acople-divisor::after {
+  position: absolute;
+  inset-block: var(--esp-3);
+  inset-inline: 0.1875rem;
+  border-radius: var(--radio-1);
+  background: var(--acento);
+  opacity: 0;
+  content: "";
+  transition: opacity var(--t-snappy);
+}
+.acople-divisor[aria-orientation="horizontal"]::after {
+  inset-block: 0.1875rem;
+  inset-inline: var(--esp-3);
+}
+.acople-divisor:hover::after,
+.acople-divisor:focus-visible::after,
+.acople-divisor[data-activo]::after {
+  opacity: 1;
+}
+.acople-divisor:focus-visible {
+  outline: none;
+}
+.acople-divisor[data-inerte] {
+  cursor: default;
+  pointer-events: none;
+}
+.acople-divisor[data-inerte]::after {
+  display: none;
+}
+
+/* Panel acoplable. */
+.acople-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--borde-3);
+  border-radius: var(--r-md);
+  background: var(--sup-0);
+}
+.acople-panel[data-origen] {
+  opacity: 0.38;
+}
+
+.acople-panel-cab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  height: 2.75rem;
+  padding: 0 var(--esp-1-5) 0 var(--esp-2);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.acople-panel:not([data-plegado]) .acople-panel-cab {
+  border-bottom: 1px solid var(--borde-3);
+}
+.acople-agarradera {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  color: var(--borde-6);
+}
+.acople-panel-cab:hover .acople-agarradera {
+  color: var(--apagado);
+}
+.acople-panel-ico {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  margin-left: var(--esp-0-5);
+  color: var(--apagado);
+}
+.acople-panel-tit {
+  margin: 0 0 0 var(--esp-0-5);
+  overflow: hidden;
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acople-esp {
+  flex: 1;
+}
+
+.acople-cab-btn {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--apagado);
+  cursor: pointer;
+  transition: background-color var(--t-snappy), color var(--t-snappy);
+}
+.acople-cab-btn:hover,
+.acople-cab-btn:focus-visible {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+.acople-cab-btn svg {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+.acople-panel-plegar svg {
+  transition: transform var(--t-snappy);
+}
+.acople-panel[data-plegado] .acople-panel-plegar svg {
+  transform: rotate(-90deg);
+}
+
+.acople-panel-cuerpo {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-5) transparent;
+}
+.acople-panel[data-plegado] .acople-panel-cuerpo {
+  display: none;
+}
+
+/* Capa de soltar al arrastrar. */
+.acople-soltar {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+}
+.acople-soltar-zona {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 0.125rem dashed color-mix(in srgb, var(--acento) 55%, transparent);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--fondo) 68%, transparent);
+}
+.acople-soltar-zona span {
+  padding: var(--esp-1-5) var(--esp-3-5);
+  border: 1px solid var(--borde-5);
+  border-radius: var(--r-cap);
+  background: var(--sup-2);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.acople-soltar-zona[data-sobre] {
+  border: 0.125rem solid var(--acento);
+  background: var(--acento-tinte);
+}
+.acople-soltar-zona[data-sobre] span {
+  border-color: var(--acento);
+  background: var(--acento);
+  color: var(--acento-texto);
+  font-weight: 600;
+}
+.acople-insercion {
+  position: absolute;
+  border-radius: var(--radio-1);
+  background: var(--acento);
+}
+
+.acople-fantasma {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  height: 2.125rem;
+  padding: 0 var(--esp-3-5) 0 var(--esp-2-5);
+  border: 1px solid var(--acento);
+  border-radius: var(--r-xs);
+  background: var(--sup-2);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+  pointer-events: none;
+}
+.acople-fantasma-ico {
+  display: inline-flex;
+  color: var(--apagado);
+}
+
+/* Menús (acciones del panel y lista de paneles). */
+.acople-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 14.75rem;
+  padding: var(--esp-1);
+  border: 1px solid var(--borde-5);
+  border-radius: var(--r-md);
+  background: var(--sup-2);
+  color: var(--texto);
+}
+.acople-menu-tit {
+  padding: var(--esp-1-5) var(--esp-2-5) var(--esp-1);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.acople-menu-op {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2-5);
+  width: 100%;
+  height: 2rem;
+  padding: 0 var(--esp-2-5);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--texto);
+  font-size: var(--letra-5);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-snappy);
+}
+.acople-menu-op:hover,
+.acople-menu-op:focus-visible {
+  background: var(--capa-hover);
+}
+.acople-menu-op[aria-disabled="true"] {
+  color: var(--inactivo);
+  cursor: default;
+}
+.acople-menu-op[aria-disabled="true"]:hover {
+  background: transparent;
+}
+.acople-menu-op svg {
+  flex: none;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  color: var(--apagado);
+}
+.acople-menu-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  margin-left: auto;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.acople-menu-estado svg {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  color: var(--ok);
+}
+.acople-menu-sep {
+  height: 1px;
+  margin: var(--esp-1) var(--esp-0-5);
+  background: var(--borde-4);
+}
+
+.acople-anuncio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Pantalla de demostración (AcopleDemo.tsx). */
+.acople-demo-cab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-3);
+  height: 3.5rem;
+  padding: 0 var(--esp-4);
+  border-bottom: 1px solid var(--borde-3);
+}
+.acople-demo-cab-txt {
+  min-width: 0;
+  flex: 1;
+}
+.acople-demo-cab h1 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--texto);
+  font-size: var(--letra-6);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acople-demo-cab p {
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-3);
+}
+.acople-demo-acciones {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.acople-demo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  height: 2rem;
+  padding: 0 var(--esp-3);
+  border: 1px solid var(--borde-4);
+  border-radius: var(--r-xs);
+  background: var(--sup-1);
+  color: var(--texto);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  cursor: pointer;
+}
+.acople-demo-btn:hover,
+.acople-demo-btn:focus-visible {
+  background: var(--capa-hover);
+  border-color: var(--borde-5);
+}
+.acople-demo-cnt {
+  color: var(--apagado);
+}
+.acople-demo-hilo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-3);
+  min-height: 0;
+  padding: var(--esp-4);
+  overflow: auto;
+}
+.acople-demo-msg {
+  max-width: 38rem;
+  padding: var(--esp-3) var(--esp-4);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--r-sm);
+  background: var(--sup-1);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  line-height: 1.5;
+}
+.acople-demo-msg[data-rol="usuario"] {
+  align-self: flex-end;
+  border-color: var(--borde-4);
+  background: var(--acento-tinte);
+}
+.acople-demo-compo {
+  flex: none;
+  padding: var(--esp-3) var(--esp-4);
+  border-top: 1px solid var(--borde-3);
+}
+.acople-demo-caja {
+  display: flex;
+  align-items: center;
+  height: 2.75rem;
+  padding: 0 var(--esp-3-5);
+  border: 1px solid var(--borde-4);
+  border-radius: var(--r-sm);
+  background: var(--sup-1);
+  color: var(--inactivo);
+  font-size: var(--letra-5);
+}
+
+.acople-demo-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  padding: var(--esp-2-5);
+}
+.acople-demo-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-2-5);
+  border-radius: var(--r-xs);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.acople-demo-fila[data-activo] {
+  background: var(--acento-tinte);
+  color: var(--texto);
+  font-weight: 500;
+}
+
+.acople-demo-bloque {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+  padding: var(--esp-3-5);
+}
+.acople-demo-dato {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.acople-demo-dato strong {
+  color: var(--texto);
+  font-weight: 600;
+}
+.acople-demo-barra {
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+}
+.acople-demo-barra > span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--acento);
+}
+.acople-demo-cupos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--esp-4);
+  padding: var(--esp-3-5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acople-divisor::after,
+  .acople-cab-btn,
+  .acople-panel-plegar svg,
+  .acople-menu-op {
+    transition: none;
+  }
+}

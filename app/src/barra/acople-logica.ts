@@ -341,3 +341,154 @@ export function desdeViejo(viejo: { ancho?: number | null; abierta?: boolean | n
   }
   return res;
 }
+
+export type RenglonMenuPanel = {
+  zona: Zona;
+  deshabilitada: boolean;
+};
+
+export type RenglonMenuPaneles = {
+  panel: PanelId;
+  abierto: boolean;
+  zona: Zona | null;
+};
+
+export type CajaRelativa = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+const CLAVE_BARRA_ANCHO = "hilos:barra:ancho";
+const CLAVE_BARRA_ABIERTA = "hilos:barra:abierta";
+
+// Paneles visibles en zona, filtrados por los que existen en vivos.
+export function panelesEnZona(a: Acople, zona: Zona, vivos: readonly PanelId[]): PanelId[] {
+  const vivosSet = new Set(vivos);
+  return a.zonas[zona].filter((p) => vivosSet.has(p));
+}
+
+// Indica si todos los paneles visibles de zona están plegados (para colapsar la zona de abajo a su encabezado).
+export function zonaTodoPlegado(a: Acople, zona: Zona, vivos: readonly PanelId[]): boolean {
+  const lista = panelesEnZona(a, zona, vivos);
+  return lista.length > 0 && lista.every((p) => a.plegados.includes(p));
+}
+
+// Un divisor entre dos paneles queda inerte si alguno de los dos está plegado.
+export function divisorPanelInerte(a: Acople, panelA: PanelId, panelB: PanelId): boolean {
+  return a.plegados.includes(panelA) || a.plegados.includes(panelB);
+}
+
+// Devuelve el tamaño de zona al valor de fábrica.
+export function restablecerZona(a: Acople, zona: Zona): Acople {
+  const res = clonar(a);
+  res.tam[zona] = TAM_DEFECTO[zona];
+  return res;
+}
+
+// Vuelve al reparto parejo los paneles de zona borrando sus pesos manuales.
+export function restablecerPartes(a: Acople, zona: Zona): Acople {
+  const res = clonar(a);
+  for (const p of res.zonas[zona]) delete res.partes[p];
+  return res;
+}
+
+// Renglones del menú "…" de un panel: las tres zonas, marcando como deshabilitada donde ya está.
+export function renglonesMenuPanel(a: Acople, panel: PanelId): RenglonMenuPanel[] {
+  const actual = zonaDe(a, panel);
+  return ZONAS.map((zona) => ({ zona, deshabilitada: actual === zona }));
+}
+
+// Renglones del menú "Paneles" según vivos: sólo los paneles vivos, con su estado actual.
+export function renglonesMenuPaneles(a: Acople, vivos: readonly PanelId[]): RenglonMenuPaneles[] {
+  const vistos = new Set<PanelId>();
+  const res: RenglonMenuPaneles[] = [];
+  for (const p of vivos) {
+    if (!esPanelId(p) || vistos.has(p)) continue;
+    vistos.add(p);
+    const zona = zonaDe(a, p);
+    res.push({ panel: p, abierto: zona !== null, zona });
+  }
+  return res;
+}
+
+// Lee el acomodo guardado en CLAVE_ACOPLE o migra desde las claves viejas de la barra lateral.
+export function leerAcople(leer: (clave: string) => string | null): Acople {
+  const crudo = leer(CLAVE_ACOPLE);
+  if (crudo !== null) {
+    try {
+      return normalizar(JSON.parse(crudo));
+    } catch {
+      return acopleDeFabrica();
+    }
+  }
+  const crudoAncho = leer(CLAVE_BARRA_ANCHO);
+  const numAncho = crudoAncho !== null ? Number(crudoAncho) : NaN;
+  const ancho = Number.isFinite(numAncho) && numAncho > 0 ? numAncho : null;
+  const crudoAbierta = leer(CLAVE_BARRA_ABIERTA);
+  const abierta = crudoAbierta === null ? null : crudoAbierta !== "0";
+  return desdeViejo({ ancho, abierta });
+}
+
+const aCajaRelativa = (r: Rect, v: Rect): CajaRelativa => ({
+  left: r.left - v.left,
+  top: r.top - v.top,
+  width: Math.max(0, r.right - r.left),
+  height: Math.max(0, r.bottom - r.top),
+});
+
+// Rectángulos relativos a geo.ventana para dibujar las zonas de soltar al arrastrar.
+export function cajasSoltar(geo: GeoDestino): Record<Zona, CajaRelativa> {
+  const v = geo.ventana;
+  const anchoV = Math.max(0, v.right - v.left);
+  const altoV = Math.max(0, v.bottom - v.top);
+
+  const izq = geo.zonas.izq
+    ? aCajaRelativa(geo.zonas.izq, v)
+    : { left: 0, top: 0, width: Math.min(FRANJA_VACIA, anchoV), height: altoV };
+
+  const der = geo.zonas.der
+    ? aCajaRelativa(geo.zonas.der, v)
+    : { left: Math.max(0, anchoV - FRANJA_VACIA), top: 0, width: Math.min(FRANJA_VACIA, anchoV), height: altoV };
+
+  let abajo: CajaRelativa;
+  if (geo.zonas.abajo) {
+    abajo = aCajaRelativa(geo.zonas.abajo, v);
+  } else {
+    const minLeft = geo.zonas.izq ? izq.left + izq.width : 0;
+    const maxRight = geo.zonas.der ? der.left : anchoV;
+    abajo = {
+      left: minLeft,
+      top: Math.max(0, altoV - FRANJA_VACIA),
+      width: Math.max(0, maxRight - minLeft),
+      height: Math.min(FRANJA_VACIA, altoV),
+    };
+  }
+
+  return { izq, der, abajo };
+}
+
+// Posición relativa a geo.ventana de la línea de inserción entre paneles al arrastrar, o null si la zona está vacía.
+export function barraInsercion(geo: GeoDestino, dest: Destino): CajaRelativa | null {
+  const paneles = geo.paneles[dest.zona] ?? [];
+  if (paneles.length === 0) return null;
+  const v = geo.ventana;
+  const horizontal = dest.zona === "abajo";
+  const antes = dest.indice < paneles.length;
+  const r = antes ? paneles[dest.indice] : paneles[paneles.length - 1];
+  if (horizontal) {
+    return {
+      left: (antes ? r.left - 5 : r.right + 2) - v.left,
+      top: r.top - v.top,
+      width: 3,
+      height: Math.max(0, r.bottom - r.top),
+    };
+  }
+  return {
+    left: r.left - v.left,
+    top: (antes ? r.top - 5 : r.bottom + 2) - v.top,
+    width: Math.max(0, r.right - r.left),
+    height: 3,
+  };
+}

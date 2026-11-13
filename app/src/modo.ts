@@ -270,6 +270,9 @@ const CAPTURAS = [
   "borrar-proyecto",
   // Las barras lisas de cupo (src/ui/BarraCupo.tsx) solas: 20 %, 85 %, 100 % y sin dato, en las variantes normal y compacta (`HILOS_TEMA=claro`, en claro).
   "barra-cupo-demo",
+  // Los paneles acoplables solos en pantalla de demostración (acomodo de fábrica y con paneles movidos).
+  "acople-demo",
+  "acople-demo-movido",
 ] as const;
 
 export type Captura = (typeof CAPTURAS)[number];
