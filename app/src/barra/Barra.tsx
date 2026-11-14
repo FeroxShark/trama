@@ -621,12 +621,18 @@ export function Barra() {
   // Un solo modo: debajo de cada líder, lo que trabaja o pide algo; lo terminado, plegado en "N terminados" (`plegarTerminados`).
   // Lo que falló queda a la vista igual (`aRiel`). Los proyectos que piden atención van primero, salvo mirando la lista: la foto se congela.
   const ordenProyectos = useRef<string[]>([]);
+  /** La carpeta de la barra de un líder (la elegida a mano o la que le tocó), `undefined` si está en la general. Para liderCreado. */
+  const carpetaDeLider = useRef<(sid: string) => string | undefined>(() => undefined);
   const arbol = useMemo(() => {
     const a = aRiel(plegarTerminados(arbolBruto), resueltos);
     if (!porPrioridad || buscando) return a;
     if (!congelada) ordenProyectos.current = ordenAtencion(a.carpetas, resueltos);
     return { ...a, carpetas: segunLista(a.carpetas, ordenProyectos.current) };
   }, [arbolBruto, resueltos, porPrioridad, buscando, congelada]);
+  carpetaDeLider.current = (sid) => {
+    const p = nombres.proyectos[sid] ?? arbol.lideres.get(sid)?.proyecto;
+    return p && p !== GENERAL ? p : undefined;
+  };
   // El riel se arma sin buscar: buscando se apagan los proyectos sin resultados, no se van.
   const arbolSinBuscar = useMemo(() => {
     if (!buscando) return arbol;
@@ -1097,10 +1103,11 @@ export function Barra() {
   const proyectosRef = useRef(proyectosReg);
   proyectosRef.current = proyectosReg;
 
-  const liderCreado = useCallback((sid: string, e: { modelo: string; effort: string; modo?: string; texto?: string; maquina?: string; carpeta?: string }) => {
+  const liderCreado = useCallback((sid: string, e: { modelo: string; effort: string; modo?: string; texto?: string; maquina?: string; carpeta?: string; de?: string }) => {
     // Nació con "Nueva tarea aquí": va a esa carpeta (como un Mover a proyecto…), salvo que la caja lo haya mandado a la carpeta de otro proyecto.
     const deCarpeta = e.carpeta && !e.maquina ? proyectosRef.current.find((p) => llanaRuta(p.ruta) === llanaRuta(e.carpeta!))?.slug : undefined;
-    const en = deCarpeta ?? nuevaEn.current;
+    // Salió de otro líder (empezar con resumen, ramificar): va a la carpeta en la que estaba ése, no al home.
+    const en = deCarpeta ?? nuevaEn.current ?? (e.de ? carpetaDeLider.current(e.de) : undefined);
     nuevaEn.current = null;
     // También si nació en la carpeta de un proyecto: el líder real (que reemplaza al fantasma) se agrupa por sus workers o por lo que nombra
     // su primer mensaje, no por su cwd, y sin esto saltaba de su proyecto a la carpeta del home apenas llegaba.

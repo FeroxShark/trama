@@ -825,7 +825,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               setError(null);
               fuente.liderRamificar(l.id, p.uuid, { modelo, effort }).then(
                 (nuevo) => {
-                  alCreado(nuevo, { texto: "", modelo, effort });
+                  alCreado(nuevo, { texto: "", modelo, effort, de: l.id });
                   alAbrirLider?.(nuevo);
                 },
                 (err) => setError(mensaje(err)),
@@ -1003,7 +1003,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
           setEnviando(false);
           if (nuevo) {
             enviado(nuevo, t, 0, imagenes);
-            alCreado(nuevo, e);
+            // La conversación sigue en otro líder: queda en la misma carpeta de la barra que ésta.
+            alCreado(nuevo, { ...e, de: l.id });
             alAbrirLider?.(nuevo);
           } else if (empezar) setNota(tr("cache.notaResumen"));
         },

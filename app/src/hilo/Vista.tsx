@@ -49,7 +49,7 @@ import { activo as subActivo } from "../barra/subagentes-logica";
 const puesto = (p: string) => (p === "aca" ? tr("vista.aca") : tr("vista.puesto", { p }));
 
 /** Lo que manda la caja de un líder: texto, modelo y esfuerzo. */
-export type Envio = { texto: string; modelo: string; effort: string };
+export type Envio = { texto: string; modelo: string; effort: string; de?: string };
 
 /** Un subagente abierto: su clave (`claveSub`), lo último que se supo de él (si se sabe) y su líder. */
 export type SubAbiertoVista = { clave: string; u: Subagente | null; lider: Lider | null };

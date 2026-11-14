@@ -611,7 +611,7 @@ function avisoProgramados(x: unknown): AvisoProgramados | null {
 
 /** `modo`: sólo para un líder nuevo (el chip de la caja); después se cambia con `liderModo`. */
 /** `maquina`: dónde nace un líder nuevo (el selector de la caja); sin él, esta máquina. */
-export type EnvioLider = { texto: string; imagenes?: Imagen[]; modelo: string; effort: string; modo?: string; rol?: "analista"; maquina?: string; carpeta?: string; /** Carpeta "Auto" de un líder nuevo: sin `carpeta`, el main de esa máquina elige el proyecto que nombra el mensaje (electron/carpeta-auto.ts). */ auto?: boolean; cuenta?: string; /** Sesión nueva con el relevo compacto, por caché vencida (electron/cache-pregunta.ts). */ empezar?: "resumen" };
+export type EnvioLider = { texto: string; imagenes?: Imagen[]; modelo: string; effort: string; modo?: string; rol?: "analista"; maquina?: string; carpeta?: string; /** Carpeta "Auto" de un líder nuevo: sin `carpeta`, el main de esa máquina elige el proyecto que nombra el mensaje (electron/carpeta-auto.ts). */ auto?: boolean; cuenta?: string; /** Sesión nueva con el relevo compacto, por caché vencida (electron/cache-pregunta.ts). */ empezar?: "resumen"; /** Sólo para la barra: el líder del que salió (resumen o rama), para dejarlo en su misma carpeta. No va al main. */ de?: string };
 
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
