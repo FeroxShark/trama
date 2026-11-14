@@ -1,6 +1,5 @@
 // Tarjetas breves debajo de un mensaje del asistente para abrir carpetas o `.html` nombrados sin tocar el texto.
-// Un `.html` no se abre con la app del sistema (`abribleConSistema`, electron/archivo-ruta.ts, deja afuera lo que ejecuta
-// código): su botón muestra la carpeta que lo contiene.
+// Una carpeta se abre en el explorador de archivos; un `.html`, en el navegador del sistema (`fuente.archivoAbrir`).
 import { useMemo, useState } from "react";
 import type { Plataforma } from "../../electron/rutas";
 import { resultadoCarpeta } from "../datos/carpeta-abrir";
@@ -11,7 +10,7 @@ import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import { esVentana } from "../puente";
 import { ICONO, IcAbrirSistema, IcArchivo, IcCarpeta } from "../ui/iconos";
-import { acortarRuta, carpetaDe, nombreRuta, rutasMencionadas, type RutaMencionada } from "./rutas-mencionadas";
+import { acortarRuta, nombreRuta, rutasMencionadas, type RutaMencionada } from "./rutas-mencionadas";
 
 function plataformaActual(): Plataforma {
   if (typeof location !== "undefined" && new URLSearchParams(location.search).get("plataforma") === "win32") return "win32";
@@ -27,7 +26,7 @@ export function TarjetaRuta({ item }: { item: RutaMencionada }) {
   const corta = acortarRuta(item.ruta, 52);
   const Icono = item.tipo === "carpeta" ? IcCarpeta : IcArchivo;
   const esCarpeta = item.tipo === "carpeta";
-  const carpeta = esCarpeta ? item.ruta : carpetaDe(item.ruta);
+  const carpeta = item.ruta;
   const etiquetaAbrir = t(esCarpeta ? "ruta.abrirCarpeta" : "ruta.mostrarArchivo", { nombre });
 
   async function abrir() {
@@ -37,6 +36,11 @@ export function TarjetaRuta({ item }: { item: RutaMencionada }) {
     try {
       if (!esVentana() && !MODO.fixtures) {
         setError(t("ruta.reiniciar"));
+        return;
+      }
+      if (!esCarpeta) {
+        // Un rechazo es que el pedido no llegó (ventana nueva con proceso viejo); `false`, que el archivo no está o no abrió.
+        if (!(await fuente.archivoAbrir(item.ruta))) setError(t("archivo.noDisponible", { nombre }));
         return;
       }
       const res = await resultadoCarpeta(

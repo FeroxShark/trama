@@ -84,7 +84,7 @@ test("leerArchivoVisto: un secreto es null aunque exista", async () => {
 });
 
 test("abribleConSistema: documentos y medios sí; programas, scripts y texto no", () => {
-  for (const r of ["/p/a.pdf", "C:\\p\\a.docx", "/p/a.xlsx", "/p/a.png", "/p/a.mp4", "/p/a.zip", "/p/a.md"]) assert.equal(abribleConSistema(r), true, r);
+  for (const r of ["/p/a.pdf", "C:\\p\\a.docx", "/p/a.xlsx", "/p/a.png", "/p/a.mp4", "/p/a.zip", "/p/a.md", "/p/a.html", "C:\\p\\a.htm"]) assert.equal(abribleConSistema(r), true, r);
   for (const r of ["C:\\p\\setup.exe", "/p/run.sh", "C:\\p\\a.bat", "/p/a.py", "/p/a.docm", "/p/a.svg", "/p/a.desktop", "/p/sin-extension", "/p/a.ts"]) assert.equal(abribleConSistema(r), false, r);
 });
 

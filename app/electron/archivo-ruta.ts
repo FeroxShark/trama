@@ -107,13 +107,16 @@ const ABRIBLES = new Set(
   "doc docx dot dotx xls xlsx ppt pptx odt ods odp rtf epub zip 7z rar tar gz tgz bz2 xz psd ai heic heif tif tiff mkv avi wmv flv aac wma 3gp log".split(" "),
 );
 
+const HTML = new Set(["html", "htm"]);
+
 /**
  * Si se puede pedir que la app del sistema abra el archivo: sólo imágenes, PDF, audio, video, markdown y documentos conocidos.
  * Nunca un programa o un script (.exe, .bat, .sh, .py…): abrirlos los ejecutaría. El texto y el código se ven en el visor, no se abren afuera.
+ * Un `.html` sí: lo abre el navegador, que lo corre aislado como a cualquier página.
  */
 export function abribleConSistema(ruta: string): boolean {
   const { tipo } = tipoDeArchivo(ruta);
-  return (tipo === "imagen" && extensionDe(ruta) !== "svg") || tipo === "pdf" || tipo === "audio" || tipo === "video" || tipo === "markdown" || ABRIBLES.has(extensionDe(ruta));
+  return (tipo === "imagen" && extensionDe(ruta) !== "svg") || tipo === "pdf" || tipo === "audio" || tipo === "video" || tipo === "markdown" || ABRIBLES.has(extensionDe(ruta)) || HTML.has(extensionDe(ruta));
 }
 
 /** Un archivo de una herramienta, listo para la vista: la ruta tal cual, qué hizo la herramienta, el tipo y, si es absoluta y válida, la ruta limpia. */
