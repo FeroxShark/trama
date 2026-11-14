@@ -113,7 +113,17 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
     [acople, vivosVisibles],
   );
 
-  const abajoTodoPlegado = useMemo(() => zonaTodoPlegado(acople, "abajo", vivosVisibles), [acople, vivosVisibles]);
+  // Zona con todos sus paneles plegados: abajo queda en una tira baja y los costados en una tira angosta
+  // (sólo ícono y botón de desplegar), para no dejar una columna vacía del ancho guardado.
+  const todoPlegado = useMemo(
+    () => ({
+      izq: zonaTodoPlegado(acople, "izq", vivosVisibles),
+      der: zonaTodoPlegado(acople, "der", vivosVisibles),
+      abajo: zonaTodoPlegado(acople, "abajo", vivosVisibles),
+    }),
+    [acople, vivosVisibles],
+  );
+  const abajoTodoPlegado = todoPlegado.abajo;
 
   useEffect(() => {
     return () => {
@@ -285,7 +295,7 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
 
   const iniciarDivisorZona = (e: ReactPointerEvent<HTMLDivElement>, zona: Zona) => {
     if (e.button !== 0) return;
-    if (zona === "abajo" && abajoTodoPlegado) return;
+    if (todoPlegado[zona]) return;
     const div = e.currentTarget;
     const zonaEl = zonaRefs.current[zona];
     const raiz = raizRef.current;
@@ -335,7 +345,7 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
   };
 
   const teclaDivisorZona = (e: ReactKeyboardEvent<HTMLDivElement>, zona: Zona) => {
-    if (zona === "abajo" && abajoTodoPlegado) return;
+    if (todoPlegado[zona]) return;
     let p = 0;
     if (e.key === "ArrowLeft" || e.key === "ArrowUp") p = -PASO_TECLA_PX;
     else if (e.key === "ArrowRight" || e.key === "ArrowDown") p = PASO_TECLA_PX;
@@ -577,8 +587,9 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
             }}
             className="acople-zona"
             data-zona="izq"
+            data-todo-plegado={todoPlegado.izq ? "" : undefined}
             aria-label={t("acople.zonaIzq")}
-            style={{ width: `${acople.tam.izq * 0.0625}rem` }}
+            style={todoPlegado.izq ? undefined : { width: `${acople.tam.izq * 0.0625}rem` }}
           >
             {renderListaZona("izq")}
           </section>
@@ -587,11 +598,15 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
             role="separator"
             aria-orientation="vertical"
             aria-label={t("acople.divisorIzq")}
+            aria-disabled={todoPlegado.izq || undefined}
+            data-inerte={todoPlegado.izq ? "" : undefined}
             data-activo={divisorActivo === "zona:izq" ? "" : undefined}
-            tabIndex={0}
+            tabIndex={todoPlegado.izq ? -1 : 0}
             onPointerDown={(e) => iniciarDivisorZona(e, "izq")}
             onKeyDown={(e) => teclaDivisorZona(e, "izq")}
-            onDoubleClick={() => restablecerZona("izq")}
+            onDoubleClick={() => {
+              if (!todoPlegado.izq) restablecerZona("izq");
+            }}
           />
         </>
       ) : null}
@@ -638,11 +653,15 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
             role="separator"
             aria-orientation="vertical"
             aria-label={t("acople.divisorDer")}
+            aria-disabled={todoPlegado.der || undefined}
+            data-inerte={todoPlegado.der ? "" : undefined}
             data-activo={divisorActivo === "zona:der" ? "" : undefined}
-            tabIndex={0}
+            tabIndex={todoPlegado.der ? -1 : 0}
             onPointerDown={(e) => iniciarDivisorZona(e, "der")}
             onKeyDown={(e) => teclaDivisorZona(e, "der")}
-            onDoubleClick={() => restablecerZona("der")}
+            onDoubleClick={() => {
+              if (!todoPlegado.der) restablecerZona("der");
+            }}
           />
           <section
             ref={(el) => {
@@ -650,8 +669,9 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
             }}
             className="acople-zona"
             data-zona="der"
+            data-todo-plegado={todoPlegado.der ? "" : undefined}
             aria-label={t("acople.zonaDer")}
-            style={{ width: `${acople.tam.der * 0.0625}rem` }}
+            style={todoPlegado.der ? undefined : { width: `${acople.tam.der * 0.0625}rem` }}
           >
             {renderListaZona("der")}
           </section>

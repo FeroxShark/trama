@@ -42,6 +42,25 @@
   min-height: 0;
   max-height: none;
 }
+/* Costado con todo plegado: tira angosta, un bloque por panel con su ícono y el botón de desplegar. */
+.acople-zona:is([data-zona="izq"], [data-zona="der"])[data-todo-plegado] {
+  width: 2.75rem;
+  min-width: 0;
+}
+.acople-zona:is([data-zona="izq"], [data-zona="der"])[data-todo-plegado] .acople-panel-cab {
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--esp-1);
+  height: auto;
+  padding: var(--esp-2) 0;
+}
+.acople-zona:is([data-zona="izq"], [data-zona="der"])[data-todo-plegado] .acople-panel-ico {
+  margin-left: 0;
+}
+.acople-zona:is([data-zona="izq"], [data-zona="der"])[data-todo-plegado]
+  :is(.acople-agarradera, .acople-panel-tit, .acople-esp, .acople-cab-btn:not(.acople-panel-plegar)) {
+  display: none;
+}
 
 .acople-medio {
   display: flex;

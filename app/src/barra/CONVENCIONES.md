@@ -134,6 +134,19 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 | Raya en el color del proyecto, en Cerrados | De qué proyecto es: están todos mezclados. El nombre, en el tooltip. | | cambió: antes era texto (`Integrado · atlas · hace 3 d`), que no entra en una línea. |
 | Subagentes bajo el líder | Descripción, modelo y esfuerzo («del líder» si los heredó), estado, tiempo, tokens y lo último que hizo; se pliegan y archivan. Punto que late si corre. | `a0da0f3`, `d32e88e`. Uno callado 15 min figura parado, no corriendo (`f559d18`). | igual |
 
+## Paneles acoplables
+
+En la ventana de escritorio (ni angosta ni celular), el riel queda fijo a la izquierda y Chats, Contexto y Cupo son paneles de `Acople.tsx`. En ventana angosta y en el celular sigue la estructura de antes.
+
+| Señal | Qué dice | Por qué existe | Estado |
+| --- | --- | --- | --- |
+| Encabezado del panel: agarradera, ícono, nombre, plegar, `⋯`, cerrar | Se arrastra desde el encabezado a la izquierda, a la derecha o abajo; al arrastrar aparecen las tres zonas con su palabra (`Soltar a la izquierda`…) y una raya marca dónde cae. `⋯` hace lo mismo con el teclado (`Mover a…`, `Cerrar panel`). | Cada uno acomoda la ventana a su pantalla, como en un editor. | nueva |
+| Divisores entre zonas y entre paneles | Se tiran con el puntero o con las flechas; doble clic vuelve al tamaño de fábrica. | | nueva |
+| Panel plegado | Queda sólo su encabezado; doble clic en el encabezado o la flecha lo abre. Una zona de costado con todo plegado se achica a una tira con el ícono y la flecha de cada panel; la de abajo, a una tira baja. | Un panel plegado no puede dejar una columna vacía. | nueva |
+| Lo que se recuerda | Zona, orden, tamaños, plegados y cerrados (`localStorage`, `hilos:acople`); la primera vez se toma el ancho y el estado de la barra anterior. `Restablecer paneles` vuelve a fábrica: Chats a la izquierda, Contexto y Cupo a la derecha, Cupo plegado. | | nueva |
+| Panel Cupo | Lo mismo que los anillos del riel, con detalle: uso de `5 h` y de la semana, ritmo semanal en palabras y el detalle por suscripción. Los anillos del riel siguen siempre a la vista; el panel no los reemplaza. | Los cupos se ven sin clic; el panel es para el detalle. | nueva |
+| `Ritmo de los workers`: `Ahorrar`, `Normal`, `Gastar` | El plan del día del reparto (`plan-dia.ts`, lo mismo que `pa --plan ahorrar-hoy` y `gastar-hoy`). `Normal` borra el plan de hoy sin tocar los días marcados como ausente. Sólo desde la computadora, no por la tailnet. | Cambiar el ritmo sin abrir una terminal. | nueva |
+
 ## Forma
 
 - Una línea por hilo (28 px), elegida por el dueño contra dos líneas (`maquetas/rediseno-0.4/barra-densa-b.html`): entran 26 hilos en vez de 6. A cambio, lo que no entra va al tooltip.
