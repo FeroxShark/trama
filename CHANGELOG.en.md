@@ -1,5 +1,13 @@
 # Changes
 
+## 0.2.83
+
+- In the chat, when the assistant names a file by its path (an image, a PDF, a markdown or a text file), a card shows up to see it without leaving Trama. Images come with a thumbnail and open in Trama's own viewer: the whole image on a dark backdrop, with zoom, drag and Esc to close.
+- With a narrow window, the chat in the middle is no longer covered: the side panels shrink and, if that is not enough, turn into a strip; tapping it opens the panel over the chat, and Esc or a tap outside closes it.
+- The chat you are looking at is marked with its folder's color, with a bar and an outline, so it is easy to find in a long list.
+- The expired-cache prompt always puts "Continue the same session" first and focused, and each option has its icon; when starting with a summary opens another conversation, it says so in bold.
+- In Plan and quotas, while the quota is being read it says "Reading quota…" instead of "No data yet".
+
 ## 0.2.82
 
 - In the chat, the card of an `.html` file opens it in the browser; it used to show the folder that holds it.

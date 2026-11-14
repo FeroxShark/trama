@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.2.83
+
+- En el chat, cuando el asistente nombra un archivo con su ruta (una imagen, un PDF, un markdown o un texto), aparece una tarjeta para verlo sin salir de Trama. Las imágenes traen miniatura y se abren en un visor propio: la imagen entera sobre fondo oscuro, con zoom, arrastre y Esc para cerrar.
+- Con la ventana angosta, el chat del centro ya no queda tapado: los paneles de los costados se achican y, si no alcanza, pasan a una tira; al tocarla, el panel se abre encima del chat y se cierra con Esc o tocando afuera.
+- El chat que estás viendo se marca con el color de su carpeta, con barra y contorno, así se encuentra en una lista larga.
+- El aviso de caché vencida pone «Seguir la misma sesión» siempre primero y con el foco, y cada opción tiene su ícono; cuando empezar con resumen abre otra conversación, lo dice en negrita.
+- En Plan y cupos, mientras se lee el cupo dice «Leyendo el cupo…» en vez de «Sin datos todavía».
+
 ## 0.2.82
 
 - En el chat, la tarjeta de un `.html` lo abre en el navegador; antes mostraba la carpeta que lo contiene.
