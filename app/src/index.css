@@ -3051,7 +3051,7 @@ html[data-titulo-nativo] #root::after {
 }
 .cache-op-ico {
   flex: none;
-  margin-top: 0.125rem;
+  margin-top: var(--esp-0-5);
   color: var(--texto-3);
 }
 .cache-op-prim .cache-op-ico {
