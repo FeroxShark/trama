@@ -157,6 +157,41 @@ function armar(l: Lenguaje): Armado {
   return { re: new RegExp(partes.join("|"), "gm"), kw: new Set((l.kw ?? "").split(" ").filter(Boolean)), l };
 }
 
+const RE_BASH = new RegExp("(?:^[ \\t]*(?:\\$ |(?:sudo|" + "cd" + "|git|npm|npx|pa|ls|grep|cat|systemctl|pacman|paru|curl)[ \\t])|^(?!\\s*\\|).*[^|]\\| \\S|&&)", "m");
+const RE_DIFF_CAB = new RegExp("^(?:diff --git |@@ .+ @@)", "m");
+const RE_CAB_MENOS = new RegExp("^--- \\S");
+const RE_CAB_MAS = new RegExp("^\\+\\+\\+ \\S");
+const RE_SOLO_MAS = new RegExp("^\\+\\+\\+(?: |$)");
+const RE_SOLO_MENOS = new RegExp("^---(?: |$)");
+
+function esDiff(codigo: string): boolean {
+  if (RE_DIFF_CAB.test(codigo)) return true;
+  const lineas = codigo.split("\n");
+  const cabMenos = lineas.some((l) => RE_CAB_MENOS.test(l));
+  const cabMas = lineas.some((l) => RE_CAB_MAS.test(l));
+  if (cabMenos && cabMas) return true;
+  const mas = lineas.some((l) => l.startsWith("+") && !RE_SOLO_MAS.test(l));
+  const menos = lineas.some((l) => l.startsWith("-") && !RE_SOLO_MENOS.test(l));
+  return (mas && menos) || ((cabMenos || cabMas) && (mas || menos));
+}
+
+/** Adivina el lenguaje de un bloque ``` sin etiqueta (`json`, `bash`, `diff`), o `null` si no está claro. */
+export function adivinarLenguaje(codigo: string): string | null {
+  const s = codigo.trim();
+  if (!s) return null;
+  if (s.startsWith("{") || s.startsWith("[")) {
+    try {
+      JSON.parse(s);
+      return "json";
+    } catch {
+      // No es JSON válido: sigue probando con el resto.
+    }
+  }
+  if (esDiff(codigo)) return "diff";
+  if (RE_BASH.test(codigo)) return "bash";
+  return null;
+}
+
 /** El lenguaje de un bloque según lo que dice su cerca (```ts, ```bash…); `null`: no se resalta. */
 export function lenguaje(lang: string): string | null {
   const n = lang.toLowerCase();
@@ -188,8 +223,10 @@ function html(codigo: string): Tok[] {
 
 /** El código partido en pedazos con su clase; pegados en orden dan el código entero. */
 export function resaltar(codigo: string, lang: string): Tok[] {
-  const id = lenguaje(lang);
-  if (!id || codigo.length > TOPE) return [{ c: "", t: codigo }];
+  if (codigo.length > TOPE) return [{ c: "", t: codigo }];
+  const pedido = lang.trim() || (adivinarLenguaje(codigo) ?? "");
+  const id = pedido ? lenguaje(pedido) : null;
+  if (!id) return [{ c: "", t: codigo }];
   if (id === "diff") return diff(codigo);
   if (id === "html") return html(codigo);
   let a = armados.get(id);

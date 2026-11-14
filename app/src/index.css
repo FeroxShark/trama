@@ -2828,7 +2828,7 @@ html[data-titulo-nativo] #root::after {
 :is(.yo, .el, .pregunta) code[data-ruta] {
   color: var(--ruta);
 }
-/* Una carpeta: abre el explorador de archivos. El ícono dice que se puede tocar, sin depender del color. */
+/* Una carpeta: abre el explorador de archivos. Azul de enlace, subrayado e ícono dicen que se puede tocar, sin depender sólo del color. */
 .ruta-carpeta {
   display: inline-flex;
   align-items: baseline;
@@ -2838,7 +2838,7 @@ html[data-titulo-nativo] #root::after {
   border: 0;
   border-radius: var(--radio-2);
   background: none;
-  color: var(--ruta);
+  color: var(--enlace, var(--acento));
   font: inherit;
   text-align: inherit;
   overflow-wrap: anywhere;
@@ -2851,9 +2851,19 @@ html[data-titulo-nativo] #root::after {
   flex: none;
   align-self: center;
 }
-.ruta-carpeta:hover > code {
+/* Rutas que se pueden tocar (carpeta o dentro de botón/enlace): mismo azul de enlace y subrayado siempre. */
+:is(.yo, .el, .pregunta) :is(button, a) code[data-ruta],
+:is(button, a) code[data-ruta],
+.ruta-carpeta > code {
+  color: var(--enlace, var(--acento));
   text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentcolor 55%, transparent);
   text-underline-offset: 0.15em;
+}
+:is(.yo, .el, .pregunta) :is(button, a[href]):hover code[data-ruta],
+:is(button, a[href]):hover code[data-ruta],
+.ruta-carpeta:hover > code {
+  text-decoration-color: currentcolor;
 }
 .ruta-carpeta[data-fallo],
 :is(.yo, .el, .pregunta) .ruta-carpeta[data-fallo] > code {
@@ -2920,8 +2930,11 @@ html[data-titulo-nativo] #root::after {
 :is(.yo, .el, .pregunta, .term) a {
   color: var(--enlace);
   text-decoration: underline;
-  text-decoration-color: var(--enlace-subrayado);
+  text-decoration-color: color-mix(in srgb, var(--enlace) 55%, transparent);
   text-underline-offset: 0.1875rem;
+}
+:is(.yo, .el, .pregunta, .term) a code {
+  color: inherit;
 }
 :is(.yo, .el, .pregunta, .term) a[href] {
   cursor: pointer;
