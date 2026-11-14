@@ -7,7 +7,9 @@ import { spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { enPath } from "../base/buscar.ts";
+import { enPath, esEjecutable } from "../base/buscar.ts";
+import { hallarCodex } from "../../binario.ts";
+import { homeDe } from "../../rutas.ts";
 import type { Env, Pa } from "./entorno.ts";
 import { mapaDe, promptDe, type Corrida, type Lanzamiento, type OpcionesLanzar } from "./lanzar.ts";
 import { chequearAgy, chequearCodex, chequearDsh, localEstado, type Local } from "./motores/chequeo.ts";
@@ -91,7 +93,8 @@ export function guionDeShim(bin: string): string | null {
 /** Qué se lanza: `node` es este node; lo demás, lo que dice el PATH del worker (sin shell). */
 export function programaDe(ll: Llamada, plat: Pa["plat"]): { cmd: string; args: string[] } {
   if (ll.cmd === "node") return { cmd: process.execPath, args: ll.args };
-  const bin = enPath(ll.cmd, [], ll.env, plat) ?? ll.cmd;
+  // codex en Windows suele quedar en el prefijo de npm (`codex.cmd`), fuera del PATH: lo busca como Cuentas.
+  const bin = enPath(ll.cmd, [], ll.env, plat) ?? (ll.cmd === "codex" ? hallarCodex(ll.env, homeDe(ll.env, plat), (f) => esEjecutable(f, plat), plat) : null) ?? ll.cmd;
   if (/\.m?js$/i.test(bin)) return { cmd: process.execPath, args: [bin, ...ll.args] };
   const guion = plat === "win32" ? guionDeShim(bin) : null;
   return guion ? { cmd: process.execPath, args: [guion, ...ll.args] } : { cmd: bin, args: ll.args };

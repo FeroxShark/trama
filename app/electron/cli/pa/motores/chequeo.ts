@@ -4,7 +4,7 @@
 import { spawnSync, type SpawnSyncOptions, type SpawnSyncReturns } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { hallarAgy, paraLanzar } from "../../../binario.ts";
+import { hallarAgy, hallarCodex, paraLanzar } from "../../../binario.ts";
 import { caminoDe, carpetaApp, configTrama, homeDe, plataformaActual, type Plataforma } from "../../../rutas.ts";
 import { enPath, esEjecutable } from "../../base/buscar.ts";
 import { instalarPluginAgy } from "../../plugin-agy.ts";
@@ -213,7 +213,7 @@ export function chequearCodex(d: DatosChequeo): string {
   const plat = d.plat ?? plataformaActual();
   const m = privacidadDe(d.proyecto, d.tarea, "OpenAI", d.env);
   if (m) return m;
-  const bin = (d.buscar ?? ((n) => enPath(n, [], d.env, plat)))("codex");
+  const bin = d.buscar ? d.buscar("codex") : hallarCodex(d.env, homeDe(d.env, plat), (f) => esEjecutable(f, plat), plat);
   if (!bin) return "codex no está en el PATH (npm install -g @openai/codex)";
   const s = Number(d.env.PA_CODEX_CHEQUEO_S) > 0 ? Number(d.env.PA_CODEX_CHEQUEO_S) : 20;
   const r = correr(bin, ["login", "status"], { env: d.envCuenta ?? d.env, timeout: s * 1000, stdio: "ignore" }, d, plat);

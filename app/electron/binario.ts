@@ -226,6 +226,18 @@ export function resolverClaude(env: Env, home: string, esEjecutable: (f: string)
   return resolverNpm("claude", env, home, [carpetaBin(env, home, plat)], esEjecutable, plat);
 }
 
+/** El `codex` (ChatGPT): `HILOS_CODEX`, el del PATH o `~/.local/bin`, y en Windows el `codex.cmd` de npm (que no siempre está en el PATH de la app). */
+export function resolverCodex(env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string {
+  const r = resolverBinario("codex", "HILOS_CODEX", env, home, esEjecutable, plat);
+  return r === "codex" ? resolverNpm("codex", env, home, [], esEjecutable, plat) : r;
+}
+
+/** `codex` como `hallarAgy`: la ruta, o null si no está. Lo usan Cuentas, el chequeo de pa y el reparto: los tres lo ven igual. */
+export const hallarCodex = (env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string | null => {
+  const r = resolverCodex(env, home, esEjecutable, plat);
+  return r === "codex" ? null : r;
+};
+
 /** `claude` como `hallarAgy`: la ruta, o null si no está (no devuelve el nombre pelado). */
 export const hallarClaude = (env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string | null => {
   const r = resolverClaude(env, home, esEjecutable, plat);

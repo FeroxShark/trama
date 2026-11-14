@@ -9,7 +9,7 @@
 // sus instaladores (`resolverAgy`; en Windows también `.cmd` de npm): bajo systemd el PATH viene pelado. Sin `electron`: lo prueba tests/cuentas.test.ts.
 import { execFile } from "node:child_process";
 import os from "node:os";
-import { paraLanzar, pathConLocal, resolverAgy, resolverBinario, resolverNpm } from "./binario.ts";
+import { paraLanzar, pathConLocal, resolverAgy, resolverCodex } from "./binario.ts";
 import { resolverClaude } from "./plugins-claude.ts";
 import { type Plataforma } from "./rutas.ts";
 
@@ -75,9 +75,7 @@ export async function sondearClaude(d: Deps): Promise<Cuenta> {
  * «Not logged in». Puede no estar instalado (`noExiste`): es lo normal en una máquina que no lo usa, no un error.
  */
 export async function sondearCodex(d: Deps): Promise<Cuenta> {
-  const r0 = resolverBinario("codex", "HILOS_CODEX", d.env, d.home, d.esEjecutable, d.plat);
-  // Windows: el `codex.cmd` de npm.
-  const bin = r0 === "codex" && d.plat === "win32" ? resolverNpm("codex", d.env, d.home, [], d.esEjecutable, d.plat) : r0;
+  const bin = resolverCodex(d.env, d.home, d.esEjecutable, d.plat);
   const r = await d.correr(bin, ["login", "status"], { ...d.env, PATH: pathConLocal(d.env, d.home, d.plat) }, TOPE_CLAUDE);
   if (r.noExiste) return sin(false);
   if (r.tiempo) return sin(true, "codex no contestó a tiempo");

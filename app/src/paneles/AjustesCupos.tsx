@@ -633,7 +633,7 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
             opc="cu.chatgpt"
             nombre={t("cu.chatgpt")}
             estado={estadoProv(cuentas?.codex ?? (cuentas ? { instalado: false, logueado: false, cuenta: null, error: null } : undefined))}
-            resumen={<ResumenChica s={chatgpt} sinDatos={sinDatosTxt(uso)} />}
+            resumen={<ResumenChica s={chatgpt} sinDatos={!leyendoCupos(uso) && cuentas?.codex?.logueado ? t("cu.chatgptSinUso") : sinDatosTxt(uso)} />}
           >
             {chatgpt?.ventanas?.length ? <Ventanas vs={chatgpt.ventanas} /> : <div className="cu-sin">{t("cu.chatgptSinCupo")}</div>}
             <Ayuda lineas={["cu.ayuda.chatgpt1"]} />

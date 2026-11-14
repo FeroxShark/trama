@@ -11,7 +11,7 @@ import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { hallarAgy, resolverClaude } from "../binario.ts";
+import { hallarAgy, hallarCodex, resolverClaude } from "../binario.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
 import { esPrincipal } from "./base/principal.ts";
@@ -1332,7 +1332,8 @@ function agyDisponible(): boolean {
 
 function codexDisponible(): boolean {
   if (E.REPARTO_CODEX === "0") return false;
-  return !!enPath("codex") && esArchivo(path.join(codexHome(), "auth.json"));
+  // Como Cuentas: también el `codex.cmd` del prefijo de npm en Windows, que `enPath` no ve.
+  return hallarCodex(E, home()) !== null && esArchivo(path.join(codexHome(), "auth.json"));
 }
 
 // --- dsh (DeepSeek Harness) --------------------------------------------------------------------------
