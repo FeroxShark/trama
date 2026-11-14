@@ -3029,9 +3029,8 @@ html[data-titulo-nativo] #root::after {
 }
 .cache-op {
   display: flex;
-  flex-direction: column;
   align-items: flex-start;
-  gap: var(--esp-1);
+  gap: var(--esp-3);
   padding: var(--esp-3);
   border: 1px solid var(--borde-3);
   border-radius: var(--radio-3);
@@ -3049,6 +3048,25 @@ html[data-titulo-nativo] #root::after {
 }
 .cache-op-prim {
   border-color: var(--acento);
+}
+.cache-op-ico {
+  flex: none;
+  margin-top: 0.125rem;
+  color: var(--texto-3);
+}
+.cache-op-prim .cache-op-ico {
+  color: var(--acento);
+}
+.cache-op-txt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  min-width: 0;
+}
+.cache-op-nueva {
+  color: var(--texto);
+  font-size: var(--letra-4);
+  font-weight: 500;
 }
 .cache-op-t {
   font-size: var(--letra-5);

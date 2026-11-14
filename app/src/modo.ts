@@ -124,6 +124,7 @@ const CAPTURAS = [
   "lider-valores",
   // Imágenes en el globo y en la caja.
   "lider-imagenes",
+  "lider-cache",
   // Un pedido propio abierto para editar: el campo con sus capturas y su archivo.
   "lider-editar",
   // El punto de control de un turno del líder (HILOS_VARIANTE=abierto: la lista con el primer diff; =confirmar: el diálogo de volver atrás).

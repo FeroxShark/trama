@@ -876,7 +876,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
 
   // Con la caché vencida y un contexto grande, el primer mensaje espera a que la persona elija (cache-pregunta.ts, DialogoCache.tsx).
   const eleccionCache = useSyncExternalStore(alCambiarCacheEleccion, cacheEleccion);
-  const [preguntaCache, setPreguntaCache] = useState<{ veredicto: VeredictoCache; crudo: string; modoNuevoYa?: Modo } | null>(null);
+  const [preguntaCache, setPreguntaCache] = useState<{ veredicto: VeredictoCache; crudo: string; modoNuevoYa?: Modo } | null>(() =>
+    MODO.captura === "lider-cache" ? { veredicto: { accion: "preguntar", tokensSeguir: 128000, tokensResumen: 26000 }, crudo: "" } : null,
+  );
   const veredictoCache = (): VeredictoCache =>
     decidirCache({
       modelo: l?.modelo ?? modelo,

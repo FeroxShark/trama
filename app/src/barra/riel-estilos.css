@@ -1278,13 +1278,14 @@
 .lista .fila.lider[data-caido] .t {
   color: var(--apagado);
 }
-/* El que se está viendo. */
+/* El que se está viendo: se encuentra de un vistazo aunque la lista sea larga. Fondo teñido con el color de su
+   carpeta (no es color de estado), barra gruesa a la izquierda y contorno del mismo color; el nombre en negrita. */
 .lista .fila[data-activa],
 .lista .w > .fila.wbtn[data-activa] {
-  background: var(--capa-tile);
+  background: color-mix(in srgb, var(--hilo, var(--texto)) 16%, var(--capa-tile));
   box-shadow:
-    inset 0.125rem 0 0 var(--hilo, var(--texto)),
-    inset 0 0 0 1px var(--capa-hover);
+    inset 0.1875rem 0 0 var(--hilo, var(--texto)),
+    inset 0 0 0 1px color-mix(in srgb, var(--hilo, var(--texto)) 55%, transparent);
 }
 .lista .fila[data-activa] .t {
   color: var(--texto);
