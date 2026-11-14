@@ -1,5 +1,13 @@
 # Changes
 
+## 0.2.82
+
+- In the chat, the card of an `.html` file opens it in the browser; it used to show the folder that holds it.
+- Shorter Settings: the sidebar groups the categories under three headings, and the long explanations in Models, Plan and quotas, Projects and Connectors sit in a folded "How it works". In Plan and quotas, each limit is a plain bar and "Advanced" starts folded (the search opens it on its own). In Models, "Today it would pick" is a table with type, model and effort.
+- Branches: each branch shows the same title as the sidebar instead of the raw request, and the whole request shows when you unfold it with "Show the whole request".
+- Project monograms no longer repeat: the one that clashes takes the next consonant of its name, the same in the rail and in the folder header.
+- A worker's title starts with a capital letter.
+
 ## 0.2.81
 
 - Gemini 3.8 Flash is gone from the worker allocation and from the pickers: Gemini 4 Hydrogen replaces it. An old configuration that names it keeps working; asking for it by hand with `-m` gives the same error as any model that does not exist.

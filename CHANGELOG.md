@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.2.82
+
+- En el chat, la tarjeta de un `.html` lo abre en el navegador; antes mostraba la carpeta que lo contiene.
+- Ajustes más cortos: la barra agrupa las categorías bajo tres títulos, y las explicaciones largas de Modelos, Plan y cupos, Proyectos y Conectores quedan en un «Cómo funciona» plegado. En Plan y cupos, cada límite es una barra lisa y «Avanzado» arranca plegado (el buscador lo abre solo). En Modelos, «Hoy elegiría» es una tabla con tipo, modelo y esfuerzo.
+- Ramas: cada rama muestra el mismo título que la barra en vez del pedido crudo, y el pedido entero se ve al desplegarla con «Ver el pedido entero».
+- Los monogramas de los proyectos ya no se repiten: el que choca toma la siguiente consonante de su nombre, igual en el riel y en la cabecera de la carpeta.
+- El título de un worker sale con mayúscula inicial.
+
 ## 0.2.81
 
 - Gemini 3.8 Flash sale del reparto y de los selectores: lo reemplaza Gemini 4 Hydrogen. Una configuración vieja que lo nombre sigue andando; pedirlo a mano con `-m` da el mismo error que cualquier modelo que no existe.
