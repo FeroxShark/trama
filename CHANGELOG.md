@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.84
+
+- En Ajustes > Modelos, «Contexto antes de compactar» separa workers y líderes: apagando «Líderes: igual que los workers», los líderes tienen su propio tope por familia (Haiku, Sonnet, Opus).
+
 ## 0.2.83
 
 - En el chat, cuando el asistente nombra un archivo con su ruta (una imagen, un PDF, un markdown o un texto), aparece una tarjeta para verlo sin salir de Trama. Las imágenes traen miniatura y se abren en un visor propio: la imagen entera sobre fondo oscuro, con zoom, arrastre y Esc para cerrar.

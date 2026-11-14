@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.84
+
+- In Settings > Models, «Context before compacting» splits workers and leaders: turning off «Leaders: same as workers» gives leaders their own limit per family (Haiku, Sonnet, Opus).
+
 ## 0.2.83
 
 - In the chat, when the assistant names a file by its path (an image, a PDF, a markdown or a text file), a card shows up to see it without leaving Trama. Images come with a thumbnail and open in Trama's own viewer: the whole image on a dark backdrop, with zoom, drag and Esc to close.
