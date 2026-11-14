@@ -16,7 +16,7 @@ import { acortarRuta, nombreRuta, rutasMencionadas, type RutaMencionada } from "
 import { PESO_CACHE, VerArchivo, useArchivoVisto, useVisible } from "./VerArchivo";
 
 let visorCapturaAbierto = false;
-const abrirVisorCaptura = (esImg: boolean) => (MODO.captura === "visor-imagen" && esImg && !visorCapturaAbierto ? (visorCapturaAbierto = true) : false);
+const abrirVisorCaptura = (esImg: boolean) => (MODO.captura?.startsWith("visor-imagen") && esImg && !visorCapturaAbierto ? (visorCapturaAbierto = true) : false);
 
 function plataformaActual(): Plataforma {
   if (typeof location !== "undefined" && new URLSearchParams(location.search).get("plataforma") === "win32") return "win32";
@@ -126,16 +126,59 @@ export function TarjetaRuta({ item }: { item: RutaMencionada }) {
   );
 }
 
+/**
+ * Una imagen que nombra el mensaje, a la vista y grande (como la muestra Claude Code): tocarla abre el visor. Mientras se lee, un hueco del
+ * mismo lugar para que el chat no salte; si no está o no se puede mostrar, la tarjeta de siempre con su aviso.
+ */
+function TarjetaImagen({ item }: { item: RutaMencionada }) {
+  useIdioma();
+  const caja = useRef<HTMLDivElement>(null);
+  const visible = useVisible(caja);
+  const visto = useArchivoVisto(item.ruta, visible);
+  const [fallo, setFallo] = useState(false);
+  const [ver, setVer] = useState(() => abrirVisorCaptura(true));
+  const nombre = nombreRuta(item.ruta);
+  useEffect(() => setFallo(false), [item.ruta]);
+  if (visto === null || fallo || (visto && visto.tipo !== "imagen")) return <TarjetaRuta item={item} />;
+  const info = tipoDeArchivo(item.ruta);
+  const src = visto?.tipo === "imagen" ? `data:${visto.mime};base64,${visto.datos}` : null;
+  return (
+    <div ref={caja} className="tarjeta-img" role="listitem">
+      <button type="button" className="tarjeta-img-btn" aria-label={t("archivo.ver", { nombre })} title={item.ruta} onClick={() => setVer(true)}>
+        {src ? <img src={src} alt={nombre} decoding="async" onError={() => setFallo(true)} /> : <span className="tarjeta-img-cargando" aria-hidden="true" />}
+      </button>
+      <span className="tarjeta-img-nombre" title={item.ruta}>
+        {nombre}
+      </span>
+      {ver ? <VerArchivo a={{ ruta: item.ruta, accion: "leer", tipo: info.tipo, mime: info.mime, absoluta: null }} alCerrar={() => setVer(false)} /> : null}
+    </div>
+  );
+}
+
 export function TarjetasRuta({ texto }: { texto: string }) {
   useIdioma();
   const plat = plataformaActual();
   const items = useMemo(() => rutasMencionadas(texto, plat), [texto, plat]);
   if ((!esVentana() && !MODO.fixtures) || items.length === 0) return null;
+  const esImg = (x: RutaMencionada) => x.tipo === "archivo" && tipoDeArchivo(x.ruta).tipo === "imagen";
+  const imagenes = items.filter(esImg);
+  const otros = items.filter((x) => !esImg(x));
   return (
-    <div className="tarjetas-ruta" role="list" aria-label={t("ruta.lista")}>
-      {items.map((item) => (
-        <TarjetaRuta key={`${item.tipo}:${item.ruta}`} item={item} />
-      ))}
-    </div>
+    <>
+      {imagenes.length ? (
+        <div className="tarjetas-img" role="list" aria-label={t("ruta.lista")} data-varias={imagenes.length > 1 ? "" : undefined}>
+          {imagenes.map((item) => (
+            <TarjetaImagen key={item.ruta} item={item} />
+          ))}
+        </div>
+      ) : null}
+      {otros.length ? (
+        <div className="tarjetas-ruta" role="list" aria-label={t("ruta.lista")}>
+          {otros.map((item) => (
+            <TarjetaRuta key={`${item.tipo}:${item.ruta}`} item={item} />
+          ))}
+        </div>
+      ) : null}
+    </>
   );
 }

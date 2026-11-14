@@ -164,3 +164,67 @@
   background: color-mix(in srgb, var(--acento) 28%, transparent);
   border-color: var(--acento);
 }
+
+/* Las imágenes que nombra un mensaje, a la vista y grandes; tocarlas abre el visor. Con varias, más chicas y de a dos si entran. */
+.tarjetas-img {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  margin-top: var(--esp-2-5);
+}
+.tarjeta-img {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  min-width: 0;
+  max-width: 100%;
+}
+.tarjeta-img-btn {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--capa-card);
+  cursor: zoom-in;
+  transition: border-color var(--t-snappy);
+}
+.tarjeta-img-btn:hover {
+  border-color: var(--borde-5);
+}
+.tarjeta-img-btn:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+.tarjeta-img-btn > img {
+  display: block;
+  max-width: min(100%, 32rem);
+  max-height: 22rem;
+  width: auto;
+  height: auto;
+}
+.tarjetas-img[data-varias] .tarjeta-img-btn > img {
+  max-width: min(100%, 20rem);
+  max-height: 14rem;
+}
+.tarjeta-img-cargando {
+  display: block;
+  width: min(100%, 20rem);
+  aspect-ratio: 4 / 3;
+  background: var(--capa-tile);
+}
+.tarjeta-img-nombre {
+  max-width: 20rem;
+  overflow: hidden;
+  color: var(--inactivo);
+  font-size: var(--letra-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta-img-btn {
+    transition: none;
+  }
+}
