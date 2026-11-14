@@ -4453,6 +4453,7 @@ summary.sis-div-t:hover,
 .sis-aviso-h svg,
 .sis-aviso-e svg,
 .sis-aviso-r svg,
+.sis-aviso-i svg,
 .sis-aviso-flecha {
   flex: none;
 }
@@ -4535,6 +4536,38 @@ summary.sis-div-t:hover,
   opacity: 0.55;
   cursor: not-allowed;
 }
+/* Integrar (sólo un worker terminado con rama integrable): contorno acento en reposo y turquesa al terminar, sin cambiar el alto de la fila. */
+.sis-aviso-i {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  height: var(--alto-boton);
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--ajustes-acento-borde);
+  border-radius: var(--r-cap);
+  background: none;
+  color: var(--acento);
+  font: inherit;
+  font-size: var(--letra-5);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sis-aviso-i:hover:not(:disabled) {
+  border-color: var(--acento);
+  color: var(--texto);
+}
+.sis-aviso-i:disabled {
+  opacity: 0.72;
+  cursor: default;
+}
+.sis-aviso-i[data-estado="hecho"] {
+  border-color: var(--ajustes-ok-borde);
+  background: var(--ok-tinte);
+  color: var(--ok);
+  opacity: 1;
+}
 /* «Abrir»: un link de texto subrayado, sin relleno. */
 .sis-aviso-ver {
   flex: none;
@@ -4552,6 +4585,7 @@ summary.sis-div-t:hover,
   color: var(--texto-6);
 }
 .sis-aviso-r:focus-visible,
+.sis-aviso-i:focus-visible,
 .sis-aviso-ver:focus-visible,
 .sis-aviso-pliegue > summary:focus-visible {
   outline: 2px solid var(--txt-3);

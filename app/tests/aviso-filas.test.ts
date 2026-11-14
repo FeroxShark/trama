@@ -121,3 +121,67 @@ test("DejadoTablero marca el tipo con ícono y palabra, y dejado-tablero.css dis
   assert.match(css, /\[data-tipo="prueba"\]\[data-estado="abierto"\]/);
   assert.match(css, /\[data-tipo="pregunta"\]\[data-estado="abierto"\]/);
 });
+
+test("integrar en FilaAviso: sólo en filas terminadas cuando integrar.puede es true, nunca en falla ni decisión", () => {
+  cambiarIdioma("es");
+  const aviso4 =
+    "[Aviso automático de Trama] Terminaron los 4 workers que lanzaste, 1 con falla:\n" +
+    "- «revisar el contrato» (7): terminó pidiendo una decisión.\n" +
+    "- «migración del índice» (8): terminó.\n" +
+    "- «tests del cauce» (9): falló: el proceso se cortó sin dejar mensaje.\n" +
+    "- «docs del cauce» (11): terminó sin resumen.\n" +
+    "Revisá cada uno con `pa --hilo <id>`.";
+  const htmlSi = renderToStaticMarkup(
+    h(Sistema, {
+      s: lineaAviso(aviso4),
+      alAbrirHilo: () => {},
+      integrar: { puede: (id) => id === "7" || id === "8" || id === "9", hacer: async () => {} },
+    }),
+  );
+  const filasSi = htmlSi.split('class="sis-aviso-fila"').slice(1);
+  assert.equal(filasSi.length, 4);
+  assert.doesNotMatch(filasSi[0], new RegExp(">Integrar<"), "decisión nunca muestra Integrar");
+  assert.doesNotMatch(filasSi[1], new RegExp(">Integrar<"), "falla nunca muestra Integrar");
+  assert.match(filasSi[2], new RegExp("<button[^>]*class=\"sis-aviso-i\"[^>]*>.*?<svg.*?Integrar<" + "/" + "button>.*?<button[^>]*class=\"sis-aviso-ver\"[^>]*>Abrir<" + "/" + "button>"), "terminada integrable muestra Integrar con ícono antes de Abrir");
+  assert.doesNotMatch(filasSi[3], new RegExp(">Integrar<"), "terminada sin puede=true no muestra Integrar");
+
+  const htmlNo = renderToStaticMarkup(
+    h(Sistema, {
+      s: lineaAviso(aviso4),
+      alAbrirHilo: () => {},
+      integrar: { puede: () => false, hacer: async () => {} },
+    }),
+  );
+  assert.doesNotMatch(htmlNo, new RegExp(">Integrar<"), "con puede=false ninguna fila muestra Integrar");
+
+  const htmlEstados = renderToStaticMarkup(
+    h(Sistema, {
+      s: {
+        tipo: "linea",
+        clase: "aviso",
+        aviso: {
+          tanda: true,
+          falla: false,
+          trabajos: [
+            { id: "21", tarea: "revisar captura", falla: false, estado: "probar" } as never,
+            { id: "22", tarea: "correr tests", falla: false, estado: "corre" } as never,
+          ],
+        },
+      },
+      alAbrirHilo: () => {},
+      integrar: { puede: () => true, hacer: async () => {} },
+    }),
+  );
+  assert.doesNotMatch(htmlEstados, new RegExp(">Integrar<"), "probar y corre no muestran Integrar");
+
+  cambiarIdioma("en");
+  const htmlEn = renderToStaticMarkup(
+    h(Sistema, {
+      s: lineaAviso(aviso4),
+      alAbrirHilo: () => {},
+      integrar: { puede: (id) => id === "8", hacer: async () => {} },
+    }),
+  );
+  assert.match(htmlEn, new RegExp(">Merge<"));
+  cambiarIdioma("es");
+});

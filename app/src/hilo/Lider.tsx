@@ -68,7 +68,7 @@ import { Hora, pintorAviso, tokens, Turno } from "./Turno";
 import { PuntoTurno } from "./Punto";
 import { puntoDeTurno } from "./punto-logica";
 import { Marca } from "./Marca";
-import { Sistema } from "./Sistema";
+import { Sistema, type IntegrarAviso } from "./Sistema";
 import { EVENTO_CAMBIAR_MODELO, proveedorLibre } from "./agotados";
 import { estadosCupoModelos, estadosCupoProveedores } from "./cupo-modelos.ts";
 import { MotorCapacidades } from "./MotorCapacidades";
@@ -123,6 +123,7 @@ type Props = {
   alAbrirLider?: (id: string) => void;
   /** Abre el hilo de un worker: los ids de un aviso de Trama en la conversación. */
   alAbrirHilo?: (id: string) => void;
+  integrar?: IntegrarAviso;
   /** Mirar su transcript (`fuente.liderMirar`): el analista de Ramas no, para no soltar el de la vista. */
   mirar?: boolean;
   /** El texto de su última respuesta entera, cada vez que cambia (el analista: sus veredictos). */
@@ -146,7 +147,7 @@ const NO_TRAE: Record<Exclude<MotivoTraer, "trabajando">, "lider.noTraer" | "lid
 const textoCaptura = () =>
   MODO.captura === "lider-comandos" ? "/" : MODO.captura === "programar" ? "Seguí con el paso 2 y avisame cuando termine" : MODO.captura === "lider-valores" ? "/output-style " : MODO.captura === "lider-nuevo-proyecto" ? "Revisá el build de atlas" : null;
 
-export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrirHilo, mirar = true, alRespuesta, mostrar, archivar }: Props) {
+export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrirHilo, integrar, mirar = true, alRespuesta, mostrar, archivar }: Props) {
   const corrige = useCorrector();
   const sid = l?.id ?? "";
   const clave = l ? `lider:${l.id}` : BORRADOR_LIDER;
@@ -1262,6 +1263,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
                 nombre={l?.nombre}
                 alAbrirLider={alAbrirLider}
                 alAbrirHilo={alAbrirHilo}
+                integrar={integrar}
                 acciones={acciones}
                 editar={editar}
                 guardar={guardarArchivo}
@@ -1319,7 +1321,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
             ) : null}
           </div>
         ) : null}
-        {l ? <Bandeja key={l.id} sid={l.id} ajeno={ajeno} directo={puedeDirecto} ocupado={ocupado} ind={vivo.ind} parando={vivo.parando} alParar={app ? parar : null} alAbrirHilo={alAbrirHilo} alError={setError} /> : null}
+        {l ? <Bandeja key={l.id} sid={l.id} ajeno={ajeno} directo={puedeDirecto} ocupado={ocupado} ind={vivo.ind} parando={vivo.parando} alParar={app ? parar : null} alAbrirHilo={alAbrirHilo} integrar={integrar} alError={setError} /> : null}
         {l && !l.caido ? <Fondo mensajes={mensajes} /> : null}
         {puede ? (
           <div className="caja" data-arrastra={arrastra ? "" : undefined}>
@@ -1678,6 +1680,7 @@ type PropsMensajes = {
   nombre: string | undefined;
   alAbrirLider: ((id: string) => void) | undefined;
   alAbrirHilo: ((id: string) => void) | undefined;
+  integrar: IntegrarAviso | undefined;
   /** Las acciones por mensaje (Copiar, Editar, Volver acá, Ramificar); `null`: sólo Copiar. */
   acciones: Acciones | null;
   editar: (x: Extract<Item, { tipo: "yo" }>, texto: string, adjuntos: readonly Adjunto[]) => void;
@@ -1696,7 +1699,7 @@ const cuentaFallo = (a: AvisoVisto) => a.clase === "error" || a.clase === "salio
  * La conversación. Aparte de la caja para que cada tecla no la recorra entera: lo que se escribe es estado de `ChatLider`, y con
  * 3000 mensajes volver a armarlos en cada letra tardaba más de 50 ms. Sólo se repinta cuando cambian los mensajes o el turno.
  */
-const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSeguir, app, ocupado, pasando, pensando, razon, fin, relevo, sigue, nombre, alAbrirLider, alAbrirHilo, acciones, editar, guardar, sid, puntos, alVolverPunto }: PropsMensajes) {
+const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSeguir, app, ocupado, pasando, pensando, razon, fin, relevo, sigue, nombre, alAbrirLider, alAbrirHilo, integrar, acciones, editar, guardar, sid, puntos, alVolverPunto }: PropsMensajes) {
   return (
     <>
       {items.map((x, i) =>
@@ -1705,7 +1708,7 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSe
         ) : x.tipo === "sistema" ? (
           <Fragment key={x.key}>
             <Marca k={x.key} />
-            <Sistema s={x.s} nombre={nombre} alAbrirHilo={alAbrirHilo} alSeguir={i === ultimoLimite ? alSeguir : undefined} />
+            <Sistema s={x.s} nombre={nombre} alAbrirHilo={alAbrirHilo} alSeguir={i === ultimoLimite ? alSeguir : undefined} integrar={integrar} />
             {/* Un worker suyo que terminó puede haber dejado una DECISION o un PROBAR en el tablero. */}
             {x.s.tipo === "linea" && x.s.clase === "aviso" ? <DejadoTablero refs={dejadosDeAviso(x.s.aviso)} /> : null}
           </Fragment>

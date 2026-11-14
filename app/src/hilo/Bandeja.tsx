@@ -16,7 +16,7 @@ import { aplicarOrden, cabecera, canalDe, confirmacion, corrimiento, destinoArra
 import type { Encolado } from "./cola";
 import { useCorrector } from "../paneles/ajustes-corrector";
 import { Visor } from "./Imagenes";
-import { Sistema } from "./Sistema";
+import { Sistema, type IntegrarAviso } from "./Sistema";
 import { lineaAviso } from "./sistema-logica";
 import { cola, parando as marcarParando, type EnCurso } from "./vivo";
 import "./solapa-cola.css";
@@ -60,6 +60,7 @@ type Props = {
   parando: boolean;
   alParar: (() => void) | null;
   alAbrirHilo?: (id: string) => void;
+  integrar?: IntegrarAviso;
   alError: (mensaje: string) => void;
 };
 
@@ -93,7 +94,7 @@ export function Bandeja(p: Props) {
   );
 }
 
-function Contenido({ sid, ajeno, directo, ocupado, ind, parando, alParar, alAbrirHilo, alError, lista, camino, error, errorId, quieto }: Props & { lista: readonly Encolado[]; camino: readonly Encolado[]; error: string | null; errorId: number | null; quieto: boolean }) {
+function Contenido({ sid, ajeno, directo, ocupado, ind, parando, alParar, alAbrirHilo, integrar, alError, lista, camino, error, errorId, quieto }: Props & { lista: readonly Encolado[]; camino: readonly Encolado[]; error: string | null; errorId: number | null; quieto: boolean }) {
   const ahora = useAhora(ocupado);
   const canal = canalDe({ ocupado, ajeno, directo });
   const paso = canal === "turno" || canal === "fin" ? pasoDe(ind, ahora) : null;
@@ -268,6 +269,7 @@ function Contenido({ sid, ajeno, directo, ocupado, ind, parando, alParar, alAbri
           onKeyDown: (e) => teclaAgarre(e, x, k),
         }}
         alAbrirHilo={alAbrirHilo}
+        integrar={integrar}
       />
     );
   };
@@ -372,6 +374,7 @@ type FilaProps = {
     onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => void;
   };
   alAbrirHilo?: (id: string) => void;
+  integrar?: IntegrarAviso;
 };
 
 function Fila(p: FilaProps) {
@@ -419,7 +422,7 @@ function Fila(p: FilaProps) {
             </span>
           )}
           <div className="band-cuerpo">
-            {x.aviso ? <Sistema s={lineaAviso(x.texto)} alAbrirHilo={p.alAbrirHilo} /> : <Texto texto={separado.texto} vacio={imagenes.length || separado.archivos.length ? sinTexto(x) : ""} />}
+            {x.aviso ? <Sistema s={lineaAviso(x.texto)} alAbrirHilo={p.alAbrirHilo} integrar={p.integrar} /> : <Texto texto={separado.texto} vacio={imagenes.length || separado.archivos.length ? sinTexto(x) : ""} />}
             {separado.archivos.length ? (
               <div className="band-archivos">
                 {separado.archivos.map((a) => (

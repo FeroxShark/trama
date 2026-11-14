@@ -350,6 +350,22 @@ export const HILOS: RespuestaHilos = {
       resultado: "Arranque 410 ms → 290 ms sacando un import perezoso.",
     }),
     // Las capturas con HILOS_VARIANTE=falta-info (`normal`, `worker-vista`): un worker de ana-a3 que frenó porque le falta información.
+    ...(MODO.captura === "lider-tablero-dejado"
+      ? [
+          hilo({
+            id: "8",
+            origen: "app",
+            proyecto: "atlas",
+            tarea: "migración del índice",
+            estado: "listo",
+            inicio: AHORA - 18 * MIN,
+            duracion_s: 6 * MIN,
+            rama: "pa/atlas/8",
+            commits: 2,
+            resultado: "Índice migrado; tests verdes.",
+          }),
+        ]
+      : []),
     ...(MODO.variante === "falta-info"
       ? [
           hilo({

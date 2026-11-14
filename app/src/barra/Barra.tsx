@@ -712,6 +712,44 @@ export function Barra() {
     [ultimo, actuar],
   );
 
+  const puedeIntegrarHilo = useCallback(
+    (id: string): boolean => {
+      const { hilos, optimista, enCurso, arbol } = ultimo.current;
+      const h = hilos?.find((x) => x.id === id);
+      if (!h || enCurso.has(id)) return false;
+      const estado = optimista.get(id) ?? h.estado;
+      if (estado !== "listo" && estado !== "entregado") return false;
+      return settleWorker(h, estado, arbol.aCargo) && salidaDe(h, estado) === "settle" && comoSettle(h) === "integrar";
+    },
+    [ultimo],
+  );
+
+  const integrarHilo = useCallback(
+    async (id: string): Promise<void> => {
+      if (!puedeIntegrarHilo(id)) return;
+      const h = ultimo.current.hilos?.find((x) => x.id === id);
+      if (!h) return;
+      setOptimista((m) => new Map(m).set(id, "integrado"));
+      setErrores((m) => (m.has(id) ? new Map([...m].filter(([k]) => k !== id)) : m));
+      setEnCurso((s) => new Set(s).add(id));
+      try {
+        await fuente.cerrar(h);
+      } catch (e) {
+        setOptimista((m) => new Map([...m].filter(([k]) => k !== id)));
+        setErrores((m) => new Map(m).set(id, mensaje(e)));
+        throw e;
+      } finally {
+        setEnCurso((s) => new Set([...s].filter((k) => k !== id)));
+      }
+    },
+    [ultimo, puedeIntegrarHilo],
+  );
+
+  const integrarAviso = useMemo(
+    () => ({ puede: puedeIntegrarHilo, hacer: integrarHilo }),
+    [puedeIntegrarHilo, integrarHilo, hilos, optimista, enCurso, arbol.aCargo],
+  );
+
   const alternar = useCallback((proyecto: string) => {
     setColapsados((s) => {
       const n = new Set(s);
@@ -2250,6 +2288,7 @@ export function Barra() {
             lideres={arbol.lideres}
             alAbrirLider={abrirLider}
             alAbrirHilo={abrir}
+            integrar={integrarAviso}
             barraAbierta={abiertaVista}
             alAlternarBarra={angosto ? volverALista : alternarBarra}
             alCerrar={cerrar}

@@ -13,6 +13,7 @@ import {
   CircleSlash,
   FileText,
   FoldVertical,
+  GitMerge,
   Hourglass,
   Image,
   ArrowRightLeft,
@@ -183,10 +184,14 @@ const ESTADO_AVISO: Record<EstadoFilaAviso, { Icono: LucideIcon; rotulo: ClaveSo
  * Una fila por worker, de la misma altura para todos: ícono y palabra de su estado, la tarea (entera al pasar el mouse) y, en la
  * misma línea, Relanzar si falló y «Abrir», que abre su hilo (el id va en su tooltip). No tiene fondo ni borde propios.
  */
-function FilaAviso({ x, alAbrirHilo }: { x: { id: string; tarea: string; falla: boolean; estado: EstadoFilaAviso }; alAbrirHilo?: (id: string) => void }) {
+export type IntegrarAviso = { puede: (id: string) => boolean; hacer: (id: string) => Promise<void> };
+
+function FilaAviso({ x, alAbrirHilo, integrar }: { x: { id: string; tarea: string; falla: boolean; estado: EstadoFilaAviso }; alAbrirHilo?: (id: string) => void; integrar?: IntegrarAviso }) {
   const { Icono, rotulo } = ESTADO_AVISO[x.estado];
   const falla = x.estado === "falla";
+  const terminada = x.estado === "termino" || x.estado === "sinResumen";
   const [relanzo, setRelanzo] = useState<"relanzando" | "hecho" | { error: string } | null>(null);
+  const [integro, setIntegro] = useState<"integrando" | "hecho" | { error: string } | null>(null);
   const relanzar = () => {
     setRelanzo("relanzando");
     fuente.relanzarWorker(x.id).then(
@@ -194,6 +199,15 @@ function FilaAviso({ x, alAbrirHilo }: { x: { id: string; tarea: string; falla: 
       (e) => setRelanzo({ error: mensaje(e) }),
     );
   };
+  const integrarYa = () => {
+    if (!integrar || integro === "integrando" || integro === "hecho") return;
+    setIntegro("integrando");
+    integrar.hacer(x.id).then(
+      () => setIntegro("hecho"),
+      (e) => setIntegro({ error: mensaje(e) }),
+    );
+  };
+  const mostrarIntegrar = terminada && !!integrar && (integrar.puede(x.id) || integro !== null);
   const tarea = `«${x.tarea}»`;
   return (
     <li className="sis-aviso-fila" data-estado={x.estado}>
@@ -211,6 +225,20 @@ function FilaAviso({ x, alAbrirHilo }: { x: { id: string; tarea: string; falla: 
             {t(relanzo === "relanzando" ? "avisoW.relanzando" : relanzo === "hecho" ? "avisoW.relanzado" : "sistema.avisoRelanzar")}
           </button>
         ) : null}
+        {mostrarIntegrar ? (
+          <button
+            type="button"
+            className="sis-aviso-i"
+            data-integrar-aviso=""
+            data-estado={integro === "hecho" ? "hecho" : integro === "integrando" ? "integrando" : undefined}
+            disabled={integro === "integrando" || integro === "hecho"}
+            data-tip={t("sistema.avisoIntegrarTip")}
+            onClick={integrarYa}
+          >
+            {integro === "hecho" ? <IcOk size={12} strokeWidth={2.2} aria-hidden="true" /> : <GitMerge size={12} strokeWidth={2.2} aria-hidden="true" />}
+            {t(integro === "integrando" ? "sistema.avisoIntegrando" : integro === "hecho" ? "sistema.avisoIntegrado" : "sistema.avisoIntegrar")}
+          </button>
+        ) : null}
         {alAbrirHilo ? (
           <button type="button" className="sis-aviso-ver" data-tip={t("sistema.avisoVer", { id: x.id })} aria-label={t("sistema.avisoAbrir", { id: x.id })} onClick={() => alAbrirHilo(x.id)}>
             {t("sistema.avisoAbrirCorto")}
@@ -222,6 +250,11 @@ function FilaAviso({ x, alAbrirHilo }: { x: { id: string; tarea: string; falla: 
           {t("avisoW.relanzarFallo", { e: relanzo.error })}
         </div>
       ) : null}
+      {integro && typeof integro === "object" ? (
+        <div className="caja-error" role="alert">
+          {t("sistema.avisoIntegrarFallo", { e: integro.error })}
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -230,7 +263,7 @@ function FilaAviso({ x, alAbrirHilo }: { x: { id: string; tarea: string; falla: 
  * Un aviso de Trama: la campana y "Trama · Aviso"; después, una fila por worker. Primero las que piden decisión, después las que
  * fallaron y las terminadas. Con más de cinco filas, las terminadas se pliegan en «N terminados» (desplegable, cerrado).
  */
-function Aviso({ a, alAbrirHilo }: { a: AvisoTexto; alAbrirHilo?: (id: string) => void }) {
+function Aviso({ a, alAbrirHilo, integrar }: { a: AvisoTexto; alAbrirHilo?: (id: string) => void; integrar?: IntegrarAviso }) {
   const fallas = a.trabajos.filter((x) => x.falla).length;
   const { visibles, plegadas } = filasDeAviso(a.trabajos);
   return (
@@ -245,7 +278,7 @@ function Aviso({ a, alAbrirHilo }: { a: AvisoTexto; alAbrirHilo?: (id: string) =
           {visibles.length ? (
             <ul className="sis-aviso-l">
               {visibles.map((x) => (
-                <FilaAviso key={x.id} x={x} alAbrirHilo={alAbrirHilo} />
+                <FilaAviso key={x.id} x={x} alAbrirHilo={alAbrirHilo} integrar={integrar} />
               ))}
             </ul>
           ) : null}
@@ -257,7 +290,7 @@ function Aviso({ a, alAbrirHilo }: { a: AvisoTexto; alAbrirHilo?: (id: string) =
               </summary>
               <ul className="sis-aviso-l">
                 {plegadas.map((x) => (
-                  <FilaAviso key={x.id} x={x} alAbrirHilo={alAbrirHilo} />
+                  <FilaAviso key={x.id} x={x} alAbrirHilo={alAbrirHilo} integrar={integrar} />
                 ))}
               </ul>
             </details>
@@ -277,20 +310,22 @@ type Props = {
   alAbrirHilo?: (id: string) => void;
   /** «Seguir con otro modelo» (#1791): lo ofrece la línea del último límite de uso, mientras el líder no trabaja. */
   alSeguir?: () => void;
+  integrar?: IntegrarAviso;
 };
 
 /** Cada pasada de `turnos()` arma objetos nuevos: lo de un mismo mensaje no cambia (el crudo, sin serializar: pesa). */
-const igual = ({ s: a, nombre: na, alAbrirHilo: ha, alSeguir: sa }: Props, { s: b, nombre: nb, alAbrirHilo: hb, alSeguir: sb }: Props) =>
+const igual = ({ s: a, nombre: na, alAbrirHilo: ha, alSeguir: sa, integrar: ia }: Props, { s: b, nombre: nb, alAbrirHilo: hb, alSeguir: sb, integrar: ib }: Props) =>
   na === nb &&
   ha === hb &&
   !sa === !sb &&
+  (a.tipo === "linea" && a.clase === "aviso" ? ia === ib : !ia === !ib) &&
   (a === b ||
   (a.tipo === "tarjeta" && b.tipo === "tarjeta"
     ? a.clase === b.clase && a.dato === b.dato && a.estado === b.estado && a.crudo === b.crudo
     : a.tipo === "linea" && b.tipo === "linea" && JSON.stringify(a) === JSON.stringify(b)));
 
 /** Una línea o una tarjeta de sistema. */
-export const Sistema = memo(function Sistema({ s, nombre, alAbrirHilo, alSeguir }: Props) {
+export const Sistema = memo(function Sistema({ s, nombre, alAbrirHilo, alSeguir, integrar }: Props) {
   useIdioma();
   if (s.tipo === "tarjeta") return <Tarjeta_ s={s} />;
   if (s.clase === "compacto") {
@@ -305,7 +340,7 @@ export const Sistema = memo(function Sistema({ s, nombre, alAbrirHilo, alSeguir 
     return <Divisor Icono={LifeBuoy} texto={t(s.agotado ? "hz.destraboTope" : "hz.destrabo", { que: s.que })} crudo={null} />;
   if (s.clase === "viene")
     return <Divisor Icono={Repeat} texto={nombre ? t("relevo.viene", { n: nombre }) : t("relevo.vieneSin")} crudo={s.texto} />;
-  if (s.clase === "aviso") return <Aviso a={s.aviso} alAbrirHilo={alAbrirHilo} />;
+  if (s.clase === "aviso") return <Aviso a={s.aviso} alAbrirHilo={alAbrirHilo} integrar={integrar} />;
   const { texto, grave, Icono } = textoLinea(s);
   // El límite dice la hora en palabras de la app; el texto de `claude`, al pasar el mouse.
   const crudo = s.clase === "limite" && s.hasta !== null ? s.texto : undefined;
