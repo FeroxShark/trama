@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.81
+
+- Gemini 3.8 Flash sale del reparto y de los selectores: lo reemplaza Gemini 4 Hydrogen. Una configuración vieja que lo nombre sigue andando; pedirlo a mano con `-m` da el mismo error que cualquier modelo que no existe.
+
 ## 0.2.80
 
 - En el aviso de workers, la fila de uno que terminó con rama lista trae el botón «Integrar» al lado de «Abrir»: ya no hace falta abrir el worker para integrarlo. Si falla, el error queda debajo de la fila.

@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.81
+
+- Gemini 3.8 Flash is gone from the worker allocation and from the pickers: Gemini 4 Hydrogen replaces it. An old configuration that names it keeps working; asking for it by hand with `-m` gives the same error as any model that does not exist.
+
 ## 0.2.80
 
 - In the workers notice, the row of a worker that finished with a branch ready has an "Integrate" button next to "Open": no need to open the worker to integrate it. If it fails, the error shows below the row.
