@@ -142,3 +142,9 @@ test("archivoVistoDe: lo que llega por IPC se valida", () => {
   assert.equal(archivoVistoDe({ tipo: "otro" }), null);
   assert.equal(archivoVistoDe(null), null);
 });
+
+test("leerArchivoVisto: expande ~ usando home en imágenes y archivos", async () => {
+  en("Imágenes/foto.png", PNG);
+  const v = await leerArchivoVisto("~/Imágenes/foto.png", process.platform, dir);
+  assert.deepEqual(v, { tipo: "imagen", mime: "image/png", datos: PNG.toString("base64") });
+});

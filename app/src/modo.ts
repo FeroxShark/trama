@@ -145,6 +145,10 @@ const CAPTURAS = [
   "lider-cola",
   // Tarjetas de rutas (carpeta y .html) debajo de un mensaje del asistente.
   "chat-rutas",
+  // Tarjetas de archivos (imágenes con miniatura y visor propio) debajo de un mensaje.
+  "chat-archivos",
+  // Visor propio de imagen abierto con barra de datos, acciones, zoom y arrastre.
+  "visor-imagen",
   // Un líder de Gemini a mitad de un turno: su último paso de razonamiento en la tarjeta y cada comando con su estado.
   "lider-gemini",
   // Te espera: un líder de terminal que terminó y el de la app (abierto) que pide un permiso; fila y cabecera con la marca en ámbar.

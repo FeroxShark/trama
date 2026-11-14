@@ -5,6 +5,7 @@
 // su extensión. Nunca lanza: lo que no está (el worktree de un worker ya borrado), no se puede leer o es un secreto es `null`
 // ("archivo ya no disponible"). Lo que no se puede mostrar (un .zip, un .docx) no se lee: la interfaz lo abre con la app del sistema.
 import { open, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import { candidatasArchivo } from "./archivo-candidatas.ts";
 import { tipoDeArchivo, type ArchivoVisto } from "./archivo-ruta.ts";
 import { tipoPorBytes } from "./imagen-ruta.ts";
@@ -53,8 +54,9 @@ async function leerHasta(ruta: string, tope: number): Promise<{ b: Buffer; tam: 
 }
 
 /** El archivo de `x` (una ruta absoluta de Windows o de Linux) para el visor; `null` si no está, no es lo que dice su extensión, pesa de más o no se muestra. */
-export async function leerArchivoVisto(x: unknown, plataforma: NodeJS.Platform = process.platform): Promise<ArchivoVisto | null> {
-  for (const ruta of candidatasArchivo(x, plataforma)) {
+export async function leerArchivoVisto(x: unknown, plataforma: NodeJS.Platform = process.platform, home: string = homedir()): Promise<ArchivoVisto | null> {
+  const conHome = typeof x === "string" ? x.trim().replace(/^~(?=$|[\\\/])/, home) : x;
+  for (const ruta of candidatasArchivo(conHome, plataforma)) {
     try {
       if (esSecreto(ruta)) return null;
       const { tipo, mime } = tipoDeArchivo(ruta);

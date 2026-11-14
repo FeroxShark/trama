@@ -132,3 +132,35 @@
     transition: none;
   }
 }
+
+.tarjeta-ruta[data-tipo="archivo"] .tarjeta-ruta-icono {
+  background: var(--acento-tinte);
+  border-color: color-mix(in srgb, var(--acento) 34%, transparent);
+  color: var(--acento);
+}
+
+.tarjeta-ruta-icono[data-miniatura] {
+  width: 2.25rem;
+  height: 2.25rem;
+  overflow: hidden;
+  background: var(--sup-0);
+  border-color: var(--borde-3);
+}
+
+.tarjeta-ruta-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tarjeta-ruta[data-tipo="archivo"] .tarjeta-ruta-abrir {
+  border-color: color-mix(in srgb, var(--acento) 34%, transparent);
+  background: var(--acento-tinte);
+  color: var(--texto);
+}
+
+.tarjeta-ruta[data-tipo="archivo"] .tarjeta-ruta-abrir:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--acento) 28%, transparent);
+  border-color: var(--acento);
+}

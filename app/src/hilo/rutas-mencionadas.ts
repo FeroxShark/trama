@@ -1,16 +1,17 @@
 // Rutas de carpetas y archivos `.html` nombradas en un mensaje del asistente:
 // detección pura (sin tocar el disco) para mostrar tarjetas rápidas debajo del texto.
+import { extensionDe, tipoDeArchivo } from "../../electron/archivo-ruta.ts";
 import type { Plataforma } from "../../electron/rutas.ts";
 import { bloques, rutaCarpeta, trozos, type Bloque } from "./markdown.ts";
 
-export type TipoRutaMencionada = "carpeta" | "html";
+export type TipoRutaMencionada = "carpeta" | "html" | "archivo";
 
 export type RutaMencionada = {
   tipo: TipoRutaMencionada;
   ruta: string;
 };
 
-const MAX_RUTAS = 4;
+const MAX_RUTAS = 6;
 const LARGO_MAX = 1024;
 
 function dePlataforma(s: string, plat: Plataforma): boolean {
@@ -41,6 +42,30 @@ function esHtml(s: string, plat: Plataforma): boolean {
   return /[^\\\/]\.html$/i.test(s);
 }
 
+function esArchivo(s: string, plat: Plataforma): boolean {
+  const terminaEnBarra = plat === "win32" ? /[\\\/]$/.test(s) : s.endsWith("/");
+  if (terminaEnBarra) return false;
+  if (!sinBasura(s) || !dePlataforma(s, plat) || !tieneSegmentoUtil(s)) return false;
+  if (!/[^\\\/]\.[A-Za-z0-9]+$/.test(s) || !extensionDe(s)) return false;
+  return tipoDeArchivo(s).tipo !== "otro";
+}
+
+function clasificar(s: string, plat: Plataforma, agregar: (tipo: TipoRutaMencionada, ruta: string) => void, carpetaProsa: boolean): boolean {
+  if (esHtml(s, plat)) {
+    agregar("html", s);
+    return true;
+  }
+  if (esArchivo(s, plat)) {
+    agregar("archivo", s);
+    return true;
+  }
+  if (carpetaProsa && esCarpetaProsa(s, plat)) {
+    agregar("carpeta", s);
+    return true;
+  }
+  return false;
+}
+
 function esCarpetaCodigo(s: string, plat: Plataforma): string | null {
   const c = rutaCarpeta(s);
   if (!c || !sinBasura(c) || !dePlataforma(c, plat) || !tieneSegmentoUtil(c)) return null;
@@ -68,14 +93,11 @@ function extraerDeProsa(texto: string, plat: Plataforma, agregar: (tipo: TipoRut
     const raw = m[0];
     if (m[2] || m[3]) {
       const inner = (m[2] ?? m[3]).trim();
-      if (esHtml(inner, plat)) agregar("html", inner);
-      else if (esCarpetaProsa(inner, plat)) agregar("carpeta", inner);
-      else extraerDeProsa(inner, plat, agregar);
+      if (!clasificar(inner, plat, agregar, true)) extraerDeProsa(inner, plat, agregar);
       continue;
     }
     const limpio = raw.replace(/[.,;:!?\x27"`)\]]+$/, "");
-    if (esHtml(limpio, plat)) agregar("html", limpio);
-    else if (esCarpetaProsa(limpio, plat)) agregar("carpeta", limpio);
+    clasificar(limpio, plat, agregar, true);
   }
 }
 
@@ -84,9 +106,7 @@ function recorrerLinea(texto: string, plat: Plataforma, agregar: (tipo: TipoRuta
     if (x.tipo === "link" || x.tipo === "img") continue;
     if (x.tipo === "code") {
       const s = x.texto.trim();
-      if (esHtml(s, plat)) {
-        agregar("html", s);
-      } else {
+      if (!clasificar(s, plat, agregar, false)) {
         const c = esCarpetaCodigo(s, plat);
         if (c) agregar("carpeta", c);
       }
@@ -121,7 +141,7 @@ function recorrerBloques(bs: readonly Bloque[], plat: Plataforma, agregar: (tipo
 
 /**
  * Devuelve las rutas absolutas de carpetas (con barra final o en código en línea) y archivos `.html`
- * nombrados en `texto` para la plataforma `plat`, en orden de aparición, sin duplicados y hasta 4.
+ * nombrados en `texto` para la plataforma `plat`, en orden de aparición, sin duplicados y hasta 6.
  */
 export function rutasMencionadas(texto: string, plat: Plataforma = "linux"): RutaMencionada[] {
   if (!texto) return [];

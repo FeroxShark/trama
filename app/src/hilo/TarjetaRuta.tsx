@@ -1,6 +1,8 @@
-// Tarjetas breves debajo de un mensaje del asistente para abrir carpetas o `.html` nombrados sin tocar el texto.
-// Una carpeta se abre en el explorador de archivos; un `.html`, en el navegador del sistema (`fuente.archivoAbrir`).
-import { useMemo, useState } from "react";
+// Tarjetas breves debajo de un mensaje del asistente para abrir carpetas, `.html` o archivos mostrables sin salir de Trama.
+// Una carpeta se abre en el explorador; un `.html`, en el navegador; las imágenes y otros archivos mostrables, en el visor propio.
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Eye } from "lucide-react";
+import { tipoDeArchivo, type ArchivoDeHerramienta } from "../../electron/archivo-ruta";
 import type { Plataforma } from "../../electron/rutas";
 import { resultadoCarpeta } from "../datos/carpeta-abrir";
 import { fuente } from "../datos/fuente";
@@ -11,6 +13,10 @@ import { MODO } from "../modo";
 import { esVentana } from "../puente";
 import { ICONO, IcAbrirSistema, IcArchivo, IcCarpeta } from "../ui/iconos";
 import { acortarRuta, nombreRuta, rutasMencionadas, type RutaMencionada } from "./rutas-mencionadas";
+import { PESO_CACHE, VerArchivo, useArchivoVisto, useVisible } from "./VerArchivo";
+
+let visorCapturaAbierto = false;
+const abrirVisorCaptura = (esImg: boolean) => (MODO.captura === "visor-imagen" && esImg && !visorCapturaAbierto ? (visorCapturaAbierto = true) : false);
 
 function plataformaActual(): Plataforma {
   if (typeof location !== "undefined" && new URLSearchParams(location.search).get("plataforma") === "win32") return "win32";
@@ -20,16 +26,38 @@ function plataformaActual(): Plataforma {
 
 export function TarjetaRuta({ item }: { item: RutaMencionada }) {
   useIdioma();
+  const infoArchivo = useMemo(() => (item.tipo === "archivo" ? tipoDeArchivo(item.ruta) : null), [item.tipo, item.ruta]);
+  const esArchivo = item.tipo === "archivo";
+  const esImagen = infoArchivo?.tipo === "imagen";
   const [abriendo, setAbriendo] = useState(false);
+  const [verAbierto, setVerAbierto] = useState(() => esArchivo && abrirVisorCaptura(!!esImagen));
   const [error, setError] = useState<string | null>(null);
+  const [imgFallo, setImgFallo] = useState(false);
+  const filaRef = useRef<HTMLDivElement>(null);
+  const visible = useVisible(filaRef);
+  const visto = useArchivoVisto(item.ruta, !!esImagen && visible);
+
+  useEffect(() => {
+    setImgFallo(false);
+  }, [item.ruta]);
+
   const nombre = nombreRuta(item.ruta);
   const corta = acortarRuta(item.ruta, 52);
-  const Icono = item.tipo === "carpeta" ? IcCarpeta : IcArchivo;
   const esCarpeta = item.tipo === "carpeta";
-  const carpeta = item.ruta;
-  const etiquetaAbrir = t(esCarpeta ? "ruta.abrirCarpeta" : "ruta.mostrarArchivo", { nombre });
+  const Icono = esCarpeta ? IcCarpeta : IcArchivo;
+  const miniaturaSrc = esImagen && !imgFallo && visto?.tipo === "imagen" && visto.datos.length <= PESO_CACHE ? `data:${visto.mime};base64,${visto.datos}` : null;
+  const etiquetaAbrir = esArchivo ? t("archivo.ver", { nombre }) : t(esCarpeta ? "ruta.abrirCarpeta" : "ruta.mostrarArchivo", { nombre });
+  const textoBoton = esArchivo ? t("ruta.ver") : t(esCarpeta ? "ruta.abrir" : "ruta.mostrar");
+
+  const archivoParaVisor: ArchivoDeHerramienta | null = infoArchivo
+    ? { ruta: item.ruta, accion: "leer", tipo: infoArchivo.tipo, mime: infoArchivo.mime, absoluta: null }
+    : null;
 
   async function abrir() {
+    if (esArchivo) {
+      setVerAbierto(true);
+      return;
+    }
     if (abriendo) return;
     setAbriendo(true);
     setError(null);
@@ -44,11 +72,11 @@ export function TarjetaRuta({ item }: { item: RutaMencionada }) {
         return;
       }
       const res = await resultadoCarpeta(
-        () => fuente.carpetaAbrir(carpeta),
+        () => fuente.carpetaAbrir(item.ruta),
         (e) => reportar("carpeta", detalleDe(e)),
       );
       if (res === "app") setError(t("ruta.reiniciar"));
-      else if (res === "no-carpeta") setError(t("archivo.carpetaNoAbrio", { ruta: carpeta }));
+      else if (res === "no-carpeta") setError(t("archivo.carpetaNoAbrio", { ruta: item.ruta }));
     } catch (e) {
       reportar("carpeta", detalleDe(e));
       setError(t("ruta.reiniciar"));
@@ -59,9 +87,13 @@ export function TarjetaRuta({ item }: { item: RutaMencionada }) {
 
   return (
     <div className="tarjeta-ruta" role="listitem" data-tipo={item.tipo}>
-      <div className="tarjeta-ruta-fila">
-        <span className="tarjeta-ruta-icono" aria-hidden="true">
-          <Icono size={ICONO.size} strokeWidth={ICONO.strokeWidth} />
+      <div ref={filaRef} className="tarjeta-ruta-fila">
+        <span className="tarjeta-ruta-icono" data-miniatura={miniaturaSrc ? "" : undefined} aria-hidden="true">
+          {miniaturaSrc ? (
+            <img className="tarjeta-ruta-img" src={miniaturaSrc} alt="" loading="lazy" decoding="async" onError={() => setImgFallo(true)} />
+          ) : (
+            <Icono size={ICONO.size} strokeWidth={ICONO.strokeWidth} />
+          )}
         </span>
         <div className="tarjeta-ruta-texto">
           <span className="tarjeta-ruta-nombre">{nombre}</span>
@@ -76,8 +108,12 @@ export function TarjetaRuta({ item }: { item: RutaMencionada }) {
           disabled={abriendo}
           onClick={() => void abrir()}
         >
-          <span>{t(esCarpeta ? "ruta.abrir" : "ruta.mostrar")}</span>
-          <IcAbrirSistema size={13} strokeWidth={ICONO.strokeWidth} aria-hidden="true" />
+          <span>{textoBoton}</span>
+          {esArchivo ? (
+            <Eye size={13} strokeWidth={ICONO.strokeWidth} aria-hidden="true" />
+          ) : (
+            <IcAbrirSistema size={13} strokeWidth={ICONO.strokeWidth} aria-hidden="true" />
+          )}
         </button>
       </div>
       {error ? (
@@ -85,6 +121,7 @@ export function TarjetaRuta({ item }: { item: RutaMencionada }) {
           {error}
         </p>
       ) : null}
+      {verAbierto && archivoParaVisor ? <VerArchivo a={archivoParaVisor} alCerrar={() => setVerAbierto(false)} /> : null}
     </div>
   );
 }

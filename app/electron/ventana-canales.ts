@@ -153,7 +153,7 @@ export function pedirSalida() {
 export function armarCanalesVentana(salir: (x: { modo: "seguir" | "parar"; forzar: boolean }) => Promise<number>) {
   ipcMain.handle("archivo:elegirLogo", (e) => elegirLogo(e));
   // Un archivo de la actividad con la app del sistema (archivo-abrir.ts): sólo imágenes, PDF, medios y documentos, nunca un programa.
-  ipcMain.handle("archivo:abrir", (_e, ruta: unknown) => abrirArchivo(ruta, (r) => shell.openPath(r)));
+  ipcMain.handle("archivo:abrir", (_e, ruta: unknown) => abrirArchivo(typeof ruta === "string" ? ruta.trim().replace(/^~(?=$|[\\\/])/, homedir()) : ruta, (r) => shell.openPath(r)));
   // Una carpeta que nombra un mensaje, en el explorador de archivos del sistema.
   ipcMain.handle("archivo:abrirCarpeta", (_e, ruta: unknown) => abrirCarpeta(ruta, (r) => shell.openPath(r), homedir(), process.platform, (r) => shell.showItemInFolder(r)));
   ipcMain.handle("app:salir", (_e, x: unknown) => salir(pedidoDeSalida(x)));
