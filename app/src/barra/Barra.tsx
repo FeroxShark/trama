@@ -51,7 +51,7 @@ import { useEsperan } from "./esperan";
 import { resueltosDe } from "./atencion-vigente";
 import { MODO } from "../modo";
 import { apariencia, LETRA_DEF } from "../tipografia";
-import { esAngosto, esMedio, useAngosto, useAtras, useMedio } from "../angosto";
+import { esAngosto, useAngosto, useAtras, useMedio } from "../angosto";
 import { correrGuionPaneles } from "../paneles/guion";
 import { Panel, PANELES, type CualPanel } from "../paneles/Panel";
 import { consumoALaVista } from "./consumo-logica";
@@ -362,8 +362,8 @@ export function Barra() {
     [],
   );
   const acopleCtrl = useAcople(acopleInicial);
-  const [consumo, setConsumo] = useState(() => (!esMedio() && !esAngosto() ? contextoAbiertoEn(acopleInicial) : MODO.consumo && (!esAngosto() || MODO.captura !== null)));
-  const [abierta, setAbierta] = useState(() => (!esMedio() && !esAngosto() ? chatsAbiertoEn(acopleInicial) : vueltaInicial()?.abierta ?? guardado(CLAVE_ABIERTA, (c) => c !== "0", true)));
+  const [consumo, setConsumo] = useState(() => (!esAngosto() ? contextoAbiertoEn(acopleInicial) : MODO.consumo && MODO.captura !== null));
+  const [abierta, setAbierta] = useState(() => (!esAngosto() ? chatsAbiertoEn(acopleInicial) : vueltaInicial()?.abierta ?? guardado(CLAVE_ABIERTA, (c) => c !== "0", true)));
   const [cerradosAbiertos, setCerradosAbiertos] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [cursor, setCursor] = useState<string | null>(null);
@@ -437,7 +437,7 @@ export function Barra() {
   // Con ancho intermedio el panel de consumo no cabe al lado de la conversación: la reemplaza (CSS, `data-consumo`) y
   // abrir otra cosa lo suelta (sin tocar lo guardado: con la ventana ancha vuelve al costado).
   const medio = useMedio();
-  const acoplado = !medio && !angosto;
+  const acoplado = !angosto;
   const chatsAbierto = chatsAbiertoEn(acopleCtrl.acople);
   const contextoAbierto = contextoAbiertoEn(acopleCtrl.acople);
   const abiertaVista = acoplado ? chatsAbierto : abierta;
@@ -451,11 +451,17 @@ export function Barra() {
   useEffect(() => {
     const a = abierto.current;
     abierto.current = { activa, panel };
-    if (medio && !MODO.captura && (a.activa !== activa || a.panel !== panel)) setConsumo(false);
-  }, [medio, activa, panel]);
+    if (!acoplado && medio && !MODO.captura && (a.activa !== activa || a.panel !== panel)) setConsumo(false);
+  }, [acoplado, medio, activa, panel]);
   const raiz = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLInputElement>(null);
-  const lista = useRef<HTMLDivElement>(null);
+  const lista = useRef<HTMLDivElement | null>(null);
+  const [listaEl, setListaEl] = useState<HTMLDivElement | null>(null);
+  const ponerRefLista = (el: HTMLDivElement | null) => {
+    if (lista.current === el) return;
+    lista.current = el;
+    setListaEl(el);
+  };
 
   // Datos: lo guardado de la vez anterior (si `pa` todavía no contestó), una
   // lectura al abrir y otra cada vez que `pa` avisa.
@@ -1352,7 +1358,7 @@ export function Barra() {
     const proyectos = grupos.map((g) => g.proyecto);
     // La caja (modelo, esfuerzo, aviso de cambiar de modelo), el indicador y los avisos: en el líder de la app.
     const app = lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? lideres[0]?.id ?? "";
-    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-mcp", "lider-dictado", "programar", "lider-valores", "lider-sistema", "lider-tablero-dejado", "lider-cambio-motor", "cuenta-lider", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-cache", "lider-editar", "lider-puntos", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-intermedios", "lider-cola", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja"].includes(c) || c.startsWith("contexto");
+    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-mcp", "lider-dictado", "programar", "lider-valores", "lider-sistema", "lider-tablero-dejado", "lider-cambio-motor", "cuenta-lider", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-cache", "lider-editar", "lider-puntos", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-intermedios", "lider-cola", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja"].includes(c) || c.startsWith("contexto") || c.startsWith("acople-angosto");
     // Las guías del chat y de su caja piden el líder de la app abierto.
     const guiaLider = c === "guia-lider" || c === "guia-caja" || c === "guia-modelo";
     if (enApp || guiaLider) setActiva(LIDER + app);
@@ -1517,7 +1523,7 @@ export function Barra() {
     if (virtual) avisarVentana();
   });
   useEffect(() => {
-    const el = lista.current;
+    const el = listaEl;
     ponerLista(el);
     if (!el) return;
     const ro = new ResizeObserver(() => avisarVentana());
@@ -1526,7 +1532,7 @@ export function Barra() {
       ro.disconnect();
       ponerLista(null);
     };
-  }, [abiertaVista, acoplado]);
+  }, [abiertaVista, acoplado, listaEl]);
 
   const hiloActivo = activa ? (todos.find((h) => h.id === activa) ?? null) : null;
   const sidActivo = activa?.startsWith(LIDER) && activa !== LIDER_NUEVO ? activa.slice(LIDER.length) : null;
@@ -2134,7 +2140,7 @@ export function Barra() {
   </div>
 
   <motion.div
-    ref={lista}
+    ref={ponerRefLista}
     layoutScroll
     className="lista"
     // Barra angosta (≤ 340 px de la letra 13): el chip de modelo dice «S high» en vez de «Sonnet high».

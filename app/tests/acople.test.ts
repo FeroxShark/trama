@@ -19,6 +19,10 @@ import {
   repartir,
   restablecerPartes,
   restablecerZona,
+  ANCHO_CENTRO_MIN,
+  ANCHO_MIN,
+  disposicionAcople,
+  disposicionCostados,
   zonaTodoPlegado,
   type GeoDestino,
   type Rect,
@@ -226,5 +230,63 @@ describe("textos i18n de acople", () => {
     assert.equal(t("acople.yaEstaAca"), "already here");
     assert.equal(t("acople.soltarAbajo"), "Drop at the bottom");
     cambiarIdioma("es");
+  });
+});
+
+describe("disposición angosta de costados", () => {
+  test("mantiene tamaños guardados en pantalla ancha", () => {
+    const d = disposicionAcople(acopleDeFabrica(), ["chats", "contexto", "cupo"], 1196);
+    assert.deepEqual(d, {
+      forzadas: { izq: false, der: false },
+      anchos: { izq: 320, der: 400 },
+    });
+  });
+
+  test("achica costados proporcionalmente antes de forzar tira", () => {
+    const d = disposicionCostados(1000, {
+      izq: { visible: true, todoPlegado: false, tam: 320 },
+      der: { visible: true, todoPlegado: false, tam: 400 },
+    });
+    assert.deepEqual(d.forzadas, { izq: false, der: false });
+    assert.ok((d.anchos.izq ?? 0) >= ANCHO_MIN && (d.anchos.izq ?? 0) < 320);
+    assert.ok((d.anchos.der ?? 0) >= ANCHO_MIN && (d.anchos.der ?? 0) < 400);
+    assert.ok((d.anchos.izq ?? 0) + (d.anchos.der ?? 0) <= 1000 - ANCHO_CENTRO_MIN - 16);
+  });
+
+  test("en ~950 px fuerza primero la derecha a tira y deja izquierda abierta y centro >= 26rem", () => {
+    const d = disposicionAcople(acopleDeFabrica(), ["chats", "contexto", "cupo"], 850);
+    assert.deepEqual(d, {
+      forzadas: { izq: false, der: true },
+      anchos: { izq: 320, der: null },
+    });
+  });
+
+  test("cuando tampoco entra izquierda al mínimo, fuerza ambas zonas a tira", () => {
+    const d = disposicionAcople(acopleDeFabrica(), ["chats", "contexto", "cupo"], 650);
+    assert.deepEqual(d, {
+      forzadas: { izq: true, der: true },
+      anchos: { izq: null, der: null },
+    });
+  });
+
+  test("cuenta una zona ya todo-plegada como tira sin forzar el otro costado", () => {
+    const base = acopleDeFabrica();
+    const conDerPlegada: Acople = { ...base, plegados: ["contexto", "cupo"] };
+    const d = disposicionAcople(conDerPlegada, ["chats", "contexto", "cupo"], 850);
+    assert.deepEqual(d, {
+      forzadas: { izq: false, der: false },
+      anchos: { izq: 320, der: null },
+    });
+  });
+
+  test("devuelve tamaños base si el ancho no es finito", () => {
+    const d = disposicionCostados(Number.NaN, {
+      izq: { visible: true, todoPlegado: false, tam: 320 },
+      der: { visible: false, todoPlegado: false, tam: 400 },
+    });
+    assert.deepEqual(d, {
+      forzadas: { izq: false, der: false },
+      anchos: { izq: 320, der: null },
+    });
   });
 });

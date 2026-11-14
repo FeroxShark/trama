@@ -63,10 +63,13 @@ camino="$(printf %s "$PATH" | tr ':' '\n' | grep -v "^$HOME\(/\|$\)" | paste -sd
 # La app lee de motor/ (fuera de app/): los topes de Go (motor/opencode/go-topes.{json,mjs}, electron/opencode-go.ts). Esa carpeta del checkout es lo que se permite además de app/.
 motor="$(cd "$raiz/.." && pwd)/motor"
 set +e
+tam_def="1920 1200"
+[[ "$estado" == acople-angosto* ]] && tam_def="1425 1200"
+[[ "$estado" == acople-angosto* && "${ESCALA:-1.5}" == "1" ]] && tam_def="950 800"
 env -u CLAUDE_CONFIG_DIR -u PA_STATE -u PROYECTOS_REGISTRY -u TABLERO_DIR -u TABLERO_VISTA \
   HOME="$casa" XDG_CONFIG_HOME="$casa/.config" XDG_DATA_HOME="$casa/.local/share" XDG_CACHE_HOME="$casa/.cache" XDG_STATE_HOME="$casa/.local/state" \
   PATH="$camino" HILOS_STATE="$casa/estado" HILOS_PERFIL="$casa/perfil" HILOS_AISLAR_PERMITE="$motor${HILOS_AISLAR_PERMITE:+:$HILOS_AISLAR_PERMITE}" \
-  HILOS_CAPTURA="$estado" HILOS_CAPTURA_PNG="$out" HILOS_TAM="${TAM:-1920 1200}" HILOS_ESCALA="${ESCALA:-1.5}" HILOS_IDIOMA="${HILOS_IDIOMA:-es}" "$@" \
+  HILOS_CAPTURA="$estado" HILOS_CAPTURA_PNG="$out" HILOS_TAM="${TAM:-$tam_def}" HILOS_ESCALA="${ESCALA:-1.5}" HILOS_IDIOMA="${HILOS_IDIOMA:-es}" "$@" \
   timeout 15 "$bin" "$raiz" 2>"$casa/err" >/dev/null
 rc=$?
 set -e

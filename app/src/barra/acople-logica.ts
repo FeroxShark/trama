@@ -51,7 +51,7 @@ const TAM_DEFECTO: Record<Zona, number> = {
   abajo: 340,
 };
 
-const ANCHO_MIN = 240;
+export const ANCHO_MIN = 240;
 const ANCHO_MAX = 520;
 const ALTO_MIN = 160;
 const ALTO_MAX = 2000;
@@ -373,6 +373,112 @@ export function panelesEnZona(a: Acople, zona: Zona, vivos: readonly PanelId[]):
 export function zonaTodoPlegado(a: Acople, zona: Zona, vivos: readonly PanelId[]): boolean {
   const lista = panelesEnZona(a, zona, vivos);
   return lista.length > 0 && lista.every((p) => a.plegados.includes(p));
+}
+
+export const ANCHO_CENTRO_MIN = 416; // 26rem en px de letra 13
+export const ANCHO_TIRA = 44; // 2.75rem en px de letra 13
+export const ANCHO_DIVISOR = 8; // 0.5rem (--esp-2) en px de letra 13
+
+export type EstadoCostado = {
+  /** Si la zona tiene al menos un panel visible. */
+  visible: boolean;
+  /** Si la zona ya está como tira porque todos sus paneles están plegados. */
+  todoPlegado: boolean;
+  /** Ancho guardado de la zona en px de letra 13. */
+  tam: number;
+};
+
+export type DisposicionCostados = {
+  /** Zonas de costado forzadas a mostrarse como tira por falta de espacio. */
+  forzadas: Record<"izq" | "der", boolean>;
+  /** Ancho efectivo (en px de letra 13) de cada costado abierto, o `null` si está vacío o en tira. */
+  anchos: Record<"izq" | "der", number | null>;
+};
+
+/**
+ * Calcula cómo entran las zonas izquierda y derecha garantizando al menos `ANCHO_CENTRO_MIN` (26 rem) para el centro:
+ * 1. Con sus tamaños guardados si alcanzan.
+ * 2. Si no, achicando los costados abiertos proporcionalmente hasta `ANCHO_MIN` (240).
+ * 3. Si aun así no entra, pasando la zona derecha a tira forzada (`ANCHO_TIRA`).
+ * 4. Si todavía no alcanza con la izquierda al mínimo, pasando también la izquierda a tira forzada.
+ */
+export function disposicionCostados(
+  anchoDisponible: number,
+  costados: Record<"izq" | "der", EstadoCostado>,
+): DisposicionCostados {
+  const anchoBase = (z: "izq" | "der"): number | null =>
+    costados[z].visible && !costados[z].todoPlegado ? acotar(costados[z].tam, ANCHO_MIN, ANCHO_MAX) : null;
+
+  if (!Number.isFinite(anchoDisponible)) {
+    return {
+      forzadas: { izq: false, der: false },
+      anchos: { izq: anchoBase("izq"), der: anchoBase("der") },
+    };
+  }
+
+  const abiertaIzq = costados.izq.visible && !costados.izq.todoPlegado;
+  const abiertaDer = costados.der.visible && !costados.der.todoPlegado;
+  const wIzq = anchoBase("izq") ?? 0;
+  const wDer = anchoBase("der") ?? 0;
+
+  const divisores = (costados.izq.visible ? ANCHO_DIVISOR : 0) + (costados.der.visible ? ANCHO_DIVISOR : 0);
+  const tirasPlegadas =
+    (costados.izq.visible && costados.izq.todoPlegado ? ANCHO_TIRA : 0) +
+    (costados.der.visible && costados.der.todoPlegado ? ANCHO_TIRA : 0);
+  const libre = anchoDisponible - ANCHO_CENTRO_MIN - divisores - tirasPlegadas;
+
+  if (abiertaIzq && abiertaDer) {
+    if (wIzq + wDer <= libre) {
+      return { forzadas: { izq: false, der: false }, anchos: { izq: wIzq, der: wDer } };
+    }
+    if (2 * ANCHO_MIN <= libre) {
+      const excIzq = Math.max(0, wIzq - ANCHO_MIN);
+      const excDer = Math.max(0, wDer - ANCHO_MIN);
+      const totalExc = excIzq + excDer;
+      const extra = libre - 2 * ANCHO_MIN;
+      const nuevoIzq =
+        totalExc > 0 ? acotar(Math.round(ANCHO_MIN + (extra * excIzq) / totalExc), ANCHO_MIN, wIzq) : ANCHO_MIN;
+      const nuevoDer = acotar(Math.floor(libre - nuevoIzq), ANCHO_MIN, wDer);
+      return { forzadas: { izq: false, der: false }, anchos: { izq: nuevoIzq, der: nuevoDer } };
+    }
+    // Primero pasa la zona derecha a tira forzada; la izquierda intenta quedarse abierta.
+    const libreSinDer = libre - ANCHO_TIRA;
+    if (libreSinDer >= wIzq) {
+      return { forzadas: { izq: false, der: true }, anchos: { izq: wIzq, der: null } };
+    }
+    if (libreSinDer >= ANCHO_MIN) {
+      return { forzadas: { izq: false, der: true }, anchos: { izq: Math.floor(libreSinDer), der: null } };
+    }
+    return { forzadas: { izq: true, der: true }, anchos: { izq: null, der: null } };
+  }
+
+  if (abiertaIzq) {
+    if (wIzq <= libre) return { forzadas: { izq: false, der: false }, anchos: { izq: wIzq, der: null } };
+    if (ANCHO_MIN <= libre) return { forzadas: { izq: false, der: false }, anchos: { izq: Math.floor(libre), der: null } };
+    return { forzadas: { izq: true, der: false }, anchos: { izq: null, der: null } };
+  }
+
+  if (abiertaDer) {
+    if (wDer <= libre) return { forzadas: { izq: false, der: false }, anchos: { izq: null, der: wDer } };
+    if (ANCHO_MIN <= libre) return { forzadas: { izq: false, der: false }, anchos: { izq: null, der: Math.floor(libre) } };
+    return { forzadas: { izq: false, der: true }, anchos: { izq: null, der: null } };
+  }
+
+  return { forzadas: { izq: false, der: false }, anchos: { izq: null, der: null } };
+}
+
+/** Versión directa sobre un `Acople` y su lista de paneles vivos. */
+export function disposicionAcople(
+  a: Acople,
+  vivos: readonly PanelId[],
+  anchoDisponible: number,
+): DisposicionCostados {
+  const izq = panelesEnZona(a, "izq", vivos);
+  const der = panelesEnZona(a, "der", vivos);
+  return disposicionCostados(anchoDisponible, {
+    izq: { visible: izq.length > 0, todoPlegado: zonaTodoPlegado(a, "izq", vivos), tam: a.tam.izq },
+    der: { visible: der.length > 0, todoPlegado: zonaTodoPlegado(a, "der", vivos), tam: a.tam.der },
+  });
 }
 
 // Un divisor entre dos paneles queda inerte si alguno de los dos está plegado.

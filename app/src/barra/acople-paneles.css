@@ -30,7 +30,7 @@
 .acople-zona[data-zona="izq"],
 .acople-zona[data-zona="der"] {
   flex-direction: column;
-  min-width: 12.5rem;
+  min-width: 15rem;
 }
 .acople-zona[data-zona="abajo"] {
   flex-direction: row;
@@ -42,32 +42,66 @@
   min-height: 0;
   max-height: none;
 }
-/* Costado con todo plegado: tira angosta, un bloque por panel con su ícono y el botón de desplegar. */
-.acople-zona:is([data-zona="izq"], [data-zona="der"])[data-todo-plegado] {
+/* Costado con todo plegado o forzado a tira en ventana angosta: tira angosta con ícono y desplegar. */
+.acople-zona:is([data-zona="izq"], [data-zona="der"]):is([data-todo-plegado], [data-forzado-tira]) {
   width: 2.75rem;
   min-width: 0;
+  gap: var(--esp-1-5);
 }
-.acople-zona:is([data-zona="izq"], [data-zona="der"])[data-todo-plegado] .acople-panel-cab {
+.acople-zona:is([data-zona="izq"], [data-zona="der"]):is([data-todo-plegado], [data-forzado-tira]) .acople-panel-cab {
   flex-direction: column;
   justify-content: center;
   gap: var(--esp-1);
   height: auto;
   padding: var(--esp-2) 0;
 }
-.acople-zona:is([data-zona="izq"], [data-zona="der"])[data-todo-plegado] .acople-panel-ico {
+.acople-zona:is([data-zona="izq"], [data-zona="der"]):is([data-todo-plegado], [data-forzado-tira]) .acople-panel-ico {
   margin-left: 0;
 }
-.acople-zona:is([data-zona="izq"], [data-zona="der"])[data-todo-plegado]
+.acople-zona:is([data-zona="izq"], [data-zona="der"]):is([data-todo-plegado], [data-forzado-tira])
   :is(.acople-agarradera, .acople-panel-tit, .acople-esp, .acople-cab-btn:not(.acople-panel-plegar)) {
   display: none;
 }
+.acople-zona[data-forzado-tira] .acople-panel-cab {
+  cursor: pointer;
+}
+.acople-zona[data-forzado-tira] .acople-panel[data-cajon-abierto] {
+  border-color: var(--borde-4);
+  background: var(--acento-tinte);
+}
+.acople-zona[data-forzado-tira] .acople-panel[data-cajon-abierto] .acople-panel-ico {
+  color: var(--acento);
+}
+.acople-zona[data-forzado-tira] + .acople-divisor {
+  width: var(--esp-1);
+}
 
 .acople-medio {
+  position: relative;
   display: flex;
-  flex: 1 1 20rem;
+  flex: 1 1 26rem;
   flex-direction: column;
-  min-width: 20rem;
+  min-width: min(26rem, 100%);
   min-height: 0;
+}
+
+.acople-panel.acople-cajon {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 25;
+  max-width: 100%;
+  border-color: var(--borde-4);
+  box-shadow: 0 0.75rem 2rem var(--sombra-popover);
+}
+.acople-panel.acople-cajon[data-zona="izq"] {
+  left: 0;
+}
+.acople-panel.acople-cajon[data-zona="der"] {
+  right: 0;
+}
+.acople-cajon .acople-panel-cab {
+  cursor: default;
 }
 
 .acople-centro {

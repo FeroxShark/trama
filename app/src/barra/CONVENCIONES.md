@@ -136,7 +136,7 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 
 ## Paneles acoplables
 
-En la ventana de escritorio (ni angosta ni celular), el riel queda fijo a la izquierda y Chats, Contexto y Cupo son paneles de `Acople.tsx`. En ventana angosta y en el celular sigue la estructura de antes.
+En escritorio (`Acople.tsx`), el riel queda fijo a la izquierda y Chats, Contexto y Cupo son paneles acoplables; cuando la ventana es angosta (pero mayor que celular), la regla conserva el centro de al menos `26rem` pasando costados a tira. Sólo en celular (`<= 35rem`) sigue la estructura anterior.
 
 | Señal | Qué dice | Por qué existe | Estado |
 | --- | --- | --- | --- |
@@ -146,6 +146,7 @@ En la ventana de escritorio (ni angosta ni celular), el riel queda fijo a la izq
 | Lo que se recuerda | Zona, orden, tamaños, plegados y cerrados (`localStorage`, `hilos:acople`); la primera vez se toma el ancho y el estado de la barra anterior. `Restablecer paneles` vuelve a fábrica: Chats a la izquierda, Contexto y Cupo a la derecha, Cupo plegado. | | nueva |
 | Panel Cupo | Lo mismo que los anillos del riel, con detalle: uso de `5 h` y de la semana, ritmo semanal en palabras y el detalle por suscripción. Los anillos del riel siguen siempre a la vista; el panel no los reemplaza. | Los cupos se ven sin clic; el panel es para el detalle. | nueva |
 | `Ritmo de los workers`: `Ahorrar`, `Normal`, `Gastar` | El plan del día del reparto (`plan-dia.ts`, lo mismo que `pa --plan ahorrar-hoy` y `gastar-hoy`). `Normal` borra el plan de hoy sin tocar los días marcados como ausente. Sólo desde la computadora, no por la tailnet. | Cambiar el ritmo sin abrir una terminal. | nueva |
+| Ventana angosta (tira forzada y cajón) | Si no entra el centro mínimo (`26rem`) con los costados abiertos, primero se achican hasta su mínimo (`15rem`), luego pasa la derecha a una tira (`data-forzado-tira`) y después la izquierda. Un clic en la tira abre el panel como cajón superpuesto sobre `.acople-medio`; `Esc` o clic afuera lo cierran sin cambiar lo guardado en `hilos:acople`. | En ventanas chicas (~950 px) el chat queda usable y al agrandar la ventana todo vuelve como estaba. | nueva |
 
 ## Forma
 

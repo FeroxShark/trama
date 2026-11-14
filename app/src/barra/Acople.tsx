@@ -4,11 +4,13 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 import { ChevronDown, Ellipsis, GripVertical, PanelBottom, PanelLeft, PanelRight, X } from "lucide-react";
 import { useIdioma } from "../i18n/react";
 import { t } from "../i18n";
+import { MODO } from "../modo";
 import {
   ZONAS,
   barraInsercion,
   cajasSoltar,
   destino,
+  disposicionAcople,
   divisorPanelInerte,
   panelesEnZona,
   renglonesMenuPanel,
@@ -50,6 +52,11 @@ type EstadoMenu = {
   boton: HTMLButtonElement;
   x: number;
   y: number;
+};
+
+type EstadoCajon = {
+  id: PanelId;
+  zona: "izq" | "der";
 };
 
 const ANCHO_MIN_PANEL_AB = 240;
@@ -95,12 +102,35 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
   const [divisorActivo, setDivisorActivo] = useState<string | null>(null);
   const [menu, setMenu] = useState<EstadoMenu | null>(null);
   const [anuncio, setAnuncio] = useState("");
+  const [anchoDisponible, setAnchoDisponible] = useState<number | null>(null);
+  const [cajon, setCajon] = useState<EstadoCajon | null>(() =>
+    MODO.captura === "acople-angosto-cajon" ? { id: "contexto", zona: "der" } : null,
+  );
   const menuRef = useRef<HTMLDivElement>(null);
+  const cajonRef = useRef<HTMLElement>(null);
+  const tiraBtnRefs = useRef<Partial<Record<PanelId, HTMLButtonElement | null>>>({});
+  const devolverFocoTiraRef = useRef<PanelId | null>(null);
 
   const anunciar = (texto: string) => {
     setAnuncio("");
     queueMicrotask(() => setAnuncio(texto));
   };
+
+  useLayoutEffect(() => {
+    const el = raizRef.current;
+    if (!el) return;
+    const medir = () => {
+      const cs = getComputedStyle(el);
+      const padH = (Number.parseFloat(cs.paddingLeft) || 0) + (Number.parseFloat(cs.paddingRight) || 0);
+      const ancho = Math.max(0, Math.round((el.clientWidth - padH) * escalaInv()));
+      setAnchoDisponible((prev) => (prev === ancho ? prev : ancho));
+    };
+    medir();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const vivosVisibles = useMemo(() => vivos.filter((id) => Boolean(paneles[id])), [vivos, paneles]);
 
@@ -124,6 +154,63 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
     [acople, vivosVisibles],
   );
   const abajoTodoPlegado = todoPlegado.abajo;
+
+  const disposicion = useMemo(
+    () => (anchoDisponible === null ? null : disposicionAcople(acople, vivosVisibles, anchoDisponible)),
+    [acople, vivosVisibles, anchoDisponible],
+  );
+
+  const forzadoTira = disposicion?.forzadas ?? { izq: false, der: false };
+  const enTira = {
+    izq: todoPlegado.izq || forzadoTira.izq,
+    der: todoPlegado.der || forzadoTira.der,
+    abajo: todoPlegado.abajo,
+  };
+
+  useEffect(() => {
+    // Sin medir todavía no se sabe si la zona va como tira: el cajón no se cierra por eso.
+    if (!cajon || !disposicion) return;
+    const sigueForzado = forzadoTira[cajon.zona] && zonasVisibles[cajon.zona].includes(cajon.id);
+    if (!sigueForzado) setCajon(null);
+  }, [cajon, disposicion, forzadoTira.izq, forzadoTira.der, zonasVisibles]);
+
+  useEffect(() => {
+    if (cajon) {
+      cajonRef.current?.focus();
+      return;
+    }
+    const devolver = devolverFocoTiraRef.current;
+    if (devolver) {
+      devolverFocoTiraRef.current = null;
+      tiraBtnRefs.current[devolver]?.focus();
+    }
+  }, [cajon]);
+
+  useEffect(() => {
+    if (!cajon) return;
+    const alAfuera = (ev: PointerEvent) => {
+      if (menu || arrastre) return;
+      const tEl = ev.target as Node | null;
+      if (cajonRef.current?.contains(tEl)) return;
+      if (menuRef.current?.contains(tEl)) return;
+      const btnTira = tiraBtnRefs.current[cajon.id];
+      const panelTira = panelRefs.current[cajon.id];
+      if (btnTira?.contains(tEl) || panelTira?.contains(tEl)) return;
+      setCajon(null);
+    };
+    const alTeclado = (ev: globalThis.KeyboardEvent) => {
+      if (ev.key !== "Escape" || menu || arrastre) return;
+      ev.preventDefault();
+      devolverFocoTiraRef.current = cajon.id;
+      setCajon(null);
+    };
+    document.addEventListener("pointerdown", alAfuera, true);
+    document.addEventListener("keydown", alTeclado, true);
+    return () => {
+      document.removeEventListener("pointerdown", alAfuera, true);
+      document.removeEventListener("keydown", alTeclado, true);
+    };
+  }, [cajon, menu, arrastre]);
 
   useEffect(() => {
     return () => {
@@ -295,7 +382,7 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
 
   const iniciarDivisorZona = (e: ReactPointerEvent<HTMLDivElement>, zona: Zona) => {
     if (e.button !== 0) return;
-    if (todoPlegado[zona]) return;
+    if (enTira[zona]) return;
     const div = e.currentTarget;
     const zonaEl = zonaRefs.current[zona];
     const raiz = raizRef.current;
@@ -345,7 +432,7 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
   };
 
   const teclaDivisorZona = (e: ReactKeyboardEvent<HTMLDivElement>, zona: Zona) => {
-    if (todoPlegado[zona]) return;
+    if (enTira[zona]) return;
     let p = 0;
     if (e.key === "ArrowLeft" || e.key === "ArrowUp") p = -PASO_TECLA_PX;
     else if (e.key === "ArrowRight" || e.key === "ArrowDown") p = PASO_TECLA_PX;
@@ -441,13 +528,25 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
     if (largo > 0) repartir(zona, panelA, p, largo);
   };
 
+  const alternarCajon = (id: PanelId, zona: "izq" | "der") => {
+    setCajon((prev) => {
+      if (prev?.id === id) {
+        devolverFocoTiraRef.current = id;
+        return null;
+      }
+      return { id, zona };
+    });
+  };
+
   const renderPanel = (id: PanelId, zona: Zona) => {
     const def = paneles[id];
     if (!def) return null;
-    const plegado = acople.plegados.includes(id);
+    const enTiraForzada = (zona === "izq" || zona === "der") && forzadoTira[zona];
+    const abiertoEnCajon = enTiraForzada && cajon?.id === id;
+    const plegado = enTiraForzada ? !abiertoEnCajon : acople.plegados.includes(id);
     const horizontal = zona === "abajo";
     const peso = acople.partes[id] ?? 1;
-    const estiloPanel = plegado
+    const estiloPanel = enTiraForzada || plegado
       ? horizontal
         ? { flex: "0 0 16.25rem", alignSelf: "flex-start" as const }
         : { flex: "0 0 auto", alignSelf: "stretch" as const }
@@ -468,16 +567,24 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
         className="acople-panel"
         data-panel={id}
         data-zona={zona}
-        data-plegado={plegado ? "" : undefined}
+        data-plegado={enTiraForzada ? "" : plegado ? "" : undefined}
+        data-cajon-abierto={abiertoEnCajon ? "" : undefined}
         data-origen={arrastre?.id === id ? "" : undefined}
         aria-label={def.titulo}
         style={estiloPanel}
       >
         <header
           className="acople-panel-cab"
-          onPointerDown={(e) => iniciarArrastrePanel(e, id)}
+          onPointerDown={(e) => {
+            if (!enTiraForzada) iniciarArrastrePanel(e, id);
+          }}
+          onClick={(e) => {
+            if (!enTiraForzada || (zona !== "izq" && zona !== "der")) return;
+            if ((e.target as HTMLElement).closest("button")) return;
+            alternarCajon(id, zona);
+          }}
           onDoubleClick={(e) => {
-            if (!(e.target as HTMLElement).closest("button")) plegar(id);
+            if (!enTiraForzada && !(e.target as HTMLElement).closest("button")) plegar(id);
           }}
         >
           <span className="acople-agarradera" aria-hidden>
@@ -489,12 +596,18 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
           <h2 className="acople-panel-tit">{def.titulo}</h2>
           <span className="acople-esp" />
           <button
+            ref={(el) => {
+              tiraBtnRefs.current[id] = el;
+            }}
             type="button"
             className="acople-cab-btn acople-panel-plegar"
-            aria-expanded={!plegado}
+            aria-expanded={enTiraForzada ? abiertoEnCajon : !plegado}
             aria-label={plegado ? t("acople.desplegar", { panel: def.titulo }) : t("acople.plegar", { panel: def.titulo })}
             title={plegado ? t("acople.desplegar", { panel: def.titulo }) : t("acople.plegar", { panel: def.titulo })}
-            onClick={() => plegar(id)}
+            onClick={() => {
+              if (enTiraForzada && (zona === "izq" || zona === "der")) alternarCajon(id, zona);
+              else plegar(id);
+            }}
           >
             <ChevronDown size={15} strokeWidth={1.8} aria-hidden />
           </button>
@@ -530,7 +643,71 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
             <X size={15} strokeWidth={1.8} aria-hidden />
           </button>
         </header>
-        <div className="acople-panel-cuerpo" hidden={plegado}>
+        {enTiraForzada ? null : (
+          <div className="acople-panel-cuerpo" hidden={plegado}>
+            {def.contenido}
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  const renderCajon = () => {
+    if (!cajon || !forzadoTira[cajon.zona]) return null;
+    const def = paneles[cajon.id];
+    if (!def) return null;
+    const ancho = Math.max(240, acople.tam[cajon.zona] || 320);
+    const menuAbiertoAqui = menu?.id === cajon.id;
+    return (
+      <section
+        ref={cajonRef}
+        tabIndex={-1}
+        className="acople-panel acople-cajon"
+        data-panel={cajon.id}
+        data-zona={cajon.zona}
+        aria-label={def.titulo}
+        style={{ width: `${ancho * 0.0625}rem` }}
+      >
+        <header className="acople-panel-cab">
+          <span className="acople-panel-ico" aria-hidden>
+            {def.icono}
+          </span>
+          <h2 className="acople-panel-tit">{def.titulo}</h2>
+          <span className="acople-esp" />
+          <button
+            type="button"
+            className="acople-cab-btn"
+            aria-haspopup="menu"
+            aria-expanded={menuAbiertoAqui}
+            aria-label={t("acople.masAcciones", { panel: def.titulo })}
+            title={t("acople.masAccionesTitulo")}
+            onClick={(e) => {
+              const btn = e.currentTarget;
+              if (menuAbiertoAqui) {
+                setMenu(null);
+              } else {
+                const r = btn.getBoundingClientRect();
+                setMenu({ id: cajon.id, boton: btn, x: r.right, y: r.bottom });
+              }
+            }}
+          >
+            <Ellipsis size={15} strokeWidth={1.8} aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="acople-cab-btn acople-panel-plegar"
+            aria-label={t("acople.plegar", { panel: def.titulo })}
+            title={t("acople.plegar", { panel: def.titulo })}
+            onClick={() => {
+              if (menuAbiertoAqui) setMenu(null);
+              devolverFocoTiraRef.current = cajon.id;
+              setCajon(null);
+            }}
+          >
+            <X size={15} strokeWidth={1.8} aria-hidden />
+          </button>
+        </header>
+        <div className="acople-panel-cuerpo">
           {def.contenido}
         </div>
       </section>
@@ -540,8 +717,9 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
   const renderListaZona = (zona: Zona) => {
     const ids = zonasVisibles[zona];
     const horizontal = zona === "abajo";
+    const sinDivisor = (zona === "izq" || zona === "der") && forzadoTira[zona];
     return ids.map((id, i) => {
-      if (i === 0) return renderPanel(id, zona);
+      if (i === 0 || sinDivisor) return renderPanel(id, zona);
       const prevId = ids[i - 1];
       const inerte = divisorPanelInerte(acople, prevId, id);
       const titA = paneles[prevId]?.titulo ?? prevId;
@@ -588,8 +766,13 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
             className="acople-zona"
             data-zona="izq"
             data-todo-plegado={todoPlegado.izq ? "" : undefined}
+            data-forzado-tira={forzadoTira.izq ? "" : undefined}
             aria-label={t("acople.zonaIzq")}
-            style={todoPlegado.izq ? undefined : { width: `${acople.tam.izq * 0.0625}rem` }}
+            style={
+              enTira.izq
+                ? undefined
+                : { width: `${(disposicion?.anchos.izq ?? acople.tam.izq) * 0.0625}rem` }
+            }
           >
             {renderListaZona("izq")}
           </section>
@@ -598,14 +781,14 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
             role="separator"
             aria-orientation="vertical"
             aria-label={t("acople.divisorIzq")}
-            aria-disabled={todoPlegado.izq || undefined}
-            data-inerte={todoPlegado.izq ? "" : undefined}
+            aria-disabled={enTira.izq || undefined}
+            data-inerte={enTira.izq ? "" : undefined}
             data-activo={divisorActivo === "zona:izq" ? "" : undefined}
-            tabIndex={todoPlegado.izq ? -1 : 0}
+            tabIndex={enTira.izq ? -1 : 0}
             onPointerDown={(e) => iniciarDivisorZona(e, "izq")}
             onKeyDown={(e) => teclaDivisorZona(e, "izq")}
             onDoubleClick={() => {
-              if (!todoPlegado.izq) restablecerZona("izq");
+              if (!enTira.izq) restablecerZona("izq");
             }}
           />
         </>
@@ -644,6 +827,7 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
             </section>
           </>
         ) : null}
+        {renderCajon()}
       </div>
 
       {zonasVisibles.der.length > 0 ? (
@@ -653,14 +837,14 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
             role="separator"
             aria-orientation="vertical"
             aria-label={t("acople.divisorDer")}
-            aria-disabled={todoPlegado.der || undefined}
-            data-inerte={todoPlegado.der ? "" : undefined}
+            aria-disabled={enTira.der || undefined}
+            data-inerte={enTira.der ? "" : undefined}
             data-activo={divisorActivo === "zona:der" ? "" : undefined}
-            tabIndex={todoPlegado.der ? -1 : 0}
+            tabIndex={enTira.der ? -1 : 0}
             onPointerDown={(e) => iniciarDivisorZona(e, "der")}
             onKeyDown={(e) => teclaDivisorZona(e, "der")}
             onDoubleClick={() => {
-              if (!todoPlegado.der) restablecerZona("der");
+              if (!enTira.der) restablecerZona("der");
             }}
           />
           <section
@@ -670,8 +854,13 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
             className="acople-zona"
             data-zona="der"
             data-todo-plegado={todoPlegado.der ? "" : undefined}
+            data-forzado-tira={forzadoTira.der ? "" : undefined}
             aria-label={t("acople.zonaDer")}
-            style={todoPlegado.der ? undefined : { width: `${acople.tam.der * 0.0625}rem` }}
+            style={
+              enTira.der
+                ? undefined
+                : { width: `${(disposicion?.anchos.der ?? acople.tam.der) * 0.0625}rem` }
+            }
           >
             {renderListaZona("der")}
           </section>
