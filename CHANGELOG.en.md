@@ -1,5 +1,15 @@
 # Changes
 
+## 0.2.79
+
+- New skin: flat background, IBM Plex type and ten dark themes (Grafito by default, Tinta, Carbón, Shell, Catppuccin Mocha, Tokyo Night, Gruvbox, Nord, Rosé Pine and Dracula), plus Light and High contrast. Settings > General lets you pick the accent color (eight swatches or your own) and build a "Mío" theme from four colors, with a warning when contrast is low.
+- Chats, Context and Quota are panels you can drag to the left, the right or the bottom, fold, close, and they remember where you left them. The rail stays fixed on the left. Narrow windows and the phone keep the previous layout.
+- The 5 h and weekly quotas are two rings always visible on the rail, with a badge (check, alert or cross), a mark for the expected pace and the detail on hover. The Quota panel adds the weekly pace in words, the detail per subscription and "Worker pace" (Save, Normal, Spend), which changes the plan for the day without opening a terminal.
+- In the chat, things to test are violet with a flask and things to decide are amber; the workers notice shows each row with its icon and word (done, failed, waiting, running).
+- A folder or an `.html` file named in a reply shows up below it as a card with a button to open the folder.
+- The model chip on each row carries a mark per family: diamond for Opus, circle for Sonnet and triangle for Haiku.
+- The Context panel adapts to its width: tabs are no longer cut off and at the bottom it lays out in two columns.
+
 ## 0.2.78
 
 - The «Context before compacting» setting now also applies to leaders: an Opus leader set to 300,000 compacts at that size on start and on resume, and the context panel shows that cap as its limit instead of 1,000,000.

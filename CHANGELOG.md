@@ -1,5 +1,15 @@
 # Cambios
 
+## 0.2.79
+
+- Piel nueva: fondo liso, tipografía IBM Plex y diez temas oscuros (Grafito de fábrica, Tinta, Carbón, Shell, Catppuccin Mocha, Tokyo Night, Gruvbox, Nord, Rosé Pine y Dracula), además de Claro y Alto contraste. En Ajustes > General se elige el color de acento (ocho muestras o uno propio) y se arma un tema «Mío» con cuatro colores, con aviso si el contraste queda bajo.
+- Chats, Contexto y Cupo son paneles que se arrastran a la izquierda, a la derecha o abajo, se pliegan, se cierran y recuerdan dónde quedaron. El riel queda fijo a la izquierda. En ventana angosta y en el celular todo sigue como antes.
+- Los cupos de 5 h y de la semana son dos anillos siempre a la vista en el riel, con insignia (tilde, alerta o cruz), marca del ritmo esperado y el detalle al apoyar el cursor. El panel Cupo suma el ritmo semanal en palabras, el detalle por suscripción y «Ritmo de los workers» (Ahorrar, Normal, Gastar), que cambia el plan del día sin abrir una terminal.
+- En el chat, lo que hay que probar va en violeta con un matraz y lo que hay que decidir en ámbar; el aviso de workers muestra cada fila con su ícono y su palabra (terminó, falló, espera, corre).
+- Una carpeta o un archivo `.html` nombrado en una respuesta aparece debajo como tarjeta con un botón para abrir la carpeta.
+- El chip de modelo de cada fila lleva una marca por familia: rombo para Opus, círculo para Sonnet y triángulo para Haiku.
+- El panel de Contexto se acomoda al ancho que tenga: las pestañas ya no se cortan y abajo se arma en dos columnas.
+
 ## 0.2.78
 
 - El ajuste «Contexto antes de compactar» ahora también vale para los líderes: un líder de Opus con 300 000 compacta a ese tamaño al arrancar y al reanudar, y el panel de contexto muestra ese tope como límite en vez de 1 000 000.
