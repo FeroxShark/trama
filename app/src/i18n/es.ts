@@ -2582,7 +2582,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "tiempo.vuelveEn": "vuelve en {t}",
   "ajustes.compactacion": "Compactación",
   "ajustes.compactar": "Compactar el contexto a los",
-  "ajustes.compactarQue": "Cuando una conversación llega a este tamaño, Claude la resume solo para seguir. Se guarda en settings.json de Claude Code y vale para todas las sesiones.",
+  "ajustes.compactarQue": "Al llegar a este tamaño, Claude resume la conversación solo para seguir. Se guarda en settings.json de Claude Code y vale para toda sesión.",
   "ajustes.sinGuardar": "Cambios sin guardar",
   "ajustes.sinCambios": "Sin cambios",
   "ajustes.barra": "Guardar los cambios de Ajustes",

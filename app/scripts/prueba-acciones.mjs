@@ -362,6 +362,8 @@ try {
   ok(/\bago\b|\byesterday\b/.test(relojesEn) && !/\bhace\b/.test(relojesEn), `el reloj de las filas habla en inglés (ago): ${relojesEn}`);
   ok(await clic(".pie button", "Settings"), "el pie abre Settings");
   // Ajustes tiene categorías a la izquierda: idioma, letra, fuentes y mensajes viven en General.
+  // Ajustes se carga aparte (lazy): su navegación puede tardar un instante en estar.
+  await hasta(() => !!document.querySelector('.aj-it[data-cat="general"]'), "categorías de Ajustes");
   ok(await clic('.aj-it[data-cat="general"]'), "Ajustes > General");
   ok(await hasta(() => !!document.querySelector('[data-opc="ajustes.idioma"] .pick > .pbtn'), "selector de idioma"), "Settings tiene el selector de idioma");
   // B21: cambiar de idioma no mueve nada. Con los datos ya llegados (la nota), la geometría de Ajustes, del uso y del pie.
@@ -371,7 +373,9 @@ try {
       // Sólo lo que se ve: lo de una categoría oculta mide 0×0, no se mueve, y si sus datos llegan entre las dos fotos correría la comparación.
       .flatMap((s) => [...document.querySelectorAll(s)].flatMap((e) => {
         const r = e.getBoundingClientRect();
-        return r.width || r.height ? [`${s} ${r.x.toFixed(1)},${r.y.toFixed(1)} ${r.width.toFixed(1)}×${r.height.toFixed(1)}`] : [];
+        // La fila de Ajustes a la que pertenece (`data-opc`), para que una falla diga cuál se movió.
+        const opc = e.closest("[data-opc]")?.getAttribute("data-opc") ?? "";
+        return r.width || r.height ? [`${s}${opc ? ` [${opc}]` : ""} ${r.x.toFixed(1)},${r.y.toFixed(1)} ${r.width.toFixed(1)}×${r.height.toFixed(1)}`] : [];
       }))
       .join("\n");
   await espera(300); // que termine la entrada del panel (transform)
@@ -381,7 +385,7 @@ try {
   await espera(100);
   const geoEs = await en(geometria);
   const distintas = geoEn.split("\n").flatMap((l, i) => (l === geoEs.split("\n")[i] ? [] : [`${l} → ${geoEs.split("\n")[i]}`]));
-  ok(geoEn.split("\n").length > 30 && geoEs.split("\n").length === geoEn.split("\n").length && distintas.length === 0, `ES ↔ EN no mueve nada (${geoEn.split("\n").length} cajas): ${distintas.slice(0, 3).join(" | ")}`);
+  ok(geoEn.split("\n").length > 30 && geoEs.split("\n").length === geoEn.split("\n").length && distintas.length === 0, `ES ↔ EN no mueve nada (${geoEn.split("\n").length} cajas): ${distintas.slice(0, 6).join(" | ")}`);
   ok((await en(fila55)) === "decidir", "la barra cambia al toque (chip decidir)");
   // Repinta en español: «hace N m» / «ayer» (no «ahora», que es el achique del Riel, ver CONVENCIONES.md).
   const relojesEs = await hasta(() => {
@@ -456,14 +460,14 @@ try {
   ok(await hasta(() => document.querySelectorAll(".vuelo .v-nota").length >= 2, "detalle de cupos"), "el detalle trae las dos ventanas");
   let cab = await en(cabecera);
   ok(cab.logo && cab.usos === 2 && cab.botones === 1, `el riel trae la marca y los dos anillos de uso en un botón: ${JSON.stringify(cab)}`);
-  // La regla: ámbar desde 80 %, rojo sólo sin cupo. 74 % no lleva color; 93 % va en ámbar.
-  ok(cab.niveles === ",ambar", `74 % sin color y 93 % en ámbar: ${cab.niveles}`);
+  // La regla: verde con tilde si va bien, ámbar desde 80 %, rojo sólo sin cupo. 74 % va bien; 93 % va en ámbar.
+  ok(cab.niveles === "ok,ambar", `74 % va bien y 93 % en ámbar: ${cab.niveles}`);
   ok(!cab.desborda.length && /23 h (49|50) min/.test(cab.texto), `a 18 px el uso entra entero: ${JSON.stringify(cab)}`);
   await teclaTirador("Home");
   await espera(100);
   cab = await en(cabecera);
   ok(!cab.desborda.length && cab.usos === 2, `con la barra en su mínimo no desborda: ${JSON.stringify(cab)}`);
-  // Sin cupo (100 %): rojo, con la palabra «sin cupo». Un statusline más nuevo gana (el ts más alto); el de 5 h sigue sin color.
+  // Sin cupo (100 %): rojo, con la palabra «sin cupo». Un statusline más nuevo gana (el ts más alto); el de 5 h sigue bien.
   {
     const ahora = Math.floor(Date.now() / 1000);
     const limite = (pct, reinicia) => ({ used_percentage: pct, resets_at: ahora + reinicia });
@@ -473,7 +477,7 @@ try {
     );
     ok(await hasta(() => document.querySelectorAll('.cupos-riel .an[data-nivel="rojo"]').length === 1, "semana sin cupo"), "100 % sin cupo va en rojo");
     cab = await en(cabecera);
-    ok(cab.niveles === ",rojo" && /sin cupo, vuelve en 23 h (49|50) min/.test(cab.texto), `sin cupo: rojo y con la palabra: ${cab.niveles} · ${cab.texto}`);
+    ok(cab.niveles === "ok,rojo" && /sin cupo, vuelve en 23 h (49|50) min/.test(cab.texto), `sin cupo: rojo y con la palabra: ${cab.niveles} · ${cab.texto}`);
     ok(!cab.desborda.length, `sin cupo tampoco desborda con la barra en su mínimo: ${JSON.stringify(cab.desborda)}`);
   }
   await teclaTirador("ArrowRight", 5);
@@ -490,7 +494,7 @@ try {
     botones: ["ajustes.fuente", "ajustes.mono"].map((o) => document.querySelector(`[data-opc="${o}"] .pick > .pbtn`).innerText.trim()),
   });
   const f0 = await en(familias);
-  ok(/^"?Inter"?,/.test(f0.sans) && /^"?JetBrains Mono"?,/.test(f0.mono), `default: Inter y JetBrains Mono: ${JSON.stringify(f0)}`);
+  ok(/^"?IBM Plex Sans"?,/.test(f0.sans) && /^"?IBM Plex Mono"?,/.test(f0.mono), `default: IBM Plex Sans e IBM Plex Mono: ${JSON.stringify(f0)}`);
   await en(() => document.querySelector('[data-opc="ajustes.fuente"] .pick > .pbtn')?.click());
   await hasta(() => !!document.querySelector('[role="option"]'), "menú de fuentes");
   const ops = await en(() => [...document.querySelectorAll('[role="option"] .on1 span[style]')].map((o) => [o.textContent, o.style.fontFamily.split(",")[0].replaceAll('"', "")]));

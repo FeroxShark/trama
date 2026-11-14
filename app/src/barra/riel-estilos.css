@@ -54,7 +54,8 @@
 /* --- Riel ---------------------------------------------------------------- */
 .riel {
   display: flex;
-  width: 2.75rem;
+  /* Los anillos de cupo miden 3rem: el riel les deja aire a los costados. */
+  width: 3.75rem;
   flex: none;
   flex-direction: column;
   align-items: center;
@@ -1654,9 +1655,6 @@
   .riel .pie button {
     width: 2.5rem;
     height: 2.5rem;
-  }
-  .riel {
-    width: 3.25rem;
   }
   .lista .fila.lider,
   .lista .fila.wbtn,
