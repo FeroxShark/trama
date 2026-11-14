@@ -1,5 +1,13 @@
 # Changes
 
+## 0.2.85
+
+- The image viewer opens with the whole image, even a very tall one. A click toggles between «Fit» and actual size, the bar has Fit, 100%, − and +, you can drag whenever the image does not fit, and right-click offers Copy image, Copy path, Show in folder and Open with the system app.
+- Images named in a message show up large inside the chat; tapping one opens the viewer.
+- Links and tappable paths are blue and always underlined, and a code block without a language gets colors if it is bash, JSON or a diff.
+- A chat that continues with a summary (or comes from a branch) stays in the same sidebar folder as the original, not in home.
+- On Windows, the model picker finds Codex installed with npm, as Accounts already did; the ChatGPT card explains the quota shows up after Codex's first task.
+
 ## 0.2.84
 
 - In Settings > Models, «Context before compacting» splits workers and leaders: turning off «Leaders: same as workers» gives leaders their own limit per family (Haiku, Sonnet, Opus).

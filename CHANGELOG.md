@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.2.85
+
+- El visor de imágenes abre con la imagen entera, aunque sea muy alta. Un clic alterna entre «Ajustar» y el tamaño real, la barra tiene Ajustar, 100 %, − y +, se arrastra siempre que la imagen no entre y el clic derecho ofrece Copiar imagen, Copiar ruta, Mostrar en la carpeta y Abrir con la app del sistema.
+- Las imágenes que nombra un mensaje se ven grandes dentro del chat; tocarlas abre el visor.
+- Los enlaces y las rutas que se pueden tocar van en azul y siempre subrayados, y un bloque de código sin lenguaje sale con color si es bash, JSON o un diff.
+- El chat que sigue con resumen (o que sale de una rama) queda en la misma carpeta de la barra que el original, no en el home.
+- En Windows, el reparto encuentra Codex instalado con npm como ya lo hacía Cuentas; la tarjeta de ChatGPT aclara que el cupo aparece después de la primera tarea de Codex.
+
 ## 0.2.84
 
 - En Ajustes > Modelos, «Contexto antes de compactar» separa workers y líderes: apagando «Líderes: igual que los workers», los líderes tienen su propio tope por familia (Haiku, Sonnet, Opus).
