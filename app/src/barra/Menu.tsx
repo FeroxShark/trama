@@ -40,6 +40,12 @@ type Props = {
   ancla?: HTMLElement | null;
   /** Con muchos ítems, un campo para filtrarlos escribiendo (los `fijo` quedan). */
   buscable?: boolean;
+  /** Clase extra sobre `.cmenu` (por ejemplo, para subir el z-index sobre un visor). */
+  className?: string;
+  /** Tema forzado (`data-tema`) cuando el menú se abre sobre un overlay con tema propio. */
+  tema?: string;
+  /** Etiqueta accesible propia cuando no es el menú de la barra. */
+  ariaLabel?: string;
 };
 
 const MARGEN = 8;
@@ -55,7 +61,8 @@ function useAncla(ancla: HTMLElement | null | undefined, propio: RefObject<HTMLE
   const fn = useRef(alMoverse);
   fn.current = alMoverse;
   useEffect(() => {
-    const y0 = ancla?.getBoundingClientRect().top ?? 0;
+    if (!ancla) return;
+    const y0 = ancla.getBoundingClientRect().top;
     const scroll = (e: Event) => {
       if (propio.current?.contains(e.target as Node)) return;
       if (!ancla?.isConnected || Math.abs(ancla.getBoundingClientRect().top - y0) > 1) fn.current();
@@ -65,7 +72,7 @@ function useAncla(ancla: HTMLElement | null | undefined, propio: RefObject<HTMLE
   }, [ancla, propio]);
 }
 
-export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable }: Props) {
+export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable, className, tema, ariaLabel }: Props) {
   const caja = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: x, top: y });
   const [armado, setArmado] = useState<string | null>(null);
@@ -171,8 +178,9 @@ export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable }
     <motion.div
       ref={caja}
       role="menu"
-      aria-label={tr("menu.aria")}
-      className="cmenu"
+      aria-label={ariaLabel ?? tr("menu.aria")}
+      className={className ? `cmenu ${className}` : "cmenu"}
+      data-tema={tema}
       style={{ left: pos.left, top: pos.top } as CSSProperties}
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}

@@ -1,7 +1,7 @@
 // Copiar un texto al portapapeles. `navigator.clipboard` sólo existe en un contexto seguro: en la
 // ventana anda, pero por la tailnet la página llega por http pelado (docs/remoto.md) y no está.
 // Ahí queda el camino viejo: un campo fuera de la vista, seleccionado, y `execCommand("copy")`.
-import { t } from "./i18n";
+import { t, type ClaveSola } from "./i18n";
 
 /** `true` si se copió. */
 export async function copiar(texto: string): Promise<boolean> {
@@ -41,7 +41,7 @@ let aviso: HTMLElement | null = null;
 let reloj = 0;
 
 /** Dice, un momento, que se copió o que no se pudo. */
-export function avisarCopia(ok: boolean): void {
+export function avisarCopia(ok: boolean, claveOk: ClaveSola = "codigo.copiado"): void {
   if (typeof document === "undefined") return;
   if (!aviso || !aviso.isConnected) {
     aviso = document.createElement("div");
@@ -49,7 +49,7 @@ export function avisarCopia(ok: boolean): void {
     aviso.setAttribute("role", "status");
     document.body.appendChild(aviso);
   }
-  aviso.textContent = t(ok ? "codigo.copiado" : "codigo.noCopio");
+  aviso.textContent = t(ok ? claveOk : "codigo.noCopio");
   aviso.dataset.ok = ok ? "" : "no";
   // Reflow para que un aviso nuevo, pegado a otro, vuelva a entrar.
   aviso.removeAttribute("data-visto");
@@ -63,5 +63,51 @@ export function avisarCopia(ok: boolean): void {
 export async function copiarConAviso(texto: string): Promise<boolean> {
   const ok = await copiar(texto);
   avisarCopia(ok);
+  return ok;
+}
+
+/** Decodifica una imagen en base64 a un Blob PNG (si ya es PNG, usa sus bytes; si no, la dibuja en un canvas). */
+export async function imagenAPngBlob(v: { mime: string; datos: string }, el?: HTMLImageElement | null): Promise<Blob> {
+  const mime = v.mime.split(";")[0].trim().toLowerCase();
+  if (mime === "image/png") {
+    const bin = atob(v.datos);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: "image/png" });
+  }
+  const img =
+    el && el.complete && el.naturalWidth > 0
+      ? el
+      : await new Promise<HTMLImageElement>((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve(i);
+          i.onerror = () => reject(new Error("no se pudo cargar la imagen"));
+          i.src = `data:${v.mime};base64,${v.datos}`;
+        });
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("sin contexto 2d");
+  ctx.drawImage(img, 0, 0);
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("sin png"))), "image/png");
+  });
+}
+
+/** Copia una imagen al portapapeles como `image/png` y muestra el aviso «Copiada». */
+export async function copiarImagen(v: { mime: string; datos: string }, el?: HTMLImageElement | null): Promise<boolean> {
+  let ok = false;
+  try {
+    const seguro = typeof window === "undefined" || window.isSecureContext !== false;
+    if (typeof navigator !== "undefined" && navigator.clipboard?.write && typeof ClipboardItem !== "undefined" && seguro) {
+      const blob = await imagenAPngBlob(v, el);
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      ok = true;
+    }
+  } catch {
+    ok = false;
+  }
+  avisarCopia(ok, "visor.copiada");
   return ok;
 }
