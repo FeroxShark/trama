@@ -149,6 +149,10 @@ const CAPTURAS = [
   "chat-archivos",
   // Visor propio de imagen abierto con barra de datos, acciones, zoom y arrastre.
   "visor-imagen",
+  // El visor con una imagen muy vertical (800 × 3000): entra entera al abrir.
+  "visor-imagen-alta",
+  // El visor con el menú del clic derecho abierto.
+  "visor-imagen-menu",
   // Un líder de Gemini a mitad de un turno: su último paso de razonamiento en la tarjeta y cada comando con su estado.
   "lider-gemini",
   // Te espera: un líder de terminal que terminó y el de la app (abierto) que pide un permiso; fila y cabecera con la marca en ámbar.

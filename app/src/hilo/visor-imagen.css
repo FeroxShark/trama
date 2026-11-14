@@ -160,33 +160,21 @@
   touch-action: none;
 }
 
+/* Tamaño y lugar los pone VerArchivo.tsx (ancho y alto = medida × escala, centrada y corrida por el arrastre): nunca se recorta al abrir. */
 .visor-img-foto {
-  grid-area: 1 / 1;
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
-  object-fit: contain;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  max-width: none;
+  max-height: none;
   border-radius: var(--r-xs);
   box-shadow: 0 1rem 3rem var(--sombra);
   transform-origin: center center;
   will-change: transform;
 }
 
-.visor-img-foto[data-zoom="entera"] {
-  cursor: zoom-in;
-}
-
-.visor-img-foto[data-zoom="acercada"] {
-  cursor: grab;
-}
-
-.visor-img-foto[data-arrastrando] {
-  cursor: grabbing;
-}
-
 .visor-img-foto[data-animar] {
-  transition: transform var(--t-snappy) ease-out;
+  transition: transform var(--t-snappy) ease-out, width var(--t-snappy) ease-out, height var(--t-snappy) ease-out;
 }
 
 .visor-img-foto:not([data-lista]) {
@@ -208,4 +196,33 @@
   .visor-img-foto[data-animar] {
     transition: none;
   }
+}
+
+/* Zoom en la barra: Ajustar, 100 %, − porcentaje +. */
+.visor-img-zoombar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.visor-img-btn[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--acento) 45%, transparent);
+  background: var(--acento-tinte);
+  color: var(--texto);
+}
+.visor-img-btn-ico {
+  padding: var(--esp-1);
+  min-width: 2rem;
+  justify-content: center;
+}
+.visor-img-pct {
+  min-width: 3.5rem;
+  text-align: center;
+  color: var(--texto-2);
+  font-size: var(--letra-3);
+  font-variant-numeric: tabular-nums;
+}
+/* El menú del clic derecho va encima del visor. */
+.cmenu.visor-img-menu {
+  z-index: 101;
 }

@@ -1677,7 +1677,7 @@ const fija: Fuente = {
       const textoRutas = "Dejé los bocetos en \`~/Proyectos/trama/maquetas/taller\` y armé el prototipo en /home/ana/proyectos/trama/maquetas/taller/e-taller.html para revisar.";
       return { ...resp, mensajes: resp.mensajes.map((m, i) => (i === ult && m.rol === "assistant" ? { ...m, texto: textoRutas } : m)) };
     }
-    if ((MODO.captura === "chat-archivos" || MODO.captura === "visor-imagen") && resp.mensajes.length > 0) {
+    if ((MODO.captura === "chat-archivos" || MODO.captura?.startsWith("visor-imagen")) && resp.mensajes.length > 0) {
       const ult = resp.mensajes.length - 1;
       const textoArchivos =
         "La tarjeta ya tiene al nene en el centro, en `~/Imágenes/invitacion-juan-manuel-7.jpg` (para WhatsApp) y `~/Imágenes/invitacion-juan-manuel-7.png`. El recorte solo está en `~/Imágenes/juan-manuel-recorte.png`.";
@@ -1990,7 +1990,8 @@ const fija: Fuente = {
     if (tipo === "imagen") {
       if (typeof document !== "undefined") {
         const recorte = /recorte/i.test(ruta);
-        const img = imagenFija(recorte ? 640 : 900, recorte ? 480 : 600, recorte ? 35 : 210);
+        const alta = MODO.captura === "visor-imagen-alta" && !recorte;
+        const img = alta ? imagenFija(800, 3000, 210) : imagenFija(recorte ? 640 : 900, recorte ? 480 : 600, recorte ? 35 : 210);
         return { tipo, mime: img.tipo, datos: img.datos };
       }
       return { tipo, mime: "image/png", datos: IMAGEN_MUESTRA };
