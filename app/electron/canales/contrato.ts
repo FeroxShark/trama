@@ -254,6 +254,7 @@ export const CANALES = [
   ["cuentas:renombrar", "invoke"],
   ["cuentas:quitar", "invoke"],
   ["cuentas:login", "invoke", "ventana"],
+  ["cuentas:limiteReset", "invoke", "ventana"],
   ["cuentas:plan", "invoke"],
   ["cuentas:preferir", "invoke"],
   ["remoto:conexion", "on"],

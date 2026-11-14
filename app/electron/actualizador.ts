@@ -51,9 +51,10 @@ type Corrida = { err: string | null; dijo: string | null };
 
 /**
  * Abre `<terminal> sh -c <envoltorio> sh <marca> <argv>` y espera a que el comando termine (marca con su rc): con
- * rc distinto de 0 la ventana queda esperando Enter, así se ve el error. Sin terminal (ENOENT) no corre nada y lo dice. Texto como clave de `main.*` (electron/errores.ts).
+ * rc distinto de 0 la ventana queda esperando Enter, así se ve el error. Sin terminal (ENOENT) no corre nada y lo dice. `cwd`: dónde corre (en
+ * Windows no: ahí corre junto al envoltorio). Texto como clave de `main.*` (electron/errores.ts).
  */
-export function enTerminal(argv: string[], env: NodeJS.ProcessEnv): Promise<Corrida> {
+export function enTerminal(argv: string[], env: NodeJS.ProcessEnv, cwd?: string): Promise<Corrida> {
   // HILOS_TERMINAL, $TERMINAL o la primera que haya (terminal-lanzar.ts), cada una con su forma de recibir la orden.
   const elegida = resolverTerminal(process.env);
   if (!elegida) return Promise.resolve({ err: textoT("main.terminalNo", { t: "HILOS_TERMINAL" }), dijo: null });
@@ -94,7 +95,7 @@ export function enTerminal(argv: string[], env: NodeJS.ProcessEnv): Promise<Corr
     const enWt = win && /(^|[\\/])wt(\.exe)?$/i.test(term);
     if (win) writeFileSync(path.join(dir, "ejecutar.cmd"), envoltorioWindows());
     const orden = win ? [...(enWt ? ["-d", dir] : []), "cmd.exe", "/d", "/c", "ejecutar.cmd", ...argv] : ["sh", "-c", envoltorio, "sh", marca, ...argv];
-    const p = spawn(term, [...bandera, ...orden], { env, stdio: "ignore", ...(win ? { cwd: dir } : {}) });
+    const p = spawn(term, [...bandera, ...orden], { env, stdio: "ignore", ...(win ? { cwd: dir } : cwd ? { cwd } : {}) });
     p.on("error", () => cerrar({ err: textoT("main.terminalNo", { t: term }), dijo: null }));
     p.on("exit", () => {
       if (mirar()) return;

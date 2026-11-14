@@ -348,6 +348,8 @@ contextBridge.exposeInMainWorld("hilos", {
     renombrar: (id: string, nombre: string): Promise<unknown> => invocar("cuentas:renombrar", id, nombre),
     quitar: (id: string, borrarCredenciales: boolean): Promise<unknown> => invocar("cuentas:quitar", id, borrarCredenciales),
     login: (id: string): Promise<unknown> => invocar("cuentas:login", id),
+    /** `claude /limit-reset` en una terminal (electron/lider.ts, `abrirLimiteReset`): vuelve al cerrarla. */
+    limiteReset: (): Promise<unknown> => invocar("cuentas:limiteReset"),
     plan: (id: string, plan: string): Promise<unknown> => invocar("cuentas:plan", id, plan),
     preferir: (id: string): Promise<unknown> => invocar("cuentas:preferir", id),
   },

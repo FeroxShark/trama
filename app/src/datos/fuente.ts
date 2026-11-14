@@ -370,6 +370,11 @@ export interface Fuente {
   quitarCuenta(id: string, borrarCredenciales: boolean): Promise<ResultadoCuenta>;
   /** El inicio de sesión de esa cuenta en una terminal de la PC; vuelve cuando la persona termina. */
   loginCuenta(id: string): Promise<ResultadoCuenta>;
+  /**
+   * «Usar un reset de límite»: `claude /limit-reset` en una terminal de la PC (los resets que regala claude.ai se ven, se eligen y
+   * se confirman ahí). En Linux vuelve cuando la terminal se cierra, con el uso ya pedido de nuevo; en la carcasa de Windows, al abrirla.
+   */
+  limiteReset(): Promise<ResultadoCuenta>;
   /** El plan de una cuenta agregada: el de OpenCode (gratis / go / go-plus) o el de Claude (pro / max), con `cuentas plan`. */
   planCuenta(id: string, plan: PlanCuentaOc | PlanCuentaClaude): Promise<ResultadoCuenta>;
   /** Deja a esa cuenta como la que se usa primero en su proveedor: los líderes y workers nuevos la usan, lo que ya corre no cambia. */
@@ -1135,6 +1140,10 @@ function cuentasFijas() {
       await pausa(MODO.variante === "cuentas-login-lento" ? 60_000 : 700);
       if (!lista.some((c) => c.id === id)) return falta();
       lista = lista.map((c) => (c.id === id ? { ...c, logueado: true } : c));
+      return ok;
+    },
+    async limiteReset(): Promise<ResultadoCuenta> {
+      await pausa(700);
       return ok;
     },
     async planCuenta(id: string, plan: PlanCuentaOc | PlanCuentaClaude): Promise<ResultadoCuenta> {
@@ -2352,6 +2361,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async loginCuenta(id) {
     return resultadoValido(await m.cuentas.login(id).catch(() => null));
+  },
+  async limiteReset() {
+    return resultadoValido(await m.cuentas.limiteReset().catch(() => null));
   },
   async planCuenta(id, plan) {
     return resultadoValido(await m.cuentas.plan(id, plan).catch(() => null));

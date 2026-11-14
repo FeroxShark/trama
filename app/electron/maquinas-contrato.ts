@@ -276,6 +276,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "cuentas:renombrar": "local",
   "cuentas:quitar": "local",
   "cuentas:login": "local",
+  "cuentas:limiteReset": "local",
   "cuentas:plan": "local",
   "cuentas:preferir": "local",
   "setup:descartar": "local",

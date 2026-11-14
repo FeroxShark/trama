@@ -4,7 +4,7 @@
 // queda sin cupo). Trabaja sobre el borrador de AjustesModelos (nada se escribe hasta Guardar). Los textos que cambian con el tiempo ("vuelve en 20 h") los
 // escribe el reloj, no React.
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Ban, CalendarClock, Check, ChevronDown, Clock, Info, Minus, TrendingDown, TrendingUp, TriangleAlert } from "lucide-react";
+import { Ban, CalendarClock, Check, ChevronDown, Clock, ExternalLink, Info, Minus, RotateCcw, TrendingDown, TrendingUp, TriangleAlert } from "lucide-react";
 import { Boton, Chip } from "../ui/componentes";
 import { LogoCaja, type Proveedor } from "../ui/logos";
 import type { GrupoCupo, SuscripcionCupo, Uso, VentanaCupo } from "../datos/contrato";
@@ -255,6 +255,50 @@ function Conectar({ id, c, como, alMirar }: { id: Proveedor; c: CuentaEstado | u
           <span>{como}</span>
           <Boton onClick={alMirar}>{t("cu.volverAMirar")}</Boton>
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** La página de uso de claude.ai: ahí se ven los resets de límite que hay y cuándo vencen. */
+export const URL_USO_CLAUDE = "https://claude.ai/settings/usage";
+
+/**
+ * «Usar un reset de límite»: los resets que regala claude.ai (Full, Fable…) se gastan con `/limit-reset` de Claude Code. Trama no los
+ * lee ni los gasta: abre `claude /limit-reset` en una terminal, que muestra los que hay, pregunta cuál y lo confirma. Sólo con Claude
+ * conectado. El uso se vuelve a pedir solo al cerrar la terminal (en la carcasa de Windows, con «Actualizar límites»).
+ */
+function UsarReset({ c }: { c: CuentaEstado | undefined }) {
+  const [estado, setEstado] = useState<"nada" | "abriendo" | "abierta">("nada");
+  const [error, setError] = useState<string | null>(null);
+  if (!c?.logueado) return null;
+  const usar = async () => {
+    setEstado("abriendo");
+    setError(null);
+    const r = await fuente.limiteReset();
+    if (r.ok) setEstado("abierta");
+    else {
+      setEstado("nada");
+      setError(textoMain(r.error));
+    }
+  };
+  return (
+    <div className="cu-conectar cu-reset">
+      <div className="cu-reset-fila">
+        <Boton onClick={() => void usar()} disabled={estado === "abriendo"} aria-busy={estado === "abriendo"}>
+          <RotateCcw size={14} strokeWidth={2} aria-hidden="true" />
+          {t("cu.resetUsar")}
+        </Boton>
+        <a className="cu-reset-ver" href={URL_USO_CLAUDE} target="_blank" rel="noopener noreferrer">
+          {t("cu.resetVer")}
+          <ExternalLink size={13} strokeWidth={2} aria-hidden="true" />
+        </a>
+      </div>
+      <span className="cu-como">{t(estado === "abierta" ? "cu.resetAbierta" : "cu.resetQue")}</span>
+      {error ? (
+        <span className="bv-error" role="alert">
+          {error}
+        </span>
       ) : null}
     </div>
   );
@@ -574,6 +618,7 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
             pie={
               <>
                 <Ayuda lineas={["cu.ayuda.claude1"]} antes={ritmo ? <RitmoSemanal r={ritmo} /> : null} />
+                <UsarReset c={cuentas?.claude} />
                 {pClaude.length > 1 ? null : <Conectar id="claude" c={cuentas?.claude} como={t("cu.comoClaude")} alMirar={mirar} />}
                 {lista ? <AgregarCuenta proveedor="claude" alCambiar={alCambiarCuentas} /> : null}
               </>

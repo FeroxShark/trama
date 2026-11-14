@@ -274,6 +274,9 @@ const canalesVentana = crearCanalesVentana({
   abrirLogin(id) {
     return nativo.abrirConsolaNativa(rutasNativas)(`cuentas login ${id}`);
   },
+  abrirLimiteReset() {
+    return nativo.abrirConsolaNativa(rutasNativas)("claude /limit-reset").then(() => ({ ok: true }));
+  },
   versionAnterior,
   // Tocó la notificación de un líder: la ventana se trae y la página abre esa conversación.
   abrirAviso(sid) {

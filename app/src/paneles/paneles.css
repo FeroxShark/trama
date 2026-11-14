@@ -4055,3 +4055,24 @@
     min-height: 2.75rem;
   }
 }
+
+/* «Usar un reset de límite» (AjustesCupos.tsx, UsarReset): el botón y el enlace a claude.ai en una fila, la explicación debajo */
+.cu-reset-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2) var(--esp-3);
+}
+.cu-reset-ver {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--acento);
+  font-size: var(--letra-4);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--acento) 55%, transparent);
+  text-underline-offset: 0.1875rem;
+}
+.cu-reset-ver:hover {
+  text-decoration-color: currentcolor;
+}

@@ -883,6 +883,14 @@ export function armarNucleo() {
     await avisarSl();
     return leerSl();
   });
+  // «Usar un reset de límite» (Plan y cupos): `claude /limit-reset` en una terminal, que elige y confirma; al cerrarla, el uso
+  // ya se volvió a pedir y las vistas se enteran.
+  manejar("cuentas:limiteReset", async () => {
+    const r = await lider.abrirLimiteReset(enTerminal);
+    await refrescarCupos(true);
+    await avisarSl();
+    return r.err ? { ok: false, error: r.err } : { ok: true };
+  });
 
   // Por las dudas (algo que murió en cola, sin sesión que mirar): mientras `pa` dé algo por
   // vivo, la lista se relee sola cada tanto. Sin nada vivo no hay reloj.

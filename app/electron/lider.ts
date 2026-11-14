@@ -871,6 +871,19 @@ export function pedirUsoOficial(): Promise<boolean> {
   return pidiendoUso;
 }
 
+/**
+ * «Usar un reset de límite»: los resets que regala claude.ai (Full, Fable…) se gastan con `/limit-reset` de Claude Code, que
+ * muestra los que hay, pregunta cuál y lo confirma en su propia pantalla. Trama no los lee ni los gasta (no llama a la API
+ * con el login de nadie): abre `claude /limit-reset` en una terminal, en el home y con el entorno de un líder (sin
+ * `ANTHROPIC_*`), y al cerrarla vuelve a pedir el uso, así el cupo se ve como quedó.
+ */
+export async function abrirLimiteReset(terminal: (argv: string[], env: NodeJS.ProcessEnv, cwd?: string) => Promise<{ err: string | null }>): Promise<{ err: string | null }> {
+  const op = opcionesLider(process.env, HOME) as { cwd: string; env: NodeJS.ProcessEnv };
+  const r = await terminal([CLAUDE, "/limit-reset"], op.env, op.cwd);
+  await pedirUsoOficial();
+  return { err: r.err };
+}
+
 /** El `get_usage` por un `claude` que arranca, contesta y sale (`argvUso`): sin turno, no gasta nada del plan. */
 function usoDeUnRato(dir?: string, alLeer: (l: Lectura) => void = anotarUso): Promise<void> {
   const ID = "trama-uso";

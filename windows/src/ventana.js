@@ -87,6 +87,7 @@ function rutaAbrible(x) {
  *  - changelog: la URL de "ver cambios" de Claude Code.
  *  - bandeja: { textos(t), espera(e) } para el menú y la descripción del ícono.
  *  - abrirLogin(id): abre la consola para `cuentas login <id>` (sólo la carcasa nativa sabe hacerlo).
+ *  - abrirLimiteReset(): abre la consola con `claude /limit-reset` (los resets de límite de claude.ai).
  *  - abrirAviso(sid): el usuario tocó la notificación de un líder: la ventana se trae y la página abre ese líder.
  *  - versionAnterior: el servicio de Actualizar seguro (version-anterior.js): qué versión anterior hay, volver a ella, el aviso de que se volvió.
  *  - ocupados(): cuántos líderes están respondiendo (se lo pregunta al motor); `null` si no contesta (entonces no se frena la salida).
@@ -205,6 +206,8 @@ function crearCanalesVentana(o) {
       if (typeof id !== "string" || !ID_VALIDO.test(id)) throw new Error("id de cuenta inválido");
       return o.abrirLogin(id);
     },
+    // «Usar un reset de límite»: `claude /limit-reset` en una consola, que muestra los resets, pregunta cuál y lo confirma.
+    "cuentas:limiteReset": () => o.abrirLimiteReset(),
     // "Ir a la ventana" de un líder: la carcasa no sabe enfocar la consola de un proceso, así que no se ofrece (la página lo oculta).
     "lider:ir": () => false,
     "lider:ubicable": () => false,

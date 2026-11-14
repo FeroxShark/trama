@@ -481,6 +481,8 @@ type Main = {
     renombrar(id: string, nombre: string): Promise<unknown>;
     quitar(id: string, borrarCredenciales: boolean): Promise<unknown>;
     login(id: string): Promise<unknown>;
+    /** «Usar un reset de límite»: `claude /limit-reset` en una terminal; vuelve al cerrarla (`{ err }`, sin validar). */
+    limiteReset(): Promise<unknown>;
     plan(id: string, plan: string): Promise<unknown>;
     /** Deja a esa cuenta como la que se usa primero en su proveedor (`cuentas preferir`). */
     preferir(id: string): Promise<unknown>;
