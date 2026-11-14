@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.86
+
+- Plan y cupos: «Usar un reset de límite», en la tarjeta de Claude, abre Claude Code con `/limit-reset` en una terminal, donde se ven los resets que regaló claude.ai (Full, Fable), se elige uno y se confirma. Al lado, el enlace a la página de uso de claude.ai. Al cerrar la terminal, el cupo se vuelve a leer.
+
 ## 0.2.85
 
 - El visor de imágenes abre con la imagen entera, aunque sea muy alta. Un clic alterna entre «Ajustar» y el tamaño real, la barra tiene Ajustar, 100 %, − y +, se arrastra siempre que la imagen no entre y el clic derecho ofrece Copiar imagen, Copiar ruta, Mostrar en la carpeta y Abrir con la app del sistema.

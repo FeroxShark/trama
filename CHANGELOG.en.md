@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.86
+
+- Plans and limits: «Use a limit reset», on the Claude card, opens Claude Code with `/limit-reset` in a terminal, where you see the resets claude.ai gave you (Full, Fable), pick one and confirm it. Next to it, a link to the claude.ai usage page. When the terminal closes, the limits are read again.
+
 ## 0.2.85
 
 - The image viewer opens with the whole image, even a very tall one. A click toggles between «Fit» and actual size, the bar has Fit, 100%, − and +, you can drag whenever the image does not fit, and right-click offers Copy image, Copy path, Show in folder and Open with the system app.
