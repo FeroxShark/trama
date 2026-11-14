@@ -1,7 +1,7 @@
 // Los hilos de un carril (37 rayitas, cada una prendida es uso): sólo los usa el riel de la barra (`barra/CuposRiel.tsx`) hasta que pase a `BarraCupo`.
-// Ajustes > Plan y cupos ya no los usa: sus límites son barras lisas (`ui/BarraCupo.tsx`). Los estilos de `.cu-hilos` están en `hilos.css`.
+// Ajustes > Plan y cupos ya no los usa: sus límites son barras lisas (`ui/BarraCupo.tsx`). Los estilos de `.cu-hilos` están en `hilos-cupo.css`.
 import { HILOS, hilosPrendidos } from "./cupos-tejido";
-import "./hilos.css";
+import "./hilos-cupo.css";
 
 /** Los hilos de un carril (el número lo dice el renglón: esto es sólo para el ojo). */
 export function Hilos({ pct, nivel, total = HILOS }: { pct: number | null; nivel: string; /** Cuántos hilos: la barra, que es angosta, usa menos. */ total?: number }) {
