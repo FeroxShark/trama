@@ -260,12 +260,17 @@ function Conectar({ id, c, como, alMirar }: { id: Proveedor; c: CuentaEstado | u
   );
 }
 
+// Mientras la primera lectura de cupos sigue en curso (`uso.leyendo`), una tarjeta sin datos dice que está leyendo, no que no hay datos.
+const leyendoCupos = (uso: Uso | null) => !!uso && "leyendo" in uso && !!uso.leyendo;
+const sinDatoTxt = (uso: Uso | null) => (leyendoCupos(uso) ? t("cu.st.leyendo") : t("uso.sinDatoCupo"));
+const sinDatosTxt = (uso: Uso | null) => (leyendoCupos(uso) ? t("cu.st.leyendo") : t("cu.tj.sinDatos"));
+
 /** El cupo de una cuenta agregada (la de siempre se pinta con lo de siempre): sus ventanas o sus grupos, o «sin dato». */
 function CupoDe({ uso, proveedor, perfil }: { uso: Uso | null; proveedor: ProveedorCuenta; perfil: PerfilCuenta }) {
   const s = conDatos(uso) ? uso.suscripciones?.find((x) => (x.proveedor ?? x.id) === proveedor && (x.cuenta ?? x.id) === perfil.id) : undefined;
   if (s?.grupos?.length) return <>{s.grupos.map((g) => <Grupo key={g.id} g={g} />)}</>;
   if (s?.ventanas?.length) return <Ventanas vs={s.ventanas} />;
-  return <div className="cu-sin">{t("uso.sinDatoCupo")}</div>;
+  return <div className="cu-sin">{sinDatoTxt(uso)}</div>;
 }
 
 const suscDeCuenta = (uso: Uso | null, proveedor: ProveedorCuenta, perfil: PerfilCuenta) => (conDatos(uso) ? uso.suscripciones?.find((x) => (x.proveedor ?? x.id) === proveedor && (x.cuenta ?? x.id) === perfil.id) : undefined);
@@ -518,7 +523,7 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
   const chatgpt: SuscripcionCupo | undefined = uso && !("error" in uso) ? suscripcionDe(uso.suscripciones, "chatgpt") : undefined;
   const avisos = avisosTope(b, uso);
   const vClaude = conDatos(uso) ? ventanasClaude(uso) : [];
-  const cupoGoogle = google?.grupos?.length ? google.grupos.map((g) => <Grupo key={g.id} g={g} />) : google?.ventanas?.length ? <Ventanas vs={google.ventanas} /> : <div className="cu-sin">{t("uso.sinDatoCupo")}</div>;
+  const cupoGoogle = google?.grupos?.length ? google.grupos.map((g) => <Grupo key={g.id} g={g} />) : google?.ventanas?.length ? <Ventanas vs={google.ventanas} /> : <div className="cu-sin">{sinDatoTxt(uso)}</div>;
 
   // El ritmo de la semana es de la cuenta en uso: va en la ayuda, junto a cómo funcionan los límites.
   const enUsoClaude = pClaude.find((p) => esEnUso(p, pClaude));
@@ -595,7 +600,7 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
             />
           </div>
         ) : (
-          <Chica id="google" opc="cu.google" nombre={t("cu.google")} estado={estadoProv(cuentas?.agy)} resumen={<ResumenChica s={google} sinDatos={t("cu.tj.sinDatos")} />}>
+          <Chica id="google" opc="cu.google" nombre={t("cu.google")} estado={estadoProv(cuentas?.agy)} resumen={<ResumenChica s={google} sinDatos={sinDatosTxt(uso)} />}>
             {cupoGoogle}
             <Ayuda lineas={AYUDA_GOOGLE} />
             <Conectar id="google" c={cuentas?.agy} como={t("cu.comoGoogle")} alMirar={mirar} />
@@ -628,7 +633,7 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
             opc="cu.chatgpt"
             nombre={t("cu.chatgpt")}
             estado={estadoProv(cuentas?.codex ?? (cuentas ? { instalado: false, logueado: false, cuenta: null, error: null } : undefined))}
-            resumen={<ResumenChica s={chatgpt} sinDatos={t("cu.tj.sinDatos")} />}
+            resumen={<ResumenChica s={chatgpt} sinDatos={sinDatosTxt(uso)} />}
           >
             {chatgpt?.ventanas?.length ? <Ventanas vs={chatgpt.ventanas} /> : <div className="cu-sin">{t("cu.chatgptSinCupo")}</div>}
             <Ayuda lineas={["cu.ayuda.chatgpt1"]} />
@@ -698,12 +703,12 @@ function PlanOpencode({ plan, detectado, guardando, deshabilitado, error, nota, 
 }
 
 /** El uso de una cuenta de OpenCode (el mismo de la barra): el resumen si dice algo y un bloque por grupo. */
-function UsoOpencode({ s }: { s: SuscripcionCupo | undefined }) {
+function UsoOpencode({ s, uso }: { s: SuscripcionCupo | undefined; uso: Uso | null }) {
   return (
     <>
       {/* Con sólo los gratis (sin tope publicado) el resumen no tiene nada que agregar: lo dice el grupo, con los pedidos contados. */}
       {s && resumenSusc(s, Date.now() / 1000).nivel !== "sin" ? <Resumen s={s} /> : null}
-      {s?.grupos?.length ? s.grupos.map((g) => <Grupo key={g.id} g={g} />) : <div className="cu-sin">{t("uso.sinDatoCupo")}</div>}
+      {s?.grupos?.length ? s.grupos.map((g) => <Grupo key={g.id} g={g} />) : <div className="cu-sin">{sinDatoTxt(uso)}</div>}
     </>
   );
 }
@@ -791,7 +796,7 @@ function TarjetaOpencode({ uso, perfiles, lista, alCambiar, detalleDe }: { uso: 
   const agotados = goAgotadosHasta(uso);
   const deSiempre = (
     <>
-      <UsoOpencode s={s} />
+      <UsoOpencode s={s} uso={uso} />
       <PlanOpencode
         plan={plan}
         detectado={detSiempre}
@@ -882,7 +887,7 @@ function TarjetaOpencode({ uso, perfiles, lista, alCambiar, detalleDe }: { uso: 
       nombre={go ? `${t("cu.opencode")} ${nombrePlanOc(plan)}` : t("cu.opencode")}
       estado={estado ? estadoProv(estado) : null}
       abreCon={["ajustes.ocPlan", "cu.opencodeGo"]}
-      resumen={<ResumenChica s={s} plan={nombrePlanOc(plan)} sinDatos={t("cu.tj.sinDatos")} />}
+      resumen={<ResumenChica s={s} plan={nombrePlanOc(plan)} sinDatos={sinDatosTxt(uso)} />}
     >
       {deSiempre}
       {tablaGo}

@@ -176,7 +176,13 @@ export function parsearCuposReparto(salida: string, ahoraMs = Date.now()): Cupos
 const TTL_CUPOS_MS = 60_000;
 let cacheCupos: CuposLeidos | null = null;
 let ultimoIntentoMs = 0;
+let primeraTermino = false;
 let enVuelo: Promise<CuposLeidos | null> | null = null;
+
+/** Verdadero mientras sigue en curso la primera lectura de cupos (`reparto`). */
+export function cuposLeyendo(): boolean {
+  return !modoAisladoSinCupos() && !primeraTermino && enVuelo !== null;
+}
 const oyentes = new Set<() => void>();
 
 export function alCambiarCupos(fn: () => void): () => void {
@@ -234,15 +240,22 @@ export function refrescarCupos(forzar = false, fondo = false): Promise<CuposLeid
   enVuelo = consultarCupos(fondo)
     .then((res) => {
       enVuelo = null;
+      const eraPrimera = !primeraTermino;
+      primeraTermino = true;
       if (res) {
         const cambio = huella(cacheCupos) !== huella(res);
         cacheCupos = res;
-        if (cambio) notificarCupos();
+        if (cambio || eraPrimera) notificarCupos();
+      } else if (eraPrimera) {
+        notificarCupos();
       }
       return cacheCupos;
     })
     .catch(() => {
       enVuelo = null;
+      const eraPrimera = !primeraTermino;
+      primeraTermino = true;
+      if (eraPrimera) notificarCupos();
       return cacheCupos;
     });
   return enVuelo;

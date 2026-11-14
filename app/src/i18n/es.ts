@@ -3253,6 +3253,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "cu.st.ok": "Todo bien",
   "cu.st.bajo": "Queda poco",
   "cu.st.sin": "Sin datos todavía",
+  "cu.st.leyendo": "Leyendo el cupo…",
   "cu.st.contados": "Pedidos en 5 h: {n} (sin tope publicado)",
   "cu.st.lleno": "Agotado hasta {cuando}",
   "cu.st.llenoSin": "Agotado",

@@ -3267,6 +3267,7 @@ export const en = {
   "cu.st.ok": "OK",
   "cu.st.bajo": "Running low",
   "cu.st.sin": "No data yet",
+  "cu.st.leyendo": "Reading quota…",
   "cu.st.contados": "Requests in 5 h: {n} (no published cap)",
   "cu.st.lleno": "Exhausted until {cuando}",
   "cu.st.llenoSin": "Exhausted",

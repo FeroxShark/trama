@@ -159,6 +159,8 @@ export type Uso =
       suscripciones?: SuscripcionCupo[];
       /** Cómo se llama la cuenta de siempre de Claude, si `reparto` lo dice. */
       claudeNombre?: string;
+      /** Si la primera lectura de `reparto` sigue en curso. */
+      leyendo?: boolean;
     }
   | { version: number; error: string };
 

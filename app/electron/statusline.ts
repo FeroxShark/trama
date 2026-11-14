@@ -21,7 +21,7 @@ import { cargarGenerados, generadoDe, generarSiHaceFalta } from "./titulo-chat.j
 import { titulosFijos } from "./titulo-fijo.js";
 import { creadoEn, proyectoEnTexto, proyectoPorUso, temaDe, tituloDeRama } from "./tema.js";
 import { hayClaves, leerClavesSync } from "./claves.ts";
-import { cuposActuales, type SuscripcionCupo } from "./cupos.js";
+import { cuposActuales, cuposLeyendo, type SuscripcionCupo } from "./cupos.js";
 import { modelosNim, TOPE_NIM_MIN } from "./nvidia-nim.ts";
 import { marcasOpencode } from "./opencode-agotado.js";
 import { hayOpencode, planOpencode } from "./opencode.js";
@@ -261,18 +261,21 @@ export async function leerStatusline(): Promise<Statusline> {
     // NVIDIA NIM (gratis, con clave propia): su grupo con el tope por minuto, sólo si hay clave y algún modelo prendido.
     ...(nim ? [nim] : []),
   ];
+  const leyendo = cuposLeyendo();
   const hayOtras = suscripciones.length > 0;
   const hayFuentes = recientes.length > 0 || !!visto || !!lecturaCupos || hayOtras;
   const baseUso = usoDe([...recientes.filter((a) => esCuentaDeSiempre(a, os.homedir())).map(deStatusline), visto, lecturaCupos], ahora);
-  const uso: Uso | null = hayFuentes
-    ? {
-        version: 1,
-        ...baseUso,
-        ts: baseUso.ts || tsCupos || Math.floor(ahora),
-        ...(hayOtras ? { suscripciones } : {}),
-        ...(cupos?.claudeNombre ? { claudeNombre: cupos.claudeNombre } : {}),
-      }
-    : null;
+  const uso: Uso | null =
+    hayFuentes || leyendo
+      ? {
+          version: 1,
+          ...baseUso,
+          ts: baseUso.ts || tsCupos || (hayFuentes ? Math.floor(ahora) : 0),
+          ...(hayOtras ? { suscripciones } : {}),
+          ...(cupos?.claudeNombre ? { claudeNombre: cupos.claudeNombre } : {}),
+          ...(leyendo ? { leyendo: true } : {}),
+        }
+      : null;
 
   const porSesion = new Map<string, any>();
   for (const a of archivos) if (typeof a.session_id === "string" && !porSesion.has(a.session_id)) porSesion.set(a.session_id, a);
