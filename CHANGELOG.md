@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.80
+
+- En el aviso de workers, la fila de uno que terminó con rama lista trae el botón «Integrar» al lado de «Abrir»: ya no hace falta abrir el worker para integrarlo. Si falla, el error queda debajo de la fila.
+- El riel es un poco más ancho para que los anillos de cupo entren con aire; antes tocaban los bordes.
+
 ## 0.2.79
 
 - Piel nueva: fondo liso, tipografía IBM Plex y diez temas oscuros (Grafito de fábrica, Tinta, Carbón, Shell, Catppuccin Mocha, Tokyo Night, Gruvbox, Nord, Rosé Pine y Dracula), además de Claro y Alto contraste. En Ajustes > General se elige el color de acento (ocho muestras o uno propio) y se arma un tema «Mío» con cuatro colores, con aviso si el contraste queda bajo.

@@ -1,5 +1,10 @@
 # Changes
 
+## 0.2.80
+
+- In the workers notice, the row of a worker that finished with a branch ready has an "Integrate" button next to "Open": no need to open the worker to integrate it. If it fails, the error shows below the row.
+- The rail is slightly wider so the quota rings have room; they used to touch the edges.
+
 ## 0.2.79
 
 - New skin: flat background, IBM Plex type and ten dark themes (Grafito by default, Tinta, Carbón, Shell, Catppuccin Mocha, Tokyo Night, Gruvbox, Nord, Rosé Pine and Dracula), plus Light and High contrast. Settings > General lets you pick the accent color (eight swatches or your own) and build a "Mío" theme from four colors, with a warning when contrast is low.
