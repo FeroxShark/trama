@@ -26,20 +26,28 @@ test("parsearAgyOfrecidos: los ids de pa y los nombres; lo roto o vacío es null
   assert.equal(parsearAgyOfrecidos('{"modelos":[{"reparto":"--model x"}]}'), null, "un id con espacios o flag no entra");
 });
 
-test("el selector muestra sólo los modelos de la cuenta, con sus niveles", () => {
+test("el selector muestra sólo los modelos de la cuenta, con sus niveles, y deja afuera Gemini fuera de tabla como Flash", () => {
   try {
-    ponerConfig({ gemini: true, agyModelos: parsearAgyOfrecidos(SALIDA)!, locales: [], lider: null });
+    const conHydrogen = JSON.stringify({
+      modelos: [
+        ...JSON.parse(SALIDA).modelos,
+        { id: "gemini-4-hydrogen-high", nombre: "Gemini 4 Hydrogen (High)", reparto: "gemini-4-hydrogen-high" },
+        { id: "gemini-4-hydrogen-xhigh", nombre: "Gemini 4 Hydrogen (XHigh)", reparto: "gemini-4-hydrogen-xhigh" },
+      ],
+    });
+    ponerConfig({ gemini: true, agyModelos: parsearAgyOfrecidos(conHydrogen)!, locales: [], lider: null });
     const google = TABLA.filter((m) => m.empresa === "google");
     assert.deepEqual(
       google.map((m) => m.id),
-      ["gemini-3.8-flash", "agy:claude-sonnet-4-6-thinking", "agy:claude-opus-4-6-thinking", "agy:gpt-oss-120b"],
+      ["agy:claude-sonnet-4-6-thinking", "agy:claude-opus-4-6-thinking", "agy:gpt-oss-120b", "gemini-4-hydrogen"],
     );
+    assert.ok(!TABLA.some((m) => m.id === "gemini-3.8-flash"), "si agy models todavía trae Flash, queda afuera por no estar en la tabla");
     assert.ok(!TABLA.some((m) => m.id === "agy:claude-sonnet-5-5"), "los que la cuenta no ofrece no aparecen");
     assert.ok(!TABLA.some((m) => m.id === "gemini-4-argon"));
-    assert.deepEqual(effortsDe("gemini-3.8-flash"), ["low", "medium", "high"]);
+    assert.deepEqual(effortsDe("gemini-4-hydrogen"), ["high", "xhigh"]);
     assert.deepEqual(effortsDe("agy:gpt-oss-120b"), ["medium"]);
     assert.deepEqual(effortsDe("agy:claude-opus-4-6-thinking"), [], "sin nivel en el nombre, sin selector de esfuerzo");
-    assert.equal(google[1]!.nombre, "Claude Sonnet 4.6 (Thinking) · por Google");
+    assert.equal(google[0]!.nombre, "Claude Sonnet 4.6 (Thinking) · por Google");
   } finally {
     ponerConfig(null);
   }
@@ -66,7 +74,7 @@ test("un modelo de la cuenta sin nivel en el nombre se lanza tal cual (no se le 
     recordarAgySinNivel(parsearAgyOfrecidos(SALIDA)!.map((m) => m.id));
     assert.equal(idAgy("agy:claude-opus-4-6-thinking", "high"), "agy:claude-opus-4-6-thinking");
     assert.equal(modeloAgy("agy:claude-opus-4-6-thinking"), "claude-opus-4-6-thinking");
-    assert.equal(idAgy("gemini-3.8-flash", "low"), "gemini-3.8-flash-low", "los que sí tienen niveles siguen igual");
+    assert.equal(idAgy("gemini-4-hydrogen", "low"), "gemini-4-hydrogen-low", "los que sí tienen niveles siguen igual");
     assert.equal(modeloAgy("agy:gpt-oss-120b-medium"), "gpt-oss-120b-medium");
   } finally {
     recordarAgySinNivel([]);

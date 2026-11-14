@@ -461,7 +461,7 @@ export const TABLA_REPARTO = (aa = false): TablaReparto => {
     claude("claude-sonnet-5-5", "Claude Sonnet 5.5", "sonnet", 88),
     claude("claude-haiku-5-5", "Claude Haiku 5.5", "haiku", 60),
     goog("gemini-4-argon", "Gemini 4 Argon", "argon", 85, 71, 5),
-    goog("gemini-3.8-flash", "Gemini 3.8 Flash", "flash", 60, 40, 5),
+    goog("gemini-4-hydrogen", "Gemini 4 Hydrogen", "hydrogen", 88, 40, 5),
     goog("agy:claude-sonnet-5-5", "Claude Sonnet 5.5 (por Google)", "sonnet", 88, 33, 5),
     goog("agy:gpt-oss-120b", "GPT-OSS 120B", "gpt-oss", 45, 33, 5),
     { ...base, id: "codex:gpt-6.1-sol", nombre: "GPT-6.1 Sol (Codex)", proveedor: "openai", familia: "sol", familiaExcluir: "sol", calidad: viejaAAa(88), libre: 54, vuelve: h(60), urgencia: 0.3,
@@ -478,7 +478,7 @@ export const TABLA_REPARTO = (aa = false): TablaReparto => {
   const conAA = (f: FilaTabla): FilaTabla => {
     if (!aa || f.estimada || f.origen !== "defecto" || f.familia === "sonnet" || f.id.includes("big-pickle")) return f;
     // Índice de inteligencia de AA al esfuerzo que se usaría (high; si no está medido, estimado); costo y tokens por tarea como los trae AA.
-    const q: Record<string, number> = { "claude-opus-5-5": 50.2, "claude-haiku-5-5": 37.8, "gemini-4-argon": 51, "gemini-3.8-flash": 45, "agy:gpt-oss-120b": 38.7, "codex:gpt-6.1-sol": 53, "opencode:opencode/glm-5.3-flash-free": 42, "opencode:opencode/nemotron-3-ultra-free": 47 };
+    const q: Record<string, number> = { "claude-opus-5-5": 50.2, "claude-haiku-5-5": 37.8, "gemini-4-argon": 51, "gemini-4-hydrogen": 52, "agy:gpt-oss-120b": 38.7, "codex:gpt-6.1-sol": 53, "opencode:opencode/glm-5.3-flash-free": 42, "opencode:opencode/nemotron-3-ultra-free": 47 };
     const por: Record<string, Partial<FilaTabla>> = {
       // Opus 5.5: AA sólo midió max; el resto se estima (y así se rotula).
       "claude-opus-5-5": { calidadPorEffort: { max: 57.6 }, effortsEstimados: ["low", "medium", "high", "xhigh"], calidadEstimadaPorEffort: { low: 39.2, medium: 44.7, high: 50.2, xhigh: 54.7 }, fuentePorEffort: { max: "api" }, tokensPorEffort: { max: 1400000 }, tiempoPorEffort: { max: 520 } },

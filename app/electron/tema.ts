@@ -155,7 +155,7 @@ export function tituloCorto(s: string): string {
   if (!unaLinea(separarAdjuntos(s).texto)) return base;
   let t = base;
   for (const re of [SALUDO, PRESENTACION]) t = t.replace(re, "");
-  // Sólo se cuenta como fin de frase un punto con espacio detrás ("Gemini 3.8 flash" sigue entera).
+  // Sólo se cuenta como fin de frase un punto con espacio detrás ("Gemini 4.0 Hydrogen" sigue entera).
   const frases = t.split(/(?<=[.!?…])\s+/u).filter((x) => x.trim());
   let f = "";
   for (const x of frases) {

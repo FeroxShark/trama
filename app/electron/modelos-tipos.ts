@@ -21,9 +21,6 @@ export const GEMINI = [
   "gemini-4-hydrogen-medium",
   "gemini-4-hydrogen-high",
   "gemini-4-hydrogen-xhigh",
-  "gemini-3.8-flash-low",
-  "gemini-3.8-flash-medium",
-  "gemini-3.8-flash-high",
 ] as const;
 
 /** Los modelos no-Gemini que `agy` sirve con el cupo de Google (`agy:<modelo>-<effort>`). */
@@ -58,7 +55,7 @@ export const sinCupoDe = (v: SinClaude): SinCupo => (v === "claude" ? "otro" : v
 /** Cuánto del cupo de Claude no tocan los workers cuando el archivo no dice nada (`RESERVA` de `reparto`: 15 % libre = tope de 85 %). */
 export const TOPE_CLAUDE_DEFECTO = 85;
 /** Familias de modelo que `reparto` conoce por nombre (`excluir` las acepta además de ids y patrones con `*`). */
-export const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "argon", "hydrogen", "flash", "gpt-oss"] as const;
+export const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "argon", "hydrogen", "gpt-oss"] as const;
 /** Más entradas en `excluir` que esto no es una lista que alguien arme a mano. */
 export const EXCLUIR_MAX = 50;
 /** Una entrada de `excluir`: una familia, un id o un prefijo con `*` al final; sin espacios ni comillas. */
@@ -137,8 +134,8 @@ export type ConfigModelos = {
    */
   google_codigo_5h?: number;
   /**
-   * «Destrabar solo cuando se repite», por modelo (la clave es el id sin esfuerzo: `gemini-3.8-flash`): sólo lo que se tocó. Sin
-   * la clave vale la fábrica (`destrabarPorDefecto`, electron/modelos-tipos.ts: prendido para Gemini 3.8 Flash, apagado el resto).
+   * «Destrabar solo cuando se repite», por modelo (la clave es el id sin esfuerzo: `gemini-4-hydrogen`): sólo lo que se tocó. Sin
+   * la clave vale la fábrica (`destrabarPorDefecto`, electron/modelos-tipos.ts: prendido para Gemini 4 Hydrogen, apagado el resto).
    */
   destrabar: Record<string, boolean>;
 };
@@ -185,10 +182,10 @@ export const esAgy = (m: string) => m.startsWith("agy:");
 
 // --- «Destrabar solo cuando se repite»: el detector está en destrabar.ts; acá, qué modelos lo traen y cómo se decide.
 /** El modelo para el que viene prendido; el resto, apagado hasta que se prende en Ajustes. */
-export const DESTRABAR_DE_FABRICA = ["gemini-3.8-flash"] as const;
-/** `gemini-3.8-flash-low` → `gemini-3.8-flash`; `agy:claude-opus-5-5-high` → `agy:claude-opus-5-5`. La clave del ajuste por modelo. */
+export const DESTRABAR_DE_FABRICA = ["gemini-4-hydrogen"] as const;
+/** `gemini-4-hydrogen-low` → `gemini-4-hydrogen`; `agy:claude-opus-5-5-high` → `agy:claude-opus-5-5`. La clave del ajuste por modelo. */
 export const claveDestrabo = (modelo: string): string => modelo.replace(/-(low|medium|high|xhigh)$/, "");
-/** Prendido de fábrica sólo para Gemini 3.8 Flash. */
+/** Prendido de fábrica sólo para Gemini 4 Hydrogen. */
 export const destrabarPorDefecto = (modelo: string): boolean => (DESTRABAR_DE_FABRICA as readonly string[]).includes(claveDestrabo(modelo));
 /** Lo que dice el ajuste (`destrabar` de modelos.json: sólo las claves que se tocaron) o, sin decir, la fábrica. */
 export const destrabarActivo = (modelo: string, ajuste: Record<string, boolean> | undefined): boolean => {
@@ -558,9 +555,9 @@ export const DEFAULTS_CLAUDE: Record<Tipo, Eleccion> = {
   diseno: { modelo: OPUS, effort: "xhigh" },
 };
 
-/** Lo mismo cuando sólo hay Gemini (sin `claude`): Argon para todo lo que pesa y Flash sólo para lo mecánico. */
+/** Lo mismo cuando sólo hay Gemini (sin `claude`): Argon para todo lo que pesa y Hydrogen sólo para lo mecánico. */
 export const DEFAULTS_GEMINI: Record<Tipo, Eleccion> = Object.fromEntries(
-  TIPOS.map((t) => [t, { modelo: t === "mecanico" ? "gemini-3.8-flash-medium" : "gemini-4-argon-high" }]),
+  TIPOS.map((t) => [t, { modelo: t === "mecanico" ? "gemini-4-hydrogen-medium" : "gemini-4-argon-high" }]),
 ) as Record<Tipo, Eleccion>;
 
 /** Los defaults de la máquina: los de Gemini si no hay Claude, los de Claude si no. */

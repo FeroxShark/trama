@@ -1,4 +1,4 @@
-// "Destrabar solo cuando se repite": el detector de un modelo (hoy Gemini 3.8 Flash) que se queda en un bucle dentro de
+// "Destrabar solo cuando se repite": el detector de un modelo (hoy Gemini 4 Hydrogen) que se queda en un bucle dentro de
 // un turno (relee el progreso de una descarga 20 %, 30 %, 35 %…, repite la misma llamada o el mismo error) y gasta
 // tokens sin avanzar. Puro y sin Electron: lo alimenta el puente de agy (agy-puente.ts) con lo que ya tradujo al
 // stream de Claude, y lo prueban `tests/destrabar.test.ts`. Qué hace al detectarlo (cortar el turno, mandar el

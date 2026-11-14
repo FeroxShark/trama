@@ -79,14 +79,16 @@ test("el umbral se puede cambiar (mínimo 3)", () => {
   assert.ok(b);
 });
 
-test("de fábrica sólo Gemini 3.8 Flash (con cualquier esfuerzo); el ajuste manda en los dos sentidos", () => {
-  assert.equal(destrabarPorDefecto("gemini-3.8-flash"), true);
-  assert.equal(destrabarPorDefecto("gemini-3.8-flash-low"), true);
+test("de fábrica sólo Gemini 4 Hydrogen (con cualquier esfuerzo); el ajuste manda en los dos sentidos", () => {
+  assert.equal(destrabarPorDefecto("gemini-4-hydrogen"), true);
+  assert.equal(destrabarPorDefecto("gemini-4-hydrogen-low"), true);
+  assert.equal(destrabarPorDefecto("gemini-4-hydrogen-xhigh"), true);
+  assert.equal(destrabarPorDefecto("gemini-3.8-flash"), false);
   assert.equal(destrabarPorDefecto("gemini-4-argon-high"), false);
   assert.equal(destrabarPorDefecto("claude-opus-5-5"), false);
   assert.equal(claveDestrabo("agy:claude-opus-5-5-high"), "agy:claude-opus-5-5");
-  assert.equal(destrabarActivo("gemini-3.8-flash-high", {}), true);
-  assert.equal(destrabarActivo("gemini-3.8-flash-high", { "gemini-3.8-flash": false }), false);
+  assert.equal(destrabarActivo("gemini-4-hydrogen-high", {}), true);
+  assert.equal(destrabarActivo("gemini-4-hydrogen-high", { "gemini-4-hydrogen": false }), false);
   assert.equal(destrabarActivo("gemini-4-argon", { "gemini-4-argon": true }), true);
   assert.equal(destrabarActivo("gemini-4-argon", undefined), false);
 });
@@ -105,10 +107,10 @@ test("el registro cuenta cuántas veces y cómo terminaron; sin archivo, ceros",
   try {
     const ruta = path.join(dir, "destrabos.jsonl");
     assert.deepEqual(leerDestrabos(ruta), { veces: 0, bien: 0, mal: 0, cortado: 0, pendiente: 0 });
-    const a = registrarDestrabo("gemini-3.8-flash", "Bash: curl x", undefined, ruta);
-    const b = registrarDestrabo("gemini-3.8-flash", "Bash: curl y", undefined, ruta);
-    const c = registrarDestrabo("gemini-3.8-flash", "Bash: curl z", undefined, ruta);
-    registrarDestrabo("gemini-3.8-flash", "Bash: curl w", undefined, ruta);
+    const a = registrarDestrabo("gemini-4-hydrogen", "Bash: curl x", undefined, ruta);
+    const b = registrarDestrabo("gemini-4-hydrogen", "Bash: curl y", undefined, ruta);
+    const c = registrarDestrabo("gemini-4-hydrogen", "Bash: curl z", undefined, ruta);
+    registrarDestrabo("gemini-4-hydrogen", "Bash: curl w", undefined, ruta);
     cerrarDestrabo(a, "bien", ruta);
     cerrarDestrabo(b, "mal", ruta);
     cerrarDestrabo(c, "cortado", ruta);

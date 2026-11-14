@@ -131,10 +131,10 @@ test("textos: las claves del menú existen en es y en con las mismas variables; 
   }
   assert.match(es["riel.perfilNota"], /ahora en adelante/);
   assert.match(es["riel.perfilNota"], /ya corren/);
-  // Lo que hace de verdad (motor/bin/reparto, aplicar_agresivo): piso de calidad duro, reserva del líder, Flash sólo lee, locales sin historial.
+  // Lo que hace de verdad (motor/bin/reparto, aplicar_agresivo): piso de calidad duro, reserva del líder, locales sin historial.
   assert.match(es["cu.perfilAgresivoQue"], /más barato/);
   assert.match(es["cu.perfilAgresivoQue"], /mínimo de calidad/);
-  assert.match(es["cu.perfilAgresivoQue"], /Flash/);
+  assert.doesNotMatch(es["cu.perfilAgresivoQue"], /Flash/);
   assert.match(en["cu.perfilAgresivoQue"], /quality floor/);
-  assert.match(en["cu.perfilAgresivoQue"], /Flash/);
+  assert.doesNotMatch(en["cu.perfilAgresivoQue"], /Flash/);
 });

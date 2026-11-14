@@ -61,7 +61,7 @@ const nudges = () => llamadas().filter((l) => /Te trabaste repitiendo/.test(l.pr
 const herramientas = (sid: string) => registros(sid).filter((r) => r.type === "assistant" && r.message?.content?.some?.((b: any) => b.type === "tool_use")).length;
 
 test("un Gemini que se repite se corta, recibe el aviso en su conversación y termina bien (con una marca y la cuenta)", { timeout: 60_000 }, async () => {
-  const sid = await lider.nuevo({ modelo: "gemini-3.8-flash", effort: "low", texto: "bucle: descargá eso" });
+  const sid = await lider.nuevo({ modelo: "gemini-4-hydrogen", effort: "low", texto: "bucle: descargá eso" });
   await hasta(() => de(sid, "fin").length === 1);
   assert.equal(de(sid, "fin")[0].error, null, "el turno termina bien después del aviso");
   const n = nudges();
@@ -89,7 +89,7 @@ test("un Gemini que se repite se corta, recibe el aviso en su conversación y te
 
 test("el mismo error repetido también se corta, aunque cambie el comando", { timeout: 60_000 }, async () => {
   const antes = nudges().length;
-  const sid = await lider.nuevo({ modelo: "gemini-3.8-flash", effort: "low", texto: "bucle-error: probá eso" });
+  const sid = await lider.nuevo({ modelo: "gemini-4-hydrogen", effort: "low", texto: "bucle-error: probá eso" });
   await hasta(() => de(sid, "fin").length === 1);
   assert.equal(de(sid, "fin")[0].error, null);
   assert.equal(nudges().length, antes + 1);
@@ -100,7 +100,7 @@ test("si vuelve a trabarse después del aviso: a los 2 reintentos para, lo marca
   process.env.TRAMA_FALSO_BUCLE = "siempre";
   const antes = nudges().length;
   const veces = leerDestrabos().veces;
-  const sid = await lider.nuevo({ modelo: "gemini-3.8-flash", effort: "low", texto: "bucle: otra vez" });
+  const sid = await lider.nuevo({ modelo: "gemini-4-hydrogen", effort: "low", texto: "bucle: otra vez" });
   await hasta(() => de(sid, "fin").length === 1);
   delete process.env.TRAMA_FALSO_BUCLE;
   assert.match(String(de(sid, "fin")[0].error), /sigue repitiendo.*destrabó 2 veces/);
@@ -114,16 +114,16 @@ test("si vuelve a trabarse después del aviso: a los 2 reintentos para, lo marca
 });
 
 test("con la opción apagada para ese modelo no hace nada: el bucle corre entero", { timeout: 60_000 }, async () => {
-  writeFileSync(process.env.TRAMA_MODELOS!, JSON.stringify({ version: 1, destrabar: { "gemini-3.8-flash": false } }));
+  writeFileSync(process.env.TRAMA_MODELOS!, JSON.stringify({ version: 1, destrabar: { "gemini-4-hydrogen": false } }));
   const antes = nudges().length;
-  const sid = await lider.nuevo({ modelo: "gemini-3.8-flash", effort: "low", texto: "bucle: sin destrabar" });
+  const sid = await lider.nuevo({ modelo: "gemini-4-hydrogen", effort: "low", texto: "bucle: sin destrabar" });
   await hasta(() => de(sid, "fin").length === 1);
   assert.equal(nudges().length, antes);
   assert.equal(marcas(sid).length, 0);
   assert.equal(herramientas(sid), 12);
 });
 
-test("un modelo que no es Gemini 3.8 Flash viene apagado, y se prende desde Ajustes (modelos.json)", { timeout: 60_000 }, async () => {
+test("un modelo que no es Gemini 4 Hydrogen viene apagado, y se prende desde Ajustes (modelos.json)", { timeout: 60_000 }, async () => {
   writeFileSync(process.env.TRAMA_MODELOS!, JSON.stringify({ version: 1 }));
   const antes = nudges().length;
   const sin = await lider.nuevo({ modelo: "gemini-4-argon", effort: "low", texto: "bucle: otro modelo" });

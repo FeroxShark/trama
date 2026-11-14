@@ -58,6 +58,9 @@ export function normalizar(texto: string, raices: Raices): string {
       .replace(/ Con --integrar-si-pasa, [\s\S]*?Sin el flag no integra\. /g, " ")
       // La ayuda: --mcp ahora vale para todos los workers (por defecto van sin MCP) y el bash está congelado: se unifica la línea.
       .replace(/^( *pa <proyecto> --mcp "<tarea>" +)[^\n]*$/gm, "$1<MCP>")
+      // Gemini 3.8 Flash fue sacado del TS (python y bash congelados todavía lo nombran en --explicar, --ayuda y el error de -m).
+      .replace(/(Uso por modelo:[^\n]*)gemini-3\.8-flash → poco importante; /g, "$1")
+      .replace(/gemini-\{4-argon,3\.8-flash\}-\{low,medium,high\}/g, "gemini-4-argon-{low,medium,high}, gemini-4-hydrogen-{low,medium,high,xhigh}")
       // El aviso del plan: el texto del tope de turnos cambió (ahora sale del tipo).
       .replace(/tope 100 turnos/g, "tope de turnos hasta 100")
       .replace(/tope 150\)/g, "tope de turnos por tipo: 30 a 120)")

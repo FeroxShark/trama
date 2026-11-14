@@ -88,6 +88,11 @@ const sinHydrogen = (crudo: string) => {
   const j = JSON.parse(crudo) as Sal;
   return JSON.stringify({ ...j, candidatos: j.candidatos.filter((c) => !c.modelo.startsWith("gemini-4-hydrogen")) });
 };
+/** La salida sin Gemini 3.8 Flash (sacada del TS; el python congelado todavía la tiene). */
+const sinFlash = (crudo: string) => {
+  const j = JSON.parse(crudo) as Sal;
+  return JSON.stringify({ ...j, candidatos: j.candidatos.filter((c) => !c.modelo.startsWith("gemini-3.8-flash")) });
+};
 const DIVERGEN_DEL_PY = ["diseno", "frontend", "codigo-multi"];
 function tipo(t: string, fijos: string, mod: string, med = SIN_HISTORIAL) {
   const ts = correr("ts", t, fijos, mod, med);
@@ -97,7 +102,7 @@ function tipo(t: string, fijos: string, mod: string, med = SIN_HISTORIAL) {
   // Gemini 4 Hydrogen (2026-11-12) es una familia sólo del TS: si el motivo lo nombra, el python no puede decir lo mismo; si no, se
   // compara sin sus candidatos.
   if (/Hydrogen/.test(ts.sal.motivo)) return { ...ts, py: ts };
-  assert.equal(sinHydrogen(ts.crudo), sinHydrogen(py.crudo), `ts y python difieren en ${t}`);
+  assert.equal(sinHydrogen(ts.crudo), sinFlash(py.crudo), `ts y python difieren en ${t}`);
   return { ...ts, py };
 }
 const cand = (s: Sal, m: string) => s.candidatos.find((c) => c.modelo === m)!;
@@ -179,18 +184,15 @@ test("el piso es duro: minimo_por_tipo no se relaja en agresivo (ahorro baja lec
   assert.equal(ah.modelo, BIG);
 });
 
-test("Flash nunca escribe en agresivo, aunque modelos.json lo deje libre; los otros perfiles sí lo dejan", () => {
+test("Flash ya no está en reparto: ni con uso_por_modelo libre aparece entre los candidatos", () => {
   const f = cuposFijos();
   const libre = { uso_por_modelo: { "gemini-3.8-flash": "libre" } };
-  const flash = (s: Sal) => s.candidatos.find((c) => c.modelo.startsWith("gemini-3.8-flash"))!;
-  for (const t of ["codigo-acotado", "mecanico", "debug"]) {
-    const ag = tipo(t, f, modelos({ perfil: "agresivo", ...libre })).sal;
-    assert.ok(/^Flash no escribe en el perfil agresivo|^calidad/.test(flash(ag).descartado_por ?? ""), `${t}: ${flash(ag).descartado_por}`);
-    assert.notEqual(ag.modelo, flash(ag).modelo);
+  for (const perfil of ["agresivo", "ahorro", "equilibrado"] as const) {
+    for (const t of ["lectura", "mecanico", "codigo-acotado", "debug"]) {
+      const s = correr("ts", t, f, modelos({ perfil, ...libre }), SIN_HISTORIAL).sal;
+      assert.ok(!s.candidatos.some((c) => c.modelo.startsWith("gemini-3.8-flash")), `${perfil}/${t} no debe incluir Flash`);
+    }
   }
-  assert.match(flash(tipo("mecanico", f, modelos({ perfil: "agresivo", ...libre })).sal).descartado_por ?? "", /^Flash no escribe/);
-  assert.equal(flash(tipo("mecanico", f, modelos({ perfil: "ahorro", ...libre })).sal).descartado_por, null, "con ahorro y uso libre, Flash puede hacer mecanico");
-  assert.equal(flash(tipo("lectura", f, modelos({ perfil: "agresivo" })).sal).descartado_por, null, "lectura sí");
 });
 
 test("conserva la reserva del líder: con la semana de Claude al 70 % (le queda el 30 %, menos que la reserva de 35 %) los workers no gastan Claude", () => {
@@ -209,7 +211,7 @@ test("sin ningún otro modelo que sirva, el gratis sin historial vuelve a entrar
   const solo = arch({ version: 1, leido: AHORA, suscripciones: [] });
   const r = correr("ts", "codigo-acotado", solo, modelos({ perfil: "agresivo", excluir: ["claude-*", "gemini-*", "agy:*"] }), SIN_HISTORIAL);
   const py = correr("py", "codigo-acotado", solo, modelos({ perfil: "agresivo", excluir: ["claude-*", "gemini-*", "agy:*"] }), SIN_HISTORIAL);
-  assert.equal(sinHydrogen(r.crudo), sinHydrogen(py.crudo));
+  assert.equal(sinHydrogen(r.crudo), sinFlash(py.crudo));
   assert.equal(r.sal.modelo, BIG, r.sal.motivo);
   assert.match(r.sal.motivo, /No queda ningún otro modelo que sirva: entra .* aunque no tiene historial en codigo-acotado \(perfil agresivo\)/);
 });

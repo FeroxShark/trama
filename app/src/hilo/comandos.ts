@@ -86,7 +86,7 @@ export const PROPIOS: { nombre: string; args: string | null; clave: ClaveComando
  */
 export const PROPIOS_AGY: { nombre: string; args: string | null; clave: ClaveComando }[] = [
   { nombre: "clear", args: null, clave: "comando.clear" },
-  { nombre: "model", args: "<gemini-4-argon|gemini-3.8-flash>", clave: "comando.model" },
+  { nombre: "model", args: "<gemini-4-argon|gemini-4-hydrogen>", clave: "comando.model" },
   { nombre: "effort", args: "<low|medium|high>", clave: "comando.effort" },
   { nombre: "compact", args: null, clave: "comando.compact" },
   { nombre: "mcp", args: null, clave: "comando.mcp" },

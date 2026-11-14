@@ -13,7 +13,7 @@ export const MIN_N_EXITO = 10;
 
 /** Los pesos corregidos por lo medido (relativos a Opus): lo que se usa cuando un modelo no tiene medida. */
 export const PESOS: Record<string, number> = {
-  opus: 1.0, argon: 0.6, sonnet: 0.29, "gpt-oss": 0.15, haiku: 0.054, flash: 0.2, astra: 1.0, sol: 0.6, luna: 0.08,
+  opus: 1.0, argon: 0.6, sonnet: 0.29, hydrogen: 0.3, "gpt-oss": 0.15, haiku: 0.054, astra: 1.0, sol: 0.6, luna: 0.08,
 };
 
 /** El peso corregido de una familia (Opus = 1); 0,3 si no se conoce (como el reparto). */

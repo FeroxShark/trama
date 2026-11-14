@@ -443,7 +443,7 @@ function PlanClaudeCuenta({ perfil, planDeSiempre, alCambiar }: { perfil: Perfil
 const estadoVarias = (perfiles: PerfilCuenta[], c: CuentaEstado | undefined): EstadoProv => (perfiles.length > 1 && perfiles.some((p) => p.logueado) ? { texto: t("cu.conectado"), tono: "ok" } : estadoProv(c));
 
 /**
- * Una suscripción en una línea: "Gemini 6 %, Flash 88 %" o "5 h 24 %, semana 9 %"; sin nada que decir, `null`. Los grupos que la frase de arriba
+ * Una suscripción en una línea: "Gemini 6 %, Hydrogen 88 %" o "5 h 24 %, semana 9 %"; sin nada que decir, `null`. Los grupos que la frase de arriba
  * ya nombra como agotados (`r`) no se repiten acá: sólo sale lo que todavía tiene cupo.
  */
 function cupoEnUnaLinea(s: SuscripcionCupo | undefined, r: ResumenSusc | null): string | null {

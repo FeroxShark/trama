@@ -114,17 +114,17 @@ test("permitir esfuerzo max: apagado de fábrica, se escribe y vuelve a no estar
   assert.equal(sucio(estado({ permitir_max: true }), on), false);
 });
 
-test("destrabar: prendido de fábrica sólo en Gemini 3.8 Flash; lo que coincide con la fábrica no se anota", () => {
+test("destrabar: prendido de fábrica sólo en Gemini 4 Hydrogen; lo que coincide con la fábrica no se anota", () => {
   const b = borradorDe(estado());
-  assert.equal(destrabarOn(b, "gemini-3.8-flash"), true);
-  assert.equal(destrabarOn(b, "gemini-3.8-flash-low"), true, "el esfuerzo no cuenta");
+  assert.equal(destrabarOn(b, "gemini-4-hydrogen"), true);
+  assert.equal(destrabarOn(b, "gemini-4-hydrogen-low"), true, "el esfuerzo no cuenta");
   assert.equal(destrabarOn(b, "gemini-4-argon"), false);
-  const off = ponerDestrabar(b, "gemini-3.8-flash", false);
-  assert.deepEqual(configDe(off)!.destrabar, { "gemini-3.8-flash": false });
-  assert.equal(destrabarOn(off, "gemini-3.8-flash-high"), false);
+  const off = ponerDestrabar(b, "gemini-4-hydrogen", false);
+  assert.deepEqual(configDe(off)!.destrabar, { "gemini-4-hydrogen": false });
+  assert.equal(destrabarOn(off, "gemini-4-hydrogen-high"), false);
   assert.equal(sucio(estado(), off), true);
-  assert.equal(sucio(estado({ destrabar: { "gemini-3.8-flash": false } }), off), false);
-  assert.deepEqual(ponerDestrabar(off, "gemini-3.8-flash", true).destrabar, {}, "volver a la fábrica borra la clave");
+  assert.equal(sucio(estado({ destrabar: { "gemini-4-hydrogen": false } }), off), false);
+  assert.deepEqual(ponerDestrabar(off, "gemini-4-hydrogen", true).destrabar, {}, "volver a la fábrica borra la clave");
   const on = ponerDestrabar(b, "gemini-4-argon", true);
   assert.deepEqual(configDe(on)!.destrabar, { "gemini-4-argon": true });
   assert.equal(destrabarOn(on, "gemini-4-argon-high"), true);
@@ -175,14 +175,15 @@ test("con qué corre cada tipo según el borrador", () => {
   assert.deepEqual(efectivoBorrador(b, "debug"), { modelo: "claude-opus-5-5", effort: "xhigh" });
   assert.deepEqual(efectivoBorrador(b, "codigo-multi"), { modelo: "claude-sonnet-5-5", effort: "high" });
   assert.deepEqual(efectivoBorrador(b, "mecanico"), { modelo: "claude-haiku-5-5", effort: "xhigh" });
-  const c = elegirWorker(b, "default", "gemini-3.8-flash-low");
-  assert.deepEqual(efectivoBorrador(c, "debug"), { modelo: "gemini-3.8-flash-low" });
+  const c = elegirWorker(b, "default", "gemini-4-hydrogen-low");
+  assert.deepEqual(efectivoBorrador(c, "debug"), { modelo: "gemini-4-hydrogen-low" });
 });
 
 test("las opciones traen un modelo del archivo que esta versión no lista, y los nombres de Gemini", () => {
   assert.ok(modelosPara([], ["claude-nuevo-9"]).some((m) => m.id === "claude-nuevo-9" && m.desc === "otro" && m.proveedor === "anthropic"));
   assert.equal(nombreGemini("gemini-4-argon-high"), "Gemini 4 Argon · high");
-  assert.equal(nombreGemini("gemini-3.8-flash-low"), "Gemini 3.8 Flash · low");
+  assert.equal(nombreGemini("gemini-4-hydrogen-low"), "Gemini 4 Hydrogen · low");
+  assert.equal(nombreGemini("gemini-4-hydrogen-xhigh"), "Gemini 4 Hydrogen · xhigh");
 });
 
 test("agy (Claude y GPT por Google) y el \"auto\" viejo de un tipo", async () => {

@@ -19,7 +19,7 @@ export type Ubicacion = { suscripcion: string; grupo?: string };
 
 /**
  * El grupo de Google que cobra un modelo de agy, por el nombre (el mismo criterio que `idGrupo` de electron/cli/reparto.ts):
- * Argon tiene el suyo, Claude y GPT van juntos, y lo demás (Gemini Flash) es el grupo `gemini`.
+ * Argon tiene el suyo, Claude y GPT van juntos, y lo demás (Gemini Hydrogen) es el grupo `gemini`.
  */
 const grupoGoogle = (id: string): string => {
   if (id.includes("argon")) return "gemini-4-argon";

@@ -150,11 +150,11 @@ try {
   await tecla("N", 78, 2);
   if (!(await hasta(() => !!document.querySelector(".caja-zona textarea"), 3))) await tecla("N", 78, 2);
   ok(await hasta(() => !!document.querySelector(".caja-zona textarea"), 8), "Ctrl+N abre un líder nuevo");
-  // Gemini 3.8 Flash en el selector de modelo de la caja.
+  // Gemini 4 Hydrogen en el selector de modelo de la caja.
   await en(() => document.querySelector(".caja-zona .pbtn")?.click());
-  ok(await hasta(() => !![...document.querySelectorAll(".caja-zona [role=option]")].find((o) => /Flash/.test(o.textContent)), 3), "el selector ofrece Gemini 3.8 Flash");
-  await en(() => [...document.querySelectorAll(".caja-zona [role=option]")].find((o) => /Flash/.test(o.textContent))?.click());
-  ok(await hasta(() => /Flash/.test(document.querySelector(".caja-zona .pbtn")?.textContent ?? ""), 3), "el líder quedó en Gemini 3.8 Flash");
+  ok(await hasta(() => !![...document.querySelectorAll(".caja-zona [role=option]")].find((o) => /Hydrogen/.test(o.textContent)), 3), "el selector ofrece Gemini 4 Hydrogen");
+  await en(() => [...document.querySelectorAll(".caja-zona [role=option]")].find((o) => /Hydrogen/.test(o.textContent))?.click());
+  ok(await hasta(() => /Hydrogen/.test(document.querySelector(".caja-zona .pbtn")?.textContent ?? ""), 3), "el líder quedó en Gemini 4 Hydrogen");
 
   await mandar("pienso herramienta falla despacio");
   const a = await esperar((v) => v.hay && v.lineas.some((l) => l.k === "pensamiento"), 20);

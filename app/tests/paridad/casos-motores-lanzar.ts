@@ -41,7 +41,7 @@ const ok = (result: string): Respuesta => ({
 export const casosMotoresLanzar: Caso[] = [
   // --- agy ---
   mo("agy: worktree con resultado completo", ["demo", "--sin-jefe", "-m", "gemini-4-argon-medium", BRIEF], 0),
-  mo("agy: --leer", ["demo", "--sin-jefe", "--leer", "-m", "gemini-3.8-flash-low", "¿qué hace esto?"], 0),
+  mo("agy: --leer", ["demo", "--sin-jefe", "--leer", "-m", "gemini-4-argon-low", "¿qué hace esto?"], 0),
   mo("agy: modelo de Claude por agy y --max-turns", ["demo", "--sin-jefe", "-m", "agy:claude-sonnet-5-5-high", "--max-turns", "9", BRIEF], 0),
   mo("agy: sin cupo (429) falla con 1", ["demo", "--sin-jefe", "-m", "gemini-4-argon-low", BRIEF], 1, { env: { FALSO_MODO: "cupo" } }),
   mo("agy: sin el plugin pa-worker cae a Claude", ["demo", "--sin-jefe", "-m", "gemini-4-argon-low", BRIEF], 78, { env: { FALSO_MODO: "sin-hooks" } }),

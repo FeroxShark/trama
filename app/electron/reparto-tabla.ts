@@ -22,7 +22,7 @@ export type FilaTabla = {
   nombre: string;
   /** `claude`, `google`, `openai`, `opencode`, `ollama`, `deepseek` o `local`. */
   proveedor: string;
-  /** La familia de reparto (`opus`, `sonnet`, `flash`, `dsh`, `local`…): la clave de `calidad` de los modelos de Claude, Google y ChatGPT. */
+  /** La familia de reparto (`opus`, `sonnet`, `hydrogen`, `dsh`, `local`…): la clave de `calidad` de los modelos de Claude, Google y ChatGPT. */
   familia: string;
   /** La familia con la que `excluir` compara este id (`opencode` para los de OpenCode, `dsh`, `local`, o la misma `familia`). */
   familiaExcluir: string;

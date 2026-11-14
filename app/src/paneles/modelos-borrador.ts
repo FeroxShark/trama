@@ -165,7 +165,7 @@ export function sucio(e: EstadoModelos, b: Borrador): boolean {
 // --- Qué se puede elegir ------------------------------------------------------------------
 
 export type Proveedor = "anthropic" | "google" | "ollama" | "otro";
-export type Modelo = { id: string; nombre: string; proveedor: Proveedor; desc: "argon" | "flash" | "agy" | "local" | "otro" | null };
+export type Modelo = { id: string; nombre: string; proveedor: Proveedor; desc: "argon" | "hydrogen" | "agy" | "local" | "otro" | null };
 
 /** "gemini-4-argon-high" → "Gemini 4 Argon · high". */
 const NOMBRES_AGY: Record<string, string> = {
@@ -177,7 +177,7 @@ const NOMBRES_AGY: Record<string, string> = {
 export function nombreGemini(id: string): string {
   const a = /^agy:(.+)-(low|medium|high)$/.exec(id);
   if (a) return `${NOMBRES_AGY[a[1]!] ?? `${a[1]} (por Google)`} · ${a[2]}`;
-  const m = /^gemini-(.+)-(low|medium|high)$/.exec(id);
+  const m = /^gemini-(.+)-(low|medium|high|xhigh)$/.exec(id);
   if (!m) return id;
   const familia = m[1]!.split("-").map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
   return `Gemini ${familia} · ${m[2]}`;
@@ -187,7 +187,7 @@ export function nombreGemini(id: string): string {
 export function modelosPara(locales: Local[], actuales: string[] = [], agy = true): Modelo[] {
   const lista: Modelo[] = [
     ...TABLA.filter((m) => m.empresa === "anthropic").map((m): Modelo => ({ id: m.id, nombre: m.nombre, proveedor: "anthropic", desc: null })),
-    ...(agy ? GEMINI.map((id): Modelo => ({ id, nombre: nombreGemini(id), proveedor: "google", desc: id.includes("argon") ? "argon" : "flash" })) : []),
+    ...(agy ? GEMINI.map((id): Modelo => ({ id, nombre: nombreGemini(id), proveedor: "google", desc: id.includes("argon") ? "argon" : "hydrogen" })) : []),
     ...(agy ? AGY.map((id): Modelo => ({ id, nombre: nombreGemini(id), proveedor: "google", desc: "agy" })) : []),
     ...locales.map((l): Modelo => ({ id: l.id, nombre: l.nombre, proveedor: "ollama", desc: "local" })),
   ];

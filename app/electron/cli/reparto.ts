@@ -88,7 +88,7 @@ export function viejaAAa(q: number): number {
 
 // --- defaults ----------------------------------------------------------------------------------------
 const CALIDAD: Obj = {
-  opus: 100, sonnet: 88, hydrogen: 88, argon: 85, haiku: 60, "gpt-oss": 45, flash: 60,
+  opus: 100, sonnet: 88, hydrogen: 88, argon: 85, haiku: 60, "gpt-oss": 45,
   astra: 85, sol: 88, luna: 60,
   "dsh:opencode/big-pickle": 60, "dsh:opencode/deepseek-v4.1-flash-free": 60, "dsh:opencode/glm-5.3-flash-free": 55,
   "dsh:opencode/longcat-2.5-preview-free": 45, "dsh:opencode/flint-40b-free": 40,
@@ -109,7 +109,7 @@ const MINIMO_POR_TIPO: Obj = {
 };
 const PREFERIDO_POR_TIPO: Obj = { frontend: "sonnet", "codigo-multi": "sonnet", "codigo-acotado": "haiku" };
 const SOLO_EN: Obj = {};
-const USO_POR_MODELO: Obj = { "gemini-3.8-flash": "poco_importante", "gemini-4-argon": "solo_final" };
+const USO_POR_MODELO: Obj = { "gemini-4-argon": "solo_final" };
 const USOS = ["libre", "poco_importante", "solo_final"];
 const TIPOS_POCO_IMPORTANTES = ["lectura", "mecanico"];
 const TIPOS_FINALES = ["final"];
@@ -117,12 +117,12 @@ const EFFORT_POR_TIPO: Obj = {
   debug: "high", diseno: "high", "codigo-multi": "high", frontend: "high", final: "high",
   "codigo-acotado": "medium", lectura: "medium", mecanico: "high",
 };
-const COSTO: Obj = { opus: 1.0, argon: 0.6, sonnet: 0.35, hydrogen: 0.3, "gpt-oss": 0.15, haiku: 0.12, flash: 0.2, astra: 1.0, sol: 0.6, luna: 0.08 };
+const COSTO: Obj = { opus: 1.0, argon: 0.6, sonnet: 0.35, hydrogen: 0.3, "gpt-oss": 0.15, haiku: 0.12, astra: 1.0, sol: 0.6, luna: 0.08 };
 const COSTO_FLOAT = ["opus", "astra"]; // los 1.0 de COSTO (en JS no se distinguen de un 1)
 const RESERVA = null;
 const AVISO_USO = 0.85;
 const SIN_CUPO = ["otro", "esperar", "fallar"];
-const FAMILIAS_EXCLUIBLES = ["fable", "opus", "sonnet", "haiku", "argon", "hydrogen", "flash", "gpt-oss", "astra", "sol", "luna"];
+const FAMILIAS_EXCLUIBLES = ["fable", "opus", "sonnet", "haiku", "argon", "hydrogen", "gpt-oss", "astra", "sol", "luna"];
 const LLENA = 0.03;
 const MARGEN = 3.0;
 const PESO_SOBRA = 0.5;
@@ -140,7 +140,6 @@ const PERFILES: Record<string, Perfil> = {
 const PERFIL_DEFECTO = "equilibrado";
 const RELAJA_AHORRO: Obj = { lectura: 50, mecanico: 50 };
 const TIPOS_GRATIS_SIN_DATOS = ["lectura", "mecanico"];
-const TIPOS_FLASH_AGRESIVO = ["lectura"];
 // Opus no arranca de cero en estos tipos (medido: US$ 5,7 por corrida y 12-26 % ok): sólo entra por -m o --seguir, que no pasan por reparto.
 const TIPOS_SIN_OPUS = ["frontend", "codigo-multi"];
 const RINDE_MIN_N = 5;
@@ -165,7 +164,7 @@ const GRUPOS_HASTA: Obj = {};
 
 type Grupo = [string, string, string[], string[]];
 const GRUPOS_GOOGLE: Grupo[] = [
-  ["gemini", "Gemini", ["5h", "7d"], ["gemini-4-hydrogen", "gemini-3.8-flash"]],
+  ["gemini", "Gemini", ["5h", "7d"], ["gemini-4-hydrogen"]],
   ["claude-gpt", "Claude y GPT por Google", ["5h", "7d"], ["agy:claude-opus-5-5", "agy:claude-sonnet-5-5", "agy:gpt-oss-120b"]],
   ["gemini-4-argon", "Gemini 4 Argon", ["7d"], ["gemini-4-argon"]],
 ];
@@ -205,7 +204,6 @@ const FAMILIAS: Familia[] = [
   ["agy:gpt-oss-120b", "gpt-oss", "GPT-OSS 120B", "google", "claude-gpt", "gpt-oss-120b", ["medium"]],
   ["gemini-4-argon", "argon", "Gemini 4 Argon", "google", "gemini-4-argon", "gemini-4-argon", EFFORTS_AGY],
   ["gemini-4-hydrogen", "hydrogen", "Gemini 4 Hydrogen", "google", "gemini", "gemini-4-hydrogen", EFFORTS_HYDROGEN],
-  ["gemini-3.8-flash", "flash", "Gemini 3.8 Flash", "google", "gemini", "gemini-3.8-flash", EFFORTS_AGY],
   ["codex:gpt-6.1-sol", "sol", "GPT-6.1 Sol (Codex)", "openai", "codex", "gpt-6.1-sol", EFFORTS_CODEX],
   ["codex:gpt-6-astra", "astra", "GPT-6 Astra (Codex)", "openai", "codex", "gpt-6-astra", EFFORTS_CODEX],
   ["codex:gpt-6-luna", "luna", "GPT-6 Luna (Codex)", "openai", "codex", "gpt-6-luna", EFFORTS_CODEX],
@@ -1214,8 +1212,8 @@ const AGY_MODELOS_S = 21600; // vida de la lista de `agy models` (depende de la 
 const RE_AGY_ID = /^[a-z0-9][a-z0-9._-]*$/i;
 const RE_AGY_FAMILIA = /^(?:gemini|claude|gpt)/i;
 
-/** El id probable de un nombre de `agy models` que vino sin id ('Claude Sonnet 4.6 (Thinking)' → claude-sonnet-4-6-thinking; 'Gemini 3.8 Flash (High)' →
- *  gemini-3.8-flash-high): minúsculas, lo que no es letra ni número pasa a '-', y el punto de una versión de Claude pasa a '-' (los ids de Claude llevan 5-5; los de Gemini, 3.8). */
+/** El id probable de un nombre de `agy models` que vino sin id ('Claude Sonnet 4.6 (Thinking)' → claude-sonnet-4-6-thinking; 'Gemini 4 Hydrogen (High)' →
+ *  gemini-4-hydrogen-high): minúsculas, lo que no es letra ni número pasa a '-', y el punto de una versión de Claude pasa a '-' (los ids de Claude llevan 5-5). */
 export function agyIdDeNombre(nombre: unknown): string {
   let n = pyStr(nombre || "").toLowerCase().trim();
   if (n.startsWith("claude")) n = n.replace(/(\d)\.(\d)/g, "$1-$2");
@@ -2401,7 +2399,7 @@ function sinOpusDeCero(out: Obj[], tipo: string): void {
   }
 }
 
-/** `aplicar_agresivo`: a cada candidato su costo, y dos reglas duras sobre `minimo_por_tipo`: Flash nunca escribe, y lo que no gasta cupo sin historial propio sólo entra en TIPOS_GRATIS_SIN_DATOS (vuelve si no queda nada más). */
+/** `aplicar_agresivo`: a cada candidato su costo, y la regla dura sobre `minimo_por_tipo`: lo que no gasta cupo sin historial propio sólo entra en TIPOS_GRATIS_SIN_DATOS (vuelve si no queda nada más). */
 function aplicarAgresivo(out: Obj[], tipo: string, cfg: Obj, now: Date): void {
   const rinde = rindeDeModelos(now);
   for (const c of out) {
@@ -2410,9 +2408,6 @@ function aplicarAgresivo(out: Obj[], tipo: string, cfg: Obj, now: Date): void {
     conFloat(c, "costo");
     if (c.proveedor === "local" || c.proveedor === "dsh") {
       exigirHistorialSinCupo(c, tipo, rinde, "agresivo");
-    } else if (c.familia === "flash" && !TIPOS_FLASH_AGRESIVO.includes(tipo) && !c.descartado_por) {
-      c.descartado_por = `Flash no escribe en el perfil agresivo (sólo ${TIPOS_FLASH_AGRESIVO.join(" y ")})`;
-      c.duro = true;
     }
   }
 }
@@ -2679,10 +2674,11 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
   // Los modelos que el agy de la cuenta ofrece y FAMILIAS no conoce (p. ej. 'Claude Sonnet 4.6 (Thinking)'): entran con calidad estimada
   for (const cs of googles) {
     for (const m of (get(cs, "agy_modelos", []) || []) as { id: string; nombre: string }[]) {
+      if (m.id.startsWith("gemini-")) continue;
       if (FAMILIAS.some((f) => f[3] === "google" && m.id.startsWith(f[5] + "-") && f[6]!.includes(m.id.slice(f[5]!.length + 1)))) continue;
       const mid = agyIdReparto(m.id);
       const fam = familiaDe(mid);
-      hacer([mid, fam || "agy", m.id.startsWith("gemini-") ? m.nombre : `${m.nombre} (por Google)`, "google", idGrupo(m.nombre || m.id), m.id, []], cs);
+      hacer([mid, fam || "agy", `${m.nombre} (por Google)`, "google", idGrupo(m.nombre || m.id), m.id, []], cs);
     }
   }
   for (const loc of cfg.locales as Obj[]) {
@@ -3316,8 +3312,7 @@ function paraQueSirve(f: Obj): string {
     sonnet: "pedido ambiguo, varias partes, o si Haiku ya falló",
     haiku: "default si la tarea se describe con precisión (archivos, qué cambiar, listo, chequeo): lectura, mecánico, código e interfaz chica",
     argon: "diseño y segunda opinión; contexto largo (1M)",
-    hydrogen: "código e interfaz al nivel de Sonnet; cupo de Gemini (el mismo que Flash)",
-    flash: "lectura y mecánico con chequeo; cupo de Google",
+    hydrogen: "código e interfaz al nivel de Sonnet; cupo de Gemini",
     "gpt-oss": "mecánico simple; sigue poco el contrato",
     astra: "tareas grandes (ChatGPT); pa todavía no lo lanza", sol: "código medio (ChatGPT); pa todavía no lo lanza",
     luna: "tareas chicas (ChatGPT); pa todavía no lo lanza",

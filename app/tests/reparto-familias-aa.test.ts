@@ -10,6 +10,8 @@ import path from "node:path";
 import { familiasSinFilaAA } from "../electron/cli/reparto.ts";
 import { calidadDeAA } from "../electron/reparto-claude.ts";
 import { modelosClaudeCuenta } from "../electron/claude-catalogo.ts";
+import { leerConfig, validarConfig } from "../electron/modelos-tipos.ts";
+import { validarOtroMotor } from "../electron/cli/pa/motores/modelos.ts";
 
 const RAIZ = path.join(import.meta.dirname, "..", "..");
 const DATOS = path.join(RAIZ, "motor", "datos");
@@ -88,4 +90,93 @@ test("Fable 5.2 está en la tabla con su fila de AA y el reparto no lo elige sol
   }
   const ex = r(["--tipo", "frontend", "--json", "--explicar"]).stdout;
   assert.doesNotMatch(ex, /fable/i, "Fable ni aparece entre los candidatos del reparto");
+});
+
+const REPARTO_TS = path.join(RAIZ, "app", "electron", "cli", "reparto.ts");
+
+function tablaTs(opts: { mod?: object; agyFijo?: string; conGoogle?: boolean } = {}) {
+  const cupos = path.join(tmp, `cupos-${Math.random().toString(36).slice(2)}.json`);
+  const suscripciones: object[] = [
+    {
+      id: "claude", nombre: "Claude", proveedor: "claude", cuenta: "claude",
+      ventanas: opts.conGoogle
+        ? [{ id: "5h", usado: 0.99, vuelve: "2026-11-11T14:00:00Z" }, { id: "7d", usado: 0.99, vuelve: "2026-11-15T00:00:00Z" }]
+        : [{ id: "5h", usado: 0.2, vuelve: "2026-11-11T14:00:00Z" }],
+    },
+  ];
+  if (opts.conGoogle) {
+    suscripciones.push({
+      id: "google", nombre: "Google AI Pro", proveedor: "google", cuenta: "google",
+      grupos: [
+        { id: "gemini", nombre: "Gemini", ventanas: [{ id: "5h", usado: 0.1, vuelve: "2026-11-11T14:00:00Z" }, { id: "7d", usado: 0.1, vuelve: "2026-11-15T00:00:00Z" }] },
+        { id: "gemini-4-argon", nombre: "Gemini 4 Argon", ventanas: [{ id: "7d", usado: 0.2, vuelve: "2026-11-15T00:00:00Z" }] },
+      ],
+    });
+  }
+  writeFileSync(cupos, JSON.stringify({ version: 1, leido: "2026-11-11T12:00:00Z", suscripciones }));
+  const mod = path.join(tmp, `modelos-${Math.random().toString(36).slice(2)}.json`);
+  writeFileSync(mod, JSON.stringify({ version: 1, ...(opts.mod ?? {}) }));
+  const base: Record<string, string | undefined> = { ...process.env };
+  for (const k of ["REPARTO_AA", "REPARTO_AA_FOTO", "REPARTO_AA_SUPLEMENTO", "REPARTO_OK_DUENO", "REPARTO_NO_DISPONIBLE"]) delete base[k];
+  return (args: string[]) =>
+    spawnSync(process.execPath, [REPARTO_TS, ...args], {
+      encoding: "utf8",
+      env: {
+        ...base,
+        REPARTO_CUPOS_FIJOS: cupos,
+        REPARTO_AHORA: "2026-11-11T12:00:00Z",
+        REPARTO_AGY: opts.agyFijo ? "1" : "0",
+        ...(opts.agyFijo ? { REPARTO_AGY_MODELOS_FIJO: opts.agyFijo } : {}),
+        REPARTO_DSH_FIJO: "{\"ollama\":[],\"opencode\":false,\"deepseek\":false}",
+        REPARTO_OPENCODE_FIJO: "[\"opencode/glm-5.3-flash-free\",\"opencode/big-pickle\"]",
+        REPARTO_STATE: path.join(tmp, "estado-ts"),
+        TRAMA_MODELOS: mod,
+      },
+    });
+}
+
+test("Gemini 3.8 Flash no está en la tabla y el reparto no lo elige en ningún tipo (ni si agy models lo devuelve)", () => {
+  const agyFijo = ["gemini-3.8-flash-high", "gemini-3.8-flash-medium", "gemini-3.8-flash-low", "gemini-4-hydrogen-high"].join(String.fromCharCode(10));
+  const r = tablaTs({ conGoogle: true, agyFijo });
+  const tab = JSON.parse(r(["--tabla", "--json"]).stdout) as { modelos: { id: string; familia: string }[] };
+  assert.equal(tab.modelos.some((m) => m.id.includes("3.8-flash") || m.familia === "flash"), false, "Flash no puede aparecer en --tabla");
+  assert.ok(tab.modelos.some((m) => m.id.startsWith("gemini-4-hydrogen")), "Hydrogen tiene que estar en --tabla");
+  const res = r(["--resumen", "--json"]);
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(res.stdout.includes("3.8-flash"), false, "--resumen no puede nombrar 3.8-flash");
+  for (const tipo of ["lectura", "mecanico", "codigo-acotado", "frontend", "diseno", "codigo-multi", "debug", "final"]) {
+    const x = r(["--tipo", tipo, "--json", "--explicar"]);
+    assert.equal(x.status, 0, `${tipo}: ${x.stderr}`);
+    const j = JSON.parse(x.stdout) as { modelo: string; candidatos: { modelo: string }[] };
+    assert.equal(j.modelo.includes("3.8-flash"), false, `${tipo}: nunca elige Flash`);
+    assert.equal(j.candidatos.some((c) => c.modelo.includes("3.8-flash")), false, `${tipo}: Flash ni entra como candidato aunque agy models lo liste`);
+  }
+});
+
+test("un modelos.json viejo que nombra Flash no rompe nada y -m gemini-3.8-flash-high se rechaza igual que un desconocido", () => {
+  const viejo = {
+    version: 1,
+    excluir: ["gemini-3.8-flash", "flash"],
+    destrabar: { "gemini-3.8-flash": false },
+    minimo_por_tipo: { lectura: "gemini-3.8-flash", debug: "gemini-3.8-flash-high" },
+    workers: { mecanico: { modelo: "gemini-3.8-flash-medium" } },
+  };
+  const cfg = validarConfig({ excluir: viejo.excluir, destrabar: viejo.destrabar });
+  assert.deepEqual(cfg.destrabar["gemini-3.8-flash"], false);
+  const lc = leerConfig(viejo);
+  assert.ok(Array.isArray(lc.excluir));
+  const r = tablaTs({ mod: viejo });
+  const tab = JSON.parse(r(["--tabla", "--json"]).stdout) as { modelos: { id: string; permitido: boolean }[] };
+  const glm = tab.modelos.find((m) => m.id === "opencode:opencode/glm-5.3-flash-free");
+  assert.ok(glm?.permitido, "excluir [\"flash\"] no excluye modelos ajenos como glm-5.3-flash-free");
+  for (const tipo of ["lectura", "debug"]) {
+    const x = r(["--tipo", tipo, "--json"]);
+    assert.equal(x.status, 0, `${tipo}: ${x.stderr}`);
+    const j = JSON.parse(x.stdout) as { modelo: string };
+    assert.equal(j.modelo.includes("3.8-flash"), false);
+  }
+  const rFlash = validarOtroMotor("gemini-3.8-flash-high");
+  const rDesc = validarOtroMotor("gemini-no-existe-high");
+  assert.ok(rFlash && !rFlash.ok && rDesc && !rDesc.ok);
+  assert.equal(rFlash.error.replace("gemini-3.8-flash-high", "<M>"), rDesc.error.replace("gemini-no-existe-high", "<M>"));
 });

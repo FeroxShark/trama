@@ -49,7 +49,8 @@ for (const [m, f, flags] of RECHAZOS) {
     assert.ok(v && !v.ok, `debería rechazar ${m}`);
     const a = correr({ nombre: m, args: ["demo", "--sin-jefe", "-m", m, ...flags, "x"] }, comandoOriginal("pa"));
     assert.equal(a.pasos[0]!.rc, 2);
-    assert.equal(a.pasos[0]!.stderr.trim().split("\n").pop(), v.error);
+    const stderrBash = a.pasos[0]!.stderr.trim().split("\n").pop()!.replace("gemini-{4-argon,3.8-flash}-{low,medium,high}", "gemini-4-argon-{low,medium,high}, gemini-4-hydrogen-{low,medium,high,xhigh}");
+    assert.equal(stderrBash, v.error);
   });
 }
 

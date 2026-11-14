@@ -13,7 +13,7 @@ export { familiaDe, type Familia };
 export const CORTO: Record<Exclude<Familia, "otro">, string> = { opus: "Opus", sonnet: "Sonnet", fable: "Fable", haiku: "Haiku" };
 
 /**
- * Lo que dice el chip del modelo en la fila: la familia con su versión ("Opus 5.5", "Flash 3.8") o, si no
+ * Lo que dice el chip del modelo en la fila: la familia con su versión ("Opus 5.5", "Hydrogen 4") o, si no
  * es de la casa, las dos primeras palabras del id ("deepseek-v4.1-flash-free" → "Deepseek V4.1"). `null`
  * sin modelo: no hay chip.
  */
@@ -30,7 +30,7 @@ export function modeloCorto(modelo: string | null | undefined): string | null {
   const base = id.replace(/^[\w-]+:/, "").replace(/^.*\//, "").replace(/-free$/, "").replace(/-(?:minimal|low|medium|high|max)$/, "");
   const p = base.split(/[-_:\s]+/).filter(Boolean);
   const cap = (w: string) => (/^v?\d/.test(w) ? w.toUpperCase().replace(/^V/, "V") : w[0].toUpperCase() + w.slice(1));
-  // Gemini: la variante y la versión ("gemini-3.8-flash" → "Flash 3.8"), que es lo que cambia entre uno y otro.
+  // Gemini: la variante y la versión ("gemini-4-hydrogen" → "Hydrogen 4"), que es lo que cambia entre uno y otro.
   if (p[0] === "gemini" && p.length > 2) return `${cap(p.slice(2).find((w) => !/^\d/.test(w)) ?? p[2])} ${p[1]}`;
   return p.slice(0, 2).map(cap).join(" ").slice(0, 18) || null;
 }
@@ -62,7 +62,7 @@ export type ChipModelo = { familia: Familia; largo: string; corto: string; nombr
 
 /**
  * Qué dice el chip de modelo y esfuerzo de un worker o de un líder. `null` sin modelo (no se inventa). Claude: la familia
- * («Sonnet», «Opus»); otro motor: la primera palabra de su nombre corto («Flash», «Deepseek»). El esfuerzo sale de `nivelDe`
+ * («Sonnet», «Opus»); otro motor: la primera palabra de su nombre corto («Hydrogen», «Deepseek»). El esfuerzo sale de `nivelDe`
  * (el id manda); `off` de los locales no se muestra. Sin esfuerzo no hay inicial suelta: el nombre entero. La versión completa va en el tooltip (`modelo`).
  */
 export function chipModelo(modelo: string | null | undefined, effort: string | null | undefined): ChipModelo | null {

@@ -148,9 +148,6 @@ export function geminiEquivalente(m: string): [string, string] {
     "gemini-4-hydrogen-high": ["claude-sonnet-5-5", "high"],
     "gemini-4-hydrogen-medium": ["claude-sonnet-5-5", "medium"],
     "gemini-4-hydrogen-low": ["claude-haiku-5-5", "xhigh"],
-    "gemini-3.8-flash-high": ["claude-haiku-5-5", "xhigh"],
-    "gemini-3.8-flash-medium": ["claude-haiku-5-5", "high"],
-    "gemini-3.8-flash-low": ["claude-haiku-5-5", "medium"],
   };
   if (fijo[m]) return fijo[m];
   const e = m.slice(m.lastIndexOf("-") + 1);
@@ -161,7 +158,6 @@ export function geminiEquivalente(m: string): [string, string] {
   if (m.startsWith("agy:claude-opus-")) return ["claude-opus-5-5", "medium"];
   if (m.startsWith("agy:claude-sonnet-")) return ["claude-sonnet-5-5", "medium"];
   if (m.startsWith("agy:gpt-")) return ["claude-sonnet-5-5", "medium"];
-  if (m.startsWith("gemini-") && m.includes("flash")) return ["claude-haiku-5-5", "high"];
   if (m.startsWith("gemini-")) return ["claude-sonnet-5-5", "high"];
   return ["", ""];
 }
@@ -580,17 +576,18 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
   }
   if (l.lanza && esGemini(l.modelo)) await cuentaResolver("google", l, pa, deps);
   if (l.lanza && esGemini(l.modelo)) {
-    if (!calza(GEMINI_MODELOS, l.modelo.toLowerCase())) {
-      // el catálogo de agy cambia con la cuenta, la región y la versión: vale lo que el agy de esta cuenta ofrece (reparto --agy-modelos)
+    const modeloMin = l.modelo.toLowerCase();
+    if (!calza(GEMINI_MODELOS, modeloMin)) {
+      // el catálogo de agy cambia con la cuenta, la región y la versión: vale lo que el agy de esta cuenta ofrece (reparto --agy-modelos), pero Gemini sólo entra si está en GEMINI_MODELOS
       const cuentaAgy = l.cuentaUsada && !["claude", "google", "chatgpt"].includes(l.cuentaUsada) ? l.cuentaUsada : undefined;
-      let ofrecidos = (await deps.reparto.agyModelos?.({ cuenta: cuentaAgy })) ?? [];
-      if (!ofrecidos.includes(l.modelo.toLowerCase())) {
+      let ofrecidos = !modeloMin.startsWith("gemini-") ? ((await deps.reparto.agyModelos?.({ cuenta: cuentaAgy })) ?? []) : [];
+      if (modeloMin.startsWith("gemini-") || !ofrecidos.includes(modeloMin)) {
         // sin ninguno fuera de los conocidos (sin agy o sin sesión, reparto devuelve los de siempre) la lista no dice nada nuevo
         if (ofrecidos.every((m) => calza(GEMINI_MODELOS, m))) ofrecidos = [];
         corta(
           pa,
           2,
-          `pa: modelo '${l.modelo}' no va. Modelos de agy en pa: gemini-{4-argon,3.8-flash}-{low,medium,high}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium${ofrecidos.length ? `, y los que ofrece el agy de esta cuenta: ${ofrecidos.join(" ")}` : ""}.`,
+          `pa: modelo '${l.modelo}' no va. Modelos de agy en pa: gemini-4-argon-{low,medium,high}, gemini-4-hydrogen-{low,medium,high,xhigh}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium${ofrecidos.length ? `, y los que ofrece el agy de esta cuenta: ${ofrecidos.join(" ")}` : ""}.`,
         );
       }
     }

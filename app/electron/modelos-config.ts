@@ -229,7 +229,7 @@ export function partirGemini(id: string, effort?: string | null): { modelo: stri
   return { modelo: id, effort: effort && nivelesDe(id).includes(effort) ? effort : def };
 }
 
-/** Lo que se le pasa a `agy --model`: el modelo con su esfuerzo (`gemini-3.8-flash-low`). */
+/** Lo que se le pasa a `agy --model`: el modelo con su esfuerzo (`gemini-4-hydrogen-low`). */
 export const idAgy = (modelo: string, effort: string) =>
   NIVEL_AGY.test(modelo) || SIN_NIVEL.has(modelo) ? modelo : `${modelo}-${nivelesDe(modelo).includes(effort) ? effort : EFFORT_GEMINI_DEFECTO}`;
 

@@ -51,7 +51,7 @@ if (args[0] === "models") {
     process.exit(1);
   }
   if (process.env.TRAMA_FALSO_AGY_LOGIN !== "0") {
-    console.log("gemini-4-argon-high\tGemini 4 Argon (High)\ngemini-3.8-flash-high\tGemini 3.8 Flash (High)");
+    console.log("gemini-4-argon-high\tGemini 4 Argon (High)\ngemini-4-hydrogen-high\tGemini 4 Hydrogen (High)");
   }
   process.exit(0);
 }
@@ -71,7 +71,7 @@ if (valor("--input-format") === "stream-json") {
     .map((c) => c.text ?? "")
     .join("\n");
 }
-const modelo = valor("--model") ?? "gemini-3.8-flash-low";
+const modelo = valor("--model") ?? "gemini-4-hydrogen-low";
 const pedida = valor("--conversation");
 const dir = path.join(process.env.HILOS_STATE ?? "/tmp", "agy-falso");
 mkdirSync(dir, { recursive: true });

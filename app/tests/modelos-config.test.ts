@@ -207,11 +207,11 @@ test("defaults por tipo de tarea: Haiku para leer y lo mecánico, Sonnet para el
   assert.deepEqual(efectivoDe(c, "lectura"), { modelo: "claude-opus-5-5", effort: "low" });
 });
 
-test("sin Claude (sólo Gemini): Argon para todo lo que pesa y Flash sólo para lo mecánico", () => {
+test("sin Claude (sólo Gemini): Argon para todo lo que pesa y Hydrogen sólo para lo mecánico", () => {
   const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   for (const t of TIPOS) {
     const m = efectivoDe(vacia, t, true).modelo;
-    assert.equal(m, t === "mecanico" ? "gemini-3.8-flash-medium" : "gemini-4-argon-high", t);
+    assert.equal(m, t === "mecanico" ? "gemini-4-hydrogen-medium" : "gemini-4-argon-high", t);
     assert.ok((GEMINI as readonly string[]).includes(m), `${m} lo sabe lanzar pa`);
   }
   assert.equal(defaultsDe(true), DEFAULTS_GEMINI);
@@ -298,19 +298,19 @@ const CLAUDE_MD = `# Ejemplo
 `;
 
 test("destrabar: se lee, se valida, se escribe disperso y no pisa lo ajeno", async () => {
-  assert.deepEqual(leerConfig({ destrabar: { "gemini-3.8-flash": false, "gemini-4-argon": true, "claude-opus-5-5": true, x: 3 } }).destrabar, { "gemini-3.8-flash": false, "gemini-4-argon": true });
+  assert.deepEqual(leerConfig({ destrabar: { "gemini-4-hydrogen": false, "gemini-4-argon": true, "claude-opus-5-5": true, x: 3 } }).destrabar, { "gemini-4-hydrogen": false, "gemini-4-argon": true });
   assert.deepEqual(leerConfig({}).destrabar, {});
   const base = { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {} };
-  assert.throws(() => validarConfig({ ...base, destrabar: { "gemini-3.8-flash": "si" } }));
+  assert.throws(() => validarConfig({ ...base, destrabar: { "gemini-4-hydrogen": "si" } }));
   assert.throws(() => validarConfig({ ...base, destrabar: { "claude-opus-5-5": true } }), "sólo modelos de agy");
   const ruta = nuevaRuta();
   mkdirSync(path.dirname(ruta), { recursive: true });
   writeFileSync(ruta, JSON.stringify({ version: 1, algo_ajeno: { x: 1 } }));
-  await guardarModelos({ ...base, destrabar: { "gemini-3.8-flash": false } }, undefined, ruta);
+  await guardarModelos({ ...base, destrabar: { "gemini-4-hydrogen": false } }, undefined, ruta);
   let j = JSON.parse(readFileSync(ruta, "utf8"));
-  assert.deepEqual(j.destrabar, { "gemini-3.8-flash": false });
+  assert.deepEqual(j.destrabar, { "gemini-4-hydrogen": false });
   assert.deepEqual(j.algo_ajeno, { x: 1 });
-  assert.deepEqual((await leerModelos(undefined, ruta)).config.destrabar, { "gemini-3.8-flash": false });
+  assert.deepEqual((await leerModelos(undefined, ruta)).config.destrabar, { "gemini-4-hydrogen": false });
   await guardarModelos({ ...base, destrabar: {} }, undefined, ruta);
   j = JSON.parse(readFileSync(ruta, "utf8"));
   assert.ok(!("destrabar" in j), "sin nada tocado sale del archivo");

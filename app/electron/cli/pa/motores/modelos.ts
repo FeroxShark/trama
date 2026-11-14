@@ -7,7 +7,7 @@
 export type Motor = "claude" | "agy" | "codex" | "dsh" | "ollama";
 export type Proveedor = "claude" | "google" | "chatgpt" | "opencode" | "";
 
-export const GEMINI_MODELOS = "gemini-4-argon-(low|medium|high)|gemini-4-hydrogen-(low|medium|high|xhigh)|gemini-3\\.8-flash-(low|medium|high)|agy:(claude-(opus|sonnet)-5-5-(low|medium|high)|gpt-oss-120b-medium)";
+export const GEMINI_MODELOS = "gemini-4-argon-(low|medium|high)|gemini-4-hydrogen-(low|medium|high|xhigh)|agy:(claude-(opus|sonnet)-5-5-(low|medium|high)|gpt-oss-120b-medium)";
 export const CODEX_MODELOS = "codex:(gpt-6\\.1-sol|gpt-6-sol|gpt-6-luna|gpt-6-astra)-(low|medium|high)";
 /** `[^[:space:]]` del bash: sin blancos ASCII. */
 const NO_BLANCO = "[^ \\t\\n\\v\\f\\r]";
@@ -95,9 +95,6 @@ export function geminiEquivalente(m: string): string {
     "gemini-4-hydrogen-high": "claude-sonnet-5-5 high",
     "gemini-4-hydrogen-medium": "claude-sonnet-5-5 medium",
     "gemini-4-hydrogen-low": "claude-haiku-5-5 xhigh",
-    "gemini-3.8-flash-high": "claude-haiku-5-5 xhigh",
-    "gemini-3.8-flash-medium": "claude-haiku-5-5 high",
-    "gemini-3.8-flash-low": "claude-haiku-5-5 medium",
   };
   if (fijos[m]) return fijos[m];
   const e = m.slice(m.lastIndexOf("-") + 1);
@@ -142,7 +139,7 @@ export function validarOtroMotor(modelo: string, f: FlagsLanzar = {}): Validacio
   const err = (error: string): Validacion => ({ ok: false, error });
   if (esGemini(modelo)) {
     if (!calza(GEMINI_MODELOS, min(modelo)))
-      return err(`pa: modelo '${modelo}' no va. Modelos de agy en pa: gemini-{4-argon,3.8-flash}-{low,medium,high}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium.`);
+      return err(`pa: modelo '${modelo}' no va. Modelos de agy en pa: gemini-4-argon-{low,medium,high}, gemini-4-hydrogen-{low,medium,high,xhigh}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium.`);
     const m = min(modelo);
     if (f.esfuerzoFlag) return err(`pa: --effort no va con '${m}': en agy el effort es parte del nombre (…-low, …-medium, …-high).`);
     if (f.seguir) return err(noVa(m, "--seguir (agy no retoma una sesión de pa)"));

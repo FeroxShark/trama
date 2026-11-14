@@ -78,7 +78,7 @@ export const AYUDA: readonly string[] = [
   "                                       que sugiere `reparto` según --tipo y el cupo de cada",
   "                                       suscripción; si reparto no responde, ~/.config/trama/modelos.json o el",
   "                                       default de pa: claude-sonnet-5-5 high, claude-haiku-5-5 xhigh para",
-  "                                       --tipo mecanico). -m acepta claude-…, gemini-{4-argon,3.8-flash}-{low,medium,high},",
+  "                                       --tipo mecanico). -m acepta claude-…, gemini-4-argon-{low,medium,high}, gemini-4-hydrogen-{low,medium,high,xhigh},",
   "                                       agy:{claude-{opus,sonnet}-5-5-{low,medium,high},gpt-oss-120b-medium},",
   "                                       codex:{gpt-6.1-sol,gpt-6-sol,gpt-6-luna,gpt-6-astra}-{low,medium,high} (ChatGPT) y",
   "                                       ollama:<modelo> (sin effort; servidor caído o sin el modelo → sale 95) y",

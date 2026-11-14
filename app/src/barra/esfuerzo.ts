@@ -18,7 +18,7 @@ const limpio = (e: string | null | undefined): string | null => {
 };
 
 /**
- * El nivel de un worker: el que trae el id del modelo (Gemini/agy: `gemini-3.8-flash-high`; OpenCode con la variante pegada al final) o,
+ * El nivel de un worker: el que trae el id del modelo (Gemini/agy: `gemini-4-hydrogen-high`; OpenCode con la variante pegada al final) o,
  * si no, el campo `effort` (Claude). El id manda: es lo que de verdad se lanzó. `null` si no se sabe.
  */
 export function nivelDe(modelo: string | null | undefined, effort: string | null | undefined): string | null {

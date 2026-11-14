@@ -21,6 +21,7 @@ export const EMPRESAS: Record<Empresa, string> = { anthropic: "Anthropic", googl
 
 /** Los de Gemini (`agy`): tres niveles de razonamiento, el máximo por defecto. */
 export const EFFORTS_GEMINI = ["low", "medium", "high"] as const;
+export const EFFORTS_HYDROGEN = ["low", "medium", "high", "xhigh"] as const;
 
 export type ModeloDef = {
   /** Lo que viaja a `claude --model` / `pa -m` (el de Claude es el de la API; el local, el de nuestra tabla). */
@@ -131,7 +132,7 @@ export function claudeDeCuenta(base: readonly ModeloDef[], cat: readonly ModeloC
  */
 const GEMINI: ModeloDef[] = [
   { id: "gemini-4-argon", clave: "gemini-4-argon", empresa: "google", nombre: "Gemini 4 Argon · por Google", desc: "modelo.gemini4", soloLider: true, efforts: EFFORTS_GEMINI, effortDefecto: "high" },
-  { id: "gemini-3.8-flash", clave: "gemini-3.8-flash", empresa: "google", nombre: "Gemini 3.8 Flash · por Google", desc: "modelo.gemini38", soloLider: true, efforts: EFFORTS_GEMINI, effortDefecto: "high" },
+  { id: "gemini-4-hydrogen", clave: "gemini-4-hydrogen", empresa: "google", nombre: "Gemini 4 Hydrogen · por Google", desc: "modelo.hydrogen", soloLider: true, efforts: EFFORTS_HYDROGEN, effortDefecto: "high" },
   { id: "agy:claude-opus-5-5", clave: "agy:claude-opus-5-5", empresa: "google", nombre: "Claude Opus 5.5 · por Google", desc: "modelo.agyOpus", soloLider: true, efforts: EFFORTS_GEMINI, effortDefecto: "high" },
   { id: "agy:claude-sonnet-5-5", clave: "agy:claude-sonnet-5-5", empresa: "google", nombre: "Claude Sonnet 5.5 · por Google", desc: "modelo.agySonnet", soloLider: true, efforts: EFFORTS_GEMINI, effortDefecto: "high" },
   { id: "agy:gpt-oss-120b", clave: "agy:gpt-oss-120b", empresa: "google", nombre: "GPT-OSS 120B · por Google", desc: "modelo.agyGpt", soloLider: true, efforts: EFFORTS_GEMINI, effortDefecto: "medium" },
@@ -188,7 +189,7 @@ export type ConfigModelos = {
   dsh?: boolean;
   /** Los modelos que lista `opencode models` (`<proveedor>/<modelo>`), si el programa `opencode` está instalado: los gratis primero. Sin él (o sin la clave), ninguno. */
   opencode?: string[];
-  /** Los modelos que ofrece el `agy` de esta cuenta (ids de pa: `gemini-3.8-flash-high`, `agy:claude-opus-4-6-thinking`). Sin la lista, los de Gemini son los de siempre. */
+  /** Los modelos que ofrece el `agy` de esta cuenta (ids de pa: `gemini-4-hydrogen-high`, `agy:claude-opus-4-6-thinking`). Sin la lista, los de Gemini son los de siempre. */
   agyModelos?: { id: string; nombre: string }[];
   /** Los modelos de Claude que ofrece esta cuenta (catálogo del `claude`). Sin la lista, los de siempre menos los `soloCuenta`. */
   claudeModelos?: ModeloClaudeCuenta[];
@@ -206,7 +207,7 @@ export type ConfigModelos = {
 
 /** `gemini-4-argon-high` → `["gemini-4-argon", "high"]`; cualquier otro, tal cual y sin nivel. */
 export const partirGeminiId = (id: string): [string, string | null] => {
-  const m = /^((?:gemini-|agy:).+?)-(low|medium|high)$/.exec(id);
+  const m = /^((?:gemini-|agy:).+?)-(low|medium|high|xhigh)$/.exec(id);
   return m ? [m[1]!, m[2]!] : [id, null];
 };
 
@@ -219,17 +220,20 @@ export function agyDeCuenta(ofrecidos: readonly { id: string; nombre: string }[]
   const grupos = new Map<string, { nombre: string; niveles: string[] }>();
   for (const o of ofrecidos) {
     const [base, nivel] = partirGeminiId(o.id);
-    const g = grupos.get(base) ?? { nombre: o.nombre.replace(/\s*\((?:low|medium|high)\)\s*$/i, ""), niveles: [] };
+    const g = grupos.get(base) ?? { nombre: o.nombre.replace(/\s*\((?:low|medium|high|xhigh)\)\s*$/i, ""), niveles: [] };
     if (nivel && !g.niveles.includes(nivel)) g.niveles.push(nivel);
     grupos.set(base, g);
   }
-  return [...grupos].map(([id, g]) => {
-    const niveles = EFFORTS_GEMINI.filter((e) => g.niveles.includes(e));
+  return [...grupos].flatMap(([id, g]) => {
     const conocido = GEMINI.find((m) => m.id === id);
+    if (!conocido && id.startsWith("gemini-")) return [];
+    const niveles = (conocido?.efforts ?? EFFORTS_GEMINI).filter((e) => g.niveles.includes(e));
     const effortDefecto = niveles.includes(conocido?.effortDefecto as never) ? conocido!.effortDefecto : niveles.includes("high") ? "high" : (niveles[0] ?? "high");
-    return conocido
-      ? { ...conocido, efforts: niveles, effortDefecto }
-      : { id, clave: id, empresa: "google" as const, nombre: `${g.nombre} · por Google`, desc: "modelo.agyOfrecido" as const, soloLider: true, efforts: niveles, effortDefecto };
+    return [
+      conocido
+        ? { ...conocido, efforts: niveles, effortDefecto }
+        : { id, clave: id, empresa: "google" as const, nombre: `${g.nombre} · por Google`, desc: "modelo.agyOfrecido" as const, soloLider: true, efforts: niveles, effortDefecto },
+    ];
   });
 }
 

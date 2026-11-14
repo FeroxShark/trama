@@ -16,7 +16,7 @@ export const FAMILIAS = [
   { id: "sonnet", nombre: "Sonnet", empresa: "anthropic", sugerida: false },
   { id: "haiku", nombre: "Haiku", empresa: "anthropic", sugerida: false },
   { id: "argon", nombre: "Gemini Argon", empresa: "google", sugerida: false },
-  { id: "flash", nombre: "Gemini Flash", empresa: "google", sugerida: false },
+  { id: "hydrogen", nombre: "Gemini Hydrogen", empresa: "google", sugerida: false },
 ] as const;
 export type Familia = (typeof FAMILIAS)[number]["id"];
 const IDS = new Set<string>(FAMILIAS.map((f) => f.id));

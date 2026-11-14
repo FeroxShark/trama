@@ -74,7 +74,7 @@ function arg(nombre: string): string | null {
 
 const sid = arg("sid") ?? "";
 const nombre = arg("nombre") ?? "";
-const modelo = arg("modelo") ?? "gemini-3.8-flash-low";
+const modelo = arg("modelo") ?? "gemini-4-hydrogen-low";
 const cwd = arg("cwd") || process.cwd();
 // Si la conversación venía de otro motor, lider.ts deja lo hablado en un archivo (es largo: no entra en el entorno): va después del prefacio.
 const relevo = (() => {

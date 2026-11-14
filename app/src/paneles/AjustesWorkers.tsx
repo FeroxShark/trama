@@ -235,7 +235,7 @@ export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: B
   const [confirmando, setConfirmando] = useState(false);
   const procedencia = procedenciaAA(filas);
   const hayAA = filas.some((f) => f.origen === "artificial-analysis");
-  const nombreRegla = (id: string) => ({ fable: "Fable", opus: "Opus", sonnet: "Sonnet", haiku: "Haiku", argon: "Gemini Argon", flash: "Gemini Flash", "gpt-oss": "GPT-OSS" } as Record<string, string>)[id] ?? id;
+  const nombreRegla = (id: string) => ({ fable: "Fable", opus: "Opus", sonnet: "Sonnet", haiku: "Haiku", argon: "Gemini Argon", hydrogen: "Gemini Hydrogen", "gpt-oss": "GPT-OSS" } as Record<string, string>)[id] ?? id;
 
   return (
     <div className="mdl-wk" data-wk data-opc="ajustes.mdlWk">

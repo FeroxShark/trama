@@ -737,7 +737,7 @@ const lideresFijos = (): RespuestaLideres => conEspera(MODO.captura === "lider-g
 /** Captura `lider-gemini`: el líder de la app que se abre corre con Gemini (su razonamiento y sus comandos se ven, no la frase tierna). */
 const conGemini = (r: RespuestaLideres): RespuestaLideres => {
   const id = r.lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? r.lideres[0]?.id;
-  return { ...r, lideres: r.lideres.map((l) => (l.id === id ? { ...l, modelo: "gemini-3.8-flash", effort: "low" } : l)) };
+  return { ...r, lideres: r.lideres.map((l) => (l.id === id ? { ...l, modelo: "gemini-4-hydrogen", effort: "low" } : l)) };
 };
 const lideresBase = (): RespuestaLideres =>
   MODO.captura === "activas"
@@ -1254,7 +1254,7 @@ export function escenaFija(sid: string, escena: "trabajando" | "avisos" | "plan"
   }
   if (escena === "gemini") {
     // Gemini a mitad de un turno: su razonamiento paso a paso y tres comandos (uno ok, uno con error, uno corriendo).
-    const m = "gemini-3.8-flash";
+    const m = "gemini-4-hydrogen";
     const paso = (mid: string, pensado: string, texto: string, nombre: string, entrada: Record<string, unknown>, id: string, resumen: string) =>
       ev({ tipo: "mensaje", mid, texto, herramientas: [`${nombre}: ${resumen}`], modelo: m, pensado, det: [{ nombre, entrada, id }] });
     paso("g1", "**Revisando el índice**\nPrimero miro qué pasa al correr los tests de cauce.", "", "Bash", { command: "npm test -- cauce", description: "Tests de cauce" }, "tg1", "npm test -- cauce");

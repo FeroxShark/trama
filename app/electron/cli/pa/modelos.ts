@@ -13,13 +13,13 @@ import type { Env, Io } from "./entorno.ts";
 
 export const TIPOS_VALIDOS = "mecanico|lectura|codigo-acotado|codigo-multi|frontend|diseno|debug|final";
 export const GEMINI_MODELOS =
-  "gemini-4-argon-(low|medium|high)|gemini-4-hydrogen-(low|medium|high|xhigh)|gemini-3\\.8-flash-(low|medium|high)|agy:(claude-(opus|sonnet)-5-5-(low|medium|high)|gpt-oss-120b-medium)";
+  "gemini-4-argon-(low|medium|high)|gemini-4-hydrogen-(low|medium|high|xhigh)|agy:(claude-(opus|sonnet)-5-5-(low|medium|high)|gpt-oss-120b-medium)";
 export const CODEX_MODELOS = "codex:(gpt-6\\.1-sol|gpt-6-sol|gpt-6-luna|gpt-6-astra)-(low|medium|high)";
 export const DSH_MODELOS = "dsh:(ollama|opencode|deepseek)/\\S+";
 export const OC_MODELOS = "opencode:[A-Za-z0-9][A-Za-z0-9._-]*/\\S+";
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 /** Familias que se reconocen dentro de un id (excluir y efforts_permitidos; la misma lista que reparto). */
-const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "argon", "hydrogen", "flash", "gpt-oss", "astra", "sol", "luna"];
+const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "argon", "hydrogen", "gpt-oss", "astra", "sol", "luna"];
 
 /** `[[ x =~ ^(re)$ ]]` del bash. */
 export const calza = (re: string, x: string) => new RegExp(`^(${re})$`).test(x);

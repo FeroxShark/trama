@@ -10,7 +10,7 @@ export type AgyOfrecido = { id: string; nombre: string };
 
 const VIDA_MS = 10 * 60_000;
 
-/** La salida de `reparto --agy-modelos --json` → los modelos con el id de pa (`gemini-3.8-flash-high`, `agy:claude-opus-4-6-thinking`); `null` si no se entiende o viene vacía. */
+/** La salida de `reparto --agy-modelos --json` → los modelos con el id de pa (`gemini-4-hydrogen-high`, `agy:claude-opus-4-6-thinking`); `null` si no se entiende o viene vacía. */
 export function parsearAgyOfrecidos(salida: string): AgyOfrecido[] | null {
   let j: unknown;
   try {

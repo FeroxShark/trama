@@ -189,7 +189,7 @@ export const HILOS: RespuestaHilos = {
       proyecto: "brote",
       tarea: "Exportar el calendario de riego a ICS",
       estado: "trabajando",
-      modelo: "gemini-3.8-flash-high",
+      modelo: "gemini-4-hydrogen-high",
       effort: "",
       origen: "app",
       inicio: AHORA - 38,
@@ -1434,7 +1434,7 @@ export const USO_TODO: Uso = {
             { id: "7d", pct: 5, vuelve: AHORA + 5 * DIA + 6 * HORA },
           ],
         },
-        { id: "flash", nombre: "Gemini Flash", ventanas: [{ id: "5h", pct: 88, vuelve: AHORA + 3 * HORA + 5 * MIN }] },
+        { id: "gemini-4-hydrogen", nombre: "Gemini Hydrogen", ventanas: [{ id: "5h", pct: 88, vuelve: AHORA + 3 * HORA + 5 * MIN }] },
         { id: "claude-gpt", nombre: "Claude y GPT por Google", ventanas: [] },
       ],
     },
@@ -1510,7 +1510,7 @@ export const USO_GOOGLE_MARCADO: Uso = {
 };
 
 /**
- * La variante `sin-cupo` de la captura `modelo`: Google con «Claude y GPT» y «Argon» llenos (vuelven en un par de días), Gemini Flash
+ * La variante `sin-cupo` de la captura `modelo`: Google con «Claude y GPT» y «Argon» llenos (vuelven en un par de días), Gemini Hydrogen
  * con poco cupo (12 % libre), Claude con su 5 h a la mitad y OpenCode gratis agotado. Todo inventado; las horas salen de `AHORA`.
  */
 export const USO_SIN_CUPO: Uso = {

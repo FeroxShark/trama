@@ -15,7 +15,7 @@
 // `thinking` del paso): al cerrar un paso `agent_response`, `Opciones.pensamiento` lo lee y sale como un bloque
 // `thinking` (stream y mensaje), el mismo que ya pinta la app para un modelo local.
 
-/** La ventana de contexto de Gemini 4 Argon / 3.8 Flash (1M tokens): lo que dice el medidor del chat. */
+/** La ventana de contexto de Gemini 4 Argon / Hydrogen (1M tokens): lo que dice el medidor del chat. */
 export const VENTANA_GEMINI = 1_000_000;
 
 type Obj = Record<string, any>;
@@ -84,7 +84,7 @@ const usoClaude = (u: Obj | undefined): Uso => ({ input_tokens: num(u?.input_tok
 export type Opciones = {
   /** El id de sesión de Claude (el del líder en la barra): va en cada línea como `session_id`. */
   sid: string;
-  /** El modelo que se dice en cada mensaje (el que se pidió, p. ej. `gemini-3.8-flash-low`). */
+  /** El modelo que se dice en cada mensaje (el que se pidió, p. ej. `gemini-4-hydrogen-low`). */
   modelo: string;
   /** Para los ids de mensaje y herramienta. */
   azar?: () => string;

@@ -16,7 +16,7 @@ import { claveCalidad, effortsMostrados, estadoDe } from "./modelos-workers";
 
 export const MULT_EFFORT: Record<EffortCalidad, number> = { low: 0.5, medium: 0.75, high: 1, xhigh: 1.5, max: 2.5 };
 /** Igual que COSTO de motor/bin/reparto; lo que no está (DeepSeek de pago, otros) usa `COSTO_DEFECTO`. */
-export const COSTO_FAMILIA: Record<string, number> = { opus: 1, argon: 0.6, sonnet: 0.35, "gpt-oss": 0.15, haiku: 0.12, flash: 0.2, astra: 1, sol: 0.6, luna: 0.08 };
+export const COSTO_FAMILIA: Record<string, number> = { opus: 1, argon: 0.6, sonnet: 0.35, hydrogen: 0.3, "gpt-oss": 0.15, haiku: 0.12, astra: 1, sol: 0.6, luna: 0.08 };
 export const COSTO_DEFECTO = 0.25;
 /** USD de correr el índice de AA por cada 1 de COSTO_FAMILIA en high (Opus 5.5 high: ~2.170 USD). */
 export const ESCALA_INDICE = 2000;
