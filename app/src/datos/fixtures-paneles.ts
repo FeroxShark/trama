@@ -85,6 +85,8 @@ export const MODELOS_FIJOS = (con: boolean, auto = false): EstadoModelos => ({
         sin_cupo: "esperar",
         claude: { tope_7d: 60 },
         destrabar: { "gemini-4-argon": true },
+        // Los líderes con su propio tope (se ve «Líderes: igual que los workers» apagado y sus filas).
+        autocompact_lider: { defecto: null, por_modelo: { opus: 500000 } },
       }
     : { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} },
   // Con archivo (alguien que usa Gemini) ya hubo destrabos; sin él, ninguno.

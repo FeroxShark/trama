@@ -306,14 +306,25 @@ export function autocompactGuardado(): TopeConf | null {
   }
 }
 
+/** El tope de los líderes: `autocompact_lider` si el archivo lo trae; si no, el de los workers (`autocompact`). */
+export function autocompactLiderGuardado(): TopeConf | null {
+  try {
+    const { obj } = analizar(readFileSync(rutaModelos(), "utf8"), "");
+    const c = obj ? leerConfig(obj) : null;
+    return c?.autocompact_lider ?? c?.autocompact ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** `PA_AUTOCOMPACT` del entorno de la app (el del líder no lo hereda: `entornoLider` saca todo `PA_*`; acá se lee antes). */
 export const topeEntorno = (env: NodeJS.ProcessEnv = process.env): TopeEntorno => topeDeEntorno(env.PA_AUTOCOMPACT);
 
 /**
  * El tope de «Contexto antes de compactar» de un líder de Claude: las mismas reglas que `pa` para un worker (por modelo o familia,
- * `null` = nativo, `PA_AUTOCOMPACT` pisa). `null`: no se pasa `--autocompact` y compacta Claude Code a su manera.
+ * `null` = nativo, `PA_AUTOCOMPACT` pisa), con `autocompact_lider` si existe. `null`: no se pasa `--autocompact` y compacta Claude Code a su manera.
  */
-export const topeDeLider = (modelo: string, env: NodeJS.ProcessEnv = process.env): number | null => topeAutocompact(modelo, autocompactGuardado(), topeEntorno(env));
+export const topeDeLider = (modelo: string, env: NodeJS.ProcessEnv = process.env): number | null => topeAutocompact(modelo, autocompactLiderGuardado(), topeEntorno(env));
 
 /** El local de Ollama que ese id nombra, del archivo; `null` si no está (un modelo `ollama:*` que no figura en `locales` no se lanza). */
 export const localOllama = (id: string, cfg: ModelosConfig | null = modelosConfig()): LocalOllama | null => cfg?.locales.find((l) => l.id === id) ?? null;

@@ -3805,6 +3805,16 @@
   min-width: 4.5rem;
   text-align: right;
 }
+/* «Workers» arriba de sus filas y «Líderes: igual que los workers» con su interruptor; apagado, aparecen las filas de los líderes. */
+.mdl-compactar-tit {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--texto-2);
+}
+.mdl-compactar-igual {
+  padding-top: var(--esp-2);
+}
 
 /* Plan y cupos > Avanzado > «Dónde pa deja de usar cada proveedor»: deslizador, valor y el botón para volver a de fábrica en cada fila. */
 .cu-topes {

@@ -52,7 +52,7 @@ import { contarVivos, papeleraProyecto, quitarProyecto, reactivarProyecto, vista
 import { guardarAjustes } from "./ajustes-editar.js";
 import { crearBajadas } from "./ollama-bajar.ts";
 import { agyOfrecidos } from "./agy-ofrecidos.ts";
-import { autocompactGuardado, efectivoDePa, guardarModelos, leerModelos, modelosConfig, sondearOllama, topeEntorno, vistaModelos } from "./modelos-config.ts";
+import { autocompactLiderGuardado, efectivoDePa, guardarModelos, leerModelos, modelosConfig, sondearOllama, topeEntorno, vistaModelos } from "./modelos-config.ts";
 import { accesos } from "./celular-accesos.js";
 import { guardarConfig, leerEditable } from "./remoto-config.js";
 import { sesionesVistas, vive } from "./sesiones.js";
@@ -985,7 +985,7 @@ export function armarNucleo() {
   });
   // Los umbrales del anillo de contexto (B16): el relevo del líder y el autocompact.
   // `tope`: «Contexto antes de compactar» (modelos.json + PA_AUTOCOMPACT): el anillo de un líder lo resuelve por su modelo (autocompact-tope.ts).
-  manejar("contexto:umbral", async () => ({ ...(await leerUmbrales()), tope: { conf: autocompactGuardado(), env: topeEntorno() } }));
+  manejar("contexto:umbral", async () => ({ ...(await leerUmbrales()), tope: { conf: autocompactLiderGuardado(), env: topeEntorno() } }));
   manejar("medicion:leer", () => leerMedicion());
   manejar("claudeCode:listar", async () => {
     const { convs } = await claudeCode.listar();

@@ -9,28 +9,39 @@ export const COMPACTAR_MAX_K = AUTOCOMPACT_MAX / 1000;
 /** Atajos del selector, en tokens. */
 export const COMPACTAR_PRESETS = [100_000, 200_000, 500_000] as const;
 export type Familia = (typeof AUTOCOMPACT_FAMILIAS)[number];
+/** De quién es el tope: los workers (`autocompact`, lo lee `pa`) o los líderes que arranca Trama (`autocompact_lider`). */
+export type Rol = "workers" | "lideres";
+
+/** La config que vale para ese rol: los líderes sin la suya usan la de los workers. */
+const confDe = (b: Borrador, rol: Rol) => (rol === "lideres" ? (b.autocompactLider ?? b.autocompact) : b.autocompact);
 
 /** El tope que vale para una familia según el borrador (lo mismo que resuelve `pa`, sin `PA_AUTOCOMPACT`). */
-export function topeEfectivo(b: Borrador, fam: Familia): TopeCompactar {
-  const a = b.autocompact;
+export function topeEfectivo(b: Borrador, fam: Familia, rol: Rol = "workers"): TopeCompactar {
+  const a = confDe(b, rol);
   if (fam in a.por_modelo) return a.por_modelo[fam] ?? null;
   if (a.defecto !== null) return a.defecto;
   return fam === "haiku" ? AUTOCOMPACT_HAIKU : null;
 }
 
 /** La familia no tiene entrada propia: vale lo predeterminado. */
-export const esPredeterminado = (b: Borrador, fam: Familia): boolean => !(fam in b.autocompact.por_modelo);
+export const esPredeterminado = (b: Borrador, fam: Familia, rol: Rol = "workers"): boolean => !(fam in confDe(b, rol).por_modelo);
+
+/** Los líderes con su propio tope (`true`: arranca de una copia del de los workers) o iguales a los workers (`false`: la clave sale). */
+export const separarLideres = (b: Borrador, propio: boolean): Borrador =>
+  propio ? { ...b, autocompactLider: b.autocompactLider ?? { defecto: b.autocompact.defecto, por_modelo: { ...b.autocompact.por_modelo } } } : { ...b, autocompactLider: null };
 
 /**
  * Pone el tope de una familia. Lo que coincide con lo que valdría sin la entrada no se anota (el archivo queda corto); nativo en una
  * familia que de otro modo no lo sería (Haiku, o con un `defecto` numérico) se anota como `null`.
  */
-export function ponerTope(b: Borrador, fam: Familia, valor: TopeCompactar): Borrador {
-  const por = { ...b.autocompact.por_modelo };
+export function ponerTope(b: Borrador, fam: Familia, valor: TopeCompactar, rol: Rol = "workers"): Borrador {
+  const base = rol === "lideres" ? separarLideres(b, true) : b;
+  const a = rol === "lideres" ? base.autocompactLider! : base.autocompact;
+  const por = { ...a.por_modelo };
   delete por[fam];
-  const sin: Borrador = { ...b, autocompact: { ...b.autocompact, por_modelo: por } };
-  if (topeEfectivo(sin, fam) !== valor) por[fam] = valor;
-  return { ...b, autocompact: { ...b.autocompact, por_modelo: por } };
+  const con = (x: typeof a): Borrador => (rol === "lideres" ? { ...base, autocompactLider: x } : { ...base, autocompact: x });
+  if (topeEfectivo(con({ ...a, por_modelo: por }), fam, rol) !== valor) por[fam] = valor;
+  return con({ ...a, por_modelo: por });
 }
 
 /** El campo en miles de tokens ("250" → 250 000). Vacío = sin valor y sin error; si no sirve, la clave del motivo. */

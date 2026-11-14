@@ -305,6 +305,10 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
     const mira = sec.current?.querySelector(VARIANTE === "mdl-agregar" ? ".mdl-panel" : VARIANTE === "mdl-bajando" || VARIANTE === "mdl-sinollama" || VARIANTE === "mdl-apagado" ? ".mdl-ollama" : VARIANTE.startsWith("mdl-wk") ? ".mdl-wk" : VARIANTE === "mdl-sugeridos" ? ".ol-sug" : VARIANTE === "mdl-servidores" || VARIANTE === "mdl-prender" || VARIANTE === "mdl-win" || VARIANTE === "mdl-guias" ? ".lc" : VARIANTE === "mdl-tope" ? ".mdl-cruce" : VARIANTE === "mdl-compactar" ? ".mdl-compactar" : "x:not(x)");
     if (mira) mira.scrollIntoView({ block: "center" });
     else sec.current?.scrollIntoView({ block: "start" });
+    // La tabla de workers carga después y empuja lo de abajo: «Contexto antes de compactar» se vuelve a centrar cuando ya está.
+    if (VARIANTE !== "mdl-compactar") return;
+    const id = window.setTimeout(() => sec.current?.querySelector(".mdl-compactar")?.scrollIntoView({ block: "center" }), 900);
+    return () => window.clearTimeout(id);
   }, [visible]);
 
   // Lo que le falta a Locales y a Cupos se dice en la barra lateral (ajustes-nav.ts).
