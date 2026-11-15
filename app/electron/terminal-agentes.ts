@@ -18,3 +18,14 @@ export function envTerminalAgentes(plat: string, terminal: TerminalAgentes): Rec
 /** La línea del prompt de sistema del líder, o `null` cuando no corresponde (Linux, o Git Bash). */
 export const lineaTerminalAgentes = (plat: string, terminal: TerminalAgentes): string | null =>
   plat === "win32" && terminal === "powershell" ? LINEA_POWERSHELL : null;
+
+/**
+ * Lo que todo líder de Claude sabe del chat de Trama: dónde aparece una imagen. Un `![](ruta)` se dibuja ahí mismo, grande; una ruta de imagen
+ * sólo entre comillas invertidas sale como tarjeta al pie del mensaje (src/hilo/TarjetaRuta.tsx), lejos de lo que la nombra. Una sola línea, sin
+ * saltos: en Windows puede pasar por cmd.exe (`claude.cmd`).
+ */
+export const LINEA_CHAT =
+  "Tu respuesta se ve en el chat de Trama, que muestra Markdown. Para mostrar una imagen de esta máquina escribí `![descripción](ruta absoluta completa, sin ~)` en su propia línea, justo donde va en el texto: Trama la dibuja ahí, grande. Una ruta de imagen sólo entre comillas invertidas sale como tarjeta al final del mensaje.";
+
+/** El agregado al prompt de sistema de un líder de Claude: lo del chat y, en Windows con PowerShell, la línea de la terminal. */
+export const lineaSistemaLider = (plat: string, terminal: TerminalAgentes): string => [LINEA_CHAT, lineaTerminalAgentes(plat, terminal)].filter(Boolean).join(" ");

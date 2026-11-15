@@ -86,7 +86,7 @@ import { temaDe, tituloLider } from "./tema.js";
 import { titulosFijos } from "./titulo-fijo.js";
 import { resumenDeTranscript } from "./resumen-traspaso.ts";
 import { terminalAgentesGuardada } from "./preferencias.js";
-import { envTerminalAgentes, lineaTerminalAgentes } from "./terminal-agentes.ts";
+import { envTerminalAgentes, LINEA_CHAT, lineaSistemaLider } from "./terminal-agentes.ts";
 import { anotarCarpeta, anotarCarpetas } from "./proyectos-auto.ts";
 import { carpetaAuto } from "./carpeta-auto.ts";
 import { plataformaActual } from "./rutas.ts";
@@ -642,9 +642,9 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           process.execPath,
           [PUENTE_AGY, "--sid", g.sid, "--nombre", g.nombre, "--modelo", idAgy(g.modelo, g.effort), "--cwd", base.cwd],
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
-          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
+          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: [LINEA_CHAT, extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, autocompact: tope, lineaSistema: lineaTerminalAgentes(plat, terminal) ?? undefined }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
+      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, autocompact: tope, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
   const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, ...(cuenta ? { cuenta: cuenta.id } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");
