@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.96
+
+- Several machines: Trama installs on the laptop and also drives the PC; when you open a new chat on the other machine, the folder picker shows that machine's projects. Update both machines to this version so they keep seeing each other with write access.
+
 ## 0.2.95
 
 - Google signed out: agy quota checks no longer open "sign in" tabs in the browser. If the Google session expired, Trama stops asking for 10 minutes and warns once on the board.

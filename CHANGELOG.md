@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.96
+
+- Varias máquinas: Trama se instala en la laptop y maneja también la PC; al abrir un chat nuevo en la otra máquina, el selector de carpeta muestra los proyectos de esa máquina. Hay que actualizar las dos máquinas a esta versión para que se sigan viendo con permiso de escribir.
+
 ## 0.2.95
 
 - Google sin sesión: las consultas de cupo a agy ya no abren pestañas de "iniciar sesión" en el navegador. Si la sesión de Google venció, Trama deja de preguntar 10 minutos y avisa una sola vez en el tablero.
