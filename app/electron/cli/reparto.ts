@@ -7,7 +7,7 @@
 //   sobre `<archivo>.lock`; el archivo de datos y su reemplazo atómico son los mismos.
 // - bin/cuentas no se importa: `listaCuentas` repite su `cargar()` (cuentas.json) y `entornoCuenta` su `entorno()`.
 // - Un float entero que el dueño escribe en modelos.json con "calidad_unidades": "aa" (p. ej. 50.0) sale como 50 en el JSON.
-import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -271,21 +271,91 @@ function sumaPy(xs: number[]): number {
   if (c && Number.isFinite(c)) f += c;
   return f;
 }
-/** `subprocess.run(..., capture_output=True, text=True, timeout=s)`: el resultado de spawnSync (`error` si no se pudo o venció). */
-function correrCapturado(cmd: string, args: string[], o: { timeoutS: number; cwd?: string; env?: NodeJS.ProcessEnv }): SpawnSyncReturns<string> {
-  // agy se busca con el resolvedor de la app (npm, %LOCALAPPDATA%, /usr/local/bin); el resto, como antes.
+/** Cómo se lanza `cmd args` en esta plataforma: agy por el resolvedor de la app (npm, %LOCALAPPDATA%, /usr/local/bin); un .cmd/.bat de Windows, por cmd.exe. */
+function armarComando(cmd: string, args: string[]): { ejecutable: string; argv: string[]; extra: Obj } {
   const exe = cmd === "agy" ? (hallarAgy(E, home()) ?? cmd) : cmd;
-  let ejecutable = exe;
-  let argv = args;
-  let extra = {};
   if (process.platform === "win32") {
     const r = cmd === "agy" ? exe : (enPath(cmd) ?? cmd);
-    if (/\.(cmd|bat)$/i.test(r)) {
-      ejecutable = E.ComSpec || "cmd.exe";
-      argv = ["/d", "/s", "/c", `"${[r, ...args].map((x) => `"${x}"`).join(" ")}"`];
-      extra = { windowsVerbatimArguments: true };
-    } else ejecutable = r;
+    if (/\.(cmd|bat)$/i.test(r)) return { ejecutable: E.ComSpec || "cmd.exe", argv: ["/d", "/s", "/c", `"${[r, ...args].map((x) => `"${x}"`).join(" ")}"`], extra: { windowsVerbatimArguments: true } };
+    return { ejecutable: r, argv: args, extra: {} };
   }
+  return { ejecutable: exe, argv: args, extra: {} };
+}
+
+// --- lecturas en paralelo ------------------------------------------------------------------------------
+// Las lecturas lentas (agy /quota, agy models, opencode models, el /api/tags de ollama) se hacían una tras otra, cada una con
+// su tope (40 + 20 + 8 + 2 s): con agy lento, `--tabla` pasaba de los 30 s con que la cortan ia-elegir-y-correr y el panel
+// del celu. Ahora --tabla, --resumen y --cupos las lanzan juntas antes de armar nada (`leerEnParalelo`), con topes cortos, y
+// el resto del código (sincrónico) toma de acá la salida en vez de volver a lanzarlas. Sólo se lanza lo que de todos modos
+// se iba a lanzar: lo que tiene caché fresca no se pide.
+const SALIDAS = new Map<string, SpawnSyncReturns<string>>();
+const SALIDAS_GET = new Map<string, string | null>();
+let topesCortos = false;
+const claveSalida = (cmd: string, args: string[], env?: NodeJS.ProcessEnv) => [cmd, ...args, env?.HOME ?? ""].join("\0");
+
+/** El tope de una lectura: el del entorno si lo fijaron; si no, el corto en --tabla/--resumen/--cupos y el de siempre en lo demás. */
+function tope(env: string | undefined, normal: number, corto: number): number {
+  if (env !== undefined && env !== "") return pyFloat(env);
+  return topesCortos ? corto : normal;
+}
+const topeQuota = () => tope(E.REPARTO_AGY_S, 40, 8);
+const topeAgyModelos = () => tope(E.REPARTO_AGY_MODELOS_ESPERA, 20, 8);
+const topeOpencode = () => tope(E.REPARTO_OPENCODE_CHEQUEO_S, 8, 5);
+
+/** `correrCapturado` sin bloquear: lo mismo, como promesa (para lanzar varias juntas). */
+function correrAsync(cmd: string, args: string[], o: { timeoutS: number; cwd?: string; env?: NodeJS.ProcessEnv }): Promise<SpawnSyncReturns<string>> {
+  const { ejecutable, argv, extra } = armarComando(cmd, args);
+  return new Promise((resolver) => {
+    let out = "";
+    let errTxt = "";
+    let listo = false;
+    const fin = (r: Partial<SpawnSyncReturns<string>>) => {
+      if (listo) return;
+      listo = true;
+      resolver({ pid: 0, output: [null, out, errTxt], stdout: out, stderr: errTxt, status: null, signal: null, ...r } as SpawnSyncReturns<string>);
+    };
+    let h: ReturnType<typeof spawn>;
+    try {
+      h = spawn(ejecutable, argv, { cwd: o.cwd, env: o.env ?? E, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, ...extra });
+    } catch (e) {
+      fin({ error: e as Error });
+      return;
+    }
+    const reloj = setTimeout(() => {
+      // Venció: se mata y se sueltan los caños (un nieto que siga vivo no tiene que trabar la salida de reparto).
+      try {
+        h.kill("SIGKILL");
+      } catch {
+        /* ya no estaba */
+      }
+      h.stdout?.destroy();
+      h.stderr?.destroy();
+      h.unref();
+      fin({ error: Object.assign(new Error(`${cmd}: venció a los ${o.timeoutS} s`), { code: "ETIMEDOUT" }) });
+    }, Math.max(1, o.timeoutS * 1000));
+    h.stdout?.setEncoding("utf8").on("data", (d: string) => (out += d));
+    h.stderr?.setEncoding("utf8").on("data", (d: string) => (errTxt += d));
+    h.on("error", (e) => {
+      clearTimeout(reloj);
+      fin({ error: e });
+    });
+    h.on("close", (status, signal) => {
+      clearTimeout(reloj);
+      fin({ pid: h.pid ?? 0, status, signal });
+    });
+  });
+}
+
+/** `subprocess.run(..., capture_output=True, text=True, timeout=s)`: el resultado de spawnSync (`error` si no se pudo o venció). Si
+ *  `leerEnParalelo` ya lo corrió, devuelve esa salida (una sola vez: la siguiente lectura ya encuentra la caché). */
+function correrCapturado(cmd: string, args: string[], o: { timeoutS: number; cwd?: string; env?: NodeJS.ProcessEnv }): SpawnSyncReturns<string> {
+  const k = claveSalida(cmd, args, o.env);
+  const ya = SALIDAS.get(k);
+  if (ya) {
+    SALIDAS.delete(k);
+    return ya;
+  }
+  const { ejecutable, argv, extra } = armarComando(cmd, args);
   return spawnSync(ejecutable, argv, { encoding: "utf8", timeout: o.timeoutS * 1000, cwd: o.cwd, env: o.env ?? E, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, maxBuffer: 64 * 1024 * 1024, ...extra });
 }
 
@@ -1182,23 +1252,35 @@ function ttlCache(j: unknown): number {
   return CACHE_S;
 }
 
+const ARGS_QUOTA = ["-p", "/quota", "--output-format", "json"];
+const CACHE_RESPALDO_S = 900; // si agy no contesta a tiempo, vale una lectura de hasta 15 min (REPARTO_CACHE_RESPALDO_S) antes que "sin dato"
+
+/** La caché de `agy /quota` de la cuenta: `fresca` si todavía vale (ttlCache), `respaldo` si venció hace poco (sirve si agy no contesta). */
+function cacheQuota(state: string, cuenta: Obj | null): { fresca: Obj | null; respaldo: Obj | null } {
+  try {
+    const c = leerJson(readFileSync(path.join(state, `quota${suf(get(cuenta, "id"))}.json`), "utf8"));
+    if (!verdad(c.json)) return { fresca: null, respaldo: null };
+    const edad = ahoraS() - c.leido;
+    if (edad <= ttlCache(c.json)) return { fresca: c.json, respaldo: null };
+    return { fresca: null, respaldo: edad <= pyFloat(E.REPARTO_CACHE_RESPALDO_S ?? CACHE_RESPALDO_S) ? c.json : null };
+  } catch {
+    return { fresca: null, respaldo: null };
+  }
+}
+
 function quotaAgy(state: string, _now: Date, cuenta: Obj | null = null): Obj | null {
   const cid = get(cuenta, "id");
   const cache = path.join(state, `quota${suf(cid)}.json`);
-  try {
-    const c = leerJson(readFileSync(cache, "utf8"));
-    if (ahoraS() - c.leido <= ttlCache(c.json) && verdad(c.json)) return c.json;
-  } catch {
-    /* sin caché */
-  }
+  const { fresca, respaldo } = cacheQuota(state, cuenta);
+  if (fresca) return fresca;
   let j: Obj;
   try {
-    const salida = correrSync("agy", ["-p", "/quota", "--output-format", "json"], { timeoutS: pyFloat(E.REPARTO_AGY_S ?? "40"), cwd: os.tmpdir(), env: envCuenta(cuenta) });
-    if (salida === null) return null;
+    const salida = correrSync("agy", ARGS_QUOTA, { timeoutS: topeQuota(), cwd: os.tmpdir(), env: envCuenta(cuenta) });
+    if (salida === null) return respaldo;
     j = leerJson(salida);
-    if (!verdad(get(get(get(j, "command", {}), "data", {}), "groups"))) return null;
+    if (!verdad(get(get(get(j, "command", {}), "data", {}), "groups"))) return respaldo;
   } catch {
-    return null;
+    return respaldo;
   }
   try {
     mkdirSync(state, { recursive: true });
@@ -1255,22 +1337,27 @@ export const agyIdReparto = (i: string) => (i.startsWith("gemini-") ? i : "agy:"
 /** Los modelos que ofrece el agy de esta máquina y esta cuenta (caché AGY_MODELOS_S en <state>/agy-modelos[@cuenta].json; con `refrescar` no se mira).
  *  null si no se sabe (sin agy, sin sesión, no contestó): reparto no filtra nada. Si agy no contesta pero hay una lista vieja, vale la vieja.
  *  REPARTO_AGY_MODELOS_FIJO=<salida de agy models> (tests) no lee nada real. */
+/** La caché de `agy models` de la cuenta: la lista (`vieja`, null si no hay) y si todavía vale (AGY_MODELOS_S). */
+function cacheAgyModelos(state: string, cuenta: Obj | null): { vieja: { id: string; nombre: string }[] | null; fresca: boolean } {
+  try {
+    const c = leerJson(readFileSync(path.join(state, `agy-modelos${suf(get(cuenta, "id"))}.json`), "utf8"));
+    const vieja = Array.isArray(c.modelos) && c.modelos.length ? c.modelos : null;
+    return { vieja, fresca: ahoraS() - c.leido <= pyFloat(E.REPARTO_AGY_MODELOS_S ?? String(AGY_MODELOS_S)) };
+  } catch {
+    return { vieja: null, fresca: false };
+  }
+}
+
 function modelosAgy(state: string, cuenta: Obj | null = null, refrescar = false): { id: string; nombre: string }[] | null {
   const fijo = E.REPARTO_AGY_MODELOS_FIJO;
   if (fijo !== undefined) return agyParsearModelos(fijo).length ? agyParsearModelos(fijo) : null;
   if (E.REPARTO_CUPOS_FIJOS || E.REPARTO_AGY === "0") return null;
   const cache = path.join(state, `agy-modelos${suf(get(cuenta, "id"))}.json`);
-  let vieja: { id: string; nombre: string }[] | null = null;
-  try {
-    const c = leerJson(readFileSync(cache, "utf8"));
-    vieja = Array.isArray(c.modelos) && c.modelos.length ? c.modelos : null;
-    if (vieja && !refrescar && ahoraS() - c.leido <= pyFloat(E.REPARTO_AGY_MODELOS_S ?? String(AGY_MODELOS_S))) return vieja;
-  } catch {
-    /* sin caché */
-  }
+  const { vieja, fresca } = cacheAgyModelos(state, cuenta);
+  if (vieja && fresca && !refrescar) return vieja;
   let ms: { id: string; nombre: string }[] = [];
   try {
-    const salida = correrSync("agy", ["models"], { timeoutS: pyFloat(E.REPARTO_AGY_MODELOS_ESPERA ?? "20"), cwd: os.tmpdir(), env: envCuenta(cuenta) });
+    const salida = correrSync("agy", ["models"], { timeoutS: topeAgyModelos(), cwd: os.tmpdir(), env: envCuenta(cuenta) });
     ms = agyParsearModelos(salida);
   } catch {
     ms = [];
@@ -1403,22 +1490,34 @@ function dshOllamaUrl(): string {
 
 /** GET sincrónico (un node aparte con fetch): el cuerpo, o null si falló, no fue 2xx o venció. */
 function getSync(url: string, timeoutS: number): string | null {
+  if (SALIDAS_GET.has(url)) {
+    const ya = SALIDAS_GET.get(url)!;
+    SALIDAS_GET.delete(url);
+    return ya;
+  }
   const ms = Math.max(1, Math.round(timeoutS * 1000));
   const js = "fetch(process.argv[1],{signal:AbortSignal.timeout(Number(process.argv[2]))}).then(r=>r.ok?r.text():Promise.reject()).then(t=>process.stdout.write(t),()=>process.exit(1))";
   const r = spawnSync(process.execPath, ["-e", js, url, String(ms)], { encoding: "utf8", timeout: ms + 5000, env: { ...E, ELECTRON_RUN_AS_NODE: "1" }, windowsHide: true });
   return r.status === 0 ? r.stdout : null;
 }
 
-function dshOllamaModelos(now: Date): string[] {
-  const url = dshOllamaUrl();
-  const cache = path.join(stateDir(), "dsh-ollama.json");
-  const ttl = pyFloat(E.REPARTO_DSH_CACHE_S ?? 60);
+/** La caché fresca del /api/tags de ollama (REPARTO_DSH_CACHE_S, 60 s) para esta URL, o null. */
+function cacheOllama(url: string, now: Date): string[] | null {
   try {
-    const c = leerJson(readFileSync(cache, "utf8"));
+    const c = leerJson(readFileSync(path.join(stateDir(), "dsh-ollama.json"), "utf8"));
+    const ttl = pyFloat(E.REPARTO_DSH_CACHE_S ?? 60);
     if (get(c, "url") === url && now.getTime() / 1000 - get(c, "t", 0) < ttl) return [...(get(c, "modelos") || [])];
   } catch {
     /* sin caché */
   }
+  return null;
+}
+
+function dshOllamaModelos(now: Date): string[] {
+  const url = dshOllamaUrl();
+  const cache = path.join(stateDir(), "dsh-ollama.json");
+  const ya = cacheOllama(url, now);
+  if (ya) return ya;
   let modelos: string[];
   try {
     const cuerpo = getSync(url + "/api/tags", pyFloat(E.REPARTO_DSH_CHEQUEO_S ?? 2));
@@ -1480,6 +1579,18 @@ function calidadOrigen(cfg: Obj, mid: string, patrones = true): [number, string]
 
 const opencodeBin = () => binDe("opencode", "HILOS_OPENCODE", [path.join(home(), ".opencode", "bin"), path.join(home(), ".local", "bin")]);
 
+/** La caché fresca de `opencode models` (REPARTO_OPENCODE_CACHE_S, 1 h) para este binario, o null. */
+function cacheOpencode(exe: string, now: Date): { gratis: string[]; go: string[] | null } | null {
+  try {
+    const c = leerJson(readFileSync(path.join(stateDir(), "opencode-modelos.json"), "utf8"));
+    const ttl = pyFloat(E.REPARTO_OPENCODE_CACHE_S ?? 3600);
+    if (get(c, "exe") === exe && now.getTime() / 1000 - get(c, "t", 0) < ttl) return { gratis: [...(get(c, "modelos") || [])], go: Array.isArray(get(c, "go")) ? [...c.go] : null };
+  } catch {
+    /* sin caché */
+  }
+  return null;
+}
+
 function opencodeListado(now: Date): { gratis: string[]; go: string[] | null } {
   const vacio = { gratis: [] as string[], go: null };
   if (E.REPARTO_OPENCODE === "0" || E.REPARTO_SIN_DSH === "1") return vacio;
@@ -1496,17 +1607,12 @@ function opencodeListado(now: Date): { gratis: string[]; go: string[] | null } {
   const exe = opencodeBin();
   if (!exe) return vacio;
   const cache = path.join(stateDir(), "opencode-modelos.json");
-  const ttl = pyFloat(E.REPARTO_OPENCODE_CACHE_S ?? 3600);
-  try {
-    const c = leerJson(readFileSync(cache, "utf8"));
-    if (get(c, "exe") === exe && now.getTime() / 1000 - get(c, "t", 0) < ttl) return { gratis: [...(get(c, "modelos") || [])], go: Array.isArray(get(c, "go")) ? [...c.go] : null };
-  } catch {
-    /* sin caché */
-  }
+  const ya = cacheOpencode(exe, now);
+  if (ya) return ya;
   let modelos: string[] = [];
   const go: string[] = [];
   try {
-    const salida = correrSync(exe, ["models"], { timeoutS: pyFloat(E.REPARTO_OPENCODE_CHEQUEO_S ?? 8) });
+    const salida = correrSync(exe, ["models"], { timeoutS: topeOpencode() });
     if (salida !== null) {
       for (const ln of splitlines(salida.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ""))) {
         const m = /^opencode\/(big-pickle|\S*-free)$/.exec(ln.trim());
@@ -2050,6 +2156,54 @@ async function agotar(mid: string, hastaArg: string | null, cfg: Obj, now: Date,
   }
   console.log(`${gid} agotado hasta ${iso(hasta)}`);
   return 0;
+}
+
+/** Las cuentas de Google cuyo cupo lee `leerCupos` (null = la de siempre, sin cuenta), en el mismo orden. */
+function cuentasGoogleALeer(): (Obj | null)[] {
+  if (!agyDisponible()) return [];
+  const cs = listaCuentas();
+  if (cs.every((c) => c.defecto) && cs.length === 2) return [null];
+  return cs.filter((c) => c.proveedor === "google");
+}
+
+/** Lanza juntas, con topes cortos, las lecturas lentas que van a hacer `leerCupos` y la tabla (sólo las que no tienen caché
+ *  fresca) y deja las salidas en SALIDAS/SALIDAS_GET; desde acá, las funciones de siempre las toman en vez de lanzarlas de nuevo. */
+async function leerEnParalelo(now: Date): Promise<void> {
+  topesCortos = true;
+  if (E.REPARTO_CUPOS_FIJOS) return;
+  const state = stateDir();
+  const tareas: Promise<void>[] = [];
+  const pedir = (cmd: string, args: string[], o: { timeoutS: number; cwd?: string; env?: NodeJS.ProcessEnv }) => {
+    const k = claveSalida(cmd, args, o.env);
+    if (SALIDAS.has(k)) return;
+    tareas.push(correrAsync(cmd, args, o).then((r) => void SALIDAS.set(k, r)));
+  };
+  try {
+    for (const cuenta of cuentasGoogleALeer()) {
+      const env = envCuenta(cuenta);
+      if (!cacheQuota(state, cuenta).fresca) pedir("agy", ARGS_QUOTA, { timeoutS: topeQuota(), cwd: os.tmpdir(), env });
+      if (E.REPARTO_AGY_MODELOS_FIJO === undefined && !cacheAgyModelos(state, cuenta).fresca) pedir("agy", ["models"], { timeoutS: topeAgyModelos(), cwd: os.tmpdir(), env });
+    }
+    if (E.REPARTO_OPENCODE !== "0" && E.REPARTO_SIN_DSH !== "1" && !E.REPARTO_OPENCODE_FIJO) {
+      const exe = opencodeBin();
+      if (exe && !cacheOpencode(exe, now)) pedir(exe, ["models"], { timeoutS: topeOpencode() });
+    }
+    if (E.REPARTO_DSH !== "0" && E.REPARTO_SIN_DSH !== "1" && !E.REPARTO_DSH_FIJO && dshBin()) {
+      const url = dshOllamaUrl();
+      if (!cacheOllama(url, now) && !SALIDAS_GET.has(url + "/api/tags")) {
+        const ms = Math.max(1, Math.round(pyFloat(E.REPARTO_DSH_CHEQUEO_S ?? 2) * 1000));
+        tareas.push(
+          fetch(url + "/api/tags", { signal: AbortSignal.timeout(ms) })
+            .then((r) => (r.ok ? r.text() : null))
+            .catch(() => null)
+            .then((t) => void SALIDAS_GET.set(url + "/api/tags", t)),
+        );
+      }
+    }
+  } catch {
+    /* lo que no se pudo preparar acá se lee como siempre, una tras otra */
+  }
+  await Promise.all(tareas);
 }
 
 function leerCupos(cfg: Obj, now: Date): Obj {
@@ -3559,6 +3713,8 @@ export async function main(argv: string[]): Promise<number> {
     }
   };
   if (a[0] === "--plan") return cmdPlan(a.slice(1), jsonOut, cfg, now);
+  // Los listados que se piden desde afuera con un tope (ia-elegir-y-correr, el panel del celu): lecturas juntas y con tope corto.
+  if (a[0] === "--cupos" || ((a[0] === "--tabla" || a[0] === "--resumen") && a.length === 1)) await leerEnParalelo(now);
   if (a[0] === "--cupos") {
     const d = leerCupos(cfg, now);
     console.log(jsonOut ? jsonPy(d, { indent: process.stdout.isTTY ? 2 : null }) : textoCupos(d, now));
