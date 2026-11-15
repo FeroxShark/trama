@@ -4162,7 +4162,8 @@ gemini_equivalente() {   # $1 = modelo de agy -> "modelo effort" del Claude ofic
   esac
 }
 # Sin las PA_AGY_* y PA_MAX_TURNS de un worker que ya corrió (armar_llamada las exporta): el chequeo de un relanzamiento ve el mismo entorno que el primero.
-agy_hooks_json() { timeout "${PA_AGY_CHEQUEO_S:-40}" env -u PA_AGY_HB -u PA_AGY_RAIZ -u PA_AGY_PPAL -u PA_AGY_RAMA -u PA_AGY_MAPA -u PA_AGY_MODO -u PA_AGY_REBASE -u PA_MAX_TURNS "${cuenta_env[@]}" agy -p /hooks --output-format json </dev/null 2>/dev/null; }
+# Y sin pantalla ni navegador (BROWSER=/bin/false): con la sesión de agy vencida, `-p /hooks` abre el login de Google en el navegador en cada llamada.
+agy_hooks_json() { timeout "${PA_AGY_CHEQUEO_S:-40}" env -u PA_AGY_HB -u PA_AGY_RAIZ -u PA_AGY_PPAL -u PA_AGY_RAMA -u PA_AGY_MAPA -u PA_AGY_MODO -u PA_AGY_REBASE -u PA_MAX_TURNS -u DISPLAY -u WAYLAND_DISPLAY -u WAYLAND_SOCKET -u XDG_CURRENT_DESKTOP -u DESKTOP_SESSION -u KDE_FULL_SESSION -u GNOME_DESKTOP_SESSION_ID BROWSER=/bin/false "${cuenta_env[@]}" agy -p /hooks --output-format json </dev/null 2>/dev/null; }
 # --- varias cuentas por proveedor -------------------------
 # Cada cuenta (bin/cuentas, ~/.config/trama/cuentas.json) tiene su carpeta de credenciales. El worker
 # corre con el entorno de SU cuenta sólo en su proceso (`env -u … CLAUDE_CONFIG_DIR=…`, o HOME para agy)

@@ -20,7 +20,7 @@ import http from "node:http";
 import https from "node:https";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { carpetasNpm, hallarAgy, hallarClaude, paraLanzar } from "../binario.ts";
+import { carpetasNpm, envSinNavegador, hallarAgy, hallarClaude, paraLanzar } from "../binario.ts";
 import { prefijoDsh } from "../dsh.ts";
 import { hayMotor } from "../motor-socket.ts";
 import { carpetaMotor, configTrama, esWindows, estadoHilos, homeDe, socketMotor } from "../rutas.ts";
@@ -103,7 +103,7 @@ async function agy(c: Contexto) {
   // agy guarda el login de Google en el llavero del sistema (no hay archivo que mirar): con sesión lista modelos.
   // Colgado: corta a los 15 s y no devuelve salida (queda en false). `ruta` y `error` (primera línea) son para diagnosticar.
   const l = paraLanzar(ruta, ["models"], c.env);
-  const r = await correr(l.file, l.args, { timeoutMs: 15_000, env: c.env, input: "", verbatim: l.verbatim });
+  const r = await correr(l.file, l.args, { timeoutMs: 15_000, env: envSinNavegador(c.env), input: "", verbatim: l.verbatim });
   const out = r.error || r.agotado ? "" : r.salida;
   const logueado = out.split(SALTOS).some((x) => MODELO_AGY.test(x));
   let error: string | undefined;

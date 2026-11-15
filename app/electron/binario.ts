@@ -282,6 +282,20 @@ function argParaCmd(a: string): string {
   return a === "" || /[\s&|<>^()!,;=]/.test(a) ? `"${a}"` : a;
 }
 
+/**
+ * El entorno de una llamada NO interactiva de agy (`agy models`, `agy -p /quota`, …). Con la sesión de Google vencida agy abre el login en el
+ * navegador en CADA llamada (2026-11-15: ~70 pestañas «Sign in with Google → Antigravity» en una hora): sin pantalla ni navegador
+ * (`DISPLAY`, `WAYLAND_DISPLAY`, el escritorio, `BROWSER=/bin/false`) xdg-open no tiene qué abrir. El llavero sigue andando (no toca
+ * `DBUS_SESSION_BUS_ADDRESS`). En Windows no hay variable que lo impida: ahí sólo frenan las pausas de quien llama (reparto).
+ */
+export function envSinNavegador(env: Env = process.env, plat: Plataforma = plataformaActual()): Env {
+  const e: Env = { ...env };
+  if (plat === "win32") return e;
+  for (const v of ["DISPLAY", "WAYLAND_DISPLAY", "WAYLAND_SOCKET", "XDG_CURRENT_DESKTOP", "DESKTOP_SESSION", "KDE_FULL_SESSION", "GNOME_DESKTOP_SESSION_ID"]) delete e[v];
+  e.BROWSER = "/bin/false";
+  return e;
+}
+
 /** Cómo se lanza un comando: el ejecutable, sus argumentos y si Node debe pasarlos tal cual (`windowsVerbatimArguments`). */
 export type Lanzar = { file: string; args: string[]; verbatim: boolean };
 

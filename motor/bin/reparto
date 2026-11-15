@@ -1207,6 +1207,81 @@ def ttl_cache(j):
     return CACHE_S
 
 
+# --- agy sin sesión: nunca un navegador, un aviso y una pausa --------------------------------------------
+# Con la sesión de Google vencida, `agy -p …` abre el login en el navegador en CADA llamada (visto 2026-11-15: ~70 pestañas de
+# «Sign in with Google → Google Antigravity» en una hora, una por cada `agy -p /quota` de reparto). Reparto sólo LEE: nunca
+# tiene que abrir el navegador. (1) el entorno de agy no tiene pantalla ni navegador; (2) la primera lectura que falla deja
+# <state>/agy-sin-sesion[@cuenta].json con una pausa (REPARTO_AGY_PAUSA_S, 600 s) en que no se vuelve a llamar a agy (sin dato)
+# y se avisa UNA vez (stderr + un item en el tablero con clave fija); una lectura buena borra la marca y rearma el aviso.
+# REPARTO_AVISAR=0 apaga el item del tablero (tests).
+AGY_PAUSA_S = 600.0
+_SIN_PANTALLA = ("DISPLAY", "WAYLAND_DISPLAY", "WAYLAND_SOCKET", "XDG_CURRENT_DESKTOP", "DESKTOP_SESSION", "KDE_FULL_SESSION",
+                 "GNOME_DESKTOP_SESSION_ID")
+
+
+def env_agy(env=None):
+    """El entorno de una llamada de agy que no es interactiva: sin pantalla ni navegador, para que xdg-open no tenga nada que abrir
+    (el llavero sigue: DBUS_SESSION_BUS_ADDRESS no se toca). En Windows no hay variable que lo impida: sólo manda la pausa."""
+    e = dict(os.environ if env is None else env)
+    if os.name != "nt":
+        for v in _SIN_PANTALLA:
+            e.pop(v, None)
+        e["BROWSER"] = "/bin/false"
+    return e
+
+
+def _marca_agy(state_dir, cuenta):
+    return os.path.join(state_dir, "agy-sin-sesion%s.json" % suf((cuenta or {}).get("id")))
+
+
+def agy_pausado(state_dir, cuenta=None):
+    """True si una lectura de agy falló hace menos de REPARTO_AGY_PAUSA_S: no se lo llama (queda sin dato / la caché)."""
+    try:
+        with open(_marca_agy(state_dir, cuenta)) as f:
+            return time.time() < float(json.load(f)["hasta"])
+    except Exception:
+        return False
+
+
+def agy_ok(state_dir, cuenta=None):
+    try:
+        os.unlink(_marca_agy(state_dir, cuenta))
+    except OSError:
+        pass
+
+
+def agy_fallo(state_dir, cuenta=None):
+    """Una lectura de agy no contestó o no trajo datos (con la sesión vencida agy se queda esperando el login): pausa y aviso (una vez)."""
+    ruta = _marca_agy(state_dir, cuenta)
+    avisado = False
+    try:
+        with open(ruta) as f:
+            avisado = bool(json.load(f).get("avisado"))
+    except Exception:
+        pass
+    pausa = float(os.environ.get("REPARTO_AGY_PAUSA_S", AGY_PAUSA_S))
+    try:
+        os.makedirs(state_dir, exist_ok=True)
+        tmp = ruta + ".%d" % os.getpid()
+        with open(tmp, "w") as f:
+            json.dump({"hasta": time.time() + pausa, "avisado": True}, f)
+        os.replace(tmp, ruta)
+    except OSError:
+        pass
+    if avisado:
+        return
+    nombre = (cuenta or {}).get("nombre") or "Google"
+    err("agy no contestó (¿sesión de %s vencida?): sin dato de agy por %d min; si hace falta, iniciá sesión de nuevo con `agy`" % (nombre, round(pausa / 60)))
+    if os.environ.get("REPARTO_AVISAR") != "0" and shutil.which("tablero"):
+        try:
+            subprocess.run(["tablero", "agregar", "agy sin sesión: volvé a iniciar sesión de Google en agy", "--clave", "agy-sin-sesion" + suf((cuenta or {}).get("id")),
+                            "--origen", "reparto", "--detalle", "reparto no pudo leer agy (cupo y modelos de %s). Para volver a usarlo, abrí `agy` en una terminal e iniciá sesión; "
+                            "mientras tanto reparto no lo llama ni abre el navegador." % nombre],
+                           stdin=subprocess.DEVNULL, capture_output=True, timeout=15)
+        except Exception:
+            pass
+
+
 def quota_agy(state_dir, now, cuenta=None):
     """JSON de `agy -p /quota` (caché en <state>/quota.json, o quota@<cuenta>.json con el entorno de esa cuenta;
     ver ttl_cache). None si no se pudo."""
@@ -1219,15 +1294,20 @@ def quota_agy(state_dir, now, cuenta=None):
             return c["json"]
     except Exception:
         pass
+    if agy_pausado(state_dir, cuenta):
+        return None
     try:
         r = subprocess.run([agy_ruta() or "agy", "-p", "/quota", "--output-format", "json"], capture_output=True,
                            text=True, timeout=float(os.environ.get("REPARTO_AGY_S", "40")),
-                           stdin=subprocess.DEVNULL, cwd=os.environ.get("TMPDIR", "/tmp"), env=env_cuenta(cuenta))
+                           stdin=subprocess.DEVNULL, cwd=os.environ.get("TMPDIR", "/tmp"), env=env_agy(env_cuenta(cuenta)))
         j = json.loads(r.stdout)
         if not j.get("command", {}).get("data", {}).get("groups"):
+            agy_fallo(state_dir, cuenta)
             return None
     except Exception:
+        agy_fallo(state_dir, cuenta)
         return None
+    agy_ok(state_dir, cuenta)
     try:
         os.makedirs(state_dir, exist_ok=True)
         tmp = cache + ".%d" % os.getpid()
@@ -1305,15 +1385,19 @@ def modelos_agy(state_dir, cuenta=None, refrescar=False):
             return vieja
     except Exception:
         pass
+    if agy_pausado(state_dir, cuenta):
+        return vieja
     try:
         r = subprocess.run([agy_ruta() or "agy", "models"], capture_output=True, text=True, stdin=subprocess.DEVNULL,
                            timeout=float(os.environ.get("REPARTO_AGY_MODELOS_ESPERA", "20")),
-                           cwd=os.environ.get("TMPDIR", "/tmp"), env=env_cuenta(cuenta))
+                           cwd=os.environ.get("TMPDIR", "/tmp"), env=env_agy(env_cuenta(cuenta)))
         ms = agy_parsear_modelos(r.stdout)
     except Exception:
         ms = []
     if not ms:
+        agy_fallo(state_dir, cuenta)
         return vieja
+    agy_ok(state_dir, cuenta)
     try:
         os.makedirs(state_dir, exist_ok=True)
         tmp = cache + ".%d" % os.getpid()

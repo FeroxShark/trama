@@ -340,6 +340,17 @@ def env_de(c):
     return e
 
 
+def env_sin_navegador(e):
+    """El entorno de una llamada de agy que no es interactiva (`agy models` para saber si hay sesión): sin pantalla ni navegador, porque con la
+    sesión vencida agy abre el login de Google en el navegador en cada llamada. Mismo criterio que `env_agy` de reparto."""
+    e = dict(e)
+    if os.name != "nt":
+        for v in ("DISPLAY", "WAYLAND_DISPLAY", "WAYLAND_SOCKET", "XDG_CURRENT_DESKTOP", "DESKTOP_SESSION", "KDE_FULL_SESSION", "GNOME_DESKTOP_SESSION_ID"):
+            e.pop(v, None)
+        e["BROWSER"] = "/bin/false"
+    return e
+
+
 def logueado_opencode(c, verificar):
     """True/False/None. opencode 1.x: auth.json en el data dir (sólo se cuentan las claves, nunca los valores). 2.x: el login está en
     opencode.db y sólo lo dice `opencode auth list` (lento y con proceso: sólo con `verificar`). En la cuenta agregada va con
@@ -400,7 +411,7 @@ def logueado(c, verificar=False):
         return logueado_opencode(c, verificar)
     if verificar and shutil.which("agy"):
         try:
-            r = subprocess.run(["agy", "models"], env=env_de(c), capture_output=True, text=True, timeout=20,
+            r = subprocess.run(["agy", "models"], env=env_sin_navegador(env_de(c)), capture_output=True, text=True, timeout=20,
                                stdin=subprocess.DEVNULL, cwd=os.environ.get("TMPDIR", "/tmp"))
             return any(MODELO_AGY.match(l) for l in r.stdout.splitlines())
         except Exception:

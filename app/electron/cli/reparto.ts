@@ -11,7 +11,7 @@ import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { hallarAgy, hallarCodex, resolverClaude } from "../binario.ts";
+import { envSinNavegador, hallarAgy, hallarCodex, resolverClaude } from "../binario.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
 import { esPrincipal } from "./base/principal.ts";
@@ -316,7 +316,7 @@ function correrAsync(cmd: string, args: string[], o: { timeoutS: number; cwd?: s
     };
     let h: ReturnType<typeof spawn>;
     try {
-      h = spawn(ejecutable, argv, { cwd: o.cwd, env: o.env ?? E, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, ...extra });
+      h = spawn(ejecutable, argv, { cwd: o.cwd, env: entornoDe(cmd, o.env), stdio: ["ignore", "pipe", "pipe"], windowsHide: true, ...extra });
     } catch (e) {
       fin({ error: e as Error });
       return;
@@ -346,6 +346,9 @@ function correrAsync(cmd: string, args: string[], o: { timeoutS: number; cwd?: s
   });
 }
 
+/** El entorno de una lectura: el de la cuenta (o el de reparto) y, si es agy, sin pantalla ni navegador (con la sesión vencida agy abre el login en cada llamada). */
+const entornoDe = (cmd: string, env?: NodeJS.ProcessEnv): NodeJS.ProcessEnv => (cmd === "agy" ? envSinNavegador(env ?? E) : (env ?? E));
+
 /** `subprocess.run(..., capture_output=True, text=True, timeout=s)`: el resultado de spawnSync (`error` si no se pudo o venció). Si
  *  `leerEnParalelo` ya lo corrió, devuelve esa salida (una sola vez: la siguiente lectura ya encuentra la caché). */
 function correrCapturado(cmd: string, args: string[], o: { timeoutS: number; cwd?: string; env?: NodeJS.ProcessEnv }): SpawnSyncReturns<string> {
@@ -356,7 +359,7 @@ function correrCapturado(cmd: string, args: string[], o: { timeoutS: number; cwd
     return ya;
   }
   const { ejecutable, argv, extra } = armarComando(cmd, args);
-  return spawnSync(ejecutable, argv, { encoding: "utf8", timeout: o.timeoutS * 1000, cwd: o.cwd, env: o.env ?? E, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, maxBuffer: 64 * 1024 * 1024, ...extra });
+  return spawnSync(ejecutable, argv, { encoding: "utf8", timeout: o.timeoutS * 1000, cwd: o.cwd, env: entornoDe(cmd, o.env), stdio: ["ignore", "pipe", "pipe"], windowsHide: true, maxBuffer: 64 * 1024 * 1024, ...extra });
 }
 
 /** `subprocess.run(..., capture_output=True, text=True, timeout=s)`: la salida, o null si no se pudo o venció. */
@@ -1252,6 +1255,60 @@ function ttlCache(j: unknown): number {
   return CACHE_S;
 }
 
+// --- agy sin sesión: nunca un navegador, un aviso y una pausa ------------------------------------------
+// (mismo diseño que `agy_pausado`/`agy_fallo` de motor/bin/reparto.) Con la sesión vencida cada `agy -p /quota` abría el login de Google en
+// el navegador: la primera lectura que falla deja <state>/agy-sin-sesion[@cuenta].json con una pausa (REPARTO_AGY_PAUSA_S, 600 s) en que no se
+// llama a agy (sin dato o la caché) y se avisa UNA vez (stderr + un item del tablero con clave fija; REPARTO_AVISAR=0 lo apaga); una lectura
+// buena borra la marca y rearma el aviso.
+const AGY_PAUSA_S = 600;
+const marcaAgy = (state: string, cuenta: Obj | null) => path.join(state, `agy-sin-sesion${suf(get(cuenta, "id"))}.json`);
+
+function agyPausado(state: string, cuenta: Obj | null): boolean {
+  try {
+    return ahoraS() < Number(leerJson(readFileSync(marcaAgy(state, cuenta), "utf8")).hasta);
+  } catch {
+    return false;
+  }
+}
+
+function agyOk(state: string, cuenta: Obj | null): void {
+  try {
+    unlinkSync(marcaAgy(state, cuenta));
+  } catch {
+    /* no había marca */
+  }
+}
+
+function agyFallo(state: string, cuenta: Obj | null): void {
+  const ruta = marcaAgy(state, cuenta);
+  let avisado = false;
+  try {
+    avisado = verdad(leerJson(readFileSync(ruta, "utf8")).avisado);
+  } catch {
+    /* primera vez */
+  }
+  const pausa = pyFloat(E.REPARTO_AGY_PAUSA_S ?? AGY_PAUSA_S);
+  try {
+    mkdirSync(state, { recursive: true });
+    writeFileSync(ruta, JSON.stringify({ hasta: ahoraS() + pausa, avisado: true }));
+  } catch {
+    /* sin marca */
+  }
+  if (avisado) return;
+  const nombre = pyStr(get(cuenta, "nombre") || "Google");
+  err(`agy no contestó (¿sesión de ${nombre} vencida?): sin dato de agy por ${Math.round(pausa / 60)} min; si hace falta, iniciá sesión de nuevo con \`agy\``);
+  if (E.REPARTO_AVISAR === "0") return;
+  const { ejecutable, argv, extra } = armarComando("tablero", [
+    "agregar", "agy sin sesión: volvé a iniciar sesión de Google en agy", "--clave", "agy-sin-sesion" + suf(get(cuenta, "id")), "--origen", "reparto",
+    "--detalle", `reparto no pudo leer agy (cupo y modelos de ${nombre}). Para volver a usarlo, abrí \`agy\` en una terminal e iniciá sesión; mientras tanto reparto no lo llama ni abre el navegador.`,
+  ]);
+  try {
+    spawnSync(ejecutable, argv, { stdio: "ignore", timeout: 15_000, env: E, windowsHide: true, ...extra });
+  } catch {
+    /* sin tablero */
+  }
+}
+
 const ARGS_QUOTA = ["-p", "/quota", "--output-format", "json"];
 const CACHE_RESPALDO_S = 900; // si agy no contesta a tiempo, vale una lectura de hasta 15 min (REPARTO_CACHE_RESPALDO_S) antes que "sin dato"
 
@@ -1273,15 +1330,17 @@ function quotaAgy(state: string, _now: Date, cuenta: Obj | null = null): Obj | n
   const cache = path.join(state, `quota${suf(cid)}.json`);
   const { fresca, respaldo } = cacheQuota(state, cuenta);
   if (fresca) return fresca;
+  if (agyPausado(state, cuenta)) return respaldo;
   let j: Obj;
   try {
     const salida = correrSync("agy", ARGS_QUOTA, { timeoutS: topeQuota(), cwd: os.tmpdir(), env: envCuenta(cuenta) });
-    if (salida === null) return respaldo;
+    if (salida === null) return agyFallo(state, cuenta), respaldo;
     j = leerJson(salida);
-    if (!verdad(get(get(get(j, "command", {}), "data", {}), "groups"))) return respaldo;
+    if (!verdad(get(get(get(j, "command", {}), "data", {}), "groups"))) return agyFallo(state, cuenta), respaldo;
   } catch {
-    return respaldo;
+    return agyFallo(state, cuenta), respaldo;
   }
+  agyOk(state, cuenta);
   try {
     mkdirSync(state, { recursive: true });
     grabarJson(cache, conFloat({ leido: ahoraS(), json: j }, "leido"));
@@ -1355,6 +1414,7 @@ function modelosAgy(state: string, cuenta: Obj | null = null, refrescar = false)
   const cache = path.join(state, `agy-modelos${suf(get(cuenta, "id"))}.json`);
   const { vieja, fresca } = cacheAgyModelos(state, cuenta);
   if (vieja && fresca && !refrescar) return vieja;
+  if (agyPausado(state, cuenta)) return vieja;
   let ms: { id: string; nombre: string }[] = [];
   try {
     const salida = correrSync("agy", ["models"], { timeoutS: topeAgyModelos(), cwd: os.tmpdir(), env: envCuenta(cuenta) });
@@ -1362,7 +1422,8 @@ function modelosAgy(state: string, cuenta: Obj | null = null, refrescar = false)
   } catch {
     ms = [];
   }
-  if (!ms.length) return vieja;
+  if (!ms.length) return agyFallo(state, cuenta), vieja;
+  agyOk(state, cuenta);
   try {
     mkdirSync(state, { recursive: true });
     writeFileSync(cache, JSON.stringify({ leido: ahoraS(), modelos: ms }));
@@ -2180,6 +2241,7 @@ async function leerEnParalelo(now: Date): Promise<void> {
   };
   try {
     for (const cuenta of cuentasGoogleALeer()) {
+      if (agyPausado(state, cuenta)) continue;
       const env = envCuenta(cuenta);
       if (!cacheQuota(state, cuenta).fresca) pedir("agy", ARGS_QUOTA, { timeoutS: topeQuota(), cwd: os.tmpdir(), env });
       if (E.REPARTO_AGY_MODELOS_FIJO === undefined && !cacheAgyModelos(state, cuenta).fresca) pedir("agy", ["models"], { timeoutS: topeAgyModelos(), cwd: os.tmpdir(), env });

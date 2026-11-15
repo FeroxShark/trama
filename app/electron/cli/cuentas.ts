@@ -7,7 +7,7 @@
 import { spawn } from "node:child_process";
 import { chmodSync, closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { hallarAgy, hallarClaude, hallarCodex, paraLanzar } from "../binario.ts";
+import { envSinNavegador, hallarAgy, hallarClaude, hallarCodex, paraLanzar } from "../binario.ts";
 import { homeDe, plataformaActual } from "../rutas.ts";
 import { unirEnlace } from "./base/compartir.ts";
 import { borrarSinSeguir, type OpcionesEnlace } from "./base/enlaces.ts";
@@ -314,7 +314,7 @@ class Cuentas {
     const agy = hallarAgy(this.env, this.homeReal());
     if (verificar && agy) {
       const l = paraLanzar(agy, ["models"], this.env);
-      const r = await correr(l.file, l.args, { env: this.envDe(c), timeoutMs: 20_000, input: "", cwd: this.cwdTmp(), verbatim: l.verbatim });
+      const r = await correr(l.file, l.args, { env: envSinNavegador(this.envDe(c)), timeoutMs: 20_000, input: "", cwd: this.cwdTmp(), verbatim: l.verbatim });
       if (r.error || r.agotado) return false;
       return r.salida.split(/\r\n|\r|\n/).some((l) => MODELO_AGY.test(l));
     }

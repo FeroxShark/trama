@@ -80,6 +80,16 @@ def primera_linea_error(texto):
     return re.sub(r"[A-Za-z0-9_\-./+=]{24,}", "…", linea)[:160]
 
 
+def env_sin_navegador():
+    # `agy models` con la sesión vencida abre el login de Google en el navegador (en cada sondeo): sin pantalla ni navegador no hay qué abrir.
+    e = dict(os.environ)
+    if os.name != "nt":
+        for v in ("DISPLAY", "WAYLAND_DISPLAY", "WAYLAND_SOCKET", "XDG_CURRENT_DESKTOP", "DESKTOP_SESSION", "KDE_FULL_SESSION", "GNOME_DESKTOP_SESSION_ID"):
+            e.pop(v, None)
+        e["BROWSER"] = "/bin/false"
+    return e
+
+
 def agy():
     ruta = en_path(os.environ.get("TRAMA_AGY", "agy"), dirs_agy())
     if not ruta:
@@ -88,7 +98,7 @@ def agy():
     # Colgado: corta a los 15 s y no devuelve salida (queda en false). `ruta` y `error` (primera línea) son para diagnosticar.
     error = None
     try:
-        p = subprocess.run([ruta, "models"], capture_output=True, text=True, timeout=15, stdin=subprocess.DEVNULL)
+        p = subprocess.run([ruta, "models"], capture_output=True, text=True, timeout=15, stdin=subprocess.DEVNULL, env=env_sin_navegador())
         out = p.stdout
         if p.returncode != 0:
             error = primera_linea_error(p.stderr or p.stdout)
