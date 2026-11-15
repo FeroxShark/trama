@@ -233,6 +233,9 @@ function crearVentana() {
     icon: path.join(aqui, "..", "public", "icon.png"),
     width: ancho,
     height: alto,
+    // Lo mínimo es el ancho de un celular (la vista angosta, src/angosto.ts); con menos, la interfaz no entra.
+    minWidth: 360,
+    minHeight: 420,
     frame: false,
     show: visible && mostrar !== "sin-foco",
     backgroundColor: "#0a0a0a",

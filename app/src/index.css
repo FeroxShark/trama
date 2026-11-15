@@ -116,6 +116,8 @@ body,
 .app {
   display: flex;
   height: 100%;
+  /* Más angosta que un celular no se arma nada (el panel quedaba de una palabra por renglón): se recorta. */
+  min-width: 20rem;
   gap: var(--gap-paneles);
   padding: var(--gap-paneles);
   background: var(--fondo-ventana);

@@ -1202,6 +1202,9 @@ export function Barra() {
     if (!angosto) return;
     const escritorio = abierta;
     setAbierta(!(activa || panel));
+    // El panel de contexto del escritorio (acoplado, aunque esté plegado) no se abre solo al achicar la ventana: angosto
+    // se ve una cosa a la vez y es lo abierto. Lo guardado no se toca: al volver a ancho, el acople lo repone.
+    if (!MODO.captura) setConsumo(false);
     return () => setAbierta(escritorio);
   }, [angosto]);
   useEffect(() => {
