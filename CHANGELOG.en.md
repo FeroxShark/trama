@@ -1,5 +1,12 @@
 # Changes
 
+## 0.2.95
+
+- Google signed out: agy quota checks no longer open "sign in" tabs in the browser. If the Google session expired, Trama stops asking for 10 minutes and warns once on the board.
+- Models: the table and quota are read in parallel and use the latest recent data if agy doesn't answer, so the lists load fast.
+- Workers without internet (Gemini): a task that needs the network or files outside its folder goes to Claude.
+- Protection: the guard also blocks closing the graphical session through the bar (caelestia/quickshell), stopping the session or audio with systemctl, and `kill -9 -1`.
+
 ## 0.2.94
 
 - Lead questions: the question shows with formatting and the paths it mentions open with a click (for example, the mockup it asks you to look at).

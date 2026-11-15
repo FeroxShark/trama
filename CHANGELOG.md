@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.95
+
+- Google sin sesión: las consultas de cupo a agy ya no abren pestañas de "iniciar sesión" en el navegador. Si la sesión de Google venció, Trama deja de preguntar 10 minutos y avisa una sola vez en el tablero.
+- Modelos: la tabla y el cupo se leen en paralelo y usan el último dato reciente si agy no contesta, así los listados cargan rápido.
+- Workers sin internet (Gemini): una tarea que necesita red o archivos fuera de su carpeta va a Claude.
+- Protección: el guard también impide cerrar la sesión gráfica por la barra (caelestia/quickshell), parar la sesión o el audio con systemctl y `kill -9 -1`.
+
 ## 0.2.94
 
 - Preguntas de un líder: la pregunta se ve con formato y las rutas que nombra se abren tocándolas (por ejemplo, la maqueta que te pide mirar).
