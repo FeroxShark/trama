@@ -23,7 +23,7 @@ import {
   proveedorCuentaDe,
   proveedorDeModelo,
 } from "../../electron/cli/pa/motores/modelos.ts";
-import { privacidad, secretoEn, secretoTrackeado } from "../../electron/cli/pa/motores/privacidad.ts";
+import { afueraEn, privacidad, secretoEn, secretoTrackeado } from "../../electron/cli/pa/motores/privacidad.ts";
 import { agentsMdBloque } from "../../electron/cli/pa/motores/prompt.ts";
 import { agyAJson, colaDe, comoJq, codexAJson, latir } from "../../electron/cli/pa/motores/salida.ts";
 
@@ -63,6 +63,9 @@ switch (sub) {
     break;
   case "privacidad":
     linea(privacidad(a[0]!, a[1]!));
+    break;
+  case "afuera-en":
+    linea(afueraEn(a[0]!, a[1]!));
     break;
   case "equivalente":
     linea(geminiEquivalente(a[0]!));

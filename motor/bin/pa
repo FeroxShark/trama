@@ -4232,8 +4232,10 @@ cmd_cupo_gemini() {
 # agy compartir datos para mejorar el producto): no hay lista de proyectos prohibidos ni excluidos.
 # Quedan dos candados ANTES de lanzar agy, por contenido y no por proyecto; si alguno salta, pa cae al
 # equivalente Claude con una línea (el mismo camino que el cupo): un pedido con pinta de secreto y un
-# repo que trackea archivos de secretos. Un tercero vive en hooks/agy-pa.sh (lectura fuera del
-# worktree y red).
+# repo que trackea archivos de secretos. Un tercero mira el pedido: si necesita red (ssh, curl, una URL,
+# una IP, git contra un remoto, instalar paquetes, docker) o leer fuera del worktree (~/, /etc…), el
+# motor sin red (agy, codex, dsh, opencode) no puede y cae a Claude (gemini_afuera_en). En el momento,
+# hooks/agy-pa.sh igual corta la lectura fuera del worktree y la red.
 # El pedido con pinta de secreto -> qué encontró (vacío si nada). Conservador: un falso positivo
 # sólo manda la corrida a Claude.
 gemini_secreto_en() {   # $1 = texto
@@ -4260,6 +4262,25 @@ gemini_secreto_trackeado() {   # $1 = ruta del repo
   done < <(git -C "$1" ls-tree -r --name-only HEAD 2>/dev/null)
   return 0
 }
+# El pedido necesita red o leer fuera del worktree -> qué encontró (vacío si nada). agy, codex, dsh y opencode
+# corren sin red y sin leer fuera del worktree: una tarea así falla seguro. Un falso positivo sólo la manda a Claude.
+# `/home` y `/home/…` solos son marcadores de ejemplo; una ruta dentro del propio proyecto ($2) pasa.
+gemini_afuera_en() {   # $1 = tarea, $2 = ruta real del proyecto
+  local t="$1" r="${2%/}" p
+  grep -qE '(^|[^[:alnum:]_./-])(ssh|scp|sftp|rsync|curl|wget|telnet|nc)[[:space:]]+[^[:space:]-]' <<<"$t" && { echo "ssh/curl/rsync"; return; }
+  grep -qE 'https?://' <<<"$t" && { echo "una URL"; return; }
+  grep -qE '(^|[^[:alnum:]_-])git[[:space:]]+(clone|fetch|pull|push|ls-remote)([^[:alnum:]_-]|$)' <<<"$t" && { echo "git contra un remoto"; return; }
+  grep -qiE '(^|[^[:alnum:]_-])((npm|pnpm|yarn|bun)[[:space:]]+(install|add|i)|pip3?[[:space:]]+install|cargo[[:space:]]+(install|add|update)|makepkg|pacman[[:space:]]+-S|paru|yay[[:space:]]|apt(-get)?[[:space:]]+install|docker[[:space:]]+(compose|stats|ps|exec|logs|pull|run))([^[:alnum:]_-]|$)' <<<"$t" && { echo "instalar paquetes o tocar docker"; return; }
+  grep -qE '(^|[^0-9.])([0-9]{1,3}\.){3}[0-9]{1,3}([^0-9.]|$)' <<<"$t" && { echo "una IP"; return; }
+  while IFS= read -r p; do
+    case "$p" in '~'*) p="$HOME${p#\~}" ;; '$HOME'*) p="$HOME${p#\$HOME}" ;; esac
+    p="${p%/}"; p="${p%[.,:;]}"
+    case "$p" in /home|/home/…|/home/...) continue ;; esac
+    [[ -n "$r" && ( "$p" == "$r" || "$p" == "$r"/* ) ]] && continue
+    echo "una ruta fuera del proyecto: $p"; return
+  done < <(grep -oE '(^|[[:space:]`"(])(~|\$HOME|/home|/etc|/var|/opt|/mnt|/srv|/root)(/[^[:space:]`"'"'"')]*)?' <<<"$t" | sed -E 's/^[[:space:]`"(]//' | grep -vE '^~$')
+  return 0
+}
 # Los candados de contenido juntos -> motivo de la caída a Claude (vacío = Gemini puede ir).
 gemini_privacidad() {   # $1 = ruta real, $2 = tarea
   local m
@@ -4267,6 +4288,8 @@ gemini_privacidad() {   # $1 = ruta real, $2 = tarea
   [[ -n "$m" ]] && { echo "el pedido parece traer $m (no se manda a Google)"; return; }
   m="$(gemini_secreto_trackeado "$1")"
   [[ -n "$m" ]] && { echo "el repo trackea un archivo de secretos ($m)"; return; }
+  m="$(gemini_afuera_en "$2" "$1")"
+  [[ -n "$m" ]] && { echo "el pedido necesita red o leer fuera del worktree ($m)"; return; }
   return 0
 }
 # Ya no hay lista de proyectos para Gemini: --marcar/--desmarcar quedan de alias que avisa y sale 0.

@@ -25,7 +25,7 @@ variables() { local v; for v; do grep -m1 -E "^$v=" "$PA_BASH"; done; }
 eval "$(variables AGENTS_MAX_DEFECTO GEMINI_MODELOS CODEX_MODELOS DSH_MODELOS OC_MODELOS CLAVES_ENV)"
 eval "$(extraer es_gemini gemini_equivalente es_codex codex_equivalente codex_a_json codex_latido es_opencode es_dsh dsh_proveedor \
   dsh_modelo_de dsh_gratis dsh_clave dsh_latido opencode_gratis es_local local_de proveedor_de_modelo proveedor_cuenta_de \
-  gemini_secreto_en gemini_secreto_trackeado gemini_privacidad agy_a_json md_resolver md_vacio md_stub_texto \
+  gemini_secreto_en gemini_secreto_trackeado gemini_afuera_en gemini_privacidad agy_a_json md_resolver md_vacio md_stub_texto \
   agents_md_candidatos agents_md_archivo agents_md_bloque)"
 # Sin modelos.json (los locales salen del Ollama de siempre): la lectura de modelos.json es de otra parte del port.
 modelos_cargar() { return 1; }
@@ -41,6 +41,7 @@ case "$sub" in
   secreto-en) gemini_secreto_en "$1" ;;
   secreto-trackeado) gemini_secreto_trackeado "$1" ;;
   privacidad) gemini_privacidad "$1" "$2" ;;
+  afuera-en) gemini_afuera_en "$1" "$2" ;;
   equivalente) gemini_equivalente "$1"; codex_equivalente "$1" ;;
   clasificar)
     m="$1"

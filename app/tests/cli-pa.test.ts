@@ -14,6 +14,7 @@ import { main, type Deps } from "../electron/cli/pa/cli.ts";
 import { cmdHilos } from "../electron/cli/pa/hilos.ts";
 import type { Env, Io } from "../electron/cli/pa/entorno.ts";
 import { Modelos, problemaModelos } from "../electron/cli/pa/modelos.ts";
+import { chequearAgy } from "../electron/cli/pa/motores/chequeo.ts";
 import { correrLista, escanear, opcionesIniciales, parsearOpciones, partirLista } from "../electron/cli/pa/opciones.ts";
 import type { Llamada } from "../electron/cli/pa/politica.ts";
 import type { Reparto } from "../electron/cli/pa/programas.ts";
@@ -403,4 +404,16 @@ test("lo que no está portado sale 70 sin hacer nada", async () => {
   assert.equal(s.rc, 70);
   const t = await pa(["--estado"], d.env, { globales: { estado: () => 0 } });
   assert.equal(t.rc, 0);
+});
+
+test("política: reparto elige Gemini pero el pedido necesita red (ssh): cae sola al equivalente Claude", async () => {
+  const d = sandbox();
+  const rep = repartoFalso({ elegir: { rc: 0, salida: JSON.stringify({ modelo: "gemini-4-argon-low", effort: "low", motivo: "el que alcanza" }) } });
+  // el chequeo de agy de verdad (privacidad primero): no hace falta agy instalado para que el candado salte
+  const chequearGemini = async (_m: string, l: Llamada) => chequearAgy({ proyecto: l.proyecto, tarea: l.tarea, env: d.env, plat: "linux" });
+  const r = await pa(["demo", "--tipo", "codigo-acotado", "apagá n8n por ssh servidor"], d.env, { reparto: () => rep, motores: { chequearGemini } });
+  assert.equal(r.rc, 0, r.e);
+  assert.match(r.l?.modelo ?? "", /^claude-/);
+  assert.equal(r.l?.geminiPedido, "gemini-4-argon-low");
+  assert.match(r.e, /el pedido necesita red o leer fuera del worktree \(ssh\/curl\/rsync\)/);
 });

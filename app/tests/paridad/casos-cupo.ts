@@ -179,6 +179,13 @@ export const casosCupo: Caso[] = [
     antes: conAgyFalso,
     pasos: [lanzar(0)],
   }),
+  // Una tarea que necesita red o leer fuera del worktree nunca va a un motor sin red: con el agy en orden igual cae al equivalente Claude.
+  caso("reparto elige Gemini y el pedido trae ssh: cae al equivalente Claude", {
+    respuestas: [{ modelo: "gemini-4-argon-low", effort: "low", motivo: "el que alcanza" }],
+    guion: [ok(BLOQUE)],
+    antes: conAgyFalso,
+    pasos: [{ args: ["demo", "--sin-jefe", "--tipo", "codigo-acotado", "apagá n8n por ssh servidor y fijate en ~/.claude/skills/x/SKILL.md"], rc: 0 }],
+  }),
   // agy no conoce el modelo que eligió reparto (el catálogo cambia con la cuenta): se pide la lista de nuevo, se enfría ese modelo y se relanza con el siguiente
   caso("agy rechaza el modelo: reparto da el siguiente (uno que sólo ofrece esa cuenta) y se relanza", {
     respuestas: [

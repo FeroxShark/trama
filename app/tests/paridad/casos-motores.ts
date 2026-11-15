@@ -118,6 +118,28 @@ const casosLatido: Caso[] = [
 // ============================================================================ privacidad
 
 const sec = (nombre: string, texto: string) => mo(`secreto en el pedido: ${nombre}`, ["secreto-en", texto]);
+// red o fuera del worktree (agy, codex, dsh y opencode no tienen ninguna de las dos): la tarea cae a Claude
+const fuera = (nombre: string, texto: string) => mo(`afuera del worktree: ${nombre}`, (c) => ["afuera-en", texto, c.proyecto]);
+const afuera: Caso[] = [
+  fuera("ssh a un servidor", "apagá n8n por ssh servidor"),
+  fuera("skill en el home", "leé ~/.claude/skills/x/SKILL.md y seguila"),
+  fuera("una IP", "subí a la laptop 192.168.1.8"),
+  fuera("una URL", "fijate qué devuelve https://ejemplo.com/api"),
+  fuera("git pull", "hacé git pull y después compilá"),
+  fuera("instalar paquetes", "corré npm install y pnpm add zod"),
+  fuera("docker", "mirá docker compose logs del servicio"),
+  fuera("/etc", "editá /etc/hosts, agregá la línea"),
+  fuera("$HOME", "copiá $HOME/notas.md al repo"),
+  fuera("tarea local", "arreglá el test de src/auth.ts"),
+  fuera("versión no es IP", "subí a 1.2.3 y probá 2024"),
+  fuera("/home/… de ejemplo", "las rutas tipo /home/… o /home no cuentan"),
+  fuera("~ solo", "el ~ no es una ruta"),
+  fuera("palabras con ssh adentro", "el sshd y rsyncd ya están, sync todo"),
+  mo("afuera del worktree: /home dentro del proyecto pasa", ["afuera-en", "revisá /home/ana/proy/src/a.ts y `/home/ana/proy`", "/home/ana/proy/"]),
+  mo("afuera del worktree: /home de otro proyecto cae", ["afuera-en", "copiá de /home/ana/otro/src/a.ts", "/home/ana/proy"]),
+  mo("afuera del worktree: ruta dentro del proyecto", (c) => ["afuera-en", `revisá ${c.proyecto}/src/auth.ts, falla`, c.proyecto]),
+  mo("afuera del worktree: el proyecto mismo con barra", (c) => ["afuera-en", `en ${c.proyecto}/ hay un test roto`, c.proyecto]),
+];
 const casosPrivacidad: Caso[] = [
   sec("nada", "arreglá el test de login, el que falla en CI"),
   sec("clave sk-", "usá la key sk-abcd1234 para probar"),
@@ -152,6 +174,9 @@ const casosPrivacidad: Caso[] = [
   }),
   mo("secreto trackeado: repo limpio", (c) => ["secreto-trackeado", c.proyecto]),
   mo("privacidad: el pedido manda", (c) => ["privacidad", c.proyecto, "mi clave es sk-1234567"]),
+  ...afuera,
+  mo("privacidad: el pedido necesita red", (c) => ["privacidad", c.proyecto, "apagá n8n por ssh servidor"]),
+  mo("privacidad: una ruta del propio proyecto pasa", (c) => ["privacidad", c.proyecto, `mirá ${c.proyecto}/src/a.ts`]),
   mo("privacidad: el repo", (c) => ["privacidad", c.proyecto, "nada raro"], {
     preparar: (c) => {
       escribir(path.join(c.proyecto, "certs", "srv.pem"), "x\n");

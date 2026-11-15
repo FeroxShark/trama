@@ -135,7 +135,7 @@ function rutaProyecto(proyecto: string, env: Env): string {
 }
 const privacidadDe = (proyecto: string, tarea: string, destino: string, env: Env) => {
   const r = rutaProyecto(proyecto, env);
-  return r ? privacidad(r, tarea, destino) : "";
+  return r ? privacidad(r, tarea, destino, homeDe(env)) : "";
 };
 
 /** ¿El json de `agy -p /hooks` dice que el hook pa-worker está cargado y habilitado (con su PreToolUse)? */
