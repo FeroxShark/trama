@@ -24,6 +24,7 @@ import {
   cwdDeTranscript,
   dirProyecto,
   opcionesLider,
+  entornoLider,
   type Ollama,
   escribirGuardados,
   esModo,
@@ -70,7 +71,7 @@ import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTr
 import { paraAcp, resueltos } from "./mcp-config.ts";
 import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
-import { claseDeModelo, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, topeDeLider, type Clase } from "./modelos-config.js";
+import { claseDeModelo, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
 import { parsearModelo } from "./dsh.ts";
 import { parsearModelo as parsearOpencode } from "./opencode.ts";
 import { pedidoDe } from "./cache.ts";
@@ -188,6 +189,8 @@ type Proc = {
   local?: Local;
   /** El `--autocompact` con que arrancó (`null`: nativo). Otro modelo con otro tope es relanzar (`cambiarEnVivo`). */
   tope?: number | null;
+  /** El `--advisor` con que arrancó (`null`: sin asesor). Otro modelo con otro asesor es relanzar (`cambiarEnVivo`). */
+  asesor?: string | null;
   /** El id de la cuenta agregada de Claude con que corre; sin él, la de siempre (su uso es el de `anotarUso`). */
   cuenta?: string;
   ocupado: boolean;
@@ -578,6 +581,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   const clase = claseDeModelo(g.modelo);
   // «Contexto antes de compactar» de su familia (modelos.json, `PA_AUTOCOMPACT` pisa), como un worker de `pa`: al arrancar y al reanudar.
   const tope = clase === "claude" && !local && !extra.ollama ? topeDeLider(g.modelo) : null;
+  // Advisor: el asesor que se eligió en Ajustes para su familia (sólo si anda en esta máquina; ver advisor.ts).
+  const asesor = clase === "claude" && !local && !extra.ollama ? asesorDeLider(g.modelo, entornoLider(process.env, HOME), HOME) : null;
   // La terminal de los agentes (Windows): PowerShell por defecto; en Linux no cambia nada (terminal-agentes.ts).
   const plat = plataformaActual();
   const terminal = terminalAgentesGuardada();
@@ -645,8 +650,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: [LINEA_CHAT, extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, autocompact: tope, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
-  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, ...(cuenta ? { cuenta: cuenta.id } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
+      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, autocompact: tope, advisor: asesor, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
+  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");
   p.stdout!.on("data", (trozo: string) => {
@@ -985,6 +990,8 @@ async function cambiarEnVivo(x: Proc, modelo: string, effort: string): Promise<b
   if (x.clase !== "claude" || claseDeModelo(modelo) !== "claude") return false;
   // El tope de «Contexto antes de compactar» va en el argv del proceso: otra familia con otro tope se relanza (`--resume`), no se cambia en vivo.
   if (x.modelo !== modelo && (x.tope ?? null) !== topeDeLider(modelo)) return false;
+  // El asesor (`--advisor`) también va en el argv: otra familia con otro asesor se relanza.
+  if (x.modelo !== modelo && (x.asesor ?? null) !== asesorDeLider(modelo, entornoLider(process.env, HOME), HOME)) return false;
   if (x.modelo !== modelo) {
     const r = await control(x, (id) => lineaModelo(id, modelo));
     if (!r || (!r.ok && !r.error)) return false;

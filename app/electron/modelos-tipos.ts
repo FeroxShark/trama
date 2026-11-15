@@ -5,6 +5,7 @@
 import { EFFORTS_CALIDAD, type EffortCalidad } from "./efforts-calidad.ts";
 import { esUnidadesAA, migrarValor, UNIDADES_AA, viejaAAa } from "./calidad-migracion.ts";
 import { errorT } from "./errores.ts";
+import { esFamiliaAdvisor, parValido, type AdvisorConfig, type FamiliaAdvisor } from "./advisor.ts";
 
 export const TIPOS = ["default", "codigo-acotado", "codigo-multi", "frontend", "debug", "diseno", "lectura", "mecanico"] as const;
 export type Tipo = (typeof TIPOS)[number];
@@ -117,6 +118,8 @@ export type ConfigModelos = {
    * vacía, usan la suya (vacía = lo de fábrica: Haiku 300 000, el resto nativo). `pa` no la lee.
    */
   autocompact_lider?: AutocompactConfig;
+  /** Advisor de Claude Code: por familia del modelo principal, la del asesor (`--advisor`). Sin entradas la clave no se escribe (ver advisor.ts). */
+  advisor?: AdvisorConfig;
   /** `cupo_max` de un archivo viejo: el motor ya no lo usa; se lee (no rompe) pero Guardar no lo vuelve a escribir. */
   gemini: { cupo_max?: number };
   /** `sin_cupo` del archivo; un `gemini.sin_claude` viejo se lee como éste y se reescribe así al guardar. */
@@ -260,6 +263,11 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
     if (a.defecto !== null || Object.keys(a.por_modelo).length) c.autocompact = a;
   }
   if (esObj(j.autocompact_lider)) c.autocompact_lider = leerTope(j.autocompact_lider);
+  if (esObj(j.advisor)) {
+    const ad: AdvisorConfig = {};
+    for (const [k, v] of Object.entries(j.advisor)) if (esFamiliaAdvisor(k) && parValido(k, v)) ad[k] = v as FamiliaAdvisor;
+    if (Object.keys(ad).length) c.advisor = ad;
+  }
   if (esObj(j.gemini)) {
     const g = j.gemini;
     if (typeof g.cupo_max === "number" && Number.isInteger(g.cupo_max) && g.cupo_max >= CUPO_MIN && g.cupo_max <= CUPO_MAX) c.gemini.cupo_max = g.cupo_max;
@@ -293,7 +301,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "advisor", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -365,6 +373,15 @@ export function validarConfig(x: unknown): ConfigModelos {
   }
   // Presente aunque vacía: los líderes tienen su propio tope (vacía = lo de fábrica).
   if (x.autocompact_lider !== undefined && x.autocompact_lider !== null) c.autocompact_lider = validarTope(x.autocompact_lider);
+  if (x.advisor !== undefined && x.advisor !== null) {
+    if (!esObj(x.advisor)) throw errorT("main.modelosForma");
+    const ad: AdvisorConfig = {};
+    for (const [k, v] of Object.entries(x.advisor)) {
+      if (!parValido(k, v)) throw errorT("main.modelosAdvisor", { v: `${k.slice(0, 20)} → ${String(v).slice(0, 20)}` });
+      ad[k as FamiliaAdvisor] = v as FamiliaAdvisor;
+    }
+    if (Object.keys(ad).length) c.advisor = ad;
+  }
   if (x.permitir_max !== undefined && x.permitir_max !== null) {
     if (typeof x.permitir_max !== "boolean") throw errorT("main.modelosForma");
     c.permitir_max = x.permitir_max;
@@ -505,6 +522,9 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   // `autocompact_lider` es de Trama: presente (aunque vacía) = los líderes tienen su propio tope; ausente = usan el de los workers.
   if (c.autocompact_lider) base.autocompact_lider = { defecto: c.autocompact_lider.defecto, por_modelo: { ...c.autocompact_lider.por_modelo } };
   else delete base.autocompact_lider;
+  // `advisor` lo leen Trama (líderes) y `pa` (workers): sin entradas la clave sale (sin asesor).
+  if (c.advisor && Object.keys(c.advisor).length) base.advisor = { ...c.advisor };
+  else delete base.advisor;
 
   // `gemini.sin_claude` se retira: lo dice `sin_cupo`, que vale para cualquier proveedor.
   // `gemini.cupo_max` tampoco se escribe más: el motor ya no lo usa, y al guardar sale del archivo.

@@ -188,3 +188,7 @@
   background: var(--acento);
   opacity: 1;
 }
+.ui-sw:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

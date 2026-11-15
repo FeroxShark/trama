@@ -66,6 +66,8 @@ export type ArmarLider = {
   apagados?: string;
   /** «Contexto antes de compactar» de la familia del modelo, en tokens (`--autocompact`, como un worker de `pa`); sin él (`null`) compacta Claude Code a su manera. Un líder local u Ollama no lo lleva (su ventana va en el entorno). */
   autocompact?: number | null;
+  /** El asesor del advisor de Claude Code (`--advisor <familia>`, ya resuelto por `asesorDeLider`); sin él, el líder arranca sin asesor. Un local u Ollama no lo lleva. */
+  advisor?: string | null;
 };
 
 /**
@@ -107,6 +109,9 @@ const argvLocal = (contexto?: string) => [
   "off",
 ];
 
+/** Lo único que se pasa a `--advisor`: el alias de una familia (nada que parezca un flag). */
+const ESASESOR = /^(haiku|sonnet|opus|fable)$/;
+
 /**
  * `claude -p` persistente que lee y escribe stream-json. En bypass,
  * `--dangerously-skip-permissions` (como el líder de la terminal); en otro modo,
@@ -117,7 +122,7 @@ const argvLocal = (contexto?: string) => [
  * y los contesta la app. Sesión nueva: `--session-id` + `--name`; retomada:
  * `--resume` (el nombre ya está en el transcript).
  */
-export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo, lineaSistema, mcpConfig, apagados, autocompact }: ArmarLider): string[] {
+export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo, lineaSistema, mcpConfig, apagados, autocompact, advisor }: ArmarLider): string[] {
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
   for (const u of [desde, rama?.de, rama?.hasta]) if (u !== undefined && !SID.test(u)) throw errorT("main.sesionRara", { v: u });
   if (!esModo(modo)) throw errorT("main.modoRaro", { v: String(modo) });
@@ -151,6 +156,8 @@ export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEF
     ...(mcpConfig && !local && !ollama ? ["--mcp-config", mcpConfig] : []),
     ...(apagados && !local && !ollama ? ["--settings", apagados] : []),
     ...(autocompact && !local && !ollama ? ["--autocompact", String(autocompact)] : []),
+    // Advisor de Claude Code: el asesor más fuerte que se eligió en Ajustes para este modelo (advisor.ts). Sólo un alias de familia.
+    ...(advisor && !local && !ollama && ESASESOR.test(advisor) ? ["--advisor", advisor] : []),
   ];
   // Volver atrás y ramificar son del `claude` mismo (`--resume-session-at`, `--fork-session`): nunca se reescribe un transcript
   // ni se pasa por una compactación; el modelo recibe sólo la cadena hasta ese mensaje.

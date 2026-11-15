@@ -37,6 +37,7 @@ import {
   type SinCupo,
   type Tipo,
 } from "../../electron/modelos-tipos";
+import type { AdvisorConfig } from "../../electron/advisor";
 import type { EffortCalidad } from "../../electron/efforts-calidad";
 import { defDe, effortDeModelo, TABLA } from "../hilo/modelos";
 
@@ -62,6 +63,8 @@ export type Borrador = {
   autocompact: AutocompactConfig;
   /** El de los líderes (`autocompact_lider`); `null` = igual que los workers (la clave no se escribe). */
   autocompactLider: AutocompactConfig | null;
+  /** Advisor de Claude Code (`advisor` del archivo): familia del modelo → familia del asesor. Sin entradas la clave no se escribe. */
+  advisor: AdvisorConfig;
   /** Qué hace `pa` si un modelo no tiene cupo; sin elegir se escribe nada y vale `otro`. */
   sin_cupo?: SinCupo;
   /** Perfil de reparto; sin elegir vale `equilibrado` y no se escribe nada. */
@@ -90,6 +93,7 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   efforts_permitidos: Object.fromEntries(Object.entries(e.config.efforts_permitidos ?? {}).map(([k, v]) => [k, [...v]])),
   autocompact: { defecto: e.config.autocompact?.defecto ?? null, por_modelo: { ...(e.config.autocompact?.por_modelo ?? {}) } },
   autocompactLider: e.config.autocompact_lider ? { defecto: e.config.autocompact_lider.defecto, por_modelo: { ...e.config.autocompact_lider.por_modelo } } : null,
+  advisor: { ...(e.config.advisor ?? {}) },
   ...(e.config.sin_cupo ? { sin_cupo: e.config.sin_cupo } : {}),
   ...(e.config.perfil ? { perfil: e.config.perfil } : {}),
   guardar: e.config.claude.tope_5h !== undefined || e.config.claude.tope_7d !== undefined,
@@ -128,6 +132,7 @@ export function configDe(b: Borrador): ConfigModelos | null {
     ...(Object.keys(b.efforts_permitidos).length ? { efforts_permitidos: Object.fromEntries(Object.entries(b.efforts_permitidos).map(([k, v]) => [k, [...v]])) } : {}),
     ...(b.autocompact.defecto !== null || Object.keys(b.autocompact.por_modelo).length ? { autocompact: { defecto: b.autocompact.defecto, por_modelo: { ...b.autocompact.por_modelo } } } : {}),
     ...(b.autocompactLider ? { autocompact_lider: { defecto: b.autocompactLider.defecto, por_modelo: { ...b.autocompactLider.por_modelo } } } : {}),
+    ...(Object.keys(b.advisor).length ? { advisor: { ...b.advisor } } : {}),
     gemini: {},
     ...(b.sin_cupo ? { sin_cupo: b.sin_cupo } : {}),
     ...(b.perfil ? { perfil: b.perfil } : {}),
@@ -152,6 +157,7 @@ const huella = (c: ConfigModelos) =>
     c.autocompact?.defecto ?? null,
     Object.entries(c.autocompact?.por_modelo ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.autocompact_lider ? [c.autocompact_lider.defecto, Object.entries(c.autocompact_lider.por_modelo).sort(([a], [z]) => (a < z ? -1 : 1))] : null,
+    Object.entries(c.advisor ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.sin_cupo ?? null,
     c.perfil ?? "equilibrado",
     c.claude.tope_5h ?? null,

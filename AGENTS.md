@@ -36,6 +36,11 @@ un archivo colgado sale con 124. Un solo test: `node scripts/test.mjs tests/x.te
 - **Tests:** no esperan por reloj (`esperarHasta` de `app/tests/esperar.ts` o `mock.timers`); una ruta real de Windows
   (`os.tmpdir()`, `path.join`) nunca se mezcla con `plat: "linux"`. La regla entera: `docs/reglas/tests.md`.
 
+- **Advisor de Claude Code (2026-11-15):** la elección vive en la clave `advisor` de `~/.config/trama/modelos.json`, `{ "sonnet": "opus", "opus": "fable" }`
+  (familia del modelo principal → familia del asesor; sólo asesores de una familia más fuerte: haiku < sonnet < opus < fable; sin la clave no hay asesor).
+  Trama la lee al abrir un líder de Claude y pasa `--advisor <familia>` (`electron/advisor.ts`, `asesorDeLider`); `pa` puede leer la misma clave para sus workers.
+  Sólo anda si no hay `DISABLE_TELEMETRY`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` ni `CLAUDE_CODE_DISABLE_ADVISOR_TOOL` (entorno o `env` de `~/.claude/settings.json`) y con la API de Anthropic; si no, no se pasa.
+
 ## Segunda opinión sobre un plan (2026-11-15)
 
 - **«Revisar con otro modelo»** (`app/electron/revision-plan.ts`; lo puro, que comparte la ventana, en `revision-plan-texto.ts`: sin imports de Node): en el plan de un líder (`PedidoPermiso`, `app/src/hilo/Lider.tsx`) el botón abre `SeguirCon` con `de="revisar"` (default Gemini Argon). El main corre al revisor de una sola vez por suscripción (`correrRevisor`: `claude -p` sólo con Read/Grep/Glob, o `agy` en una carpeta vacía; nunca `ANTHROPIC_API_KEY`), niega el `ExitPlanMode` pendiente y manda al líder un mensaje que empieza con `[[revision-de-plan modelo=".." nombre=".."]]`: la ventana lo dibuja como `TarjetaRevision` en vez de un globo de la persona (`YoEditable`). Sólo Claude o Gemini no desactivados en Ajustes (`revisoresPermitidos`, canal `lider:revisores`). Si el revisor falla, el plan sigue pendiente. Lo cubre `tests/revision-plan.test.ts`. El modo debate (etapa 2) está sólo diseñado: `docs/modo-debate-diseno.md`.

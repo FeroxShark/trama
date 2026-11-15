@@ -8,12 +8,14 @@
 import { readFileSync } from "node:fs";
 import { mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { configTrama } from "./rutas.ts";
+import { configTrama, homeDe } from "./rutas.ts";
 import { hayAgy, hayClaude } from "./capacidades.ts";
 import type { ModeloClaudeCuenta } from "./claude-catalogo.ts";
 import { leerDestrabos, type CuentaDestrabos } from "./destrabar-registro.ts";
 import { errorT, textoT } from "./errores.ts";
 import { topeAutocompact, topeDeEntorno, type TopeConf, type TopeEntorno } from "./autocompact-tope.ts";
+import { asesorDe, envDeSettings, motivoAdvisor, type AdvisorConfig, type FamiliaAdvisor, type MotivoAdvisor } from "./advisor.ts";
+import { entornoLider } from "./lider-arma.ts";
 import { destrabarActivo, leerConfig, unir, urlOllama, validarConfig, TIPOS, type ConfigModelos, type Eleccion, type Tipo } from "./modelos-tipos.ts";
 
 /** Dónde está el archivo (se mira cada vez: los tests lo cambian por el entorno). */
@@ -47,6 +49,8 @@ export type EstadoModelos = {
   solo_gemini?: boolean;
   /** Cuántas veces trama destrabó a un modelo que se repetía y cómo terminó (`destrabos.jsonl`); sin ninguna, todo en cero. */
   destrabo?: CuentaDestrabos;
+  /** Si el advisor de Claude Code anda en esta máquina: `motivo: null` anda; si no, qué lo apaga (una variable o el proveedor). */
+  advisor?: { motivo: MotivoAdvisor | null };
 };
 
 export type CorrerPa = (args: string[]) => Promise<{ rc: number; out: string; dijo: string }>;
@@ -127,6 +131,7 @@ export async function leerModelos(correr?: CorrerPa, ruta = rutaModelos()): Prom
     ...(hayAgy() ? { agy: true } : {}),
     ...(hayAgy() && !hayClaude() ? { solo_gemini: true } : {}),
     destrabo: leerDestrabos(),
+    advisor: { motivo: advisorDisponible(entornoLider(process.env, homeDe()), homeDe()) },
   };
 }
 
@@ -316,6 +321,36 @@ export function autocompactLiderGuardado(): TopeConf | null {
     return null;
   }
 }
+
+/** El `advisor` del archivo guardado (`null`: sin archivo, roto o sin la clave: sin asesor). */
+export function advisorGuardado(): AdvisorConfig | null {
+  try {
+    const { obj } = analizar(readFileSync(rutaModelos(), "utf8"), "");
+    return (obj ? leerConfig(obj).advisor : undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ¿Anda el advisor en esta máquina? El entorno que verá el líder (`entorno`: el de la app ya filtrado por `entornoLider`) más el bloque `env` de
+ * `~/.claude/settings.json` (Claude Code lo aplica a su proceso). `null`: anda; si no, lo que lo apaga.
+ */
+export function advisorDisponible(entorno: Record<string, string | undefined>, home: string): MotivoAdvisor | null {
+  let settings = "";
+  try {
+    settings = readFileSync(path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(home, ".claude"), "settings.json"), "utf8");
+  } catch {
+    /* sin settings.json: sólo cuenta el entorno */
+  }
+  return motivoAdvisor({ ...entorno, ...envDeSettings(settings) });
+}
+
+/** El asesor (`--advisor`) con que arranca un líder de Claude con ese modelo: lo elegido en Ajustes si el advisor anda; si no, `null`. */
+export const asesorDeLider = (modelo: string, entorno: Record<string, string | undefined>, home: string): FamiliaAdvisor | null => {
+  const a = asesorDe(modelo, advisorGuardado());
+  return a && !advisorDisponible(entorno, home) ? a : null;
+};
 
 /** `PA_AUTOCOMPACT` del entorno de la app (el del líder no lo hereda: `entornoLider` saca todo `PA_*`; acá se lee antes). */
 export const topeEntorno = (env: NodeJS.ProcessEnv = process.env): TopeEntorno => topeDeEntorno(env.PA_AUTOCOMPACT);

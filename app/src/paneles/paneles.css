@@ -4076,3 +4076,36 @@
 .cu-reset-ver:hover {
   text-decoration-color: currentcolor;
 }
+
+/* Ajustes > Modelos > Advisor: una fila por modelo (nombre, interruptor y, prendido, los asesores posibles); sin advisor, el motivo arriba en una línea. */
+.mdl-advisor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  align-items: flex-end;
+}
+.mdl-advisor-fila {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.mdl-advisor-fila .pn-chips {
+  margin-top: 0;
+}
+.mdl-advisor-nom {
+  min-width: 4.5rem;
+  text-align: right;
+}
+.mdl-advisor-nota,
+.mdl-advisor-motivo {
+  color: var(--texto-2);
+}
+.mdl-advisor-motivo {
+  text-align: right;
+}
+.pn-chip-f:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

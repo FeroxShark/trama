@@ -29,6 +29,7 @@ import { AjustesConectores } from "./AjustesConectores";
 import { AjustesPrecios } from "./AjustesPrecios";
 import { ModelosParaWorkers } from "./AjustesWorkers";
 import { AutocompactFilas } from "./AjustesAutocompact";
+import { AdvisorFilas } from "./AjustesAdvisor";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
 import { LocalesDetectados } from "./LocalesDetectados";
 import { marcar } from "./ajustes-nav";
@@ -550,6 +551,10 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
 
           <Dato nombre="ajustes.mdlCompactar" que="ajustes.mdlCompactarQue">
             <AutocompactFilas b={b} cambiar={cambiar} />
+          </Dato>
+
+          <Dato nombre="ajustes.mdlAdvisor" que="ajustes.mdlAdvisorQue">
+            <AdvisorFilas b={b} cambiar={cambiar} motivo={e?.advisor?.motivo} />
           </Dato>
 
           <Dato nombre="ajustes.mdlPermitirMax" que="ajustes.mdlPermitirMaxQue">
