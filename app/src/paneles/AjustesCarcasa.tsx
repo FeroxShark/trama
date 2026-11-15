@@ -24,7 +24,7 @@ const textoAct = (e: EstadoActualizacion | null, v: string): string => {
     case "error":
       return t("carcasa.errorAct", { m: e.mensaje ?? "" });
     default:
-      return t("carcasa.inactiva");
+      return e.mensaje ? `${t("carcasa.inactiva")} ${t("carcasa.inactivaPorque", { m: e.mensaje })}` : t("carcasa.inactiva");
   }
 };
 

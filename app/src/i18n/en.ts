@@ -2687,6 +2687,7 @@ export const en = {
   "carcasa.reiniciar": "Restart to update",
   "carcasa.errorAct": "Couldn't check: {m}",
   "carcasa.inactiva": "This copy doesn't update itself (it isn't the installed one).",
+  "carcasa.inactivaPorque": "Reason: {m}.",
   "carcasa.restos": "Leftovers from earlier versions",
   "carcasa.restosQue": "What an old version left on your machine and this one no longer uses. Your projects, sessions and accounts are never touched.",
   "carcasa.restosBtn": "Remove leftovers from earlier versions",

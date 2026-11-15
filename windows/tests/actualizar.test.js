@@ -202,7 +202,7 @@ test("sin empaquetar (o con el instalador de relleno) el botón dice «inactiva�
   assert.equal(u.activo, false);
   await u.buscar();
   u.instalar();
-  assert.deepEqual(eventos, [{ fase: "inactiva" }]);
+  assert.deepEqual(eventos, [{ fase: "inactiva", mensaje: "no está empaquetada" }]);
   const v = iniciarActualizador({ app: { isPackaged: true }, recursos: "/no/existe", onEstado: (e) => eventos.push(e) });
   assert.equal(v.activo, false);
 });

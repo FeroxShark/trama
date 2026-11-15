@@ -176,19 +176,23 @@ function crearActualizador({ autoUpdater, onEstado, log = () => {}, canal = null
 }
 
 function iniciarActualizador({ app, recursos, onEstado, log = () => {}, canal = null, rechazada = () => null }) {
-  const nulo = {
-    instalar() {},
-    buscar: async () => onEstado({ fase: "inactiva" }),
-    refrescar: async () => {},
-    activo: false,
+  // Inactiva con el motivo (va al log y a Ajustes, así se sabe por qué una instalación no se actualiza).
+  const nulo = (motivo) => {
+    log(`actualizador inactivo: ${motivo}`);
+    return {
+      instalar() {},
+      buscar: async () => onEstado({ fase: "inactiva", mensaje: motivo }),
+      refrescar: async () => {},
+      activo: false,
+    };
   };
-  if (!app.isPackaged || esDeRelleno(recursos)) return nulo;
+  if (!app.isPackaged) return nulo("no está empaquetada");
+  if (esDeRelleno(recursos)) return nulo(`sin app-update.yml válido en ${recursos}`);
   let autoUpdater;
   try {
     ({ autoUpdater } = require("electron-updater"));
   } catch (e) {
-    log(`electron-updater no está: ${e.message}`);
-    return nulo;
+    return nulo(`electron-updater no está: ${corto(e)}`);
   }
   return crearActualizador({ autoUpdater, onEstado, log, canal, rechazada });
 }

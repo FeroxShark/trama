@@ -2673,6 +2673,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "carcasa.reiniciar": "Reiniciar para actualizar",
   "carcasa.errorAct": "No pude buscar: {m}",
   "carcasa.inactiva": "Esta copia no se actualiza sola (no es la instalada).",
+  "carcasa.inactivaPorque": "Motivo: {m}.",
   "carcasa.restos": "Restos de versiones anteriores",
   "carcasa.restosQue": "Lo que una versión vieja dejó en tu máquina y esta ya no usa. Tus proyectos, sesiones y cuentas no se tocan nunca.",
   "carcasa.restosBtn": "Quitar restos de versiones anteriores",
