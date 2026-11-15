@@ -12,6 +12,7 @@ import { useIdioma } from "../i18n/react";
 import { mensaje } from "../puente";
 import { useCorrector } from "../paneles/ajustes-corrector";
 import { alternar, alternarOtro, alternarPlegado, armar, completo, escribirOtro, estaPlegado, NADA, olvidarPlegado, resumenRespondidas, type Eleccion, type Plegados, type Respondida } from "./preguntas-logica";
+import { EnLinea } from "./Texto";
 import { contestado, type Pedido } from "./vivo";
 
 /** Lo elegido en cada pedido sin mandar: cambiar de líder y volver no lo pierde. */
@@ -39,7 +40,10 @@ function UnaPregunta({ q, e, cambiar, mandar }: { q: Pregunta; e: Eleccion; camb
         {q.header ? <span className="pq-chip">{q.header}</span> : null}
         {q.multiSelect ? <span className="pq-varias">{tr("pregunta.varias")}</span> : null}
       </div>
-      <div className="pq-q">{q.question}</div>
+      {/* Con formato y rutas tocables: «la maqueta está en ~/x.html» se abre desde acá. Las opciones son botones: van en texto. */}
+      <div className="pq-q">
+        <EnLinea texto={q.question} />
+      </div>
       <div className="pq-ops" role={q.multiSelect ? "group" : "radiogroup"} aria-label={q.header || q.question}>
         {q.options.map((o) => {
           const si = e.elegidas.includes(o.label);

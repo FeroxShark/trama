@@ -1400,7 +1400,7 @@ const PREGUNTAS_FIJAS = [
     ],
   },
   {
-    question: "¿Qué se muestra en la fila?",
+    question: "¿Qué se muestra en la fila? La maqueta está en ~/diseno/maquetas/fila.html.",
     header: "Fila",
     multiSelect: true,
     options: [

@@ -284,6 +284,11 @@ type Props = {
 };
 
 /** Memo: mientras un líder escribe, sólo se repinta el último texto (un render por frame) y, de él, el último bloque. */
+/** Un renglón con el formato en línea del chat (negrita, código, rutas tocables) para lo que no es un mensaje: la pregunta de un líder. */
+export function EnLinea({ texto }: { texto: string }) {
+  return <>{enLinea(texto)}</>;
+}
+
 export const Texto = memo(function Texto({ texto, vivo = false, propio = false }: Props) {
   const bs = useMemo(() => bloques(texto, { vivo, terminal: propio }), [texto, vivo, propio]);
   return (
