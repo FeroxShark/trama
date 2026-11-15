@@ -105,6 +105,8 @@ export const CANALES = [
   ["lider:rebobinar", "invoke"],
   ["lider:ramificar", "invoke"],
   ["lider:seguirCon", "invoke"],
+  ["lider:revisarPlan", "invoke"],
+  ["lider:revisores", "invoke"],
   ["lider:puntos", "invoke"],
   ["lider:puntoDif", "invoke"],
   ["lider:puntoVolver", "invoke"],

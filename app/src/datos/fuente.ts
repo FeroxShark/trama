@@ -13,6 +13,7 @@ import type { EstadoPlanDia, ModoPlanDia } from "../../electron/plan-dia";
 import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electron/dictado-modelos";
 import type { PrefCache } from "../../electron/cache-pregunta";
 import { aplicarOpGuias, GUIAS_VACIO, normalizarGuias, type EstadoGuias, type OpGuias } from "../../electron/guias-estado";
+import type { RevisionVista as RevisionPlan } from "../../electron/revision-plan-texto";
 import { versionNormal } from "../../electron/novedades-cambios";
 import { topeSano, type TopeConf, type TopeEntorno } from "../../electron/autocompact-tope.ts";
 import { main, mensaje, type Lectura } from "../puente";
@@ -234,6 +235,10 @@ export interface Fuente {
   liderRamificar(sid: string, uuid: string, x: { modelo: string; effort: string }): Promise<string>;
   /** «Seguir con otro modelo» (#1791): un líder nuevo, en la misma carpeta, con el resumen de traspaso de `sid` como primer mensaje; el original no se toca. Devuelve el sid del nuevo. */
   liderSeguirCon(sid: string, x: { modelo: string; effort: string }): Promise<string>;
+  /** «Revisar con otro modelo»: de esos `ids`, los que sirven de revisor (Claude o Gemini, no desactivados en Ajustes). */
+  liderRevisores(ids: string[]): Promise<string[]>;
+  /** «Revisar con otro modelo»: `modelo` lee el plan pendiente `id` del líder `sid`; el líder recibe la revisión y presenta el plan remasterizado. Devuelve la revisión. */
+  liderRevisarPlan(sid: string, id: string, x: { modelo: string; effort: string; nombre: string }): Promise<RevisionPlan>;
   /** Los puntos de control de la conversación (uno por turno: qué archivos tocó). Sin git en su carpeta, vacío. */
   liderPuntos(sid: string): Promise<PuntoControl[]>;
   /** El diff (unificado) de un turno, de uno de sus archivos o de todos. */
@@ -1905,6 +1910,16 @@ const fija: Fuente = {
   async liderPuntoVolver() {
     return { restaurados: 0, borrados: 0 };
   },
+  async liderRevisores(ids) {
+    return ids;
+  },
+  async liderRevisarPlan(sid, id, x) {
+    // Fixtures: la revisión de un revisor simulado; la real la manda el main al líder como un mensaje con marca.
+    const r = { bien: "El orden (primero el modelo, después la interfaz) deja probar cada paso.", riesgos: "No dice qué pasa si el revisor no contesta a tiempo.\nNo nombra el caso de un plan muy largo.", mejoras: "Mostrar la revisión como tarjeta del revisor, no como mensaje tuyo.\nProbar con un revisor simulado antes de usar uno real.", plan: "1. Armar el prompt del revisor.\n2. Mostrar la tarjeta.\n3. Mandarle la revisión al líder.\n4. Probar de punta a punta." };
+    void sid;
+    void id;
+    return { ...r, modelo: x.modelo, nombre: x.nombre };
+  },
   async liderSeguirCon(sid) {
     // Fixtures: un líder nuevo con lo hablado hasta ahora (el resumen de verdad lo arma el main).
     const nuevo = `00000000-0000-4000-8000-${String(++creados).padStart(12, "0")}`;
@@ -2706,6 +2721,16 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
       throw new Error(mensaje(e));
     })) as { restaurados?: unknown; borrados?: unknown } | null;
     return { restaurados: Number(r?.restaurados) || 0, borrados: Number(r?.borrados) || 0 };
+  },
+  async liderRevisores(ids) {
+    const r = await m.lider.revisores(ids).catch(() => null);
+    return Array.isArray(r) ? r.filter((i): i is string => typeof i === "string") : ids;
+  },
+  async liderRevisarPlan(sid, id, x) {
+    const r = (await m.lider.revisarPlan({ sid, id, modelo: x.modelo, effort: x.effort, nombre: x.nombre }).catch((e) => {
+      throw new Error(mensaje(e));
+    })) as Partial<RevisionPlan> | null;
+    return { bien: String(r?.bien ?? ""), riesgos: String(r?.riesgos ?? ""), mejoras: String(r?.mejoras ?? ""), plan: String(r?.plan ?? ""), ...(r?.libre ? { libre: String(r.libre) } : {}), modelo: String(r?.modelo ?? x.modelo), nombre: String(r?.nombre ?? x.nombre) };
   },
   async liderSeguirCon(sid, x) {
     return m.lider.seguirCon({ sid, modelo: x.modelo, effort: x.effort }).catch((e) => {

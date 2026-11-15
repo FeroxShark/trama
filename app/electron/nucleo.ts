@@ -52,7 +52,8 @@ import { contarVivos, papeleraProyecto, quitarProyecto, reactivarProyecto, vista
 import { guardarAjustes } from "./ajustes-editar.js";
 import { crearBajadas } from "./ollama-bajar.ts";
 import { agyOfrecidos } from "./agy-ofrecidos.ts";
-import { autocompactLiderGuardado, efectivoDePa, guardarModelos, leerModelos, modelosConfig, sondearOllama, topeEntorno, vistaModelos } from "./modelos-config.ts";
+import { revisoresPermitidos } from "./revision-plan.ts";
+import { autocompactLiderGuardado, efectivoDePa, excluirGuardado, guardarModelos, leerModelos, modelosConfig, sondearOllama, topeEntorno, vistaModelos } from "./modelos-config.ts";
 import { accesos } from "./celular-accesos.js";
 import { guardarConfig, leerEditable } from "./remoto-config.js";
 import { sesionesVistas, vive } from "./sesiones.js";
@@ -1328,6 +1329,8 @@ export function armarNucleo() {
     lider.ramificar({ sid: x?.sid, uuid: x?.uuid, modelo: x?.modelo, effort: x?.effort }),
   );
   // «Seguir con otro modelo» (#1791): un líder nuevo, en la misma carpeta, que arranca con el resumen de traspaso de éste. Devuelve su sid.
+  manejar("lider:revisarPlan", (_e, x: { sid: string; id: string; modelo: string; effort: string; nombre?: string }) => lider.revisarPlanLider({ sid: x?.sid, id: x?.id, modelo: x?.modelo, effort: x?.effort, nombre: x?.nombre }));
+  manejar("lider:revisores", (_e, ids: unknown) => revisoresPermitidos(Array.isArray(ids) ? ids.filter((i): i is string => typeof i === "string") : [], excluirGuardado()));
   manejar("lider:seguirCon", (_e, x: { sid: string; modelo: string; effort: string }) => lider.seguirCon({ sid: x?.sid, modelo: x?.modelo, effort: x?.effort }));
   // Puntos de control por turno (#1787): los de una conversación, el diff de uno y volver a antes de él (puntos.ts).
   manejar("lider:puntos", (_e, sid: string) => lider.puntosDe(String(sid)));

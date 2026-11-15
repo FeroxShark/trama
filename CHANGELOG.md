@@ -1,5 +1,9 @@
 # Cambios
 
+## Próxima versión
+
+- Plan de un líder: nuevo botón «Revisar con otro modelo». Elegís el modelo (por defecto Gemini Argon; sólo los activados en Ajustes y con cupo), lee el plan y devuelve qué está bien, riesgos, mejoras y un plan mejorado. Se ve en el chat como tarjeta del revisor y tu líder la integra y te presenta el plan de nuevo.
+
 ## 0.2.97
 
 - Ventana nítida en Wayland: Trama elige Wayland nativo aunque el proceso que la relanza no traiga `WAYLAND_DISPLAY` (antes caía en XWayland y se veía borrosa con escala fraccionaria). Si falta, usa el socket de la sesión.

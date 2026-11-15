@@ -5,7 +5,7 @@
 // se ve acá y se puede elegir otro. La lógica de la lista (orden, marcas, flechas): seguir-con.ts.
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRightLeft, Ban, Check, Clock, Search } from "lucide-react";
+import { ArrowRightLeft, Ban, Check, Clock, ScanSearch, Search } from "lucide-react";
 import { fuente } from "../datos/fuente";
 import type { Uso } from "../datos/contrato";
 import { useFoco } from "../foco";
@@ -19,8 +19,8 @@ import { filasSeguir, listaSeguir, moverSeguir, resaltadaInicial, type OpcionSeg
 import "./seguir-dialogo.css";
 
 type Props = {
-  /** Qué se sigue: cambia lo que el diálogo dice que va a pasar. */
-  de: "worker" | "lider";
+  /** Qué se sigue: cambia lo que el diálogo dice que va a pasar. `revisar`: la segunda opinión sobre un plan (los mismos modelos, otro título y otro verbo). */
+  de: "worker" | "lider" | "revisar";
   /** Los modelos entre los que se elige (los de un líder, o los de un worker). */
   opciones: readonly OpcionSeguir[];
   /** El modelo con el que venía (se ve, pero no se elige). */
@@ -28,11 +28,13 @@ type Props = {
   /** Elegir un modelo: devuelve cuando ya está hecho (el diálogo lo cierra el host) o rechaza con el motivo (se muestra acá). */
   alElegir: (modelo: string) => Promise<void>;
   alCerrar: () => void;
+  /** El modelo que queda resaltado al abrir si se puede usar ya (con cupo); si no, el primero que se puede. */
+  preferido?: string;
   /** Captura: nace con esta búsqueda escrita. */
   busquedaInicial?: string;
 };
 
-export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, busquedaInicial = "" }: Props) {
+export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido, busquedaInicial = "" }: Props) {
   useIdioma();
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
@@ -56,7 +58,10 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, busquedaIn
   const filas = useMemo(() => filasSeguir(grupos), [grupos]);
   const [resaltada, setResaltada] = useState(-1);
   // Al cambiar la búsqueda o llegar el cupo, la resaltada vuelve a la primera que se puede usar ya.
-  useEffect(() => setResaltada(resaltadaInicial(filas)), [filas]);
+  useEffect(() => {
+    const p = preferido ? filas.findIndex((f) => f.opcion.id === preferido && !f.actual && !f.cupo?.sin) : -1;
+    setResaltada(p >= 0 ? p : resaltadaInicial(filas));
+  }, [filas, preferido]);
   useEffect(() => {
     lista.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
   }, [resaltada]);
@@ -88,14 +93,14 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, busquedaIn
       <div ref={raiz} className="seg" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} aria-describedby={`${id}-d`} tabIndex={-1} onKeyDown={tecla}>
         <div className="seg-cab">
           <span className="seg-ico" aria-hidden="true">
-            <ArrowRightLeft size={16} strokeWidth={2.2} />
+            {de === "revisar" ? <ScanSearch size={16} strokeWidth={2.2} /> : <ArrowRightLeft size={16} strokeWidth={2.2} />}
           </span>
           <div className="seg-txt">
             <h3 id={`${id}-t`} className="seg-t">
-              {t("seguir.titulo")}
+              {t(de === "revisar" ? "revision.titulo" : "seguir.titulo")}
             </h3>
             <p id={`${id}-d`} className="seg-d">
-              {t(de === "worker" ? "seguir.descWorker" : "seguir.descLider")}
+              {t(de === "revisar" ? "revision.desc" : de === "worker" ? "seguir.descWorker" : "seguir.descLider")}
             </p>
           </div>
         </div>
@@ -145,7 +150,7 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, busquedaIn
                     <span className="seg-m">{f.opcion.desc}</span>
                     {enviando === f.opcion.id ? (
                       <span className="seg-e" data-e="envio" role="status">
-                        {t("seguir.continuando")}
+                        {t(de === "revisar" ? "revision.revisando" : "seguir.continuando")}
                       </span>
                     ) : f.actual ? (
                       <span className="seg-e" data-e="actual">

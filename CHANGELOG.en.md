@@ -1,5 +1,9 @@
 # Changes
 
+## Next version
+
+- A lead's plan: new «Review with another model» button. You pick the model (Gemini Argon by default; only those turned on in Settings and with quota), it reads the plan and returns what is good, risks, improvements and an improved plan. It shows in the chat as a reviewer card and your lead integrates it and presents the plan again.
+
 ## 0.2.97
 
 - Sharp window on Wayland: Trama picks native Wayland even when the process that relaunches it lacks `WAYLAND_DISPLAY` (it used to fall back to XWayland and look blurry at fractional scaling). If it is missing, it uses the session's socket.

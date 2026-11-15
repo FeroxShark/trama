@@ -58,6 +58,7 @@ import {
   type Rama,
 } from "./lider-arma.js";
 import * as puntos from "./puntos.ts";
+import { correrRevisor, revisarPlan, revisoresPermitidos, type RevisionVista } from "./revision-plan.ts";
 import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { barrerEtiqueta, nuevaEtiqueta, VARIABLE } from "./huerfanos.js";
@@ -69,7 +70,7 @@ import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTr
 import { paraAcp, resueltos } from "./mcp-config.ts";
 import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
-import { claseDeModelo, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, topeDeLider, type Clase } from "./modelos-config.js";
+import { claseDeModelo, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, topeDeLider, type Clase } from "./modelos-config.js";
 import { parsearModelo } from "./dsh.ts";
 import { parsearModelo as parsearOpencode } from "./opencode.ts";
 import { pedidoDe } from "./cache.ts";
@@ -2006,6 +2007,33 @@ export function responderPermiso(sid: string, id: string, r: { ok: boolean; mens
   if (r.ok && q.herramienta === "ExitPlanMode") p.p.stdin!.write(lineaModo(idPedido(), MODO_DEFAULT));
   alEv(sid, { tipo: "permisoFuera", id });
   alCambio();
+}
+
+/**
+ * «Revisar con otro modelo»: el plan pendiente (ExitPlanMode `id`) lo lee otro modelo, que devuelve qué está bien, riesgos,
+ * mejoras y un plan mejorado. El líder recibe el plan negado y, enseguida, la revisión como mensaje (la ventana la dibuja como
+ * tarjeta del revisor): la integra y presenta el plan remasterizado. El plan sale de lo que dijo el líder, no de lo que mande la ventana.
+ */
+export async function revisarPlanLider(x: { sid: string; id: string; modelo: string; effort: string; nombre?: string }, correr: typeof correrRevisor = correrRevisor): Promise<RevisionVista> {
+  const sid = String(x?.sid);
+  const q = procs.get(sid)?.pedidos.get(String(x?.id));
+  if (!q || q.herramienta !== "ExitPlanMode") throw errorT("main.revisionSinPlan");
+  const modelo = String(x.modelo ?? "");
+  if (!revisoresPermitidos([modelo], excluirGuardado()).length) throw errorT("main.revisorNoSirve", { v: modelo });
+  const g = (await lideresApp()).find((l) => l.sid === sid);
+  if (!g) throw errorT("main.noEsDeLaApp");
+  const nombre = String(x.nombre ?? "").slice(0, 60) || modelo;
+  return revisarPlan(
+    { modelo, effort: String(x.effort ?? ""), plan: String((q.ev as { plan?: string | null }).plan ?? "") },
+    {
+      correr: (m, e, p) => correr(m, e, p, g.cwd),
+      pedidoOriginal: async () => (await temaDe(sid, await transcriptDe(sid, g.cwd))).primero ?? null,
+      cwd: () => g.cwd,
+      nombre: () => nombre,
+      negar: (mensaje) => responderPermiso(sid, String(x.id), { ok: false, mensaje }),
+      mandar: (texto) => mandar({ sid, texto, modelo: g.modelo, effort: g.effort ?? "" }),
+    },
+  );
 }
 
 /** Parar la respuesta: interrupt por stdin; si no contesta, SIGINT. */

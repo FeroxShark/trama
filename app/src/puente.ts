@@ -187,6 +187,8 @@ type Main = {
     ramificar(x: { sid: string; uuid: string; modelo: string; effort: string }): Promise<string>;
     /** «Seguir con otro modelo»: un líder nuevo con el resumen de traspaso de éste como primer mensaje; devuelve su sid. */
     seguirCon(x: { sid: string; modelo: string; effort: string }): Promise<string>;
+    revisarPlan(x: { sid: string; id: string; modelo: string; effort: string; nombre: string }): Promise<unknown>;
+    revisores(ids: string[]): Promise<string[]>;
     /** Puntos de control por turno (electron/puntos.ts): los de una conversación, sin validar. */
     puntos(sid: string): Promise<unknown>;
     /** El diff de un turno (`id`), de un archivo (`ruta`) o de todos; sin validar. */

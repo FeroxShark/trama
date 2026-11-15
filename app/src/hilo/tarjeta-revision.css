@@ -1,0 +1,75 @@
+/* La tarjeta del revisor de un plan (src/hilo/TarjetaRevision.tsx). Sólo tokens de src/tokens.css; fondo liso, sin degradados. */
+.rv {
+  display: grid;
+  gap: var(--esp-3);
+  max-width: 100%;
+  padding: var(--esp-4);
+  border-radius: var(--r-lg);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+}
+.rv-cab {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+}
+.rv-ico {
+  display: grid;
+  place-items: center;
+  width: var(--alto-chip);
+  height: var(--alto-chip);
+  border-radius: var(--r-cap);
+  background: var(--acento-tinte);
+  color: var(--acento);
+}
+.rv-t {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--texto);
+}
+.rv-s {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--inactivo);
+}
+.rv-sec {
+  display: grid;
+  gap: var(--esp-1);
+}
+.rv-h {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1);
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--apagado);
+}
+.rv-sec[data-k="bien"] .rv-h {
+  color: var(--ok);
+}
+.rv-sec[data-k="riesgos"] .rv-h {
+  color: var(--decision-texto);
+}
+.rv-sec[data-k="mejoras"] .rv-h {
+  color: var(--acento);
+}
+.rv-nada {
+  margin: 0;
+  color: var(--inactivo);
+}
+.rv-plan {
+  border-radius: var(--r-md);
+  background: var(--capa-tile);
+  padding: var(--esp-2) var(--esp-3);
+}
+.rv-plan > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--texto);
+}
+.rv-plan > summary:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}

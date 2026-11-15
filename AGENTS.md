@@ -36,6 +36,10 @@ un archivo colgado sale con 124. Un solo test: `node scripts/test.mjs tests/x.te
 - **Tests:** no esperan por reloj (`esperarHasta` de `app/tests/esperar.ts` o `mock.timers`); una ruta real de Windows
   (`os.tmpdir()`, `path.join`) nunca se mezcla con `plat: "linux"`. La regla entera: `docs/reglas/tests.md`.
 
+## Segunda opinión sobre un plan (2026-11-15)
+
+- **«Revisar con otro modelo»** (`app/electron/revision-plan.ts`; lo puro, que comparte la ventana, en `revision-plan-texto.ts`: sin imports de Node): en el plan de un líder (`PedidoPermiso`, `app/src/hilo/Lider.tsx`) el botón abre `SeguirCon` con `de="revisar"` (default Gemini Argon). El main corre al revisor de una sola vez por suscripción (`correrRevisor`: `claude -p` sólo con Read/Grep/Glob, o `agy` en una carpeta vacía; nunca `ANTHROPIC_API_KEY`), niega el `ExitPlanMode` pendiente y manda al líder un mensaje que empieza con `[[revision-de-plan modelo=".." nombre=".."]]`: la ventana lo dibuja como `TarjetaRevision` en vez de un globo de la persona (`YoEditable`). Sólo Claude o Gemini no desactivados en Ajustes (`revisoresPermitidos`, canal `lider:revisores`). Si el revisor falla, el plan sigue pendiente. Lo cubre `tests/revision-plan.test.ts`. El modo debate (etapa 2) está sólo diseñado: `docs/modo-debate-diseno.md`.
+
 ## Si tocás… leé
 
 | Si tocás | Leé |

@@ -163,6 +163,8 @@ contextBridge.exposeInMainWorld("hilos", {
     rebobinar: (x: unknown): Promise<string | null> => invocar("lider:rebobinar", x),
     ramificar: (x: unknown): Promise<string> => invocar("lider:ramificar", x),
     seguirCon: (x: unknown): Promise<string> => invocar("lider:seguirCon", x),
+    revisarPlan: (x: unknown): Promise<unknown> => invocar("lider:revisarPlan", x),
+    revisores: (ids: string[]): Promise<string[]> => invocar("lider:revisores", ids),
     puntos: (sid: string): Promise<unknown> => invocar("lider:puntos", sid),
     puntoDif: (x: unknown): Promise<unknown> => invocar("lider:puntoDif", x),
     puntoVolver: (x: unknown): Promise<unknown> => invocar("lider:puntoVolver", x),

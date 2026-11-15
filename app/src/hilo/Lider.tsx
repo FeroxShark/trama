@@ -19,7 +19,7 @@
 // clip; miniaturas con × en la caja (src/hilo/adjuntos.ts) y en el globo.
 import { es } from "../atajos";
 import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowUp, Check, Clock, Cpu, FastForward, Folder, Paperclip, Pause } from "lucide-react";
+import { ArrowUp, Check, Clock, Cpu, FastForward, Folder, Paperclip, Pause, ScanSearch } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type PuntoControl, type Tokens, type Uso } from "../datos/contrato";
 import { fuente, type EnvioLider } from "../datos/fuente";
@@ -63,6 +63,8 @@ import { transcriptLeido } from "./contextoVivo";
 import { Avisos, HaceChat, useQuietoDesde } from "./Hace";
 import type { AvisoVisto } from "./avisos";
 import { SeguirCon } from "./SeguirCon";
+import { TarjetaRevision } from "./TarjetaRevision";
+import { leerMensajeRevision, REVISOR_DEFECTO } from "../../electron/revision-plan-texto";
 import { CarpetaDelChat, Texto } from "./Texto";
 import { Hora, pintorAviso, tokens, Turno } from "./Turno";
 import { PuntoTurno } from "./Punto";
@@ -1760,6 +1762,15 @@ const YoEditable = memo(function YoEditable({ x, acciones, editar, guardar }: { 
   useIdioma();
   const [editando, setEditando] = useState(EDITANDO_CAPTURA);
   const { texto: sinArchivos, archivos } = separarAdjuntos(x.texto);
+  // El mensaje con la revisión de un plan (lo mandó la app, no la persona): tarjeta del revisor, no globo propio.
+  const revision = leerMensajeRevision(x.texto);
+  if (revision)
+    return (
+      <Fragment>
+        <Marca k={x.key} />
+        <TarjetaRevision r={revision} />
+      </Fragment>
+    );
   return (
     <Fragment>
       <Marca k={x.key} />
@@ -1811,6 +1822,17 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
   const [error, setError] = useState<string | null>(null);
   const plan = p.herramienta === "ExitPlanMode";
   const [mandando, setMandando] = useState(false);
+  // «Revisar con otro modelo»: el selector de revisor (sólo Claude o Gemini no desactivados en Ajustes).
+  const [revisando, setRevisando] = useState(plan && MODO.captura === "lider-plan" && MODO.variante === "revisar");
+  const [revisores, setRevisores] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!revisando) return;
+    let vivo = true;
+    void fuente.liderRevisores(MODELOS.map((m) => m.id)).then((ids) => vivo && setRevisores(ids), () => vivo && setRevisores(MODELOS.map((m) => m.id)));
+    return () => {
+      vivo = false;
+    };
+  }, [revisando]);
   // La tarjeta se va recién cuando el main contesta; si falla, se queda y dice por qué.
   const contestar = (ok: boolean, msj?: string) => {
     if (mandando) return;
@@ -1873,9 +1895,30 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
           <button type="button" className="btn2" disabled={mandando} onClick={() => (plan ? setPlanear(true) : contestar(false))}>
             {plan ? tr("plan.seguir") : tr("permiso.negar")}
           </button>
+          {plan ? (
+            <button type="button" className="btn2" disabled={mandando} data-tip={tr("plan.revisarTip")} onClick={() => setRevisando(true)}>
+              <ScanSearch size={14} strokeWidth={2} aria-hidden="true" />
+              {tr("plan.revisar")}
+            </button>
+          ) : null}
         </div>
       )}
       {error ? <div className="caja-error" role="alert">{error}</div> : null}
+      {revisando && revisores ? (
+        <SeguirCon
+          de="revisar"
+          opciones={MODELOS.filter((m) => revisores.includes(m.id))}
+          actual={null}
+          preferido={REVISOR_DEFECTO}
+          alElegir={async (elegido) => {
+            // El main corre al revisor, le niega el plan al líder y le manda la revisión; la tarjeta llega por el transcript del chat.
+            await fuente.liderRevisarPlan(sid, p.id, { modelo: elegido, effort: effortPara(elegido, effortsLeidos() ?? {}), nombre: nombreModelo(elegido) });
+            setRevisando(false);
+            contestado(sid, p.id);
+          }}
+          alCerrar={() => setRevisando(false)}
+        />
+      ) : null}
     </div>
   );
 }
