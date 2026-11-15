@@ -2,7 +2,7 @@
 // revisores permitidos y la orquestación de punta a punta con un revisor simulado (sin gastar cupo).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { leerMensajeRevision, mensajeParaLider, parsearRevision, promptRevisor, revisarPlan, revisoresPermitidos, respuestaDeAgy, type DepsRevision } from "../electron/revision-plan.ts";
+import { ADJUNTO_BYTES, ADJUNTOS_MAX, ADJUNTOS_TOTAL, archivosDelPlan, rutasDelPlan, leerMensajeRevision, mensajeParaLider, parsearRevision, promptRevisor, revisarPlan, revisoresPermitidos, respuestaDeAgy, type DepsRevision } from "../electron/revision-plan.ts";
 
 const RESPUESTA = "## Qué está bien\n- El orden\n\n## Riesgos y huecos\n- Falta un test\n\n## Mejoras concretas\n- Agregar el test\n\n## Plan mejorado\n1. Test\n2. Código\n";
 
@@ -78,4 +78,35 @@ test("revisarPlan: si el revisor falla o no dice nada, el plan sigue pendiente (
     assert.deepEqual([hecho.negado, hecho.mandado], [[], []]);
   }
   await assert.rejects(revisarPlan({ modelo: "m", effort: "", plan: "  " }, deps("x").d));
+});
+
+test("rutasDelPlan: saca las rutas de archivo del texto, sin versiones ni dominios ni repetidas", () => {
+  const r = rutasDelPlan("1. Tocar `app/electron/lider.ts` y ./src/a.css.\n2. Subir a v1.2 y mirar example.com, otra vez app/electron/lider.ts y README.md");
+  assert.deepEqual(r, ["app/electron/lider.ts", "src/a.css", "README.md"]);
+});
+
+test("archivosDelPlan: sólo lo que está dentro del proyecto, con topes y sin secretos", async () => {
+  const dir = "/p/trama";
+  const grande = "x".repeat(ADJUNTO_BYTES + 500);
+  const archivos: Record<string, string> = {
+    [`${dir}/app/lider.ts`]: "export const a = 1;",
+    [`${dir}/grande.md`]: grande,
+    [`${dir}/.env`]: "CLAVE=secreta",
+    [`/etc/passwd`]: "root",
+  };
+  const d = { leer: async (r: string) => archivos[r], esArchivo: async (r: string) => r in archivos };
+  const r = await archivosDelPlan("app/lider.ts grande.md .env ../../etc/passwd /etc/passwd falta.ts", dir, d);
+  assert.deepEqual(r.map((a) => [a.ruta, a.cortado]), [["app/lider.ts", false], ["grande.md", true]]);
+  assert.equal(r[1].texto.length, ADJUNTO_BYTES);
+  assert.deepEqual(await archivosDelPlan("app/lider.ts", undefined, d), []);
+  const muchos = Array.from({ length: 12 }, (_, i) => `f${i}.ts`);
+  const m = Object.fromEntries(muchos.map((f) => [`${dir}/${f}`, "y".repeat(9000)]));
+  const rr = await archivosDelPlan(muchos.join(" "), dir, { leer: async (r) => m[r], esArchivo: async (r) => r in m });
+  assert.ok(rr.length <= ADJUNTOS_MAX && rr.reduce((n, a) => n + a.texto.length, 0) <= ADJUNTOS_TOTAL);
+});
+
+test("revisarPlan: los archivos que pide `archivos` van pegados en el prompt del revisor", async () => {
+  const { d, hecho } = deps(RESPUESTA);
+  await revisarPlan({ modelo: "gemini-4-argon", effort: "high", plan: "# P\ntocar app/a.ts" }, { ...d, archivos: async () => [{ ruta: "app/a.ts", texto: "const SECRETO_VISIBLE = 1;", cortado: false }] });
+  assert.ok(hecho.prompt.includes("### app/a.ts") && hecho.prompt.includes("SECRETO_VISIBLE"));
 });

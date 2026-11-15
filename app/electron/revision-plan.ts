@@ -5,6 +5,7 @@
 // (`correrRevisor`) usa la suscripción de siempre (claude / agy), nunca una clave de API. Diseño de lo que sigue (el modo debate):
 // docs/modo-debate-diseno.md.
 import { spawn } from "node:child_process";
+import { readFile, stat } from "node:fs/promises";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -14,7 +15,7 @@ import { errorT } from "./errores.ts";
 import { entornoLider } from "./lider-arma.ts";
 import { claseDeModelo, idAgy, modeloAgy, partirGemini } from "./modelos-config.ts";
 import { reglaDeExcluir, familiaClaude } from "./reparto-claude.ts";
-import { mensajeParaLider, parsearRevision, promptRevisor, sinComillas, type RevisionVista } from "./revision-plan-texto.ts";
+import { mensajeParaLider, parsearRevision, promptRevisor, sinComillas, type ArchivoAdjunto, type RevisionVista } from "./revision-plan-texto.ts";
 
 export * from "./revision-plan-texto.ts";
 
@@ -35,6 +36,60 @@ export function revisoresPermitidos(ids: readonly string[], excluir: readonly st
   });
 }
 
+/** Topes de lo que se le adjunta a un revisor que no puede leer el proyecto (Gemini): archivos, bytes por archivo y bytes en total. */
+export const ADJUNTOS_MAX = 8;
+export const ADJUNTO_BYTES = 12_000;
+export const ADJUNTOS_TOTAL = 40_000;
+
+/** Las rutas de archivo que nombra un plan, en el orden en que aparecen y sin repetir. */
+export function rutasDelPlan(plan: string): string[] {
+  const vistas = new Set<string>();
+  for (const m of plan.matchAll(/[\w@~./-]*[\w@-]\.[A-Za-z][A-Za-z0-9]{0,7}\b/g)) {
+    const r = m[0].replace(/^\.\//, "");
+    if (/^\d+\.\d+$/.test(r) || /^https?:/.test(r) || /\.(?:com|org|net|io|dev)$/i.test(r)) continue;
+    vistas.add(r);
+  }
+  return [...vistas];
+}
+
+/**
+ * Los archivos que el plan nombra y existen DENTRO de `cwd` (nunca fuera: ni `..` ni rutas absolutas ajenas), para pegarlos en el
+ * prompt de un revisor que no puede leer el proyecto. Con topes (`ADJUNTOS_MAX`, `ADJUNTO_BYTES`, `ADJUNTOS_TOTAL`): lo que
+ * pasa del tope va cortado y avisa. `leer` y `info` se inyectan para los tests.
+ */
+export async function archivosDelPlan(
+  plan: string,
+  cwd: string | undefined,
+  d: { leer?: (ruta: string) => Promise<string>; esArchivo?: (ruta: string) => Promise<boolean> } = {},
+): Promise<ArchivoAdjunto[]> {
+  if (!cwd) return [];
+  const leer = d.leer ?? ((r: string) => readFile(r, "utf8"));
+  const esArchivo = d.esArchivo ?? ((r: string) => stat(r).then((s) => s.isFile(), () => false));
+  const base = path.resolve(cwd);
+  const fuera: ArchivoAdjunto[] = [];
+  let total = 0;
+  for (const r of rutasDelPlan(plan)) {
+    if (fuera.length >= ADJUNTOS_MAX || total >= ADJUNTOS_TOTAL) break;
+    const abs = path.resolve(base, r);
+    const rel = path.relative(base, abs);
+    if (!rel || rel.startsWith("..") || path.isAbsolute(rel) || /(?:^|[\\/])(?:\.env[^\\/]*|claves[^\\/]*|\.git|node_modules)(?:[\\/]|$)/.test(rel)) continue;
+    if (!(await esArchivo(abs))) continue;
+    let texto: string;
+    try {
+      texto = await leer(abs);
+    } catch {
+      continue;
+    }
+    if (texto.includes("\0")) continue;
+    const cupo = Math.min(ADJUNTO_BYTES, ADJUNTOS_TOTAL - total);
+    const cortado = texto.length > cupo;
+    const parte = cortado ? texto.slice(0, cupo) : texto;
+    total += parte.length;
+    fuera.push({ ruta: rel.split(path.sep).join("/"), texto: parte, cortado });
+  }
+  return fuera;
+}
+
 /** Lo que `revisarPlan` necesita del resto del sistema. */
 export type DepsRevision = {
   /** Corre al revisor y devuelve lo que contestó. */
@@ -42,6 +97,8 @@ export type DepsRevision = {
   /** El primer mensaje de la persona en esa conversación. */
   pedidoOriginal: () => Promise<string | null>;
   cwd: () => string | undefined;
+  /** Los archivos del proyecto que se pegan en el prompt (para un revisor que no puede leerlo); sin esto, ninguno. */
+  archivos?: (plan: string) => Promise<ArchivoAdjunto[]>;
   /** El nombre con que se ve el modelo. */
   nombre: (modelo: string) => string;
   /** Niega el plan pendiente con ese mensaje (el líder lo lee como el resultado de ExitPlanMode). */
@@ -59,7 +116,7 @@ export async function revisarPlan(x: { modelo: string; effort: string; plan: str
   const plan = x.plan.trim();
   if (!plan) throw errorT("main.revisionSinPlan");
   if (plan.length > PLAN_MAX) throw errorT("main.revisionPlanLargo");
-  const prompt = promptRevisor({ plan, pedido: await d.pedidoOriginal(), cwd: d.cwd() });
+  const prompt = promptRevisor({ plan, pedido: await d.pedidoOriginal(), cwd: d.cwd(), archivos: d.archivos ? await d.archivos(plan).catch(() => []) : [] });
   const salida = (await d.correr(x.modelo, x.effort, prompt)).trim();
   if (!salida) throw errorT("main.revisionVacia", { v: d.nombre(x.modelo) });
   const nombre = d.nombre(x.modelo);
@@ -115,7 +172,7 @@ export function respuestaDeAgy(salida: string): string {
 
 /**
  * Corre al revisor de verdad, una sola vez: Claude con `claude -p` (sólo Read, Grep y Glob, para mirar lo que el plan nombra) o
- * Gemini con `agy` (en una carpeta vacía: su modo no pide permisos). Sin `ANTHROPIC_*` en el entorno: siempre la suscripción.
+ * Gemini con `agy` (en una carpeta vacía, porque `--dangerously-skip-permissions` lo deja escribir y ejecutar: el proyecto no lo lee; `archivosDelPlan` le pega en el prompt lo que el plan nombra). Sin `ANTHROPIC_*` en el entorno: siempre la suscripción.
  */
 export async function correrRevisor(modelo: string, effort: string, prompt: string, cwd?: string): Promise<string> {
   const home = os.homedir();

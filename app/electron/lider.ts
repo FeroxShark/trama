@@ -58,7 +58,7 @@ import {
   type Rama,
 } from "./lider-arma.js";
 import * as puntos from "./puntos.ts";
-import { correrRevisor, revisarPlan, revisoresPermitidos, type RevisionVista } from "./revision-plan.ts";
+import { archivosDelPlan, correrRevisor, revisarPlan, revisoresPermitidos, type RevisionVista } from "./revision-plan.ts";
 import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { barrerEtiqueta, nuevaEtiqueta, VARIABLE } from "./huerfanos.js";
@@ -2029,6 +2029,8 @@ export async function revisarPlanLider(x: { sid: string; id: string; modelo: str
       correr: (m, e, p) => correr(m, e, p, g.cwd),
       pedidoOriginal: async () => (await temaDe(sid, await transcriptDe(sid, g.cwd))).primero ?? null,
       cwd: () => g.cwd,
+      // Gemini corre en una carpeta vacía (agy no tiene modo sólo lectura): se le pega lo que el plan nombra. Claude lee solo.
+      ...(claseDeModelo(modelo) === "gemini" ? { archivos: (p: string) => archivosDelPlan(p, g.cwd) } : {}),
       nombre: () => nombre,
       negar: (mensaje) => responderPermiso(sid, String(x.id), { ok: false, mensaje }),
       mandar: (texto) => mandar({ sid, texto, modelo: g.modelo, effort: g.effort ?? "" }),

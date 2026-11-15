@@ -127,6 +127,8 @@ const CAPTURAS = [
   "lider-cache",
   // Un pedido propio abierto para editar: el campo con sus capturas y su archivo.
   "lider-editar",
+  // La tarjeta del revisor de un plan (el mensaje con la marca `[[revision-de-plan …]]`; `lider-plan` + `HILOS_VARIANTE=revisar` deja abierto el selector del revisor).
+  "lider-revision",
   // El punto de control de un turno del líder (HILOS_VARIANTE=abierto: la lista con el primer diff; =confirmar: el diálogo de volver atrás).
   "lider-puntos",
   // Tablas del markdown en la respuesta de un líder.

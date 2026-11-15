@@ -833,7 +833,7 @@ const charlas = new Map<string, Mensaje[]>();
 const uuidFijo = (sid: string, i: number) => `00000000-0000-4000-9000-${sid.slice(-8)}${String(i).padStart(4, "0")}`;
 const charla = (sid: string) => {
   let c = charlas.get(sid);
-  if (!c) charlas.set(sid, (c = MODO.captura === "lider-sistema" ? charlaSistema(sid, MODO.variante === "ocho") : MODO.captura === "lider-tablero-dejado" ? charlaDejado(sid) : MODO.captura === "lider-avisos" ? charlaLimite(sid) : MODO.captura === "lider-cambio-motor" ? charlaCambio(sid) : MODO.captura === "lider-imagenes" ? charlaImagenes(sid) : MODO.captura === "lider-editar" ? charlaEditar(sid) : MODO.captura === "lider-tabla" ? charlaTabla(sid) : MODO.captura === "lider-listas" ? charlaListas(sid) : MODO.captura === "lider-pensando" && MODO.variante !== "vivo" ? charlaPensando(sid) : MODO.captura === "lider-intermedios" ? charlaIntermedios(sid) : MODO.captura === "lider-formato" ? (MODO.variante === "larga" ? charlaLarga(sid) : charlaFormato(sid, MODO.variante === "pegado")) : charlaLider(sid)));
+  if (!c) charlas.set(sid, (c = MODO.captura === "lider-sistema" ? charlaSistema(sid, MODO.variante === "ocho") : MODO.captura === "lider-tablero-dejado" ? charlaDejado(sid) : MODO.captura === "lider-avisos" ? charlaLimite(sid) : MODO.captura === "lider-cambio-motor" ? charlaCambio(sid) : MODO.captura === "lider-imagenes" ? charlaImagenes(sid) : MODO.captura === "lider-editar" ? charlaEditar(sid) : MODO.captura === "lider-revision" ? charlaRevision(sid) : MODO.captura === "lider-tabla" ? charlaTabla(sid) : MODO.captura === "lider-listas" ? charlaListas(sid) : MODO.captura === "lider-pensando" && MODO.variante !== "vivo" ? charlaPensando(sid) : MODO.captura === "lider-intermedios" ? charlaIntermedios(sid) : MODO.captura === "lider-formato" ? (MODO.variante === "larga" ? charlaLarga(sid) : charlaFormato(sid, MODO.variante === "pegado")) : charlaLider(sid)));
   return c;
 };
 // La conversación larga de las pruebas (`scripts/prueba-scroll-lideres.mjs`) recibe mensajes nuevos mientras otra está abierta.
@@ -908,6 +908,35 @@ function charlaEditar(sid: string): Mensaje[] {
     },
     ...resto,
   ];
+}
+
+/** Captura `lider-revision`: la charla de siempre y, al final, la revisión de un plan hecha por otro modelo (el mensaje con marca que recibe el líder). */
+function charlaRevision(sid: string): Mensaje[] {
+  const base = charlaLider(sid);
+  const marca = [
+    '[[revision-de-plan modelo="gemini-4-argon" nombre="Gemini 4 Argon"]]',
+    "## Qué está bien",
+    "- El orden: primero el modelo, después la interfaz, deja probar cada paso.",
+    "- Usa el cupo de Google y no toca el de Claude.",
+    "",
+    "## Riesgos y huecos",
+    "- No dice qué pasa si el revisor no contesta a tiempo.",
+    "- No nombra el caso de un plan muy largo.",
+    "",
+    "## Mejoras concretas",
+    "- Mostrar la revisión como tarjeta del revisor, no como mensaje tuyo.",
+    "- Probar con un revisor simulado antes de usar uno real.",
+    "",
+    "## Plan mejorado",
+    "1. Armar el prompt del revisor.",
+    "2. Mostrar la tarjeta en el chat.",
+    "3. Mandarle la revisión al líder.",
+    "4. Probar de punta a punta.",
+    "",
+    "## Para vos (líder)",
+    "Integrá lo que valga y presentá el plan remasterizado con ExitPlanMode.",
+  ].join("\n");
+  return [...base, { rol: "user" as const, texto: marca, herramientas: [], ts: null, modelo: null }].map((m, i) => ({ ...m, i }));
 }
 
 /** Con fixtures, el analista de Ramas (B22) contesta un veredicto por rama, rotando los cuatro. */

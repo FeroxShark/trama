@@ -24,11 +24,13 @@ const SECCIONES: { clave: Exclude<keyof Revision, "libre">; titulo: string; alia
 ];
 
 /** El prompt del revisor: el plan, el pedido original y las rutas, con el formato exacto de la respuesta. */
-export function promptRevisor(x: { plan: string; pedido: string | null; cwd?: string | null; rutas?: readonly string[] }): string {
+export type ArchivoAdjunto = { ruta: string; texto: string; cortado: boolean };
+
+export function promptRevisor(x: { plan: string; pedido: string | null; cwd?: string | null; rutas?: readonly string[]; archivos?: readonly ArchivoAdjunto[] }): string {
   const rutas = [...new Set([...(x.cwd ? [x.cwd] : []), ...(x.rutas ?? [])])];
   return [
     "Sos el revisor de un plan que armó otro modelo (el líder) antes de tocar nada. Tu trabajo es una segunda opinión: encontrar lo que se le escapó, no repetirlo.",
-    "No ejecutes comandos ni edites archivos: sólo leés, si hace falta, lo que el plan nombra.",
+    "No ejecutes comandos ni edites archivos: sólo leés, si hace falta, lo que el plan nombra (si ves sus archivos más abajo, ya están a la vista).",
     "",
     "## Pedido original de la persona",
     x.pedido?.trim() || "(no se pudo recuperar el pedido original: juzgá el plan por lo que dice)",
@@ -36,6 +38,9 @@ export function promptRevisor(x: { plan: string; pedido: string | null; cwd?: st
     "",
     "## Plan del líder",
     x.plan.trim(),
+    ...(x.archivos?.length
+      ? ["", "## Archivos que nombra el plan (leídos por Trama, sólo lectura)", ...x.archivos.flatMap((a) => ["", `### ${a.ruta}${a.cortado ? " (cortado)" : ""}`, "```", a.texto, "```"])]
+      : []),
     "",
     "## Cómo contestar",
     "Contestá en español, corto y concreto, con EXACTAMENTE estos cuatro encabezados (nivel 2) y en este orden, sin nada antes ni después:",
