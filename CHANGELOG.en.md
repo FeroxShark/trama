@@ -1,6 +1,6 @@
 # Changes
 
-## Next version
+## 0.2.97
 
 - Sharp window on Wayland: Trama picks native Wayland even when the process that relaunches it lacks `WAYLAND_DISPLAY` (it used to fall back to XWayland and look blurry at fractional scaling). If it is missing, it uses the session's socket.
 

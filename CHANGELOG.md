@@ -1,6 +1,6 @@
 # Cambios
 
-## Próxima versión
+## 0.2.97
 
 - Ventana nítida en Wayland: Trama elige Wayland nativo aunque el proceso que la relanza no traiga `WAYLAND_DISPLAY` (antes caía en XWayland y se veía borrosa con escala fraccionaria). Si falta, usa el socket de la sesión.
 
