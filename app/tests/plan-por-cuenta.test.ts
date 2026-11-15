@@ -9,6 +9,7 @@ import path from "node:path";
 import { main } from "../electron/cli/cuentas.ts";
 import { planDe } from "../electron/cli/pa/entorno.ts";
 import { listaValida } from "../src/datos/cuentas.ts";
+import { parsearCuentas } from "../electron/cuentas-varias.ts";
 import { planDeCuenta } from "../src/paneles/plan-claude.ts";
 import { soloPosix } from "./plataforma.ts";
 
@@ -108,6 +109,12 @@ describe("la interfaz", () => {
   test("listaValida: el plan de una cuenta de Claude agregada sale como planClaude; el de la de siempre no", () => {
     const l = listaValida({ version: 1, cuentas: [{ id: "claude", proveedor: "claude", nombre: "C", plan: "max" }, { id: "gonza", proveedor: "claude", nombre: "G", plan: "max" }, { id: "otra", proveedor: "claude", nombre: "O", plan: "ultra" }] });
     assert.deepEqual(l?.cuentas.map((c) => c.planClaude ?? null), [null, "max", null]);
+  });
+  test("listaValida sobre lo que manda Electron (parsearCuentas): el plan elegido y el detectado no se pierden en el camino", () => {
+    const cli = JSON.stringify({ version: 1, cuentas: [{ id: "gonza", proveedor: "claude", nombre: "G", plan: "max" }, { id: "casa", proveedor: "opencode", nombre: "C", plan: "go", plan_detectado: "go" }] });
+    const l = listaValida(JSON.parse(JSON.stringify(parsearCuentas(cli))));
+    assert.equal(l?.cuentas.find((c) => c.id === "gonza")?.planClaude, "max");
+    assert.equal(l?.cuentas.find((c) => c.id === "casa")?.planDetectado, "go");
   });
   test("planDeCuenta: el propio, o el de la de siempre si no eligió", () => {
     const base = { proveedor: "claude" as const, nombre: "x", preferida: false, logueado: true };

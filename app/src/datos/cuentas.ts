@@ -34,6 +34,9 @@ export function listaValida(x: unknown): ListaCuentas | null {
   for (const c of o.cuentas) {
     const p = (c ?? {}) as Record<string, unknown>;
     if (typeof p.id !== "string" || !p.id || !esProveedor(p.proveedor)) continue;
+    // Llega ya pasada por `parsearCuentas` (electron/cuentas-varias.ts: `planClaude`, `planDetectado`) o cruda del CLI (`plan`, `plan_detectado`): valen las dos.
+    const planClaude = p.planClaude ?? p.plan;
+    const detectado = p.planDetectado ?? p.plan_detectado;
     cuentas.push({
       id: p.id,
       proveedor: p.proveedor,
@@ -42,8 +45,8 @@ export function listaValida(x: unknown): ListaCuentas | null {
       preferida: p.preferida === true,
       logueado: typeof p.logueado === "boolean" ? p.logueado : null,
       ...(p.proveedor === "opencode" && p.id !== "opencode" ? { plan: PLANES_OC.includes(p.plan as string) ? (p.plan as PlanCuentaOc) : "gratis" } : {}),
-      ...(p.proveedor === "opencode" && PLANES_OC.includes(p.plan_detectado as string) ? { planDetectado: p.plan_detectado as PlanCuentaOc } : {}),
-      ...(p.proveedor === "claude" && p.id !== "claude" && PLANES_CLAUDE.includes(p.plan as string) ? { planClaude: p.plan as PlanCuentaClaude } : {}),
+      ...(p.proveedor === "opencode" && PLANES_OC.includes(detectado as string) ? { planDetectado: detectado as PlanCuentaOc } : {}),
+      ...(p.proveedor === "claude" && p.id !== "claude" && PLANES_CLAUDE.includes(planClaude as string) ? { planClaude: planClaude as PlanCuentaClaude } : {}),
     });
   }
   return cuentas.length ? { version: 1, cuentas } : null;
