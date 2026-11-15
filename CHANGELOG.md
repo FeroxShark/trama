@@ -1,5 +1,9 @@
 # Cambios
 
+## Próxima versión
+
+- Ventana nítida en Wayland: Trama elige Wayland nativo aunque el proceso que la relanza no traiga `WAYLAND_DISPLAY` (antes caía en XWayland y se veía borrosa con escala fraccionaria). Si falta, usa el socket de la sesión.
+
 ## 0.2.96
 
 - Varias máquinas: Trama se instala en la laptop y maneja también la PC; al abrir un chat nuevo en la otra máquina, el selector de carpeta muestra los proyectos de esa máquina. Hay que actualizar las dos máquinas a esta versión para que se sigan viendo con permiso de escribir.

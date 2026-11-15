@@ -59,3 +59,7 @@ cupo), `bin/tablero`, `bin/cuentas`, `bin/trama-estado`, hooks (`motor/hooks/*.m
 - `windows/`: carcasa nativa (instalador, servicio, ventana, canales, rutas, binarios).
 - `docs/reglas/`: una regla por área, enteras: `docs/reglas/<área>.md`.
 - CI: `.github/workflows/ci.yml`, trabajos `linux` y `windows`.
+
+## Trampas conocidas
+
+- **Wayland en la laptop (2026-11-15):** `ozone-platform-hint=auto` cae en X11 (XWayland, ventana borrosa con escala 1.25) si al proceso le falta `WAYLAND_DISPLAY` y tiene `DISPLAY`. Lo relanza el actualizador o el motor con un entorno sin sesión gráfica. Por eso `app/electron/wayland.ts` exporta el socket `wayland-N` y fuerza `ozone-platform=wayland` (test `wayland-sesion.test.ts`); el lanzador de `scripts/instalar.sh` hace lo mismo. Si tocás uno, tocá el otro.

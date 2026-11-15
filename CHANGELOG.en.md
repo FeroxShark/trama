@@ -1,5 +1,9 @@
 # Changes
 
+## Next version
+
+- Sharp window on Wayland: Trama picks native Wayland even when the process that relaunches it lacks `WAYLAND_DISPLAY` (it used to fall back to XWayland and look blurry at fractional scaling). If it is missing, it uses the session's socket.
+
 ## 0.2.96
 
 - Several machines: Trama installs on the laptop and also drives the PC; when you open a new chat on the other machine, the folder picker shows that machine's projects. Update both machines to this version so they keep seeing each other with write access.

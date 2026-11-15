@@ -28,6 +28,7 @@ import type { Cliente } from "./ventana-cliente.js";
 import { acomodar, crearGuardadoVolver, guardarVolver, leerVolver, lugarDeVentana, type Ventana, type Volver } from "./volver.js";
 import { silencio } from "./log.js";
 import { empezar, enMarcha, marcar, type Corrida } from "./reinicio-marcas.js";
+import { aplicarWayland } from "./wayland.js";
 import { reiniciarVentana } from "./reiniciar-ventana.js";
 
 // `trama --version`: imprime la versión y sale antes de abrir nada (Electron no la maneja solo; el AppImage de CI lo usa).
@@ -39,7 +40,10 @@ if (process.argv.includes("--version")) {
 // Wayland nativo siempre que haya sesión Wayland: un cliente XWayland colgado puede congelar Hyprland
 // entero (pasó con webkit + GDK_BACKEND=x11); uno Wayland nativo colgado sólo se cuelga a sí mismo.
 // Sin Wayland (X11, Xvfb de las pruebas) `auto` cae en X11 en vez de no abrir.
-app.commandLine.appendSwitch("ozone-platform-hint", "auto");
+// Si el proceso no trae WAYLAND_DISPLAY (lo relanzó un entorno sin sesión gráfica) pero hay un socket wayland-N,
+// lo exporta y fuerza wayland: con `auto` y DISPLAY presente caería en XWayland (ventana borrosa). Ver wayland.ts.
+if (aplicarWayland()) app.commandLine.appendSwitch("ozone-platform", "wayland");
+else app.commandLine.appendSwitch("ozone-platform-hint", "auto");
 
 // Sin GPU por default: con esta UI da los mismos fps con menos
 // CPU, menos RAM y arranque más rápido. HILOS_GPU=1 la vuelve a prender.

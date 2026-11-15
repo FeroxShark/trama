@@ -37,11 +37,24 @@ test("WAYLAND_DISPLAY que no existe: usa el socket que hay", { skip: SALTAR }, a
   await conSocket("wayland-1", (dir) => assert.equal(correr("wayland-2", dir), "wayland-1"));
 });
 
-test("WAYLAND_DISPLAY válido o ausente: no se toca", { skip: SALTAR }, async () => {
+test("WAYLAND_DISPLAY válido: no se toca", { skip: SALTAR }, async () => {
+  await conSocket("wayland-1", (dir) => assert.equal(correr("wayland-1", dir), "wayland-1"));
+});
+
+test("WAYLAND_DISPLAY ausente (entorno sin sesión): usa el socket que hay", { skip: SALTAR }, async () => {
   await conSocket("wayland-1", (dir) => {
-    assert.equal(correr("wayland-1", dir), "wayland-1");
-    assert.equal(correr(undefined, dir), "");
+    assert.equal(correr(undefined, dir), "wayland-1");
+    assert.equal(correr("", dir), "wayland-1");
   });
+});
+
+test("WAYLAND_DISPLAY ausente y sin socket: queda vacío", { skip: SALTAR }, () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "tw-"));
+  try {
+    assert.equal(correr(undefined, dir), "");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("sin ningún socket: queda como estaba", { skip: SALTAR }, () => {
