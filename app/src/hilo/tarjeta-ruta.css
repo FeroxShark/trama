@@ -1,12 +1,4 @@
-/* Tarjetas breves debajo de un mensaje del asistente cuando nombra carpetas o archivos .html. */
-.tarjetas-ruta {
-  display: flex;
-  flex-direction: column;
-  gap: var(--esp-1-5);
-  margin-top: var(--esp-2-5);
-  max-width: 34rem;
-}
-
+/* La tarjeta de una imagen que no se pudo mostrar grande (TarjetaImagen cae a esta, con su aviso). */
 .tarjeta-ruta {
   display: flex;
   flex-direction: column;

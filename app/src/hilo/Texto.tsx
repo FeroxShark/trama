@@ -13,7 +13,8 @@ import { useIdioma } from "../i18n/react";
 import { esVentana } from "../puente";
 import { esComodin, rutaImagen } from "../../electron/imagen-ruta";
 import { ImagenInsertada, ImagenLocal, VerImagenLocal } from "./Imagenes";
-import { TarjetasRuta } from "./TarjetaRuta";
+import { ArchivoEnLinea, TarjetasRuta, plataformaActual } from "./TarjetaRuta";
+import { partirProsa, rutaDeCodigo } from "./rutas-mencionadas";
 import { bloques, carpetaRelativa, esRuta, rutaCarpeta, sueltas, trozos, type Bloque, type Lista, type Trozo } from "./markdown";
 import { rutaEnCwd } from "./worker-datos";
 import { resaltar } from "./resaltar";
@@ -79,11 +80,19 @@ function Carpeta({ texto }: { texto: string }) {
   );
 }
 
+/** Un `.html` o un archivo mostrable (no imagen: esas tienen su botón de ver) nombrado en código en línea. */
+function archivoDeCodigo(texto: string) {
+  const r = rutaDeCodigo(texto, plataformaActual());
+  return r && r.tipo !== "carpeta" && !(r.tipo === "archivo" && rutaImagen(texto)) ? r : null;
+}
+
 function enLinea(texto: string, op: { vivo?: boolean; enlaces?: boolean } = {}): ReactNode[] {
   const adentro = (s: string) => enLinea(s, { enlaces: op.enlaces });
   return trozos(texto, op).map((x, i) =>
     x.tipo === "code" && op.enlaces !== false && esVentana() && (rutaCarpeta(x.texto) || carpetaRelativa(x.texto)) ? (
       <Carpeta key={i} texto={x.texto} />
+    ) : x.tipo === "code" && op.enlaces !== false && esVentana() && archivoDeCodigo(x.texto) ? (
+      <ArchivoEnLinea key={i} item={archivoDeCodigo(x.texto)!} texto={x.texto} />
     ) : x.tipo === "code" ? (
       <Fragment key={i}>
         <code data-ruta={esRuta(x.texto) ? "" : undefined}>{x.texto}</code>
@@ -101,8 +110,23 @@ function enLinea(texto: string, op: { vivo?: boolean; enlaces?: boolean } = {}):
       <Enlace key={i} x={x}>
         {x.texto === x.url ? x.texto : enLinea(x.texto, { enlaces: false })}
       </Enlace>
+    ) : op.enlaces !== false && esVentana() ? (
+      <Fragment key={i}>{prosa(x.texto)}</Fragment>
     ) : (
       x.texto
+    ),
+  );
+}
+
+/** Las rutas que la prosa nombra sin comillas invertidas también se tocan donde están. */
+function prosa(texto: string): ReactNode[] {
+  return partirProsa(texto, plataformaActual()).map((p, j) =>
+    typeof p === "string" ? (
+      p
+    ) : p.tipo === "carpeta" ? (
+      <Carpeta key={j} texto={p.ruta} />
+    ) : (
+      <ArchivoEnLinea key={j} item={p} texto={p.ruta} />
     ),
   );
 }

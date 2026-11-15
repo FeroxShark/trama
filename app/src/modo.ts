@@ -143,7 +143,7 @@ const CAPTURAS = [
   "lider-intermedios",
   // Mensajes en cola: la solapa arriba de la caja. `HILOS_VARIANTE=`: tres (default) | uno | largo (un mensaje, comando de 3 m) | largo-tres | fallo | camino | aviso | visor (la imagen ampliada) | muchos.
   "lider-cola",
-  // Tarjetas de rutas (carpeta y .html) debajo de un mensaje del asistente.
+  // Rutas (carpeta y .html) nombradas en un mensaje del asistente, tocables en su lugar.
   "chat-rutas",
   // Tarjetas de archivos (imágenes con miniatura y visor propio) debajo de un mensaje.
   "chat-archivos",

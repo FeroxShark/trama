@@ -1,5 +1,5 @@
 // Rutas de carpetas y archivos `.html` nombradas en un mensaje del asistente:
-// detección pura (sin tocar el disco) para mostrar tarjetas rápidas debajo del texto.
+// detección pura (sin tocar el disco): se tocan en su lugar del texto y las imágenes se muestran al pie.
 import { extensionDe, tipoDeArchivo } from "../../electron/archivo-ruta.ts";
 import type { Plataforma } from "../../electron/rutas.ts";
 import { bloques, rutaCarpeta, trozos, type Bloque } from "./markdown.ts";
@@ -84,7 +84,10 @@ function claveDedup(tipo: TipoRutaMencionada, ruta: string, plat: Plataforma): s
   return `${tipo}:${norm}`;
 }
 
-function extraerDeProsa(texto: string, plat: Plataforma, agregar: (tipo: TipoRutaMencionada, ruta: string) => void) {
+type AgregarEn = (tipo: TipoRutaMencionada, ruta: string, pos: number) => void;
+
+/** `pos`: dónde empieza la ruta dentro de `texto` (para tocarla en su lugar, `partirProsa`). */
+function extraerDeProsa(texto: string, plat: Plataforma, agregar: AgregarEn, base = 0) {
   const prefijo = plat === "win32" ? "(?:[A-Za-z]:[\\\\/]|~[\\\\/])" : "(?:~/|/(?!/))";
   const re = new RegExp(`("(${prefijo}[^"\\n]+)"|\x27(${prefijo}[^\x27\\n]+)\x27|${prefijo}[^\\s"\x27<>\`()\\[\\]{}]+)`, "g");
   for (const m of texto.matchAll(re)) {
@@ -92,24 +95,57 @@ function extraerDeProsa(texto: string, plat: Plataforma, agregar: (tipo: TipoRut
     if (idx > 0 && !/[\s(\[<,"\x27=;:¿¡]/.test(texto[idx - 1])) continue;
     const raw = m[0];
     if (m[2] || m[3]) {
-      const inner = (m[2] ?? m[3]).trim();
-      if (!clasificar(inner, plat, agregar, true)) extraerDeProsa(inner, plat, agregar);
+      const crudo = m[2] ?? m[3];
+      const inner = crudo.trim();
+      const pos = base + idx + 1 + (crudo.length - crudo.trimStart().length);
+      if (!clasificar(inner, plat, (tipo, ruta) => agregar(tipo, ruta, pos), true)) extraerDeProsa(inner, plat, agregar, pos);
       continue;
     }
     const limpio = raw.replace(/[.,;:!?\x27"`)\]]+$/, "");
-    clasificar(limpio, plat, agregar, true);
+    clasificar(limpio, plat, (tipo, ruta) => agregar(tipo, ruta, base + idx), true);
   }
+}
+
+/**
+ * Parte un trozo de prosa en texto y rutas tocables, en orden: lo que `rutasMencionadas` encuentra en la prosa, pero en su lugar
+ * (Texto.tsx lo dibuja como botón, igual que una ruta entre comillas invertidas).
+ */
+export function partirProsa(texto: string, plat: Plataforma = "linux"): Array<string | RutaMencionada> {
+  const hallados: Array<RutaMencionada & { pos: number }> = [];
+  extraerDeProsa(texto, plat, (tipo, ruta, pos) => {
+    if (texto.startsWith(ruta, pos)) hallados.push({ tipo, ruta, pos });
+  });
+  if (!hallados.length) return [texto];
+  hallados.sort((a, b) => a.pos - b.pos);
+  const out: Array<string | RutaMencionada> = [];
+  let i = 0;
+  for (const h of hallados) {
+    if (h.pos < i) continue;
+    if (h.pos > i) out.push(texto.slice(i, h.pos));
+    out.push({ tipo: h.tipo, ruta: h.ruta });
+    i = h.pos + h.ruta.length;
+  }
+  if (i < texto.length) out.push(texto.slice(i));
+  return out;
+}
+
+/** Lo que nombra un código en línea (`ruta`): una carpeta, un `.html` o un archivo mostrable; si no es ninguno, null. */
+export function rutaDeCodigo(texto: string, plat: Plataforma = "linux"): RutaMencionada | null {
+  const s = texto.trim();
+  let r: RutaMencionada | null = null;
+  if (!clasificar(s, plat, (tipo, ruta) => (r = { tipo, ruta }), false)) {
+    const c = esCarpetaCodigo(s, plat);
+    if (c) r = { tipo: "carpeta", ruta: c };
+  }
+  return r;
 }
 
 function recorrerLinea(texto: string, plat: Plataforma, agregar: (tipo: TipoRutaMencionada, ruta: string) => void) {
   for (const x of trozos(texto)) {
     if (x.tipo === "link" || x.tipo === "img") continue;
     if (x.tipo === "code") {
-      const s = x.texto.trim();
-      if (!clasificar(s, plat, agregar, false)) {
-        const c = esCarpetaCodigo(s, plat);
-        if (c) agregar("carpeta", c);
-      }
+      const r = rutaDeCodigo(x.texto, plat);
+      if (r) agregar(r.tipo, r.ruta);
       continue;
     }
     if (x.tipo === "b" || x.tipo === "i" || x.tipo === "s") {
@@ -156,6 +192,14 @@ export function rutasMencionadas(texto: string, plat: Plataforma = "linux"): Rut
   };
   recorrerBloques(bloques(texto), plat, agregar);
   return out;
+}
+
+/**
+ * Lo que va al pie del mensaje: sólo las imágenes, grandes (salvo que vengan con `![](ruta)`). Las carpetas y los archivos se tocan en
+ * su lugar del texto (Texto.tsx: `rutaDeCodigo` y `partirProsa`).
+ */
+export function rutasSinLugar(texto: string, plat: Plataforma = "linux"): RutaMencionada[] {
+  return rutasMencionadas(texto, plat).filter((r) => r.tipo === "archivo" && tipoDeArchivo(r.ruta).tipo === "imagen");
 }
 
 /** El último tramo (nombre de la carpeta o del archivo `.html`). */

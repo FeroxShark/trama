@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acortarRuta, carpetaDe, nombreRuta, rutasMencionadas } from "../src/hilo/rutas-mencionadas.ts";
+import { acortarRuta, carpetaDe, nombreRuta, partirProsa, rutaDeCodigo, rutasMencionadas, rutasSinLugar } from "../src/hilo/rutas-mencionadas.ts";
 
 test("detecta carpetas y archivos .html en Linux (prosa y código en línea)", () => {
   const texto = [
@@ -167,4 +167,27 @@ test("detecta archivos en Windows y todos los tipos de tipoDeArchivo", () => {
     { tipo: "archivo", ruta: "/home/ana/media/video.mp4" },
     { tipo: "html", ruta: "/home/ana/web/vista.html" },
   ]);
+});
+
+test("rutasSinLugar: al pie sólo quedan las imágenes; carpetas y archivos se tocan en su lugar", () => {
+  const texto = [
+    "1. **Shell:** las tareas `~/Proyectos/shell/docs/tarea.md` y `~/Proyectos/shell/docs/otra.md`.",
+    "- Documentar en `~/sistema/` y mirar /home/ana/salida/ y `/home/ana/foto.png`.",
+  ].join("\n");
+  assert.deepEqual(rutasSinLugar(texto, "linux"), [{ tipo: "archivo", ruta: "/home/ana/foto.png" }]);
+  assert.deepEqual(rutaDeCodigo(" ~/Proyectos/shell/docs/tarea.md ", "linux"), { tipo: "archivo", ruta: "~/Proyectos/shell/docs/tarea.md" });
+  assert.deepEqual(rutaDeCodigo("~/sistema", "linux"), { tipo: "carpeta", ruta: "~/sistema" });
+  assert.equal(rutaDeCodigo("npm test", "linux"), null);
+});
+
+test("partirProsa: corta la prosa en texto y rutas, en su lugar y sin la puntuación de al lado", () => {
+  assert.deepEqual(partirProsa("Dejé el reporte en /home/ana/salida/, y armé /home/ana/x/e-taller.html para revisar.", "linux"), [
+    "Dejé el reporte en ",
+    { tipo: "carpeta", ruta: "/home/ana/salida/" },
+    ", y armé ",
+    { tipo: "html", ruta: "/home/ana/x/e-taller.html" },
+    " para revisar.",
+  ]);
+  assert.deepEqual(partirProsa('Abrí "C:\\Users\\Ana\\Mis docs\\" ya.', "win32"), ['Abrí "', { tipo: "carpeta", ruta: "C:\\Users\\Ana\\Mis docs\\" }, '" ya.']);
+  assert.deepEqual(partirProsa("sin rutas acá, sólo a/b", "linux"), ["sin rutas acá, sólo a/b"]);
 });

@@ -1,4 +1,5 @@
-// Tarjetas breves debajo de un mensaje del asistente para abrir carpetas, `.html` o archivos mostrables sin salir de Trama.
+// Rutas que nombra un mensaje del asistente, para abrir carpetas, `.html` o archivos mostrables sin salir de Trama: tocables en su
+// lugar del texto (`ArchivoEnLinea`; las carpetas, `Carpeta` de Texto.tsx) y las imágenes grandes al pie.
 // Una carpeta se abre en el explorador; un `.html`, en el navegador; las imágenes y otros archivos mostrables, en el visor propio.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye } from "lucide-react";
@@ -12,13 +13,13 @@ import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import { esVentana } from "../puente";
 import { ICONO, IcAbrirSistema, IcArchivo, IcCarpeta } from "../ui/iconos";
-import { acortarRuta, nombreRuta, rutasMencionadas, type RutaMencionada } from "./rutas-mencionadas";
+import { acortarRuta, nombreRuta, rutasSinLugar, type RutaMencionada } from "./rutas-mencionadas";
 import { PESO_CACHE, VerArchivo, useArchivoVisto, useVisible } from "./VerArchivo";
 
 let visorCapturaAbierto = false;
 const abrirVisorCaptura = (esImg: boolean) => (MODO.captura?.startsWith("visor-imagen") && esImg && !visorCapturaAbierto ? (visorCapturaAbierto = true) : false);
 
-function plataformaActual(): Plataforma {
+export function plataformaActual(): Plataforma {
   if (typeof location !== "undefined" && new URLSearchParams(location.search).get("plataforma") === "win32") return "win32";
   if (typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent)) return "win32";
   return "linux";
@@ -127,6 +128,39 @@ export function TarjetaRuta({ item }: { item: RutaMencionada }) {
 }
 
 /**
+ * Un archivo nombrado en código en línea, tocable en su lugar del mensaje (como las carpetas): uno mostrable se abre en el visor; un
+ * `.html`, en el navegador. Si no se pudo abrir, lo dicen el color y el aviso.
+ */
+export function ArchivoEnLinea({ item, texto }: { item: RutaMencionada; texto: string }) {
+  useIdioma();
+  const [ver, setVer] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const nombre = nombreRuta(item.ruta);
+  const info = item.tipo === "archivo" ? tipoDeArchivo(item.ruta) : null;
+  const dice = error ?? (info ? t("archivo.ver", { nombre }) : t("ruta.mostrarArchivo", { nombre }));
+  async function abrir() {
+    if (info) return setVer(true);
+    setError(null);
+    try {
+      if (!(await fuente.archivoAbrir(item.ruta))) setError(t("archivo.noDisponible", { nombre }));
+    } catch (e) {
+      reportar("carpeta", detalleDe(e));
+      setError(t("ruta.reiniciar"));
+    }
+  }
+  const Ico = info ? Eye : IcAbrirSistema;
+  return (
+    <>
+      <button type="button" className="ruta-carpeta" data-fallo={error ? "" : undefined} aria-label={dice} data-tip={dice} onClick={() => void abrir()}>
+        <code data-ruta="">{texto}</code>
+        <Ico size={12} strokeWidth={2} aria-hidden="true" />
+      </button>
+      {ver && info ? <VerArchivo a={{ ruta: item.ruta, accion: "leer", tipo: info.tipo, mime: info.mime, absoluta: null }} alCerrar={() => setVer(false)} /> : null}
+    </>
+  );
+}
+
+/**
  * Una imagen que nombra el mensaje, a la vista y grande (como la muestra Claude Code): tocarla abre el visor. Mientras se lee, un hueco del
  * mismo lugar para que el chat no salte; si no está o no se puede mostrar, la tarjeta de siempre con su aviso.
  */
@@ -155,30 +189,17 @@ function TarjetaImagen({ item }: { item: RutaMencionada }) {
   );
 }
 
+/** Al pie del mensaje, sólo las imágenes que nombra, grandes; las carpetas y los archivos se tocan en su lugar del texto (Texto.tsx). */
 export function TarjetasRuta({ texto }: { texto: string }) {
   useIdioma();
   const plat = plataformaActual();
-  const items = useMemo(() => rutasMencionadas(texto, plat), [texto, plat]);
-  if ((!esVentana() && !MODO.fixtures) || items.length === 0) return null;
-  const esImg = (x: RutaMencionada) => x.tipo === "archivo" && tipoDeArchivo(x.ruta).tipo === "imagen";
-  const imagenes = items.filter(esImg);
-  const otros = items.filter((x) => !esImg(x));
+  const imagenes = useMemo(() => rutasSinLugar(texto, plat), [texto, plat]);
+  if ((!esVentana() && !MODO.fixtures) || imagenes.length === 0) return null;
   return (
-    <>
-      {imagenes.length ? (
-        <div className="tarjetas-img" role="list" aria-label={t("ruta.lista")} data-varias={imagenes.length > 1 ? "" : undefined}>
-          {imagenes.map((item) => (
-            <TarjetaImagen key={item.ruta} item={item} />
-          ))}
-        </div>
-      ) : null}
-      {otros.length ? (
-        <div className="tarjetas-ruta" role="list" aria-label={t("ruta.lista")}>
-          {otros.map((item) => (
-            <TarjetaRuta key={`${item.tipo}:${item.ruta}`} item={item} />
-          ))}
-        </div>
-      ) : null}
-    </>
+    <div className="tarjetas-img" role="list" aria-label={t("ruta.lista")} data-varias={imagenes.length > 1 ? "" : undefined}>
+      {imagenes.map((item) => (
+        <TarjetaImagen key={item.ruta} item={item} />
+      ))}
+    </div>
   );
 }
