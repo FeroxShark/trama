@@ -1,9 +1,11 @@
 # Cambios
 
-## Próxima versión
+## 0.2.98
 
 - Plan de un líder: nuevo botón «Revisar con otro modelo». Elegís el modelo (por defecto Gemini Argon; sólo los activados en Ajustes y con cupo), lee el plan y devuelve qué está bien, riesgos, mejoras y un plan mejorado. Se ve en el chat como tarjeta del revisor y tu líder la integra y te presenta el plan de nuevo.
 - Advisor de Claude Code: en Ajustes > Modelos, cada modelo de Anthropic puede llevar un asesor más fuerte (por ejemplo Sonnet con Opus o Fable, u Opus con Fable). Un modelo más chico con un asesor más fuerte rinde parecido al asesor y gasta mucho menos. Los líderes que abre Trama con ese modelo arrancan con `--advisor`. Si una variable (como `DISABLE_TELEMETRY`) o el proveedor lo apagan, el interruptor se ve deshabilitado con el motivo.
+- Fable es un modelo más: el reparto lo puede elegir para workers según calidad y cupo, salvo que lo excluyas en Ajustes. Sólo el esfuerzo `max` sigue pidiendo tu OK.
+- Elegir modelo para un worker ya no tarda 15 s cuando Google AI Pro no contesta: espera como mucho 5 s y usa el último cupo conocido.
 
 ## 0.2.97
 

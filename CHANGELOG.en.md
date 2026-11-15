@@ -1,9 +1,11 @@
 # Changes
 
-## Next version
+## 0.2.98
 
 - A lead's plan: new «Review with another model» button. You pick the model (Gemini Argon by default; only those turned on in Settings and with quota), it reads the plan and returns what is good, risks, improvements and an improved plan. It shows in the chat as a reviewer card and your lead integrates it and presents the plan again.
 - Claude Code advisor: in Settings > Models, each Anthropic model can use a stronger advisor (for example Sonnet with Opus or Fable, or Opus with Fable). A smaller model with a stronger advisor performs close to the advisor and costs much less. Leaders Trama opens with that model start with `--advisor`. If a variable (like `DISABLE_TELEMETRY`) or the provider turns it off, the switch is disabled and shows why.
+- Fable is just another model: the allocator can pick it for workers by quality and quota, unless you exclude it in Settings. Only `max` effort still asks for your OK.
+- Picking a model for a worker no longer takes 15 s when Google AI Pro does not answer: it waits at most 5 s and uses the last known quota.
 
 ## 0.2.97
 
