@@ -4,7 +4,7 @@
 // que viven ahí. Puro (sin `electron` ni imports locales): lo prueba
 // `tests/binario.test.ts` con `node --test`.
 import { execFile, execFileSync, spawn, type ChildProcess, type ExecFileException, type ExecFileOptions, type ExecFileSyncOptions, type SpawnOptions } from "node:child_process";
-import { accessSync, constants } from "node:fs";
+import { accessSync, constants, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { caminoDe, carpetaApp, carpetaBin, delimitadorDe, homeDe, nodeWindows, plataformaActual, type Plataforma } from "./rutas.ts";
@@ -165,7 +165,7 @@ export function resolverAgy(env: Env, home: string, esEjecutable: (f: string) =>
     // Windows: `agy` puede ser un `.cmd` (npm) o un `.exe` fuera del PATH de la app; se mira el PATH, el prefijo de npm y las carpetas de sus instaladores.
     const c = path.win32;
     const local = env.LOCALAPPDATA ?? c.join(home, "AppData", "Local");
-    const extra = [c.join(home, ".local", "bin"), carpetaBin(env, home, plat), c.join(home, ".antigravity", "bin"), c.join(home, ".antigravity-cli", "bin"), c.join(home, ".gemini", "antigravity-cli", "bin"), c.join(local, "Programs", "Antigravity", "bin"), c.join(local, "Antigravity", "bin")];
+    const extra = [c.join(home, ".local", "bin"), carpetaBin(env, home, plat), c.join(home, ".antigravity", "bin"), c.join(home, ".antigravity-cli", "bin"), c.join(home, ".gemini", "antigravity-cli", "bin"), c.join(local, "Programs", "Antigravity", "bin"), c.join(local, "Antigravity", "bin"), c.join(local, "agy", "bin")];
     return resolverNpm("agy", env, home, extra, esEjecutable, plat);
   }
   const donde = ["/usr/local/bin", "/usr/bin", path.join(home, ".antigravity", "bin"), path.join(home, ".antigravity-cli", "bin"), path.join(home, ".gemini", "antigravity-cli", "bin")];
@@ -226,15 +226,45 @@ export function resolverClaude(env: Env, home: string, esEjecutable: (f: string)
   return resolverNpm("claude", env, home, [carpetaBin(env, home, plat)], esEjecutable, plat);
 }
 
-/** El `codex` (ChatGPT): `HILOS_CODEX`, el del PATH o `~/.local/bin`, y en Windows el `codex.cmd` de npm (que no siempre está en el PATH de la app). */
-export function resolverCodex(env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string {
+const listarDir = (d: string): string[] => {
+  try {
+    return readdirSync(d);
+  } catch {
+    return [];
+  }
+};
+
+/** «0.169.0-x86_64-pc-windows-msvc» antes que «0.99.1-…»: compara la versión del principio número a número, de mayor a menor. */
+const porVersionDesc = (a: string, b: string): number => {
+  const v = (s: string) => (/^(\d+)\.(\d+)\.(\d+)/.exec(s) ?? []).slice(1).map(Number);
+  const [x, y] = [v(a), v(b)];
+  for (let i = 0; i < 3; i++) if ((y[i] ?? -1) !== (x[i] ?? -1)) return (y[i] ?? -1) - (x[i] ?? -1);
+  return 0;
+};
+
+/**
+ * El `codex` (ChatGPT): `HILOS_CODEX`, el del PATH o `~/.local/bin`, y en Windows el `codex.cmd` de npm (que no siempre está en el PATH de la app)
+ * y el de la app de escritorio de Codex: deja `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin` en el PATH (a veces vacía) y el binario de verdad en
+ * `~\.codex\packages\app-server-daemon\releases\<versión>\bin\codex.exe`. Se usa la versión más nueva de `releases`, no la unión `current`:
+ * Windows la rechaza fuera de la app («punto de montaje no confiable»).
+ */
+export function resolverCodex(env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual(), listar: (d: string) => string[] = listarDir): string {
   const r = resolverBinario("codex", "HILOS_CODEX", env, home, esEjecutable, plat);
-  return r === "codex" ? resolverNpm("codex", env, home, [], esEjecutable, plat) : r;
+  if (r !== "codex") return r;
+  if (plat !== "win32") return resolverNpm("codex", env, home, [], esEjecutable, plat);
+  const c = path.win32;
+  const local = env.LOCALAPPDATA ?? c.join(home, "AppData", "Local");
+  const releases = c.join(home, ".codex", "packages", "app-server-daemon", "releases");
+  const app = listar(releases)
+    .filter((n) => /windows/i.test(n))
+    .sort(porVersionDesc)
+    .map((n) => c.join(releases, n, "bin"));
+  return resolverNpm("codex", env, home, [c.join(local, "Programs", "OpenAI", "Codex", "bin"), ...app], esEjecutable, plat);
 }
 
 /** `codex` como `hallarAgy`: la ruta, o null si no está. Lo usan Cuentas, el chequeo de pa y el reparto: los tres lo ven igual. */
-export const hallarCodex = (env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string | null => {
-  const r = resolverCodex(env, home, esEjecutable, plat);
+export const hallarCodex = (env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual(), listar: (d: string) => string[] = listarDir): string | null => {
+  const r = resolverCodex(env, home, esEjecutable, plat, listar);
   return r === "codex" ? null : r;
 };
 

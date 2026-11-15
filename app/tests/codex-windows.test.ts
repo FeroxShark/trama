@@ -20,3 +20,12 @@ test("Windows: sin codex instalado, null", () => {
 test("Linux: el del PATH", () => {
   assert.equal(hallarCodex({ PATH: "/opt/x/bin" }, "/home/ana", (f) => f === "/opt/x/bin/codex", "linux"), "/opt/x/bin/codex");
 });
+
+test("Windows: el codex.exe de la app de escritorio (la versión más nueva de ~\\.codex\\packages\\app-server-daemon\\releases)", () => {
+  const rel = path.win32.join(home, ".codex", "packages", "app-server-daemon", "releases");
+  const listar = (d: string) => (d === rel ? ["0.99.1-x86_64-pc-windows-msvc", "0.169.0-x86_64-pc-windows-msvc", "0.170.0-x86_64-unknown-linux-gnu"] : []);
+  const nuevo = path.win32.join(rel, "0.169.0-x86_64-pc-windows-msvc", "bin", "codex.exe");
+  const viejo = path.win32.join(rel, "0.99.1-x86_64-pc-windows-msvc", "bin", "codex.exe");
+  assert.equal(hallarCodex(env, home, (f) => f === nuevo || f === viejo, "win32", listar), nuevo);
+  assert.equal(hallarCodex(env, home, () => false, "win32", listar), null);
+});

@@ -22,6 +22,11 @@ test("Windows: agy.exe en %USERPROFILE%\\.local\\bin (fuera del PATH) cuenta com
   assert.equal(hayAgy(ENV, HOME, hay(), "win32"), false);
 });
 
+test("Windows: agy.exe en %LOCALAPPDATA%\\agy\\bin (el instalador nuevo de Antigravity) cuenta como instalado", () => {
+  const exe = `${HOME}\\AppData\\Local\\agy\\bin\\agy.exe`;
+  assert.equal(resolverAgy(ENV, HOME, hay(exe), "win32"), exe);
+});
+
 test("Windows: un agy.cmd de npm (%APPDATA%\\npm) cuenta como instalado y se lanza por cmd.exe", async () => {
   const cmd = `${HOME}\\AppData\\Roaming\\npm\\agy.cmd`;
   assert.equal(resolverAgy(ENV, HOME, hay(cmd), "win32"), cmd);
