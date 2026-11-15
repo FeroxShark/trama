@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.89
+
+- Windows: Trama finds Codex installed with OpenAI's desktop app and Antigravity CLI (`agy`) installed with its new installer. It used to say «not installed» or show no ChatGPT models.
+
 ## 0.2.88
 
 - On Windows, if Trama can't update itself, Settings > Updates says why and writes it to `carcasa.log`.
