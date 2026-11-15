@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.90
+
+- Plan y cupos: el plan (Pro o Max) de una cuenta agregada de Claude se puede elegir de nuevo. Se guardaba, pero la pantalla seguía diciendo que usaba el de la cuenta principal.
+- Con varias cuentas, los modelos de ChatGPT (Codex) aparecen y se reparten cuando Codex está instalado y con sesión iniciada, aunque no se haya agregado una cuenta de ChatGPT.
+
 ## 0.2.89
 
 - Windows: Trama encuentra Codex instalado con la app de escritorio de OpenAI y Antigravity CLI (`agy`) instalado con su instalador nuevo. Antes decía «no instalado» o no mostraba los modelos de ChatGPT.
