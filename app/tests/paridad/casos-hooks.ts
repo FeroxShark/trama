@@ -251,7 +251,7 @@ const casosGuard: Caso[] = [
   cmdGuard("sesión gráfica: bloquea hyprctl dispatch exit", "hyprctl dispatch exit", 2),
   cmdGuard("sesión gráfica: bloquea hyprctl dispatch exit 0", "hyprctl dispatch exit 0", 2),
   cmdGuard("sesión gráfica: bloquea loginctl terminate-session 3", "loginctl terminate-session 3", 2),
-  cmdGuard("sesión gráfica: bloquea loginctl kill-user ferox", "loginctl kill-user ferox", 2),
+  cmdGuard("sesión gráfica: bloquea loginctl kill-user ana", "loginctl kill-user ana", 2),
   cmdGuard("sesión gráfica: bloquea systemctl restart sddm", "systemctl restart sddm", 2),
   cmdGuard("sesión gráfica: bloquea sudo systemctl stop display-manager.service", "sudo systemctl stop display-manager.service", 2),
   cmdGuard("sesión gráfica: pasa kill 12345", "kill 12345", 0),

@@ -53,7 +53,7 @@ contextBridge.exposeInMainWorld("hilos", {
     alOrden: oir("nombres:orden"),
   },
   /** Los slugs del registry (Mover a proyecto…). */
-  carpetas: (maquina?: string): Promise<unknown> => (maquina ? invocar("proyectos:carpetas", { maquina }) : invocar("proyectos:carpetas")),
+  carpetas: (maquina?: string): Promise<unknown> => invocar("proyectos:carpetas", ...(maquina ? [{ maquina }] : [])),
   /** Cada nombre del registry con el slug de su carpeta (Iniciar una tarea del tablero). */
   slugsPorNombre: (): Promise<unknown> => invocar("proyectos:nombres"),
   preferencias: {
@@ -104,7 +104,7 @@ contextBridge.exposeInMainWorld("hilos", {
   /** Los proyectos del registry con su nombre para mostrar (electron/proyectos-alias.ts); `renombrar` lo cambia (`null`: lo saca). */
   proyectosNombres: {
     /** `maquina`: los proyectos de otra máquina (el selector del chat nuevo); sin ella, los de acá. */
-    lista: (maquina?: string): Promise<unknown> => (maquina ? invocar("proyectos:lista", { maquina }) : invocar("proyectos:lista")),
+    lista: (maquina?: string): Promise<unknown> => invocar("proyectos:lista", ...(maquina ? [{ maquina }] : [])),
     renombrar: (slug: string, nombre: string | null): Promise<unknown> => invocar("proyectos:renombrar", slug, nombre),
     /** Guarda el logo elegido a mano (la data URL que devolvió `elegirLogo`); `null`: vuelve al automático. */
     logo: (slug: string, logo: string | null): Promise<unknown> => invocar("proyectos:logo", slug, logo),

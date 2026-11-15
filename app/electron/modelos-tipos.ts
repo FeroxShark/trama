@@ -101,7 +101,7 @@ export type ConfigModelos = {
    * Lo que no está acá lo estima `reparto` por el nombre (y `reparto --tabla` lo marca estimada). Sin la clave en el archivo, vacío.
    */
   calidad: Record<string, number>;
-  /** Deja correr opus/sonnet con esfuerzo `max` sin pedir permiso (Fable lo sigue pidiendo). Sin la clave vale `false`. */
+  /** Deja correr opus/sonnet con esfuerzo `max` sin pedir permiso. Sin la clave vale `false`. */
   permitir_max: boolean;
   /**
    * Esfuerzos que los workers pueden usar por modelo (clave: familia o id, como `calidad`). Sin la clave valen todos; lista vacía = el modelo

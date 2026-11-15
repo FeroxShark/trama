@@ -52,7 +52,7 @@ Novedad de la v2 respecto de la v1: (a) una **vía rápida** para tareas chicas 
 
 `PA_PUESTOS=8` permite 8 workers escribiendo en paralelo por proyecto (el dueño prefiere eso a encolar).
 
-**Exit codes de `pa`:** 0 ok · 1 el worker falló · 2 uso (también `max`/fable sin OK) · 3 la rúbrica dice "no se lanza" · 75 puesto/tope ocupado · 76 límite de sesión de la suscripción · 77 API sobrecargada · 78 sin `RESULTADO` · 79 `--integrar` se niega (archivo sin commitear del dueño que la rama toca) · 80 choque al rebasear · 82 la corrida murió sin resultado · 86 trabajo sin commitear en el worktree · 87 no hay worktree · 93 `--integrar --tests` en rojo · 95 modelo local/dsh/opencode no disponible · 96 sin cupo / modelo no disponible · 97 OpenCode cortó por límite de uso (ese modelo queda enfriado `PA_ENFRIAR_HORAS`, default 5) · 130 matado.
+**Exit codes de `pa`:** 0 ok · 1 el worker falló · 2 uso (también `max` sin OK) · 3 la rúbrica dice "no se lanza" · 75 puesto/tope ocupado · 76 límite de sesión de la suscripción · 77 API sobrecargada · 78 sin `RESULTADO` · 79 `--integrar` se niega (archivo sin commitear del dueño que la rama toca) · 80 choque al rebasear · 82 la corrida murió sin resultado · 86 trabajo sin commitear en el worktree · 87 no hay worktree · 93 `--integrar --tests` en rojo · 95 modelo local/dsh/opencode no disponible · 96 sin cupo / modelo no disponible · 97 OpenCode cortó por límite de uso (ese modelo queda enfriado `PA_ENFRIAR_HORAS`, default 5) · 130 matado.
 
 ### 1.1 Modelos habilitados hoy en Ajustes de Trama
 
@@ -68,7 +68,7 @@ Lo que está apagado **no se usa nunca**, ni como plan B.
 | `opencode:opencode/glm-5.3-flash-free` | (variant) | 41.8 | gratis | El mejor de los gratis. Se corta por límite sin aviso (exit 97). |
 | `opencode:opencode/mimo-v2.6-flash-free`, `deepseek-v4.1-flash-free` | (variant) | 37.9 / 40.1 | gratis | Mismos cortes. Remotos. |
 
-Excluidos siempre: `agy:gpt-oss-120b-medium` (no sigue el contrato), el resto de gratis de OpenCode (`beam`, `flint`, `nemotron`, `big-pickle`), `ollama:` (ocupa toda la VRAM; pide permiso), `max` fuera de Haiku, `fable`, y cualquier uso de `ANTHROPIC_API_KEY` en el `claude` oficial (dispara créditos extra).
+Excluidos siempre: `agy:gpt-oss-120b-medium` (no sigue el contrato), el resto de gratis de OpenCode (`beam`, `flint`, `nemotron`, `big-pickle`), `ollama:` (ocupa toda la VRAM; pide permiso), `max` fuera de Haiku (salvo con OK del dueño) y cualquier uso de `ANTHROPIC_API_KEY` en el `claude` oficial (dispara créditos extra).
 
 **Ventana de contexto de los workers [EN CONSTRUCCIÓN]:** configurable en Ajustes de Trama, Haiku 300k por defecto, el resto la nativa. Hasta hoy Haiku compactaba a ~100k de contexto: **el tope de 40 KB de lectura y las tasas de compactación medidas son de esa época**. Ver riesgos (sección 10).
 
@@ -91,7 +91,7 @@ Lectura honesta: ningún (tipo, modelo) pasa de ~55 %. La muestra de Haiku es ch
 
 ### 1.3 Restricciones duras
 
-- Ahorro de suscripción: modelo y effort mínimos que alcancen. Opus sólo para bases de las que cuelga lo demás, bug sin pista, tarea enorme o crítica, o tras un fallo de chequeo por estimación. Nada de `max` ni `fable` sin OK explícito del dueño.
+- Ahorro de suscripción: modelo y effort mínimos que alcancen. Opus sólo para bases de las que cuelga lo demás, bug sin pista, tarea enorme o crítica, o tras un fallo de chequeo por estimación. Nada de `max` sin OK explícito del dueño; Fable es un modelo más, elegible si está habilitado.
 - Corridas en sombra sólo con modelos gratis; nunca gastando cupo de Claude.
 - Destructivo o irreversible (incluye `pa --descartar`): confirmar con el dueño antes.
 - Los gratis de OpenCode son remotos: no mandarles trozos con claves, `.env` ni datos del usuario (esos trozos van a Haiku). En agy, compartir datos para mejorar el producto está apagado.
@@ -619,4 +619,4 @@ Revisá este protocolo como un ingeniero escéptico que no tiene que defenderlo.
    - **costo de construir** (chico ≤50 líneas / mediano ≤200 / grande), contra lo que ya existe (secciones 1 y 9);
    - **qué gana** (en cupo, tiempo, tasa de integrada sin retrabajo o riesgo evitado).
 
-Restricciones que tus propuestas deben respetar: sólo modelos y efforts habilitados (sección 1.1); nada de `max`/fable/`ANTHROPIC_API_KEY`; sombras sólo con gratis; nada destructivo sin OK del dueño; cupo de Claude compartido entre líder y workers; el dueño quiere Haiku por defecto para lo que se describe con precisión y no quiere "escalar probando".
+Restricciones que tus propuestas deben respetar: sólo modelos y efforts habilitados (sección 1.1); nada de `max` sin OK ni `ANTHROPIC_API_KEY`; sombras sólo con gratis; nada destructivo sin OK del dueño; cupo de Claude compartido entre líder y workers; el dueño quiere Haiku por defecto para lo que se describe con precisión y no quiere "escalar probando".

@@ -82,7 +82,7 @@ for (const motor of ["ts", "py"] as const) {
     agyFalso(bin, "sin-sesion");
     cupos(bin, estado, motor);
     assert.ok(existsSync(path.join(estado, "agy-sin-sesion.json")));
-    agyFalso(bin, "con-sesion"); // Ferox volvió a iniciar sesión
+    agyFalso(bin, "con-sesion"); // la persona volvió a iniciar sesión
     const antes = llamadas(bin).length;
     // Pasó la pausa: la marca ya venció (se conserva que ya se avisó) y reparto lee de nuevo.
     writeFileSync(path.join(estado, "agy-sin-sesion.json"), JSON.stringify({ hasta: Date.now() / 1000 - 1, avisado: true }));

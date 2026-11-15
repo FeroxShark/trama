@@ -52,14 +52,14 @@ test("la carpeta pedida desde la barra o el tablero: sólo si el proyecto se ofr
 });
 
 test("el chat nuevo en otra máquina ofrece los proyectos de ESA máquina; sin su lista (caída, sin llegar, otra máquina) no ofrece ninguno", () => {
-  const deAlla: ProyectoCarpeta[] = [{ slug: "pc-app", ruta: "/home/ferox/Proyectos/pc-app", existe: true }];
+  const deAlla: ProyectoCarpeta[] = [{ slug: "pc-app", ruta: "/home/ana/Proyectos/pc-app", existe: true }];
   // En la de acá: los de acá, haya o no lista de otra.
   assert.equal(proyectosDeLaMaquina(undefined, linux, { maquina: "pc", lista: deAlla }), linux);
   // En la otra: los que trajo su motor; así una carpeta de allá se reconoce como proyecto y no como "otra carpeta".
   assert.deepEqual(proyectosDeLaMaquina("pc", linux, { maquina: "pc", lista: deAlla }), deAlla);
-  assert.equal(opcionDe("/home/ferox/Proyectos/pc-app", true, proyectosDeLaMaquina("pc", linux, { maquina: "pc", lista: deAlla })), "/home/ferox/Proyectos/pc-app");
+  assert.equal(opcionDe("/home/ana/Proyectos/pc-app", true, proyectosDeLaMaquina("pc", linux, { maquina: "pc", lista: deAlla })), "/home/ana/Proyectos/pc-app");
   // Sin lista, o con la de otra máquina (se cambió el selector y todavía no llegó la nueva): sólo escribir la ruta.
   assert.deepEqual(proyectosDeLaMaquina("pc", linux, null), []);
   assert.deepEqual(proyectosDeLaMaquina("nube", linux, { maquina: "pc", lista: deAlla }), []);
-  assert.equal(opcionDe("/home/ferox/Proyectos/pc-app", true, proyectosDeLaMaquina("pc", linux, null)), OTRA);
+  assert.equal(opcionDe("/home/ana/Proyectos/pc-app", true, proyectosDeLaMaquina("pc", linux, null)), OTRA);
 });
