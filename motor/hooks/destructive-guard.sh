@@ -241,11 +241,15 @@ guardia_externa("docker-guard.py", r"docker|podman")
 #   pasa igual, y `killall -r "hypr.*"` (regex sin el nombre) tampoco se cubre.
 #   `kill -9 -1` (todos los procesos del usuario) no esta en esta lista todavia.
 # ---------------------------------------------------------------------------
-SESION_NOMBRES = r"(?:hyprland|sway|wayfire|river|gnome-shell|plasmashell|kwin(?:_wayland|_x11)?|xorg|xwayland|sddm|gdm3?|lightdm|pipewire|wireplumber)"
+SESION_NOMBRES = r"(?:hyprland|sway|wayfire|river|gnome-shell|plasmashell|kwin(?:_wayland|_x11)?|xorg|xwayland|sddm|gdm3?|lightdm|pipewire|wireplumber|caelestia|quickshell)"
 cmd_min = cmd.lower()  # Sway y sway dan lo mismo
 sesion_patterns = [
     # pkill / killall con un patron que nombra la sesion
     r"(?<![\w-])(?:pkill|killall)\b[^|;&]*" + SESION_NOMBRES,
+    # `qs` pelado (quickshell): sin `-c <nombre>` mata TODAS las shells; `qs -c <nombre>` es una shell puntual y pasa
+    r"(?<![\w-])(?:pkill|killall)\b[^|;&]*(?<![\w-])qs(?![\w-])(?!\s+-c\s+\S)",
+    # kill -9 -1: todos los procesos del usuario (`kill -1 1234` es SIGHUP a un pid y pasa)
+    r"\bkill\s+(?:-\w+\s+)*-1\s*(?:$|[;&|)])",
     # pgrep / pidof / ps / grep canalizado a xargs kill
     r"(?<![\w-])(?:pgrep|pidof|ps|grep)\b[^;&]*" + SESION_NOMBRES + r"[^;&]*\|[^;&]*\bxargs\b[^;&]*\bkill\b",
     # kill con $(...) o `...` que busca la sesion
@@ -255,6 +259,8 @@ sesion_patterns = [
     r"\bswaymsg\s+exit\b",
     r"\bloginctl\s+(?:terminate|kill)-(?:session|user)\b",
     r"\bsystemctl\b[^|;&]*\b(?:stop|restart|kill)\b[^|;&]*\b(?:sddm|gdm3?|lightdm|display-manager)(?:\.service)?\b",
+    # parar la sesion grafica de systemd o el audio desde el administrador de servicios
+    r"\bsystemctl\b[^|;&]*\b(?:stop|restart|kill|isolate)\b[^|;&]*\b(?:graphical-session|graphical|pipewire(?:-pulse)?|wireplumber)(?:\.target|\.service|\.socket)?(?![\w-])",
 ]
 for p in sesion_patterns:
     if re.search(p, cmd_min):

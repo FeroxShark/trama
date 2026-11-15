@@ -181,11 +181,15 @@ async function main() {
 
   // SESION GRAFICA: matar o cortar la sesión gráfica (compositor, login manager, audio). Un worker mata sólo los PIDs que
   // lanzó él mismo, con kill $PID. Pasan: kill 12345, pkill -f "^mpv ..." y todo lo de LEER.
-  const SESION_NOMBRES = R`(?:hyprland|sway|wayfire|river|gnome-shell|plasmashell|kwin(?:_wayland|_x11)?|xorg|xwayland|sddm|gdm3?|lightdm|pipewire|wireplumber)`;
+  const SESION_NOMBRES = R`(?:hyprland|sway|wayfire|river|gnome-shell|plasmashell|kwin(?:_wayland|_x11)?|xorg|xwayland|sddm|gdm3?|lightdm|pipewire|wireplumber|caelestia|quickshell)`;
   const cmdMin = cmd.toLowerCase(); // Sway y sway dan lo mismo
   const sesionPatrones = [
     // pkill / killall con un patron que nombra la sesion
     R`(?<![\w-])(?:pkill|killall)\b[^|;&]*` + SESION_NOMBRES,
+    // `qs` pelado (quickshell): sin `-c <nombre>` mata TODAS las shells; `qs -c <nombre>` es una shell puntual y pasa
+    R`(?<![\w-])(?:pkill|killall)\b[^|;&]*(?<![\w-])qs(?![\w-])(?!\s+-c\s+\S)`,
+    // kill -9 -1: todos los procesos del usuario (`kill -1 1234` es SIGHUP a un pid y pasa)
+    R`\bkill\s+(?:-\w+\s+)*-1\s*(?:$|[;&|)])`,
     // pgrep / pidof / ps / grep canalizado a xargs kill
     R`(?<![\w-])(?:pgrep|pidof|ps|grep)\b[^;&]*` + SESION_NOMBRES + R`[^;&]*\|[^;&]*\bxargs\b[^;&]*\bkill\b`,
     // kill con $(...) o `...` que busca la sesion
@@ -195,6 +199,8 @@ async function main() {
     R`\bswaymsg\s+exit\b`,
     R`\bloginctl\s+(?:terminate|kill)-(?:session|user)\b`,
     R`\bsystemctl\b[^|;&]*\b(?:stop|restart|kill)\b[^|;&]*\b(?:sddm|gdm3?|lightdm|display-manager)(?:\.service)?\b`,
+    // parar la sesion grafica de systemd o el audio desde el administrador de servicios
+    R`\bsystemctl\b[^|;&]*\b(?:stop|restart|kill|isolate)\b[^|;&]*\b(?:graphical-session|graphical|pipewire(?:-pulse)?|wireplumber)(?:\.target|\.service|\.socket)?(?![\w-])`,
   ];
   for (const p of sesionPatrones) {
     if (new RegExp(p).test(cmdMin)) {

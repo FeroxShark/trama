@@ -287,6 +287,20 @@ test("destructive-guard: bloquea con exit 2 y deja el patrón en stderr; lo dem�
   });
 });
 
+test("destructive-guard: matar o cortar la sesión gráfica le pide al worker matar sólo sus PIDs", () => {
+  conTemporal((dir) => {
+    const env = entorno(dir);
+    for (const cmd of ["pkill Hyprland", "pkill quickshell", 'pkill -f "^qs"', "systemctl --user stop graphical-session.target", "kill -9 -1"]) {
+      const r = correr("destructive-guard", [], bash(cmd), env);
+      assert.equal(r.rc, 2, cmd);
+      assert.match(r.stderr, /sesion grafica.*kill \$PID/, cmd);
+    }
+    for (const bien of ["pkill -f '^qs -c handy-status'", "pgrep -a Hyprland", "hyprctl clients", "kill -1 12345", "systemctl --user status pipewire"]) {
+      assert.deepEqual([correr("destructive-guard", [], bash(bien), env).rc], [0], bien);
+    }
+  });
+});
+
 test("destructive-guard: la config (guard.json) agrega destinos de backup y el congelado", () => {
   conTemporal((dir) => {
     const cfg = path.join(dir, "guard.json");
