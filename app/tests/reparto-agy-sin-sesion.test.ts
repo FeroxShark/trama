@@ -84,9 +84,10 @@ for (const motor of ["ts", "py"] as const) {
     assert.ok(existsSync(path.join(estado, "agy-sin-sesion.json")));
     agyFalso(bin, "con-sesion"); // Ferox volvió a iniciar sesión
     const antes = llamadas(bin).length;
-    const sinPausa = cupos(bin, estado, motor, { REPARTO_AGY_PAUSA_S: "0" });
+    // Pasó la pausa: la marca ya venció (se conserva que ya se avisó) y reparto lee de nuevo.
+    writeFileSync(path.join(estado, "agy-sin-sesion.json"), JSON.stringify({ hasta: Date.now() / 1000 - 1, avisado: true }));
+    const sinPausa = cupos(bin, estado, motor);
     assert.equal(sinPausa.status, 0, sinPausa.stderr);
-    // Con la pausa de 0 s la marca ya venció: reparto lee de nuevo.
     assert.ok(llamadas(bin).length > antes, "vencida la pausa se vuelve a probar");
     assert.equal(existsSync(path.join(estado, "agy-sin-sesion.json")), false, "una lectura buena borra la marca");
   });
