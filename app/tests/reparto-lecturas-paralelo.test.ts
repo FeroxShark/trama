@@ -23,7 +23,7 @@ function agyFalso(dir: string, modo: "espera-models" | "colgado") {
   writeFileSync(quota, QUOTA);
   const guion =
     modo === "colgado"
-      ? "#!/bin/sh\nsleep 30\n"
+      ? "#!/bin/sh\nexec sleep 30\n"
       : `#!/bin/sh
 if [ "$1" = "models" ]; then : > '${marca}'; printf 'gemini-4-argon-high\\tGemini 4 Argon\\n'; exit 0; fi
 i=0
