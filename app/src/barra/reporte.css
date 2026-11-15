@@ -1,0 +1,45 @@
+/* «Reportar un bug» (Reporte.tsx): el campo, los adjuntos con la miniatura de la captura y la carpeta del final. */
+.rep-campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+}
+.rep-campo-t {
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.rep-texto {
+  min-height: 7rem;
+}
+.rep-adjuntos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+}
+.rep-adj-t {
+  min-width: 0;
+  color: var(--texto);
+  font-size: var(--letra-5);
+}
+.rep-mini {
+  flex: none;
+  width: 4rem;
+  height: 2.5rem;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  object-position: top left;
+  box-shadow: 0 0 0 1px var(--borde-3);
+}
+.rep-carpeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1-5);
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.rep-carpeta code {
+  overflow-wrap: anywhere;
+  color: var(--texto);
+}

@@ -183,6 +183,14 @@ function crearCanalesVentana(o) {
         return false;
       }
     },
+    // «Reportar un bug»: la ventana tal como se ve, en PNG base64.
+    "ventana:captura": async (e) => {
+      try {
+        return (await e.sender.capturePage()).toPNG().toString("base64");
+      } catch {
+        return null;
+      }
+    },
     "portapapeles:texto": () => {
       try {
         return clipboard.readText() || "";

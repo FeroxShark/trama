@@ -30,6 +30,14 @@ import { crearCola, type AvisoCola, type Encolado } from "../../electron/cola";
 import type { Aviso as AvisoProgramados, Estado as EstadoProgramados } from "../../electron/programados";
 import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaLimite, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaPensando, charlaDejado, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_ATENCION, HILOS_ATENCION_RESUELTO, HILOS_EN_COLA, HILOS_RIEL, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDERES_ATENCION, LIDERES_ATENCION_RESUELTO, LIDERES_RIEL, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_TRES, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_CUPO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
 
+/** Lo que vuelve de «Reportar un bug»: la carpeta escrita y la URL del issue, o el error. */
+export type ReporteArmado = { ok: true; carpeta: string; url: string } | { ok: false; error: string };
+const reporteValido = (x: unknown): ReporteArmado => {
+  const o = x as { ok?: unknown; carpeta?: unknown; url?: unknown; error?: unknown } | null;
+  if (o?.ok === true && typeof o.carpeta === "string" && typeof o.url === "string" && o.url.startsWith("https://github.com/")) return { ok: true, carpeta: o.carpeta, url: o.url };
+  return { ok: false, error: typeof o?.error === "string" && o.error ? o.error : "main.cuentasFallo" };
+};
+
 export type { EstadoPlanDia, ModoPlanDia };
 
 export interface Fuente {
@@ -207,6 +215,10 @@ export interface Fuente {
   archivoAbrir(ruta: string): Promise<boolean>;
   /** Abre una carpeta en el explorador de archivos (sólo la ventana de la PC); `false` si no es una carpeta. Rechaza si el pedido no llegó (datos/carpeta-abrir.ts). */
   carpetaAbrir(ruta: string): Promise<boolean>;
+  /** La captura de la ventana como se ve ahora (PNG en base64), o `null` (fuera de la ventana de la PC, o si falló). */
+  capturaVentana(): Promise<string | null>;
+  /** «Reportar un bug»: la carpeta en Descargas con la captura y el log limpio, y la URL del issue prellenado (electron/reporte.ts). */
+  armarReporte(x: { descripcion: string; captura: string | null; log: boolean }): Promise<ReporteArmado>;
   /**
    * Retomar un líder sin proceso (`Lider.caido`): pasa a ser de la app y queda listo para
    * escribirle. No lanza nada ni le manda nada: sale con el primer mensaje del usuario.
@@ -2014,6 +2026,13 @@ const fija: Fuente = {
   async carpetaAbrir(ruta) {
     return !ruta.includes("no-esta");
   },
+  async capturaVentana() {
+    return null;
+  },
+  async armarReporte() {
+    await new Promise((r) => setTimeout(r, 400));
+    return MODO.variante === "reporte-falla" ? { ok: false, error: "EACCES: permission denied" } : { ok: true, carpeta: "/home/ana/Descargas/trama-reporte-20261114-2310", url: "https://github.com/duenio/trama/issues/new" };
+  },
   async liderRetomar(sid, x) {
     // `HILOS_VARIANTE=no`: la conversación ya no está en disco.
     if (MODO.variante === "no") return { ok: false, motivo: "sinSesion" };
@@ -2816,6 +2835,13 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async archivoAbrir(ruta) {
     return (await m.archivo?.abrir(ruta).catch(() => false)) === true;
+  },
+  async capturaVentana() {
+    const c = await m.captura?.().catch(() => null);
+    return typeof c === "string" && c ? c : null;
+  },
+  async armarReporte(x) {
+    return reporteValido(await (m.reporte?.armar(x) ?? Promise.resolve(null)).catch((e) => ({ ok: false, error: mensaje(e) })));
   },
   async carpetaAbrir(ruta) {
     // Sin `catch`: un rechazo (el canal no existe en el main que corre) lo ve quien pidió, no se toma por «no es una carpeta».

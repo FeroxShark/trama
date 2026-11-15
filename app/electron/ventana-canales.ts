@@ -181,6 +181,15 @@ export function armarCanalesVentana(salir: (x: { modo: "seguir" | "parar"; forza
     const r = await (v ? dialog.showOpenDialog(v, { properties: ["openDirectory"] }) : dialog.showOpenDialog({ properties: ["openDirectory"] }));
     return r.canceled ? null : (r.filePaths[0] ?? null);
   });
+  // «Reportar un bug»: la ventana tal como se ve (antes de abrir el diálogo), en PNG base64.
+  ipcMain.handle("ventana:captura", async (e) => {
+    try {
+      return (await e.sender.capturePage()).toPNG().toString("base64");
+    } catch (x) {
+      log.escribir("aviso", "reporte", x);
+      return null;
+    }
+  });
   ipcMain.handle("app:recargar", () => recargarVentana());
   ipcMain.handle("trama:reiniciarVentana", () => relanzarVentana());
   // Volver como estaba: sólo la ventana pasa por acá (el navegador se guarda lo suyo, src/volver.ts).

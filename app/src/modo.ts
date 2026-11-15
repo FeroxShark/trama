@@ -283,6 +283,8 @@ const CAPTURAS = [
   "guia-tablero",
   // «Borrar proyecto…» abierto para atlas (`HILOS_VARIANTE=vivos`: se niega por trabajo en marcha; `papelera`: con la papelera tildada, la ruta y el aviso de git).
   "borrar-proyecto",
+  // «Reportar un bug» (el bicho del pie de la barra): el diálogo abierto; `HILOS_VARIANTE=reporte-falla` con el error al armarlo.
+  "reporte",
   // Las barras lisas de cupo (src/ui/BarraCupo.tsx) solas: 20 %, 85 %, 100 % y sin dato, en las variantes normal y compacta (`HILOS_TEMA=claro`, en claro).
   "barra-cupo-demo",
   // Los paneles acoplables solos en pantalla de demostración (acomodo de fábrica y con paneles movidos).

@@ -94,6 +94,7 @@ import { estadoAA, refrescarAA } from "./artificial-analysis.ts";
 import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
 import { cuentasDeEstaMaquina } from "./cuentas.ts";
 import { enTerminal } from "./actualizador.ts";
+import { armarReporte } from "./reporte.ts";
 import { cuentasVarias } from "./cuentas-varias-canales.ts";
 import { cuentasDeEstaMaquinaVarias } from "./cuentas-varias.ts";
 import { alCambiarCupos, cuposActuales, refrescarCupos } from "./cupos.js";
@@ -873,6 +874,8 @@ export function armarNucleo() {
     return s;
   };
   manejar("statusline:leer", leerSl);
+  // «Reportar un bug»: la carpeta con la captura y el log limpio, y la URL del issue (reporte.ts). Sólo en la PC.
+  manejar("reporte:armar", (e, x: unknown) => (tailnet(e) ? { ok: false, error: "main.soloPc" } : armarReporte(x)));
   manejar("maquina:saludo", () => saludo());
   manejar("maquinas:leer", () => estadoMaquinas());
   // "Actualizar límites": antes de releer, el uso como lo dice claude.ai (`get_usage`, por `claude`

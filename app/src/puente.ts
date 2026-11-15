@@ -531,6 +531,10 @@ type Main = {
   carpeta?: { elegir(): Promise<string | null> };
   /** El selector nativo de una imagen para el logo de un proyecto: la imagen achicada a 64 px (data URL) o `null` si se canceló. Como `carpeta`: sólo con `esVentana()`. */
   archivo?: { elegirLogo(): Promise<string | null>; /** Abre el archivo con la app del sistema; `false` si no se pudo. */ abrir(ruta: string): Promise<boolean>; /** Abre la carpeta en el explorador de archivos; `false` si no se pudo. */ abrirCarpeta(ruta: string): Promise<boolean> };
+  /** La captura de esta ventana (PNG en base64, o `null`) para «Reportar un bug». Como `carpeta`: sólo con `esVentana()`. */
+  captura?(): Promise<string | null>;
+  /** «Reportar un bug»: escribe la carpeta en Descargas (captura y log limpio) y devuelve `{ ok, carpeta, url }` o `{ ok: false, error }`, sin validar. */
+  reporte?: { armar(x: { descripcion: string; captura: string | null; log: boolean }): Promise<unknown> };
   /** Vuelve a cargar la ventana (el cartel de error); por la tailnet no existe. */
   recargar?(): Promise<void>;
   /** Un error del renderer, al log del main (src/errores.ts). */

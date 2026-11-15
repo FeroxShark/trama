@@ -21,7 +21,7 @@ import {
   type Ref,
 } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
-import { BarChart3, ChevronDown, Crown, Gauge, GitBranch, Layers, MessageSquare, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, type LucideIcon } from "lucide-react";
+import { BarChart3, ChevronDown, Crown, Gauge, GitBranch, Layers, MessageSquare, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, Bug, type LucideIcon } from "lucide-react";
 import { cerrable, cerrado, comoSettle, GENERAL, VERSION, type Caido, type ConvClaudeCode, type Estado, type EventoPa, type Hilo, type Leidos, type Lider, type Nombres, type Orden, type RespuestaLideres } from "../datos/contrato";
 import { compactarFijo, escenaFija, fuente } from "../datos/fuente";
 import { ARRANCANDO, EN_COLA, FRENADO, imagenFija } from "../datos/fixtures";
@@ -114,6 +114,7 @@ import { usePrioridad } from "./usePrioridad";
 import { useTitulos } from "./titulos";
 import { BorrarProyecto } from "./BorrarProyecto";
 import { Limpiar } from "./Limpiar";
+import { Reporte } from "./Reporte";
 import { entradasLimpiar } from "./limpiar-logica";
 import { accionesCarpeta, accionesLider, accionesWorker, type LugarMenu, type Opcion } from "./menu-logica";
 import { Menu, Renombre, type ItemMenu } from "./Menu";
@@ -370,6 +371,12 @@ export function Barra() {
   // Tras un reinicio pedido (o una recarga en el celular) arranca en lo que estaba abierto (src/volver.ts).
   const [activa, setActiva] = useState<string | null>(() => vueltaInicial()?.activa ?? null);
   // El panel del pie que tapa la vista del hilo (Ajustes, Ramas o Estadísticas).
+  // «Reportar un bug»: la captura que se sacó al tocar el bicho (`null` si no hubo); sin diálogo abierto, `undefined`.
+  const [reporte, setReporte] = useState<{ captura: string | null; origen: HTMLElement | null } | undefined>(MODO.captura === "reporte" ? { captura: null, origen: null } : undefined);
+  const abrirReporte = async (origen: HTMLElement | null) => {
+    const captura = await fuente.capturaVentana();
+    setReporte({ captura, origen });
+  };
   const [panel, setPanel] = useState<CualPanel | null>(() => {
     const p = vueltaInicial()?.panel;
     return p && p in PANELES ? (p as CualPanel) : null;
@@ -2082,6 +2089,11 @@ export function Barra() {
             }}
           />
         ))}
+        {esVentana() ? (
+          <button type="button" aria-label={tr("reporte.boton")} data-tip={tr("reporte.boton")} data-panel="reporte" aria-pressed={reporte !== undefined} onClick={(e) => void abrirReporte(e.currentTarget)}>
+            <Bug size={16} strokeWidth={1.8} />
+          </button>
+        ) : null}
         <BotonPie
           panel="ajustes"
           icono={Settings}
@@ -2435,6 +2447,15 @@ export function Barra() {
             alCerrar={() => {
               limpiando.origen?.focus();
               setLimpiando(null);
+            }}
+          />
+        ) : null}
+        {reporte ? (
+          <Reporte
+            captura={reporte.captura}
+            alCerrar={() => {
+              reporte.origen?.focus();
+              setReporte(undefined);
             }}
           />
         ) : null}
