@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.88
+
+- On Windows, if Trama can't update itself, Settings > Updates says why and writes it to `carcasa.log`.
+
 ## 0.2.87
 
 - «Report a bug», with the bug icon at the bottom of the sidebar: takes a screenshot of the screen as it was and asks what happened. It saves the screenshot and Trama's log (without keys, emails or your home folder) in a folder in Downloads and opens a new GitHub issue with everything filled in; you only drag the two files in.

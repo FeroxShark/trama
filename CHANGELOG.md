@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.88
+
+- En Windows, si Trama no se puede actualizar sola, Ajustes > Actualizaciones dice el motivo y lo anota en `carcasa.log`.
+
 ## 0.2.87
 
 - «Reportar un bug», con el ícono del bicho en el pie de la barra: saca una captura de la pantalla tal como estaba y pide qué pasó. Deja la captura y el log de Trama (sin claves, correos ni la carpeta personal) en una carpeta en Descargas y abre un issue nuevo en GitHub con todo prellenado; sólo falta arrastrar los dos archivos.
