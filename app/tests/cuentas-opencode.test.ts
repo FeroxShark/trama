@@ -426,3 +426,11 @@ describe("plan detectado (lo que lista `opencode models` de cada cuenta)", () =>
     assert.deepEqual(l?.cuentas.map((c) => [c.id, c.planDetectado ?? null]), [["opencode", "gratis"], ["casa", "go"], ["raro", null], ["claude", null]]);
   });
 });
+
+describe("ChatGPT (codex)", () => {
+  testPosix("con codex instalado, la cuenta de siempre de ChatGPT sale en la lista aunque no esté en cuentas.json", () => {
+    const ids = (env: Record<string, string>) => json(["--json"], env).cuentas.map((c: { id: string }) => c.id);
+    assert.ok(ids({ HILOS_CODEX: falso }).includes("chatgpt"));
+    assert.ok(!ids({}).includes("chatgpt"));
+  });
+});

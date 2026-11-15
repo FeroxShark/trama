@@ -381,7 +381,8 @@ function listaCuentas(): Obj[] {
   for (const c of ent) if (!porId.has(c.id)) porId.set(c.id, c);
   const out: Obj[] = [];
   const provs = ["claude", "google"];
-  if (ent.some((c) => c.proveedor === "chatgpt")) provs.push("chatgpt");
+  // ChatGPT entra si hay una cuenta agregada o si `codex` está instalado con login (como opencode): sin esto, con varias cuentas, Codex no se repartía.
+  if (ent.some((c) => c.proveedor === "chatgpt") || codexDisponible()) provs.push("chatgpt");
   if (opencodeBinCuentas() || ent.some((c) => c.proveedor === "opencode")) provs.push("opencode");
   for (const p of provs) {
     const r = porId.get(p);

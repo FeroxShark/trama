@@ -7,7 +7,7 @@
 import { spawn } from "node:child_process";
 import { chmodSync, closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { hallarAgy, hallarClaude, paraLanzar } from "../binario.ts";
+import { hallarAgy, hallarClaude, hallarCodex, paraLanzar } from "../binario.ts";
 import { homeDe, plataformaActual } from "../rutas.ts";
 import { unirEnlace } from "./base/compartir.ts";
 import { borrarSinSeguir, type OpcionesEnlace } from "./base/enlaces.ts";
@@ -134,12 +134,12 @@ class Cuentas {
     }
   }
 
-  /** Todas las cuentas: la de siempre de claude y google (y las de chatgpt/opencode si hay o está instalado), más las agregadas. */
+  /** Todas las cuentas: la de siempre de claude y google (y las de chatgpt/opencode si hay o está instalado: `codex` u `opencode`), más las agregadas. */
   cargar(): Cuenta[] {
     const ent = this.leerArchivo();
     const porId = new Map<string, Ent>();
     for (const c of ent) if (!porId.has(c.id)) porId.set(c.id, c);
-    const provs = ["claude", "google", ...(ent.some((c) => c.proveedor === "chatgpt") ? ["chatgpt"] : []), ...(this.opencodeBin() || ent.some((c) => c.proveedor === "opencode") ? ["opencode"] : [])];
+    const provs = ["claude", "google", ...(ent.some((c) => c.proveedor === "chatgpt") || hallarCodex(this.env, this.homeReal()) ? ["chatgpt"] : []), ...(this.opencodeBin() || ent.some((c) => c.proveedor === "opencode") ? ["opencode"] : [])];
     const out: Cuenta[] = [];
     for (const p of provs) {
       const r = porId.get(p);
