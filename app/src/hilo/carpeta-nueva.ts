@@ -19,6 +19,15 @@ export const llanaRuta = (r: string) => r.trim().replace(/\\/g, "/").replace(/\/
 export const ofrecidos = <P extends ProyectoCarpeta>(proyectos: readonly P[]): P[] => proyectos.filter((p) => p.existe && !esRetirado(p));
 
 /**
+ * Los proyectos que ofrece el selector: los de acá, o (con el chat nuevo lanzándose en otra máquina) los que trajo SU motor.
+ * Sin lista de allá (todavía no llegó, no contestó o es de otra máquina) no hay ninguno: queda escribir la ruta a mano.
+ */
+export function proyectosDeLaMaquina<P extends ProyectoCarpeta>(maquina: string | undefined, locales: readonly P[], traidos: { maquina: string; lista: readonly P[] } | null): readonly P[] {
+  if (!maquina) return locales;
+  return traidos && traidos.maquina === maquina ? traidos.lista : [];
+}
+
+/**
  * Qué opción del selector corresponde a la carpeta de ahora: "Auto" mientras no se haya elegido nada a mano; después, la personal (vacía),
  * un proyecto que se ofrece (su ruta) u otra carpeta.
  */

@@ -184,6 +184,21 @@ const conMain = (m: NonNullable<typeof main>): FuenteProyectos => ({
 
 const base: FuenteProyectos = MODO.fixtures || !main ? fija : conMain(main);
 
+/**
+ * Los proyectos de OTRA máquina (el selector de carpeta del chat nuevo cuando se lo lanza allá): se piden a su motor por el mismo
+ * canal que los de acá, con el selector `maquina`. No toca el almacén de acá (la barra sigue con los suyos). `null` si no contesta
+ * (caída, sin conexión, otro build que no entiende): el selector cae a escribir la ruta a mano.
+ */
+export async function proyectosDe(maquina: string): Promise<ProyectoNombre[] | null> {
+  if (MODO.fixtures || !main) return falsos.map((p) => ({ ...p }));
+  try {
+    const r = await main.proyectosNombres.lista(maquina);
+    return Array.isArray(r) ? (r as ProyectoNombre[]) : null;
+  } catch {
+    return null;
+  }
+}
+
 // --- El almacén ------------------------------------------------------------------------------------------------------
 let lista: readonly ProyectoNombre[] = [];
 let pedido = false;

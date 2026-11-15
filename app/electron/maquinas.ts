@@ -24,10 +24,10 @@ type Sl = { uso: unknown; lideres: { version: number; lideres: Fila[]; analista?
 type Cola = { sid: string } & Record<string, unknown>;
 
 /** Lo que se le pide a la otra máquina aunque tenga otro build: sólo lecturas. Lo demás (M4) pide el mismo build. */
-const LECTURAS: ReadonlySet<string> = new Set(["lider:conversacion", "lider:mirar", "lider:pendientes", "lider:visto", "pa:hilo"]);
+const LECTURAS: ReadonlySet<string> = new Set(["lider:conversacion", "lider:mirar", "lider:pendientes", "lider:visto", "pa:hilo", "proyectos:lista", "proyectos:carpetas"]);
 
 /** Los canales cuya máquina no la dice un id sino el selector (`maquina` en lo que se manda; en `tablero:agregar`, el 3.º argumento). */
-const POR_SELECTOR: ReadonlySet<string> = new Set(["lider:nuevo", "lider:archivo", "tablero:agregar"]);
+const POR_SELECTOR: ReadonlySet<string> = new Set(["lider:nuevo", "lider:archivo", "tablero:agregar", "proyectos:lista", "proyectos:carpetas"]);
 
 /** Qué cambió de lo juntado: quien junta (nucleo.ts) lo vuelve a difundir con lo suyo. */
 export type Cambio = "hilos" | "statusline" | "compactando" | "colas" | "tablero";

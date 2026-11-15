@@ -89,7 +89,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "orq:mdFusionar": "local",
   "orq:agentsLeer": "local",
   "orq:agentsGuardar": "local",
-  "proyectos:lista": "local",
+  "proyectos:lista": "maquina",
   "proyectos:renombrar": "local",
   "proyectos:logo": "local",
   "proyectos:borrarVista": "local",
@@ -196,7 +196,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "nombres:proyecto": "local",
   "nombres:oculto": "local",
   "nombres:orden": "local",
-  "proyectos:carpetas": "local",
+  // Los proyectos de la máquina que se elige en el chat nuevo (selector `maquina` en el 1.er argumento; sin él, los de acá).
+  "proyectos:carpetas": "maquina",
   "proyectos:nombres": "local",
   "proyectos:titulos": "local",
   "proyectos:iconos": "local",

@@ -45,9 +45,9 @@ import { useCorrector } from "../paneles/ajustes-corrector";
 import { useIdioma } from "../i18n/react";
 import { contextoGasto, GastoSubagentesCtx, useGastoSubagentes } from "./gasto-sub";
 import { Selector, type Opcion } from "./Selector";
-import { AUTO, carpetaDeEnvio, ofrecidos, OTRA, opcionDe, PERSONAL, rutaPedida } from "./carpeta-nueva";
+import { AUTO, carpetaDeEnvio, ofrecidos, OTRA, opcionDe, PERSONAL, proyectosDeLaMaquina, rutaPedida } from "./carpeta-nueva";
 import { pedirCarpeta, usePedida } from "./carpeta-nueva-estado";
-import { useProyectos } from "../datos/proyectos";
+import { proyectosDe, useProyectos, type ProyectoNombre } from "../datos/proyectos";
 import { CuentaLider, cuentasDeClaude, nombreCuentaClaude, useCuentasClaude } from "./CuentaLider";
 import { filasDeCupos } from "../datos/cuentas";
 import { OfertaCuenta } from "./OfertaCuenta";
@@ -247,6 +247,18 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     );
   };
   const maquinaDe = l ? l.maquina : maquinaNueva && maquinaNueva !== maquinas.esta.id ? maquinaNueva : undefined;
+  // Con el chat nuevo lanzándose en otra máquina, el selector de carpeta ofrece los proyectos de ESA máquina (los pide a su motor).
+  // Si no contesta, queda sin lista: la carpeta se escribe a mano, como siempre.
+  const [deOtra, setDeOtra] = useState<{ maquina: string; lista: ProyectoNombre[] } | null>(null);
+  useEffect(() => {
+    if (l || !maquinaDe) return setDeOtra(null);
+    let vivo = true;
+    void proyectosDe(maquinaDe).then((lista) => vivo && setDeOtra(lista ? { maquina: maquinaDe, lista } : null));
+    return () => {
+      vivo = false;
+    };
+  }, [l, maquinaDe]);
+  const proyectosDeAhi = proyectosDeLaMaquina(maquinaDe, proyectos, deOtra);
   // "Nueva tarea aquí" en un proyecto de la barra (o una tarea del tablero) pide su carpeta una vez: es lo mismo que elegirla a mano.
   const pedida = usePedida();
   useEffect(() => {
@@ -264,26 +276,27 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const opcionesCarpeta = useMemo<Opcion[]>(
     () => [
       { id: AUTO, nombre: tr("lider.carpetaAutoNombre"), desc: tr("lider.carpetaAutoDesc"), logo: <LogoCab generico icono={16} /> },
-      ...(maquinaDe
-        ? []
-        : ofrecidos(proyectos).map((p) => ({
-            id: p.ruta,
-            nombre: p.titulo ?? p.nombre,
-            desc: p.ruta,
-            // El logo del proyecto, el mismo de la cabecera de su carpeta en la barra (ícono o iniciales sobre su tono).
-            logo: (
-              <span style={estiloProyecto(p.slug)}>
-                <LogoCab proyecto={p.slug} titulo={p.titulo ?? p.nombre} icono={16} />
-              </span>
-            ),
-          }))),
+      ...ofrecidos(proyectosDeAhi).map((p) => ({
+        id: p.ruta,
+        nombre: p.titulo ?? p.nombre,
+        desc: p.ruta,
+        // El logo del proyecto, el mismo de la cabecera de su carpeta en la barra (ícono o iniciales sobre su tono). Los de otra
+        // máquina no tienen logo acá (el ícono es de un archivo de allá): el genérico.
+        logo: maquinaDe ? (
+          <LogoCab generico icono={16} />
+        ) : (
+          <span style={estiloProyecto(p.slug)}>
+            <LogoCab proyecto={p.slug} titulo={p.titulo ?? p.nombre} icono={16} />
+          </span>
+        ),
+      })),
       { id: PERSONAL, nombre: tr("lider.carpetaPersonal"), desc: tr("lider.carpetaPersonalDesc"), logo: <LogoCab personal icono={16} /> },
       // Fija: la búsqueda del selector no la esconde (ver `Selector`, `buscar`).
       { id: OTRA, nombre: tr("lider.carpetaOtra"), desc: tr("lider.carpetaOtraDesc"), fija: true, logo: <LogoCab generico icono={16} /> },
     ],
-    [proyectos, maquinaDe],
+    [proyectosDeAhi, maquinaDe],
   );
-  const opcionCarpeta = opcionDe(carpeta, carpetaAMano, maquinaDe ? [] : proyectos);
+  const opcionCarpeta = opcionDe(carpeta, carpetaAMano, proyectosDeAhi);
   const [otraAbierta, setOtraAbierta] = useState(MODO.captura === "lider-nuevo-carpeta");
   const eligioCarpeta = (id: string) => {
     if (id === AUTO) {

@@ -87,7 +87,17 @@ async function arrancarDell(puerto = 0) {
 
 const MODELO = { modelo: "claude-opus-5-5", effort: "medium" };
 
+/** Un registry con un proyecto cuya carpeta existe (si no, `proyectos:carpetas` no lo cuenta). */
+function registrarProyecto(e: { PROYECTOS_REGISTRY: string }, quien: string, nombre: string) {
+  const carpeta = path.join(tmp, quien, "proyectos", nombre);
+  mkdirSync(carpeta, { recursive: true });
+  writeFileSync(e.PROYECTOS_REGISTRY, JSON.stringify({ projects: [{ name: nombre, path: carpeta, estado: "activo" }] }));
+  return carpeta;
+}
+
 test("desde la PC se crea un líder en el Dell, se le escribe y se le integra un worker; con el Dell caído nada se hace en ningún lado", async () => {
+  const carpetaDell = registrarProyecto(DELL, "dell", "proyecto-dell");
+  const carpetaPc = registrarProyecto(PC, "pc", "proyecto-pc");
   const dell = await arrancarDell();
   writeFileSync(
     path.join(PC.HILOS_STATE, "maquinas.json"),
@@ -140,6 +150,16 @@ test("desde la PC se crea un líder en el Dell, se le escribe y se le integra un
   const ruta = (await pedir("lider:archivo", { nombre: "nota.md", datos: new TextEncoder().encode("# hola"), maquina: "dell" })) as string;
   assert.ok(ruta.startsWith(DELL.HILOS_STATE) && readFileSync(ruta, "utf8") === "# hola");
 
+  // El selector de carpeta del chat nuevo: los proyectos de la máquina elegida (a su motor, por el selector `maquina`); sin él, los de acá.
+  type Proy = { slug: string; ruta: string; existe: boolean };
+  const proyectos = async (...a: unknown[]) => ((await pedir("proyectos:lista", ...a)) as Proy[]).map((x) => [x.slug, x.ruta, x.existe]);
+  assert.deepEqual(await proyectos({ maquina: "dell" }), [["proyecto-dell", carpetaDell, true]]);
+  assert.deepEqual(await proyectos(), [["proyecto-pc", carpetaPc, true]]);
+  assert.deepEqual(await proyectos({ maquina: "pc" }), [["proyecto-pc", carpetaPc, true]]);
+  assert.deepEqual(await pedir("proyectos:carpetas", { maquina: "dell" }), ["proyecto-dell"]);
+  assert.deepEqual(await pedir("proyectos:carpetas"), ["proyecto-pc"]);
+  await assert.rejects(pedir("proyectos:lista", { maquina: "nube" }), /main\.maquinaDesconocida/);
+
   // Sin selector (o con la de acá) todo es de acá, como siempre.
   // Cada líder es un proceso `claude` falso aparte: sin esperar al primero, cuál anota antes su mensaje es una carrera.
   await pedir("lider:nuevo", { texto: "de acá", ...MODELO });
@@ -165,6 +185,9 @@ test("desde la PC se crea un líder en el Dell, se le escribe y se le integra un
   await assert.rejects(pedir("lider:mandar", { sid, texto: "perdido", ...MODELO }), /main\.maquinaSinConexion/);
   await assert.rejects(pedir("pa:rama", "integrar", { id: "dell:20261003-100000-11111", proyecto: "atlas" }), /main\.maquinaSinConexion/);
   await assert.rejects(pedir("tablero:agregar", "algo", null, "dell"), /main\.maquinaSinConexion/);
+  // Sus proyectos tampoco llegan: el selector cae a escribir la ruta a mano; los de acá siguen.
+  await assert.rejects(pedir("proyectos:lista", { maquina: "dell" }), /main\.maquinaSinConexion/);
+  assert.deepEqual(await proyectos(), [["proyecto-pc", carpetaPc, true]]);
   await espera(300);
   assert.equal(dicho(PC).length, antes.pc);
   assert.equal(leer(PC.PA_FALSO_LOG), antes.log);
@@ -200,7 +223,13 @@ test("otro build: lo que se lee pasa, toda acción se rechaza con aviso y no se 
   // Lo que se lee sigue pasando, con el id de allá.
   await m.enrutar("pa:hilo", [{ id: "dell:7", n: 5 }], "v");
   assert.deepEqual(pedidos.at(-1), ["pa:hilo", [{ id: "7", n: 5 }]]);
+  // Sus proyectos (el selector de carpeta) se leen aunque sea otro build: con el selector fuera de los argumentos.
+  await m.enrutar("proyectos:lista", [{ maquina: "dell" }], "v");
+  assert.deepEqual(pedidos.at(-1), ["proyectos:lista", [{}]]);
+  await m.enrutar("proyectos:carpetas", [{ maquina: "dell" }], "v");
+  assert.deepEqual(pedidos.at(-1), ["proyectos:carpetas", [{}]]);
   // Y lo de acá no se toca.
+  assert.equal(m.enrutar("proyectos:lista", [], "v"), null);
   assert.equal(m.enrutar("lider:nuevo", [{ texto: "x" }], "v"), null);
   assert.equal(m.enrutar("pa:rama", ["integrar", { id: "7", proyecto: "atlas" }], "v"), null);
 });

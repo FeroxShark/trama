@@ -50,8 +50,10 @@ y el estado visto por el motor de la laptop (`maquinas:leer`): `otras: [{id: "pc
 
 ## Límites conocidos
 
-- En el chat nuevo, al elegir «PC» desde la laptop la lista de proyectos queda vacía (`proyectos:lista` es local): la carpeta se
-  escribe a mano (`/home/ferox/Proyectos/…`, es la misma ruta en la PC). Ver DECISION de la corrida.
+- En el chat nuevo, al elegir «PC» desde la laptop el selector de carpeta muestra los proyectos de la PC: `proyectos:lista` y
+  `proyectos:carpetas` van a su motor con el selector `maquina` (`electron/maquinas.ts`, `proyectosDe` en `src/datos/proyectos.ts`).
+  Si la PC no contesta, queda la lista vacía y la ruta se escribe a mano. Sus logos no se ven (se muestra el genérico).
+  La PC tiene que correr un build con el mismo contrato (`huella`) para que además se pueda lanzar el chat allá: actualizarla.
 - Ajustes, programados, límites de cuenta y modelos son de cada máquina (`RUTAS` en `maquinas-contrato.ts`, «local»).
 - Hay que iniciar sesión en `claude` en cada máquina (OAuth): nunca `ANTHROPIC_API_KEY`.
 - Un `agy`/`dsh` sin sesión o sin claves en la laptop sólo afecta a workers que corran ahí.
