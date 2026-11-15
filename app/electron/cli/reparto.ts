@@ -88,7 +88,7 @@ export function viejaAAa(q: number): number {
 
 // --- defaults ----------------------------------------------------------------------------------------
 const CALIDAD: Obj = {
-  opus: 100, sonnet: 88, hydrogen: 88, argon: 85, haiku: 60, "gpt-oss": 45,
+  opus: 100, fable: 93, sonnet: 88, hydrogen: 88, argon: 85, haiku: 60, "gpt-oss": 45,
   astra: 85, sol: 88, luna: 60,
   "dsh:opencode/big-pickle": 60, "dsh:opencode/deepseek-v4.1-flash-free": 60, "dsh:opencode/glm-5.3-flash-free": 55,
   "dsh:opencode/longcat-2.5-preview-free": 45, "dsh:opencode/flint-40b-free": 40,
@@ -117,7 +117,7 @@ const EFFORT_POR_TIPO: Obj = {
   debug: "high", diseno: "high", "codigo-multi": "high", frontend: "high", final: "high",
   "codigo-acotado": "medium", lectura: "medium", mecanico: "high",
 };
-const COSTO: Obj = { opus: 1.0, argon: 0.6, sonnet: 0.35, hydrogen: 0.3, "gpt-oss": 0.15, haiku: 0.12, astra: 1.0, sol: 0.6, luna: 0.08 };
+const COSTO: Obj = { opus: 1.0, fable: 2.5, argon: 0.6, sonnet: 0.35, hydrogen: 0.3, "gpt-oss": 0.15, haiku: 0.12, astra: 1.0, sol: 0.6, luna: 0.08 };
 const COSTO_FLOAT = ["opus", "astra"]; // los 1.0 de COSTO (en JS no se distinguen de un 1)
 const RESERVA = null;
 const AVISO_USO = 0.85;
@@ -2883,10 +2883,8 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     conFloat(cand, "urgencia", "puntaje", "ritmo_pts");
     out.push(cand);
   };
-  // Fable está en la tabla (--tabla: el dueño lo prende o apaga) pero no compite: `pa` lo frena sin --ok-dueno (en `-p` cobra créditos sin
-  // preguntar), así que elegirlo solo sería un worker que no arranca. Sale por `-m claude-fable-5-2 --ok-dueno`; REPARTO_OK_DUENO=1 lo deja competir.
+  // Fable es un candidato más (calidad 93, costo 2,5× Opus): entra por calidad y cupo y sólo sale si Ajustes lo excluye (`excluir: ["fable"]`).
   for (const c of FAMILIAS) {
-    if (c[1] === "fable" && !cfg.con_fable && E.REPARTO_OK_DUENO !== "1") continue;
     for (const cs of c[3] === "claude" ? claudes : c[3] === "openai" ? openais : googles) hacer(c, cs);
   }
   // Los modelos que el agy de la cuenta ofrece y FAMILIAS no conoce (p. ej. 'Claude Sonnet 4.6 (Thinking)'): entran con calidad estimada
@@ -3476,9 +3474,8 @@ function effortsEstimadosTabla(c: Obj): Obj {
   return { efforts_estimados: est, calidad_estimada_por_effort: q };
 }
 
-/** `conFable`: sólo `--tabla` (lo que ve Ajustes) trae a Fable; el --resumen del líder y --aa-diag no lo nombran (no se elige solo). */
-function tabla(cfg: Obj, cupos: Obj, now: Date, conFable = false): Obj[] {
-  const [cands] = armarCandidatos("lectura", conFable ? { ...cfg, con_fable: true } : cfg, cupos, now, EFFORT_TABLA);
+function tabla(cfg: Obj, cupos: Obj, now: Date): Obj[] {
+  const [cands] = armarCandidatos("lectura", cfg, cupos, now, EFFORT_TABLA);
   const out: Obj[] = [];
   for (const c of cands) {
     let fam = c.familia;
@@ -3785,7 +3782,7 @@ export async function main(argv: string[]): Promise<number> {
   if (a[0] === "--tabla" && a.length === 1) {
     const d = cupos();
     if (!d) return 1;
-    const filas = tabla(cfg, d, now, true);
+    const filas = tabla(cfg, d, now);
     console.log(jsonOut ? jsonPy({ version: VERSION, leido: get(d, "leido"), modelos: filas }) : textoTabla(filas, now));
     return 0;
   }

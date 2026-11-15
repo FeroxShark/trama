@@ -1,6 +1,6 @@
 // Ningún modelo nuevo queda sin fila de Artificial Analysis (AA) sin que nadie se entere: cada familia de `FAMILIAS` (reparto) y cada
 // modelo principal del catálogo de la cuenta de Claude tiene fila en AA (caché, foto del repo) o en el suplemento. Si no, falla con su nombre.
-// Fable 5.2 entra a la tabla del reparto pero no se elige solo: sin --ok-dueno `pa` lo frena (política) y `reparto --tipo` lo descarta.
+// Fable 5.2 es un candidato más del reparto (calidad y cupo); sólo sale si Ajustes lo excluye (modelos.json `excluir: ["fable"]`).
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -77,19 +77,31 @@ function tabla() {
     });
 }
 
-test("Fable 5.2 está en la tabla con su fila de AA y el reparto no lo elige solo (en ningún tipo)", () => {
+test("Fable 5.2 está en la tabla con su fila de AA y compite como candidato en el reparto (sólo sale si se excluye)", () => {
   const r = tabla();
   const t = JSON.parse(r(["--tabla", "--json"]).stdout) as { modelos: { id: string; origen: string }[] };
   const f = t.modelos.find((m) => m.id === "claude-fable-5-2");
   assert.ok(f, "Fable 5.2 tiene que estar en --tabla");
   assert.equal(f.origen, "artificial-analysis");
-  for (const tipo of ["lectura", "mecanico", "frontend", "diseno", "codigo-multi", "debug"]) {
-    const x = r(["--tipo", tipo, "--json"]);
-    const j = JSON.parse(x.stdout) as { modelo?: string };
-    assert.notEqual(j.modelo, "claude-fable-5-2", `${tipo}: Fable no se elige solo`);
+  for (const tipo of ["lectura", "frontend", "diseno", "codigo-multi", "debug", "final"]) {
+    const j = JSON.parse(r(["--tipo", tipo, "--json", "--explicar"]).stdout) as { candidatos: { modelo: string; descartado_por: string | null }[] };
+    const c = j.candidatos.find((x) => x.modelo === "claude-fable-5-2");
+    assert.ok(c, `${tipo}: Fable es candidato`);
+    assert.doesNotMatch(c.descartado_por ?? "", /ok-dueno|créditos/i, `${tipo}: Fable no se descarta por falta de --ok-dueno`);
   }
-  const ex = r(["--tipo", "frontend", "--json", "--explicar"]).stdout;
-  assert.doesNotMatch(ex, /fable/i, "Fable ni aparece entre los candidatos del reparto");
+});
+
+test("Fable sale del reparto sólo si modelos.json lo excluye", () => {
+  const mod = path.join(tmp, "modelos-sin-fable.json");
+  writeFileSync(mod, JSON.stringify({ version: 1, excluir: ["fable"] }));
+  const x = spawnSync(process.execPath, [REPARTO_TS, "--tipo", "final", "--json", "--explicar"], {
+    encoding: "utf8",
+    env: { ...process.env, REPARTO_CUPOS_FIJOS: path.join(tmp, "cupos.json"), REPARTO_AHORA: "2026-11-11T12:00:00Z", REPARTO_AGY: "0", REPARTO_STATE: path.join(tmp, "estado-sin-fable"), TRAMA_MODELOS: mod },
+  });
+  const j = JSON.parse(x.stdout) as { modelo: string; candidatos: { modelo: string; descartado_por: string | null }[] };
+  const c = j.candidatos.find((y) => y.modelo === "claude-fable-5-2");
+  assert.match(c?.descartado_por ?? "", /excluido/);
+  assert.notEqual(j.modelo, "claude-fable-5-2");
 });
 
 const REPARTO_TS = path.join(RAIZ, "app", "electron", "cli", "reparto.ts");

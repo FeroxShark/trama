@@ -144,7 +144,7 @@ def vieja_a_aa(q):
 # --- defaults (todo se pisa desde ~/.config/trama/modelos.json) --------------------------------------
 # Flash 60 (la guía dice 40): con Haiku en 60 como mínimo de lectura/mecanico, Flash 40 quedaría afuera; SOLO_EN lo limita a esos dos.
 # Valores medidos (2026-10-25): Sonnet iguala o supera a Opus en lo medido.
-CALIDAD = {"opus": 100, "sonnet": 88, "argon": 85, "haiku": 60, "gpt-oss": 45, "flash": 60,
+CALIDAD = {"opus": 100, "fable": 93, "sonnet": 88, "argon": 85, "haiku": 60, "gpt-oss": 45, "flash": 60,
            # ChatGPT/Codex (2026-10-25): sin medición propia. Astra empata a Argon en AA (52,7 contra 52,6); Sol es
            # "el de código" según OpenAI: lo mismo que Sonnet hasta tener corridas; Luna, volumen (Haiku).
            "astra": 85, "sol": 88, "luna": 60,
@@ -187,7 +187,7 @@ EFFORT_POR_TIPO = {
     "codigo-acotado": "medium", "lectura": "medium", "mecanico": "high",
 }
 # Costo relativo de gastar un token (dentro de un grupo de agy el cupo se gasta por costo de tokens).
-COSTO = {"opus": 1.0, "argon": 0.6, "sonnet": 0.35, "gpt-oss": 0.15, "haiku": 0.12, "flash": 0.2,
+COSTO = {"opus": 1.0, "fable": 2.5, "argon": 0.6, "sonnet": 0.35, "gpt-oss": 0.15, "haiku": 0.12, "flash": 0.2,
          # precios de API de OpenAI: Astra $10/$50 (como Opus), Sol $2/$10 (como Argon), Luna $0,10/$0,50
          "astra": 1.0, "sol": 0.6, "luna": 0.08}
 RESERVA = None            # fracción del Claude oficial que no se toca: sin reserva de fábrica (2026-10-24)
@@ -297,6 +297,7 @@ COSTO_DSH_PAGO = 1.5      # DeepSeek se paga con la key del dueño: pierde contr
 # Familias y de qué cupo cuelgan. `agy` = nombre base que acepta `agy --model` (se le suma -<effort>).
 FAMILIAS = [
     # id base de reparto,         familia,   nombre,                suscripción, grupo,          agy base,            efforts
+    ("claude-fable-5-2",          "fable",   "Claude Fable 5.2",    "claude",    None,           None,                None),
     ("claude-opus-5-5",           "opus",    "Claude Opus 5.5",     "claude",    None,           None,                None),
     ("claude-sonnet-5-5",         "sonnet",  "Claude Sonnet 5.5",   "claude",    None,           None,                None),
     ("claude-haiku-5-5",          "haiku",   "Claude Haiku 5.5",    "claude",    None,           None,                None),

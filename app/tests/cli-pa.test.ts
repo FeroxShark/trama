@@ -395,6 +395,25 @@ test("política: agy que no va cae a su equivalente Claude; --seguir retoma el m
   assert.equal(s.l?.cuentaSeguir, "claude");
 });
 
+test("política: Fable no tiene veto (sólo effort max pide --ok-dueno) y --seguir lo retoma", async () => {
+  const d = sandbox({ PA_REPARTO: "0" });
+  const r = await pa(["demo", "-m", "claude-fable-5-2", "x"], d.env);
+  assert.equal(r.rc, 0, r.e);
+  assert.equal(r.l?.modelo, "claude-fable-5-2");
+  const m = await pa(["demo", "-m", "claude-fable-5-2", "--effort", "max", "x"], d.env);
+  assert.equal(m.rc, 2);
+  assert.match(m.e, /effort 'max' con 'claude-fable-5-2' no va sin --ok-dueno/);
+  assert.doesNotMatch(m.e, /créditos/);
+  assert.equal((await pa(["demo", "-m", "claude-fable-5-2", "--effort", "max", "--ok-dueno", "x"], d.env)).rc, 0);
+  const e = sandbox();
+  mkdirSync(path.join(e.estado, "demo"), { recursive: true });
+  writeFileSync(path.join(e.estado, "demo.session.ts"), "20260101-000000-1\n");
+  writeFileSync(path.join(e.estado, "demo", "20260101-000000-1.hilo"), "modelo=claude-fable-5-2\neffort=high\ncuenta=claude\n");
+  const s = await pa(["demo", "--seguir", "seguí"], e.env);
+  assert.equal(s.rc, 0, s.e);
+  assert.equal(s.l?.modelo, "claude-fable-5-2");
+});
+
 test("lo que no está portado sale 70 sin hacer nada", async () => {
   const d = sandbox();
   const r = await pa(["--estado"], d.env);

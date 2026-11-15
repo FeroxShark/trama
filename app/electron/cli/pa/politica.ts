@@ -443,7 +443,7 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
       if (hilo && esArchivo(hilo)) {
         const m = leerCampo(hilo, "modelo");
         const e = leerCampo(hilo, "effort");
-        if (m.startsWith("claude-") && (!m.includes("fable") || l.okDueno)) {
+        if (m.startsWith("claude-")) {
           l.modelo = m;
           if (!l.esfuerzo && e && e !== "-" && e !== "settings") ponerEffort(e);
         }
@@ -700,7 +700,7 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
   }
   if (l.motor !== "claude") l.efVacio = "-";
 
-  // --- lo que el dueño no deja sin --ok-dueno: excluidos (98), fable y max (2) ---
+  // --- lo que el dueño no deja sin --ok-dueno: excluidos (98) y effort max (2); Fable ya no tiene veto ---
   const ojoEnv = env.PA_EFFORT ? " (ojo: puede venir de PA_EFFORT)" : "";
   const ef = l.esfuerzo.toLowerCase();
   if (l.lanza) politica();
@@ -710,13 +710,7 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     const excl = l.modeloDeM && !env.PA_ASYNC ? modelos.excluidoPor(l.modelo) : null;
     if (excl !== null)
       corta(pa, 98, `pa: modelo '${l.modelo}' está excluido en modelos.json (excluir: ${excl}). ${conOk}; si no, elegí otro con -m o sacalo de excluir.`);
-    if (m.includes("fable"))
-      corta(
-        pa,
-        2,
-        `pa: modelo '${l.modelo}' no va sin --ok-dueno: Fable en \`-p\` cobra créditos sin preguntar y usa hasta la mitad del límite semanal. ${conOk}; si no, para frontend/diseño o algo difícil: -m claude-opus-5-5 --effort xhigh.`,
-      );
-    else if (ef === "max" && !m.includes("haiku") && !l.politica.permitirMax) {
+    if (ef === "max" && !m.includes("haiku") && !l.politica.permitirMax) {
       if (m.includes("opus"))
         corta(pa, 2, `pa: effort 'max' con opus no va sin --ok-dueno: rinde 1,5 puntos más por 65 % más de costo. ${conOk}; si no, usá low, medium, high o xhigh${ojoEnv}.`);
       corta(pa, 2, `pa: effort 'max' con '${l.modelo}' no va sin --ok-dueno (sin flag, max sólo con claude-haiku-5-5). ${conOk}; si no, usá low, medium, high o xhigh${ojoEnv}.`);

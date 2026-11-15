@@ -102,8 +102,8 @@ export const casosPaCli: Caso[] = [
   cli("--rubrica mal armada", ["demo", "--rubrica", "A=chico", "x"], 2),
 
   // --- política: fable, max, excluir, efforts_permitidos ---
-  cli("fable sin --ok-dueno", ["demo", "-m", "claude-fable-5-1", "x"], 2),
-  cli("fable 5.2 sin --ok-dueno", ["demo", "-m", "claude-fable-5-2", "x"], 2),
+  cli("fable con effort max sin --ok-dueno", ["demo", "-m", "claude-fable-5-1", "--effort", "max", "x"], 2),
+  cli("fable 5.2 con effort max sin --ok-dueno", ["demo", "-m", "claude-fable-5-2", "--effort", "max", "x"], 2),
   cli("fable con --ok-dueno pasa", ["demo", "--sin-jefe", "-m", "claude-fable-5-1", "--ok-dueno"], 2),
   cli("fable con el alias --ok-<usuario>", ["demo", "--sin-jefe", "-m", "claude-fable-5-1", "--ok-gonza"], 2, { env: { USER: "gonza" } }),
   cli("effort max con opus", ["demo", "-m", "claude-opus-5-5", "--effort", "max", "x"], 2),

@@ -95,9 +95,9 @@
 #   pa <proyecto> --effort medium "<t>"  esfuerzo del worker (o env PA_EFFORT). haiku low..max (default xhigh);
 #                                        sonnet low|medium|high|xhigh (default high, también --leer; es el modelo default);
 #                                        opus (sólo con -m) low|medium|high|xhigh (default: plan pro → medium,
-#                                        plan max → el de settings). Sale 2: max fuera de haiku y
-#                                        cualquier fable, salvo con --ok-dueno
-#   pa <proyecto> --ok-dueno ...         el dueño aprobó ESTA corrida: deja pasar opus max, sonnet max y fable.
+#                                        plan max → el de settings). Sale 2: max fuera de haiku,
+#                                        salvo con --ok-dueno
+#   pa <proyecto> --ok-dueno ...         el dueño aprobó ESTA corrida: deja pasar effort max (opus, sonnet, fable).
 #                                        Sin variable de entorno; un --seguir no lo hereda (va de nuevo)
 #   pa <proyecto> --exacto -m claude-* ... el -m claude-opus/sonnet corre tal cual en Claude. Sin esto, si el mismo modelo por agy
 #                                        tiene más cupo libre (reparto --sustituir), pa lo pasa a agy y lo avisa. Se anota en sustituciones.jsonl
@@ -5506,7 +5506,7 @@ fase="${PA_FASE:-}"; tarea_id="${PA_TAREA:-}"; rubrica=""; RUB_NORM="" RUB_FILA=
 subtarea="${PA_SUBTAREA:-}"
 # --titulo (2026-11-02): cómo se llama el worker en la barra de Trama (una línea); sin él, sale del objetivo del brief. `titulo=` del .hilo.
 titulo_w=""
-# --ok-dueno: el dueño aprobó esta corrida (opus max, sonnet max, fable). Sólo por flag, a propósito:
+# --ok-dueno: el dueño aprobó esta corrida (effort max de opus, sonnet, fable). Sólo por flag, a propósito:
 # una variable de entorno se hereda de una llamada a la otra y la aprobación es por corrida.
 ok_dueno=0 modelo_de_m=0
 # --exacto: el -m claude-* corre tal cual, sin pasarlo a agy aunque allá haya más cupo libre.
@@ -5692,8 +5692,7 @@ if [[ -n "$decisiones" && -z "$auditar" ]]; then echo "pa: --decisiones sólo va
 # Tabla: haiku → low|medium|high|xhigh|max (default xhigh); sonnet (y el default de --leer) →
 # low|medium|high|xhigh (default high); opus → low|medium|high|xhigh.
 # Salen 2, salvo con --ok-dueno (el dueño aprobó ESA corrida): max fuera de haiku (opus max rinde
-# 1,5 puntos más por 65 % más de costo) y cualquier fable (en `-p` cobra créditos sin preguntar y
-# usa hasta la mitad del límite semanal). --ok-dueno no tiene variable de entorno y --seguir no lo
+# 1,5 puntos más por 65 % más de costo); Fable ya no tiene veto (2026-11-15). --ok-dueno no tiene variable de entorno y --seguir no lo
 # hereda: va en cada llamada. El padre de --async se lo pasa al hijo.
 # El candado va acá, antes de resolver el proyecto y de lanzar nada: es determinista, no una
 # sugerencia en el SKILL que el jefe puede olvidarse.
@@ -5815,7 +5814,7 @@ if [[ -z "$modelo" ]] && (( lanza )) && [[ "$(modelos_reparto)" == auto ]]; then
         if [[ -n "$ts_seg" && -f "$STATE/$slug_s/$ts_seg.hilo" ]]; then
           m_seg="$(leer_campo "$STATE/$slug_s/$ts_seg.hilo" modelo)"
           e_seg="$(leer_campo "$STATE/$slug_s/$ts_seg.hilo" effort)"
-          if [[ "$m_seg" == claude-* && ( "$m_seg" != *fable* || $ok_dueno -eq 1 ) ]]; then
+          if [[ "$m_seg" == claude-* ]]; then
             modelo="$m_seg"
             [[ -z "$esfuerzo" && -n "$e_seg" && "$e_seg" != "-" && "$e_seg" != "settings" ]] \
               && { esfuerzo="$e_seg"; export PA_EFFORT="$e_seg"; }
@@ -6104,10 +6103,7 @@ if (( lanza && ! ok_dueno )); then
     echo "pa: modelo '$modelo' está excluido en modelos.json (excluir: $excl). $con_ok; si no, elegí otro con -m o sacalo de excluir." >&2
     exit 98
   fi
-  if [[ "$m" == *fable* ]]; then
-    echo "pa: modelo '$modelo' no va sin --ok-dueno: Fable en \`-p\` cobra créditos sin preguntar y usa hasta la mitad del límite semanal. $con_ok; si no, para frontend/diseño o algo difícil: -m claude-opus-5-5 --effort xhigh." >&2
-    exit 2
-  elif [[ "$ef" == max && "$m" != *haiku* ]] && ! (( PERMITIR_MAX )); then
+  if [[ "$ef" == max && "$m" != *haiku* ]] && ! (( PERMITIR_MAX )); then
     if [[ "$m" == *opus* ]]; then
       echo "pa: effort 'max' con opus no va sin --ok-dueno: rinde 1,5 puntos más por 65 % más de costo. $con_ok; si no, usá low, medium, high o xhigh$ojo_env." >&2
     else
