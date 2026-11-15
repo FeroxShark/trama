@@ -291,11 +291,13 @@ function armarComando(cmd: string, args: string[]): { ejecutable: string; argv: 
 const SALIDAS = new Map<string, SpawnSyncReturns<string>>();
 const SALIDAS_GET = new Map<string, string | null>();
 let topesCortos = false;
+let topeElegir: number | null = null; // al elegir modelo (`--tipo`, que `pa` corta a los 15 s): agy no tiene más de unos segundos
 const claveSalida = (cmd: string, args: string[], env?: NodeJS.ProcessEnv) => [cmd, ...args, env?.HOME ?? ""].join("\0");
 
 /** El tope de una lectura: el del entorno si lo fijaron; si no, el corto en --tabla/--resumen/--cupos y el de siempre en lo demás. */
 function tope(env: string | undefined, normal: number, corto: number): number {
   if (env !== undefined && env !== "") return pyFloat(env);
+  if (topeElegir !== null) return Math.min(corto, topeElegir);
   return topesCortos ? corto : normal;
 }
 const topeQuota = () => tope(E.REPARTO_AGY_S, 40, 8);
@@ -2229,8 +2231,9 @@ function cuentasGoogleALeer(): (Obj | null)[] {
 
 /** Lanza juntas, con topes cortos, las lecturas lentas que van a hacer `leerCupos` y la tabla (sólo las que no tienen caché
  *  fresca) y deja las salidas en SALIDAS/SALIDAS_GET; desde acá, las funciones de siempre las toman en vez de lanzarlas de nuevo. */
-async function leerEnParalelo(now: Date): Promise<void> {
+async function leerEnParalelo(now: Date, elegir = false): Promise<void> {
   topesCortos = true;
+  if (elegir) topeElegir = pyFloat(E.REPARTO_ELEGIR_S ?? 5);
   if (E.REPARTO_CUPOS_FIJOS) return;
   const state = stateDir();
   const tareas: Promise<void>[] = [];
@@ -3774,6 +3777,9 @@ export async function main(argv: string[]): Promise<number> {
   if (a[0] === "--plan") return cmdPlan(a.slice(1), jsonOut, cfg, now);
   // Los listados que se piden desde afuera con un tope (ia-elegir-y-correr, el panel del celu): lecturas juntas y con tope corto.
   if (a[0] === "--cupos" || ((a[0] === "--tabla" || a[0] === "--resumen") && a.length === 1)) await leerEnParalelo(now);
+  // Elegir modelo: `pa` corta a los 15 s. Con agy sin sesión de Google cada lectura colgaba 40 + 20 s, `pa` mataba a reparto antes de que dejara la
+  // pausa de agy (agyFallo) y se repetía en cada corrida. Ahora: lecturas juntas y de a REPARTO_ELEGIR_S (5) s; si agy no contesta vale la última caché.
+  if (a[0] === "--tipo") await leerEnParalelo(now, true);
   if (a[0] === "--cupos") {
     const d = leerCupos(cfg, now);
     console.log(jsonOut ? jsonPy(d, { indent: process.stdout.isTTY ? 2 : null }) : textoCupos(d, now));
