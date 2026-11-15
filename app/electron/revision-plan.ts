@@ -121,7 +121,7 @@ export async function revisarPlan(x: { modelo: string; effort: string; plan: str
   if (!salida) throw errorT("main.revisionVacia", { v: d.nombre(x.modelo) });
   const nombre = d.nombre(x.modelo);
   const r = parsearRevision(salida);
-  d.negar(`Ferox pidió revisar tu plan con ${sinComillas(nombre)}. La revisión llega en el próximo mensaje: no ejecutes nada hasta integrarla y presentar el plan remasterizado con ExitPlanMode.`);
+  d.negar(`La persona pidió revisar tu plan con ${sinComillas(nombre)}. La revisión llega en el próximo mensaje: no ejecutes nada hasta integrarla y presentar el plan remasterizado con ExitPlanMode.`);
   await d.mandar(mensajeParaLider(x.modelo, nombre, r));
   return { ...r, modelo: x.modelo, nombre };
 }

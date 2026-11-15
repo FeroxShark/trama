@@ -88,7 +88,7 @@ export function mensajeParaLider(modelo: string, nombre: string, r: Revision): s
     `[[revision-de-plan modelo="${sinComillas(modelo)}" nombre="${sinComillas(nombre)}"]]`,
     ...cuerpo,
     "## Para vos (líder)",
-    `Ferox pidió una segunda opinión sobre tu plan a ${sinComillas(nombre)}. Integrá lo que valga, descartá lo que no (decí por qué en una línea) y presentá el plan remasterizado con ExitPlanMode antes de ejecutar nada.`,
+    `La persona pidió una segunda opinión sobre tu plan a ${sinComillas(nombre)}. Integrá lo que valga, descartá lo que no (decí por qué en una línea) y presentá el plan remasterizado con ExitPlanMode antes de ejecutar nada.`,
   ]
     .join("\n")
     .trim();
