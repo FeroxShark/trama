@@ -479,10 +479,13 @@ test("canales: el slug sale del registry (nada de rutas), escribir es sólo de l
   for (const c of ["orq:mdAplicar", "orq:mdFusionar", "orq:agentsGuardar", "proyectos:renombrar"]) assert.ok(nucleo.SOLO_PC_TAILNET.has(c), c);
   for (const c of ["orq:mdEstado", "orq:mdPlan", "orq:agentsLeer", "proyectos:lista"]) assert.ok(!nucleo.SOLO_PC_TAILNET.has(c), c);
   const contrato = readFileSync(path.join(import.meta.dirname, "..", "electron", "maquinas-contrato.ts"), "utf8");
-  for (const c of ["orq:mdEstado", "orq:mdPlan", "orq:mdAplicar", "orq:mdFusionar", "orq:agentsLeer", "orq:agentsGuardar", "proyectos:lista", "proyectos:renombrar"]) {
+  for (const c of ["orq:mdEstado", "orq:mdPlan", "orq:mdAplicar", "orq:mdFusionar", "orq:agentsLeer", "orq:agentsGuardar", "proyectos:renombrar"]) {
     assert.match(contrato, new RegExp(`"${c}": "local"`), c);
     assert.ok(new Map(nucleo.manejadoresAnotados()).has(c), c);
   }
+  // La lista de proyectos se pide a la máquina que elige el chat nuevo (selector `maquina`); sin él, la de acá.
+  assert.match(contrato, /"proyectos:lista": "maquina"/);
+  assert.ok(new Map(nucleo.manejadoresAnotados()).has("proyectos:lista"));
   const s = "solo-claude"; // registrado en el registry de la app (dirApp)
   const huella = ((await nucleo.llamarRemoto("orq:mdPlan", [s], "cel")) as { huella: string }).huella;
   await assert.rejects(nucleo.llamarRemoto("orq:mdAplicar", [s, huella], "cel"), /main\.soloPc/);
