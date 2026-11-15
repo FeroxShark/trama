@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.87
+
+- «Report a bug», with the bug icon at the bottom of the sidebar: takes a screenshot of the screen as it was and asks what happened. It saves the screenshot and Trama's log (without keys, emails or your home folder) in a folder in Downloads and opens a new GitHub issue with everything filled in; you only drag the two files in.
+
 ## 0.2.86
 
 - Plans and limits: «Use a limit reset», on the Claude card, opens Claude Code with `/limit-reset` in a terminal, where you see the resets claude.ai gave you (Full, Fable), pick one and confirm it. Next to it, a link to the claude.ai usage page. When the terminal closes, the limits are read again.

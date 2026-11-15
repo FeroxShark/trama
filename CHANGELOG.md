@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.87
+
+- «Reportar un bug», con el ícono del bicho en el pie de la barra: saca una captura de la pantalla tal como estaba y pide qué pasó. Deja la captura y el log de Trama (sin claves, correos ni la carpeta personal) en una carpeta en Descargas y abre un issue nuevo en GitHub con todo prellenado; sólo falta arrastrar los dos archivos.
+
 ## 0.2.86
 
 - Plan y cupos: «Usar un reset de límite», en la tarjeta de Claude, abre Claude Code con `/limit-reset` en una terminal, donde se ven los resets que regaló claude.ai (Full, Fable), se elige uno y se confirma. Al lado, el enlace a la página de uso de claude.ai. Al cerrar la terminal, el cupo se vuelve a leer.
