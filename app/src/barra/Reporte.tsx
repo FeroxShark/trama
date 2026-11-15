@@ -13,7 +13,7 @@ import { useIdioma } from "../i18n/react";
 import { Boton } from "../ui/componentes";
 import "../hilo/seguir-dialogo.css";
 import "./limpiar-chats.css";
-import "./reporte.css";
+import "./reporte-dialogo.css";
 
 type Props = {
   /** La captura sacada al tocar el bicho (PNG en base64), o `null` si no hubo. */
