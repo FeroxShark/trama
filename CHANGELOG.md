@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.91
+
+- Chat: los líderes saben cómo mostrar una imagen en el lugar del mensaje donde la nombran, en vez de dejarla al final. Vale para los chats que se abren o se reanudan después de actualizar.
+
 ## 0.2.90
 
 - Plan y cupos: el plan (Pro o Max) de una cuenta agregada de Claude se puede elegir de nuevo. Se guardaba, pero la pantalla seguía diciendo que usaba el de la cuenta principal.

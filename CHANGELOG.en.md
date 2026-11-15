@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.91
+
+- Chat: leaders know how to show an image right where they mention it in the message, instead of leaving it at the end. Applies to chats opened or resumed after updating.
+
 ## 0.2.90
 
 - Plan and quotas: you can pick the plan (Pro or Max) of an added Claude account again. It was saved, but the screen kept saying it used the main account's plan.
