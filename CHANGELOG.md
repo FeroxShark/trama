@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.94
+
+- Preguntas de un líder: la pregunta se ve con formato y las rutas que nombra se abren tocándolas (por ejemplo, la maqueta que te pide mirar).
+
 ## 0.2.93
 
 - Chat: las carpetas y los archivos que nombra un mensaje se abren tocándolos donde están escritos, con o sin comillas invertidas; ya no se repiten en tarjetas al final del mensaje. Al pie quedan sólo las imágenes, grandes.

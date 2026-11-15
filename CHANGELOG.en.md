@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.94
+
+- Lead questions: the question shows with formatting and the paths it mentions open with a click (for example, the mockup it asks you to look at).
+
 ## 0.2.93
 
 - Chat: folders and files a message mentions open by clicking them right where they're written, with or without backticks; they no longer repeat as cards at the end of the message. Only images stay at the bottom, large.
