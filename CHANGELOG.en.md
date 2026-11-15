@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.92
+
+- Narrow window: shrinking the window no longer opens the context panel on its own; what was open stays in view. And the window can't be made narrower than a phone, where the panel ended up one word per line.
+
 ## 0.2.91
 
 - Chat: leaders know how to show an image right where they mention it in the message, instead of leaving it at the end. Applies to chats opened or resumed after updating.

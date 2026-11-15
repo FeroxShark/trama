@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.92
+
+- Ventana angosta: al achicar la ventana ya no se abre solo el panel de contexto; se ve lo que estaba abierto. Y la ventana no se puede achicar a menos del ancho de un celular, donde el panel quedaba de una palabra por renglón.
+
 ## 0.2.91
 
 - Chat: los líderes saben cómo mostrar una imagen en el lugar del mensaje donde la nombran, en vez de dejarla al final. Vale para los chats que se abren o se reanudan después de actualizar.
