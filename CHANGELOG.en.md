@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.93
+
+- Chat: folders and files a message mentions open by clicking them right where they're written, with or without backticks; they no longer repeat as cards at the end of the message. Only images stay at the bottom, large.
+
 ## 0.2.92
 
 - Narrow window: shrinking the window no longer opens the context panel on its own; what was open stays in view. And the window can't be made narrower than a phone, where the panel ended up one word per line.

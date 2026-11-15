@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.93
+
+- Chat: las carpetas y los archivos que nombra un mensaje se abren tocándolos donde están escritos, con o sin comillas invertidas; ya no se repiten en tarjetas al final del mensaje. Al pie quedan sólo las imágenes, grandes.
+
 ## 0.2.92
 
 - Ventana angosta: al achicar la ventana ya no se abre solo el panel de contexto; se ve lo que estaba abierto. Y la ventana no se puede achicar a menos del ancho de un celular, donde el panel quedaba de una palabra por renglón.
