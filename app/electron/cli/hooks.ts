@@ -119,16 +119,6 @@ export function registrarEnAjustes(ajustes: Json, o: OpcionesRegistro): boolean 
     }
   }
 
-  // Cierre por cupo: PostToolUse y UserPromptSubmit, una vez cada uno (se agrega, nunca se pisa lo del usuario).
-  const cierre = comandoCierreCupo(o.carpeta, o);
-  for (const evento of EVENTOS_CIERRE_CUPO) {
-    const h2 = ajustes.hooks as Json;
-    if (h2[evento] !== undefined && h2[evento] !== null && !Array.isArray(h2[evento])) throw new Error(`hooks.${evento} no es una lista`);
-    if (comandosDe(h2[evento]).some((h) => typeof h.command === "string" && marca("cierre-cupo").test(h.command))) continue;
-    h2[evento] = [...((h2[evento] as unknown[] | null | undefined) ?? []), { hooks: [{ type: "command", command: cierre, timeout: 10 }] }];
-    cambio = true;
-  }
-
   // statusLine: el espejo envuelve al que haya.
   const sl = ajustes.statusLine;
   if (sl !== undefined && sl !== null && !esObjeto(sl)) throw new Error("statusLine no es un objeto");
@@ -145,6 +135,24 @@ export function registrarEnAjustes(ajustes: Json, o: OpcionesRegistro): boolean 
     cambio = true;
   } else if (sl === undefined || sl === null) {
     ajustes.statusLine = { type: "command", command: espejo };
+    cambio = true;
+  }
+  return cambio;
+}
+
+/**
+ * Cierre por cupo: PostToolUse y UserPromptSubmit, una vez cada uno (se agrega, nunca se pisa lo del usuario). Aparte de `registrarEnAjustes`
+ * (que replica `registrar_hooks` de instalar-producto.sh) como `registrar_cierre`, su par en el .sh. Devuelve true si cambió algo.
+ */
+export function registrarCierreEnAjustes(ajustes: Json, o: OpcionesRegistro): boolean {
+  let cambio = false;
+  if (ajustes.hooks !== undefined && ajustes.hooks !== null && !esObjeto(ajustes.hooks)) throw new Error("hooks no es un objeto");
+  const cierre = comandoCierreCupo(o.carpeta, o);
+  for (const evento of EVENTOS_CIERRE_CUPO) {
+    const h2 = (ajustes.hooks && esObjeto(ajustes.hooks) ? ajustes.hooks : (ajustes.hooks = {})) as Json;
+    if (h2[evento] !== undefined && h2[evento] !== null && !Array.isArray(h2[evento])) throw new Error(`hooks.${evento} no es una lista`);
+    if (comandosDe(h2[evento]).some((h) => typeof h.command === "string" && marca("cierre-cupo").test(h.command))) continue;
+    h2[evento] = [...((h2[evento] as unknown[] | null | undefined) ?? []), { hooks: [{ type: "command", command: cierre, timeout: 10 }] }];
     cambio = true;
   }
   return cambio;
@@ -181,7 +189,9 @@ export function registrarEnArchivo(settings: string, o: OpcionesRegistro, ahora:
   const antes = JSON.stringify(ajustes);
   const vacio = antes === "{}";
   try {
-    if (!registrarEnAjustes(ajustes, o) || JSON.stringify(ajustes) === antes) return { estado: "ya", destino: real };
+    const a = registrarEnAjustes(ajustes, o);
+    const b = registrarCierreEnAjustes(ajustes, o);
+    if (!(a || b) || JSON.stringify(ajustes) === antes) return { estado: "ya", destino: real };
   } catch (e) {
     return { estado: "invalido", motivo: `${settings}: ${(e as Error).message}` };
   }

@@ -122,3 +122,14 @@ test("pa y reparto: lectura de la señal, suscripción de un modelo y mensaje", 
   assert.equal(suscripcionDeProveedor("openai"), "chatgpt");
   assert.match(textoSinCupo(ent(), AHORA), /^sin cupo: vuelve a las \d\d:\d\d$/);
 });
+
+test("el registro en el settings del usuario agrega el hook una vez por evento y no pisa nada", async () => {
+  const { registrarCierreEnAjustes } = await import("../electron/cli/hooks.ts");
+  const aj: Record<string, unknown> = { hooks: { PostToolUse: [{ hooks: [{ type: "command", command: "x" }] }] } };
+  const o = { carpeta: "/h", variante: "sh" as const, plataforma: "linux" as const };
+  assert.equal(registrarCierreEnAjustes(aj, o), true);
+  assert.equal(registrarCierreEnAjustes(aj, o), false);
+  const h = aj.hooks as Record<string, unknown[]>;
+  assert.equal(h.PostToolUse!.length, 2);
+  assert.equal(h.UserPromptSubmit!.length, 1);
+});
