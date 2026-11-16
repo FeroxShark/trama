@@ -4,6 +4,8 @@
 export const VERSION = 1;
 
 export type { AvisoWorker } from "../../electron/avisos-worker.ts";
+import type { RevisionEstado } from "../../electron/revision-plan-texto.ts";
+export type { RevisionEstado };
 export type { ArchivoTocado, Cambio, CambioPasos, Cortado, Detalle, Encabezado, EstadoPaso, Paso, TipoPaso, VistaPasos } from "./pasos";
 
 export type Estado =
@@ -354,6 +356,8 @@ export type EventoLider =
   | { tipo: "entregado"; texto: string }
   /** Quedó lista la foto de «después» de un turno (puntos de control): se releen. */
   | { tipo: "puntos" }
+  /** La revisión de un plan hecha por otro modelo cambió de estado (progreso, entrega, fallo): `src/hilo/revision-vivo.ts`. */
+  | { tipo: "revision"; estado: RevisionEstado }
   /** El modo de permisos de la sesión (B13). */
   | { tipo: "modo"; modo: string }
   /**
