@@ -6,6 +6,7 @@ import { createServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { aplicarWayland, resolverWayland } from "../electron/wayland.ts";
+import { soloPosix } from "./plataforma.ts";
 
 // Sockets falsos: un «socket» es lo que dice esSocket; el listado es lo que hay en el directorio.
 const sesion = (sockets: string[], extra: NodeJS.ProcessEnv = {}) => {
@@ -53,7 +54,7 @@ test("sin XDG_RUNTIME_DIR: cae en /run/user/<uid>", () => {
   assert.deepEqual(r, { waylandDisplay: "wayland-0", forzarWayland: true });
 });
 
-test("aplicarWayland exporta WAYLAND_DISPLAY sobre un socket real", async () => {
+test("aplicarWayland exporta WAYLAND_DISPLAY sobre un socket real", { skip: soloPosix("el socket de Wayland es un socket Unix en un archivo; en Windows no existe") }, async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "tw-"));
   const srv = createServer();
   await new Promise<void>((ok) => srv.listen(path.join(dir, "wayland-7"), ok));

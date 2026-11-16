@@ -2,6 +2,7 @@
 // revisores permitidos y la orquestación de punta a punta con un revisor simulado (sin gastar cupo).
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
 import { crearCola, type Encolado } from "../electron/cola.ts";
 import { crearTrabajos, type Pendiente } from "../electron/revision-trabajo.ts";
 import { LectorAgy, LectorClaude } from "../electron/revision-flujo.ts";
@@ -92,13 +93,15 @@ test("rutasDelPlan: saca las rutas de archivo del texto, sin versiones ni domini
 });
 
 test("archivosDelPlan: sólo lo que está dentro del proyecto, con topes y sin secretos", async () => {
-  const dir = "/p/trama";
+  // Rutas de la plataforma: en Windows la raíz lleva unidad y las claves tienen que coincidir con las que arma path.resolve.
+  const dir = path.resolve(path.sep, "p", "trama");
+  const en = (r: string) => path.join(dir, r);
   const grande = "x".repeat(ADJUNTO_BYTES + 500);
   const archivos: Record<string, string> = {
-    [`${dir}/app/lider.ts`]: "export const a = 1;",
-    [`${dir}/grande.md`]: grande,
-    [`${dir}/.env`]: "CLAVE=secreta",
-    [`/etc/passwd`]: "root",
+    [en("app/lider.ts")]: "export const a = 1;",
+    [en("grande.md")]: grande,
+    [en(".env")]: "CLAVE=secreta",
+    [path.resolve(path.sep, "etc", "passwd")]: "root",
   };
   const d = { leer: async (r: string) => archivos[r], esArchivo: async (r: string) => r in archivos };
   const r = await archivosDelPlan("app/lider.ts grande.md .env ../../etc/passwd /etc/passwd falta.ts", dir, d);
@@ -106,7 +109,7 @@ test("archivosDelPlan: sólo lo que está dentro del proyecto, con topes y sin s
   assert.equal(r[1].texto.length, ADJUNTO_BYTES);
   assert.deepEqual(await archivosDelPlan("app/lider.ts", undefined, d), []);
   const muchos = Array.from({ length: 12 }, (_, i) => `f${i}.ts`);
-  const m = Object.fromEntries(muchos.map((f) => [`${dir}/${f}`, "y".repeat(9000)]));
+  const m = Object.fromEntries(muchos.map((f) => [en(f), "y".repeat(9000)]));
   const rr = await archivosDelPlan(muchos.join(" "), dir, { leer: async (r) => m[r], esArchivo: async (r) => r in m });
   assert.ok(rr.length <= ADJUNTOS_MAX && rr.reduce((n, a) => n + a.texto.length, 0) <= ADJUNTOS_TOTAL);
 });

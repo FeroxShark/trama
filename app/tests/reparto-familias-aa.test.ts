@@ -16,7 +16,6 @@ import { validarOtroMotor } from "../electron/cli/pa/motores/modelos.ts";
 const RAIZ = path.join(import.meta.dirname, "..", "..");
 const DATOS = path.join(RAIZ, "motor", "datos");
 const FIX = path.join(import.meta.dirname, "fixtures");
-const REPARTO = path.join(RAIZ, "motor", "bin", "reparto");
 const tmp = mkdtempSync(path.join(os.tmpdir(), "reparto-fam-aa-"));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 
@@ -62,23 +61,9 @@ test("cada modelo principal del catálogo de la cuenta tiene fila de AA (foto + 
   assert.deepEqual(sin, [], `modelos del catálogo sin fila de AA (ni foto ni suplemento): ${sin.join(", ")}`);
 });
 
-/** Un `reparto --tabla --json` sin caché propia (foto del repo) y con Claude con cupo. */
-function tabla() {
-  const cupos = path.join(tmp, "cupos.json");
-  writeFileSync(cupos, JSON.stringify({ version: 1, leido: "2026-11-11T12:00:00Z", suscripciones: [{ id: "claude", nombre: "Claude", proveedor: "claude", cuenta: "claude", ventanas: [{ id: "5h", usado: 0.2, vuelve: "2026-11-11T14:00:00Z" }] }] }));
-  const mod = path.join(tmp, "modelos.json");
-  writeFileSync(mod, JSON.stringify({ version: 1 }));
-  const base: Record<string, string | undefined> = { ...process.env };
-  for (const k of ["REPARTO_AA", "REPARTO_AA_FOTO", "REPARTO_AA_SUPLEMENTO", "REPARTO_OK_DUENO"]) delete base[k];
-  return (args: string[]) =>
-    spawnSync(REPARTO, args, {
-      encoding: "utf8",
-      env: { ...base, REPARTO_CUPOS_FIJOS: cupos, REPARTO_AHORA: "2026-11-11T12:00:00Z", REPARTO_AGY: "0", REPARTO_DSH_FIJO: '{"ollama":[],"opencode":false,"deepseek":false}', REPARTO_OPENCODE_FIJO: "[]", REPARTO_STATE: path.join(tmp, "estado2"), TRAMA_MODELOS: mod },
-    });
-}
-
+// Fable 5.2 se prueba con el reparto en TS (tablaTs, más abajo): el reparto de python no corre en Windows y está congelado.
 test("Fable 5.2 está en la tabla con su fila de AA y compite como candidato en el reparto (sólo sale si se excluye)", () => {
-  const r = tabla();
+  const r = tablaTs();
   const t = JSON.parse(r(["--tabla", "--json"]).stdout) as { modelos: { id: string; origen: string }[] };
   const f = t.modelos.find((m) => m.id === "claude-fable-5-2");
   assert.ok(f, "Fable 5.2 tiene que estar en --tabla");
@@ -94,6 +79,7 @@ test("Fable 5.2 está en la tabla con su fila de AA y compite como candidato en 
 test("Fable sale del reparto sólo si modelos.json lo excluye", () => {
   const mod = path.join(tmp, "modelos-sin-fable.json");
   writeFileSync(mod, JSON.stringify({ version: 1, excluir: ["fable"] }));
+  writeFileSync(path.join(tmp, "cupos.json"), JSON.stringify({ version: 1, leido: "2026-11-11T12:00:00Z", suscripciones: [{ id: "claude", nombre: "Claude", proveedor: "claude", cuenta: "claude", ventanas: [{ id: "5h", usado: 0.2, vuelve: "2026-11-11T14:00:00Z" }] }] }));
   const x = spawnSync(process.execPath, [REPARTO_TS, "--tipo", "final", "--json", "--explicar"], {
     encoding: "utf8",
     env: { ...process.env, REPARTO_CUPOS_FIJOS: path.join(tmp, "cupos.json"), REPARTO_AHORA: "2026-11-11T12:00:00Z", REPARTO_AGY: "0", REPARTO_STATE: path.join(tmp, "estado-sin-fable"), TRAMA_MODELOS: mod },

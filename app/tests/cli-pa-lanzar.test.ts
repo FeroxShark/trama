@@ -10,6 +10,7 @@ import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
 import { alSalir, argsCierre, argsClaude, armarLanzamiento, configClaudeDe, contratoClaude, envDeLaLlamada, lineaSkillsDiseno, promptDe, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
+import { plataformaActual } from "../electron/rutas.ts";
 import { anotarTablero, faltaParaLider, medir } from "../electron/cli/pa/ganchos.ts";
 import { campoDe, decisionEsNada, epochReset, verificadoDe } from "../electron/cli/pa/resultado-lanzar.ts";
 
@@ -165,7 +166,8 @@ test("al_salir: .ultimo con el lock, .listo sólo en async, y el rastro vivo se 
 
 test("medicion.tsv: --indivisible deja el motivo en la última columna (sólo TS); sin él la columna queda vacía", async () => {
   const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-indivisible-"));
-  const pa = paFalso(raiz);
+  // Plataforma real: el lock de medir() es un socket abstracto en Linux y una pipe en Windows.
+  const pa = paFalso(raiz, plataformaActual());
   for (const indivisible of ["un solo cambio de esquema\ty más", undefined]) {
     const l = armarLanzamiento(pa, corrida(raiz, { tipo: "frontend", indivisible }));
     await medir(pa, l);
