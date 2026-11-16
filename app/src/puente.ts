@@ -193,6 +193,8 @@ type Main = {
     revisionCancelar(sid: string): Promise<boolean>;
     revisionReintentar(sid: string): Promise<unknown>;
     revisionDescartar(sid: string): Promise<void>;
+    /** El debate entre modelos sobre un plan: cada turno y cada cambio de estado (`EventoDebate`). */
+    alDebate(fn: (evento: unknown) => void): Soltar;
     cierres(): Promise<unknown>;
     cierreRetomar(x: { sid: string; on: boolean }): Promise<void>;
     alCierre(fn: (x: unknown) => void): Soltar;

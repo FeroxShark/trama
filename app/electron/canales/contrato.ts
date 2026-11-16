@@ -111,6 +111,8 @@ export const CANALES = [
   ["lider:revisionCancelar", "invoke"],
   ["lider:revisionReintentar", "invoke"],
   ["lider:revisionDescartar", "invoke"],
+  // Modo debate (etapa 2, electron/debate.ts): cada turno que dice un modelo y cada cambio de estado del debate (`EventoDebate`).
+  ["debate:turno", "on"],
   ["lider:cierres", "invoke"],
   ["lider:cierreRetomar", "invoke"],
   ["lider:cierre", "on"],

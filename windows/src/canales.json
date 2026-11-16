@@ -102,6 +102,7 @@
     ["lider:revisionCancelar","invoke"],
     ["lider:revisionReintentar","invoke"],
     ["lider:revisionDescartar","invoke"],
+    ["debate:turno","on"],
     ["lider:cierres","invoke"],
     ["lider:cierreRetomar","invoke"],
     ["lider:cierre","on"],

@@ -169,6 +169,8 @@ contextBridge.exposeInMainWorld("hilos", {
     revisionCancelar: (sid: string): Promise<boolean> => invocar("lider:revisionCancelar", sid),
     revisionReintentar: (sid: string): Promise<unknown> => invocar("lider:revisionReintentar", sid),
     revisionDescartar: (sid: string): Promise<void> => invocar("lider:revisionDescartar", sid),
+    /** El debate entre modelos sobre un plan: cada turno y cada cambio de estado (`EventoDebate`, electron/debate-texto.ts). */
+    alDebate: oir("debate:turno"),
     /** El cierre por cupo en cada chat (tarjeta «Cupo bajo»): lo que hay, el interruptor de retomar solo y los cambios. */
     cierres: (): Promise<unknown> => invocar("lider:cierres"),
     cierreRetomar: (x: unknown): Promise<void> => invocar("lider:cierreRetomar", x),
