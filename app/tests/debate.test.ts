@@ -1,8 +1,8 @@
 // Modo debate (etapa 2, base): lectura de un turno, corte por acuerdo, tope de rondas, pregunta que pausa y reanuda, un modelo que falla
 // y un solo modelo que queda (revisión simple), todo con revisores simulados (sin gastar cupo).
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
-import { acuerdoTotal, iniciarDebate, leerMensajeDebate, mensajeDebateParaLider, parsearConclusion, parsearTurno, transcripcionParaPrompt, type DepsDebate, type EventoDebate } from "../electron/debate.ts";
+import { acuerdoTotal, iniciarDebate, PREGUNTA_ESPERA_MS, leerMensajeDebate, mensajeDebateParaLider, parsearConclusion, parsearTurno, transcripcionParaPrompt, type DepsDebate, type EventoDebate } from "../electron/debate.ts";
 import { esperarHasta } from "./esperar.ts";
 
 const turno = (postura: string, arg = "razón", plan = "", pregunta = "") =>
@@ -140,4 +140,76 @@ test("el de más cupo habla primero y concluye; y se exigen 2 o 3 modelos distin
   assert.throws(() => iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a"), P("a", "low")] }, d), /debateParticipantes/);
   assert.throws(() => iniciarDebate({ sid: "s", plan: "# Plan", participantes: ["a", "b", "c", "d"].map((m) => P(m)) }, d), /debateParticipantes/);
   assert.throws(() => iniciarDebate({ sid: "s", plan: "  ", participantes: [P("a"), P("b")] }, d), /revisionSinPlan/);
+});
+
+/** Cede el turno al resto de las promesas (sin reloj: con los timers de mentira, esperarHasta no avanzaría nunca). */
+async function hastaQue(cond: () => boolean) {
+  for (let i = 0; i < 200 && !cond(); i++) await new Promise((ok) => setImmediate(ok));
+  assert.ok(cond(), "hastaQue: no se cumplió");
+}
+
+test("pregunta sin respuesta a los 10 min: sigue sin ella, lo deja dicho y le avisa al siguiente (reloj simulado)", async (t: TestContext) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { d, hecho } = armar({ a: [turno("pregunta", "dudo", "", "¿Qué base?\n- Postgres\n- SQLite"), CONCLUSION], b: [turno("acuerdo")] });
+  const deb = iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a"), P("b")], rondas: 1 }, d);
+  await hastaQue(() => deb.estado().fase === "esperando");
+  assert.equal(deb.estado().pregunta?.hasta! - deb.estado().inicio >= PREGUNTA_ESPERA_MS - 1000, true);
+  t.mock.timers.tick(PREGUNTA_ESPERA_MS - 1);
+  await new Promise((ok) => setImmediate(ok));
+  assert.equal(deb.estado().fase, "esperando", "a 1 ms de los 10 min todavía espera");
+  assert.equal(hecho.llamadas.length, 1);
+  t.mock.timers.tick(1);
+  const r = await deb.terminado;
+  assert.ok(r.estado.lineas.some((l) => l.tipo === "nota" && l.clave === "debate.sinRespuesta" && l.vars?.min === 10));
+  assert.ok(!r.estado.lineas.some((l) => l.tipo === "ferox"));
+  assert.ok(hecho.llamadas[1].prompt.includes("No contestó a tiempo"), "el siguiente lee que Ferox no contestó");
+  assert.equal(deb.responder("SQLite"), false, "ya no hay pregunta pendiente");
+  assert.equal(hecho.mandado.length, 1);
+});
+
+test("«Elegí vos» (null) sigue sin una respuesta de Ferox y lo deja dicho", async () => {
+  const { d, hecho } = armar({ a: [turno("pregunta", "dudo", "", "¿Qué base?\n- Postgres\n- SQLite"), CONCLUSION], b: [turno("acuerdo")] });
+  const deb = iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a"), P("b")], rondas: 1 }, d);
+  await esperarHasta(() => deb.estado().fase === "esperando");
+  assert.equal(deb.responder(null), true);
+  const r = await deb.terminado;
+  assert.ok(r.estado.lineas.some((l) => l.tipo === "nota" && l.clave === "debate.feroxElegiVos"));
+  assert.ok(hecho.llamadas[1].prompt.includes("Dejó que decidan ustedes"));
+});
+
+test("«Cortar y concluir» a mitad de un turno: el turno en curso no cuenta y concluye quien tenga más cupo con lo dicho hasta ahí", async () => {
+  const guion: Guion = { a: [turno("cambio", "falta un test", "1. Test"), CONCLUSION], b: [] };
+  const { d, hecho } = armar(guion, {
+    cupo: (m) => (m === "a" ? 90 : 10),
+    // b se queda pensando hasta que lo cortan.
+    correr: async (modelo, effort, prompt, o) => {
+      hecho.llamadas.push({ modelo, effort, prompt });
+      if (modelo === "b") return new Promise<string>((_ok, no) => o.señal.addEventListener("abort", () => no(new Error("abortado"))));
+      return guion[modelo]!.shift() as string;
+    },
+  });
+  const deb = iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a"), P("b")], rondas: 3 }, d);
+  await esperarHasta(() => hecho.llamadas.some((l) => l.modelo === "b"));
+  deb.cortar();
+  const r = await deb.terminado;
+  assert.equal(r.motivo, "cortado");
+  assert.deepEqual(r.estado.participantes.map((p) => [p.modelo, p.turnos, p.activo]), [["a", 1, true], ["b", 0, true]]);
+  assert.deepEqual(hecho.llamadas.map((l) => l.modelo), ["a", "b", "a"], "después del corte sólo concluye a (más cupo)");
+  assert.ok(hecho.llamadas[2].prompt.includes("falta un test"), "la conclusión lee lo que dijo a");
+  assert.equal(leerMensajeDebate(hecho.mandado[0])?.motivo, "cortado");
+  assert.equal(hecho.negado.length, 1);
+  assert.ok(!r.estado.lineas.some((l) => l.tipo === "fallo"), "cortar no es una falla del modelo");
+});
+
+test("«Cortar y concluir» con una pregunta pendiente: la pregunta se suelta y se concluye", async () => {
+  const { d, hecho } = armar({ a: [turno("pregunta", "dudo", "", "¿Qué base?\n- Postgres\n- SQLite"), CONCLUSION], b: [turno("acuerdo")] });
+  const deb = iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a"), P("b")], rondas: 2 }, d);
+  await esperarHasta(() => deb.estado().fase === "esperando");
+  deb.cortar();
+  const r = await deb.terminado;
+  assert.equal(r.motivo, "cortado");
+  assert.equal(deb.estado().pregunta, null);
+  assert.deepEqual(hecho.llamadas.map((l) => l.modelo), ["a", "a"], "b no llegó a hablar");
+  assert.equal(hecho.mandado.length, 1);
+  deb.cortar(); // ya terminó: no hace nada
 });

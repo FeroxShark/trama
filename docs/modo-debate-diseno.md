@@ -1,4 +1,4 @@
-# Modo debate entre modelos: diseño (etapa 2, sin implementar)
+# Modo debate entre modelos (etapa 2): diseño e implementación
 
 Pedido de Ferox (2026-11-15). La etapa 1 («Revisar con otro modelo», `app/electron/revision-plan.ts`) ya está: este doc deja el diseño para que otra corrida implemente el debate.
 
@@ -43,3 +43,24 @@ Un turno con `## Pregunta para Ferox` pausa el moderador; la ventana muestra la 
 ## Qué hay que implementar
 
 `debate.ts` (+ `debate-texto.ts` puro para el parseo, como `revision-plan-texto.ts`), canales `debate:iniciar`, `debate:responder`, `debate:cancelar` y el aviso `debate:turno` (contrato, `preload.cts`, `puente.ts`, `maquinas-contrato.ts`, `windows/src/canales.json` con `node scripts/generar-canales.mjs`), `TarjetaDebate.tsx`, textos es/en, tests con modelos simulados (corte por acuerdo, tope, pregunta, falla de un modelo) y capturas de la tarjeta en vivo y de la pregunta.
+
+
+## Lo implementado (2026-11-16)
+
+- **Moderador** `app/electron/debate.ts` (+ `debate-texto.ts` puro) y **cableado** `app/electron/debate-trabajo.ts` (`crearDebates`: uno por líder, estado, responder, cortar, cancelar, descartar). Lo arma `lider.ts` (`debatesDe`): valida plan pendiente, modelos permitidos y esfuerzos prendidos, guarda la conclusión en `revisiones-pendientes.json` hasta que entra por la cola y la quita al entregarla.
+- **Canales:** `debate:iniciar`, `debate:estado`, `debate:responder`, `debate:cortar`, `debate:cancelar`, `debate:descartar` (invoke) y el aviso `debate:turno` (en `EVENTOS` como «local»; también en `windows/src/canales.json`).
+- **Ventana:** interruptor «Debate» en `SeguirCon.tsx` (2 o 3 modelos, esfuerzo por modelo con `esfuerzo-revisor.ts`, rondas 1 a 3, default 2, peor caso en llamadas), `TarjetaDebate.tsx` (en vivo, con «Ver la tarjeta») y `TarjetaConclusionDebate` (la conclusión que llega al chat con la marca `[[debate-de-plan …]]`). Estado de la ventana: `debate-vivo.ts`; lógica: `debate-logica.ts`.
+- **Tests:** `tests/debate.test.ts` (moderador; pregunta sin respuesta a los 10 min con `mock.timers`, «Cortar y concluir»), `tests/debate-trabajo.test.ts` (iniciar → `debate:turno` → cierre con la marca entregada al líder), `tests/debate-vista.test.ts`.
+
+### Supuestos que quedaron fijos
+
+- En la ronda 1, el 2º y el 3º leen lo que dijo el 1º (la transcripción se arma turno a turno, no por ronda cerrada).
+- La respuesta de Ferox entra a la transcripción como un renglón más («Ferox: …»), sin turno extra de nadie.
+- Un plan propuesto idéntico (sin contar espacios ni mayúsculas) cuenta como acuerdo: corta el debate.
+- Si queda un solo modelo (los demás fallaron), se cae a `revisarPlan` (revisión simple, tarjeta del revisor).
+- «Cortar y concluir» no cuenta el turno en curso; «Cancelar» sólo vale hasta que empieza la entrega.
+
+### Falta
+
+- El orden por cupo (`cupo?` de `DepsDebate`) no se pasa todavía desde el main: hablan en el orden en que se eligieron.
+- Capturas de la tarjeta en vivo y de la pregunta (no se pueden sacar en el sandbox).
