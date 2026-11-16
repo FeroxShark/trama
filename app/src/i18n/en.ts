@@ -747,6 +747,8 @@ export const en = {
   "aviso.vOtro": "Usage limit",
   "aviso.limiteCerca": "{v}: {p}% used · resets {h}",
   "aviso.limiteCercaSinHora": "{v}: {p}% used",
+  "aviso.cupoBajo": "Quota running low on {s}: I closed the jobs with a summary; it comes back at {h}",
+  "aviso.cupoBajoSinHora": "Quota running low on {s}: I closed the jobs with a summary",
   "aviso.limite": "{v} reached · resets {h}",
   "aviso.limiteSinHora": "{v} reached",
   "aviso.compacto": "Conversation compacted",

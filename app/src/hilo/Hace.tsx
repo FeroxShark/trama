@@ -53,6 +53,8 @@ export function hora(hasta: number) {
   return hasta - Date.now() / 1000 > 86_400 ? `${diaSemana(f)} ${h}` : h;
 }
 
+const nombreSuscripcion = (s: string) => (s === "google" ? "Google" : s === "chatgpt" ? "ChatGPT" : "Claude");
+
 const ventana = (v: string | null) =>
   v === "five_hour" ? t("aviso.v5h") : v?.startsWith("seven_day") ? t("aviso.vSemana") : t("aviso.vOtro");
 
@@ -68,6 +70,8 @@ export function textoAviso(a: AvisoVisto): { texto: string; tono: "grave" | "ojo
     case "limite": {
       const v = ventana(a.ventana);
       const h = a.hasta ? hora(a.hasta) : null;
+      // El cierre ordenado por cupo (electron/cierre-chats.ts): lo avisa Trama, no el `claude`.
+      if (a.cierre) return { texto: t(h ? "aviso.cupoBajo" : "aviso.cupoBajoSinHora", { s: nombreSuscripcion(a.cierre.suscripcion), h: h ?? "" }), tono: "ojo" };
       if (a.rechazado)
         return { texto: h ? t("aviso.limite", { v, h }) : t("aviso.limiteSinHora", { v }), tono: "grave" };
       if (a.uso === null) return { texto: v, tono: "ojo" };

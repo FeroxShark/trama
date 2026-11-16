@@ -15,7 +15,7 @@ import { controlarServidorLocal, detectarLocales } from "./locales-deteccion.ts"
 import { leerVram, liberarVram } from "./vram.ts";
 import { leerEntornoOllama } from "./ollama-entorno.ts";
 import { carpetaLocal } from "./local.ts";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, stat as statArchivo } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -54,6 +54,7 @@ import { crearBajadas } from "./ollama-bajar.ts";
 import { agyOfrecidos } from "./agy-ofrecidos.ts";
 import { revisoresPermitidos } from "./revision-plan.ts";
 import { crearCierreCupo } from "./cierre-cupo-disco.ts";
+import { crearCierreChats } from "./cierre-chats.ts";
 import { autocompactLiderGuardado, cierreGuardado, efectivoDePa, excluirGuardado, guardarModelos, leerModelos, modelosConfig, sondearOllama, topeEntorno, vistaModelos } from "./modelos-config.ts";
 import { accesos } from "./celular-accesos.js";
 import { guardarConfig, leerEditable } from "./remoto-config.js";
@@ -666,6 +667,52 @@ function revisarCierre(s: Statusline) {
     silencio("cierre-cupo")(e);
   }
 }
+/**
+ * El cierre en cada chat (cierre-chats.ts): la tarjeta «Cupo bajo: cerré en este punto» y «Retomar solo cuando vuelva el cupo». Vive en
+ * `cierre-chats.json`; al pasar la hora de vuelta (o al abrir Trama si ya pasó) el mensaje de retomar entra por la cola del chat.
+ */
+const ARCHIVO_CIERRE_CHATS = path.join(ESTADO, "cierre-chats.json");
+const ventanaDeCierre = (v: string) => (v === "5h" ? "five_hour" : v === "7d" ? "seven_day" : v);
+async function retomarPorCupo(sid: string, texto: string) {
+  const sel = await lider.seleccionGuardadaDe(sid);
+  if (!sel) return;
+  const { item } = lider.paraCola({ sid, texto, modelo: sel.modelo, effort: sel.effort || "medium" });
+  await leerCola();
+  // Lo manda Trama, no la persona: va al chat como fila de sistema.
+  cola.encolar(sid, { ...item, aviso: true, avisos: [] });
+}
+export const cierreChats = crearCierreChats({
+  leer: () => {
+    try {
+      return readFileSync(ARCHIVO_CIERRE_CHATS, "utf8");
+    } catch {
+      return null;
+    }
+  },
+  guardar: (json) => void escribirAtomico(ARCHIVO_CIERRE_CHATS, json).catch(silencio("cierre-chats")),
+  ahora: () => Math.floor(Date.now() / 1000),
+  trabajando: () => lider.respondiendoSids(),
+  modeloDe: (sid) => lider.seleccionDe(sid)?.modelo ?? null,
+  cuentaDe: (sid) => lider.cuentaDeProceso(sid),
+  relevo: lider.archivoRelevo,
+  retomarSolo: () => cierreGuardado().retomar_solo,
+  encolar: (sid, texto) => void retomarPorCupo(sid, texto).catch(silencio("cierre-chats")),
+  avisar: (l) => enviar("lider:cierre", l),
+  avisoChat: (sid, e) =>
+    lider.emitir(sid, {
+      tipo: "aviso",
+      aviso: { clase: "limite", rechazado: false, ventana: ventanaDeCierre(e.ventana), hasta: e.vuelve, uso: (100 - e.restante) / 100, cierre: { suscripcion: e.proveedor, restante: e.restante } },
+    }),
+  poner: (ms, fn) => setTimeout(fn, ms).unref(),
+  cancelar: (h) => clearTimeout(h as NodeJS.Timeout),
+});
+cierreCupo.alCierreCupo((e) => {
+  try {
+    cierreChats.alCierre(e);
+  } catch (err) {
+    silencio("cierre-chats")(err);
+  }
+});
 let cierrePronto: NodeJS.Timeout | null = null;
 /** Un `rate_limit_event`: el uso que trae lo anota el líder en disco; se relee al ratito (uno solo si llegan varios). */
 function revisarCierrePronto() {
@@ -885,6 +932,9 @@ export function armarNucleo() {
   void limpiarAdjuntos(path.join(ESTADO, "adjuntos")).catch(silencio("adjuntos"));
   // Trama que arranca con algo en la cola (aunque nadie abra la ventana): lo que ya puede salir, sale.
   void leerCola().then(cola.revisar);
+  // El cierre por cupo de cada chat: los relojes de «Retomar solo» se arman de nuevo y, si la hora ya pasó (la PC estaba apagada), retoma ya.
+  alSalir(() => cierreChats.parar());
+  cierreChats.arrancar();
   // Lo programado que venció con trama cerrada sale ya; lo que falta se vuelve a programar.
   alSalir(() => programados.parar());
   void programados.arrancar().catch(silencio("programados"));
@@ -1323,7 +1373,9 @@ export function armarNucleo() {
   lider.alEvento((sid, e) => {
     movio(sid);
     enviar("lider:evento", { sid, e });
-    if (e.tipo === "aviso" && e.aviso.clase === "limite") revisarCierrePronto();
+    if (e.tipo === "aviso" && e.aviso.clase === "limite" && !e.aviso.cierre) revisarCierrePronto();
+    // Terminó el turno de un chat que cerraba por cupo: la tarjeta pasa de «Cerrando…» a «cerré en este punto».
+    if (e.tipo === "estado" || e.tipo === "salio") cierreChats.revisar();
     // Quedó libre (fin del turno, Parar, el proceso salió): sale lo que esperaba en la cola.
     if (e.tipo === "estado" && !e.ocupado) void leerCola().then(() => cola.libre(sid));
     // El eco del CLI: lo que estaba en camino a mitad del turno entró (recién ahora va al chat y deja el disco). El fin del turno, lo que salió como uno propio.
@@ -1340,12 +1392,17 @@ export function armarNucleo() {
   manejar("lider:nuevo", (_e, x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown; auto?: unknown; cuenta?: unknown }) =>
     lider.nuevo({ modelo: x?.modelo, effort: x?.effort, texto: x?.texto, imagenes: x?.imagenes, modo: x?.modo, rol: x?.rol, carpeta: x?.carpeta, auto: x?.auto, cuenta: x?.cuenta }),
   );
+  // El cierre por cupo en cada chat (la tarjeta del chat): lo que hay, y el interruptor «Retomar solo cuando vuelva el cupo».
+  manejar("lider:cierres", () => cierreChats.lista());
+  manejar("lider:cierreRetomar", (_e, x: { sid: string; on: boolean }) => cierreChats.ponerRetomar(String(x?.sid), x?.on === true));
   manejar("lider:mandar", (_e, x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string; empezar?: unknown }) => {
+    cierreChats.duenoEscribio(String(x?.sid));
     verEspera(String(x?.sid));
     return lider.mandar({ sid: x?.sid, texto: x?.texto, imagenes: x?.imagenes, modelo: x?.modelo, effort: x?.effort, empezar: x?.empezar });
   });
   // "Mandar ya" (lo que la cola hace por defecto, sin agrupar): a mitad de un turno (`lider.mandarDirecto`); sin turno en curso es un `mandar` normal.
   manejar("lider:mandarYa", (_e, x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }) => {
+    cierreChats.duenoEscribio(String(x?.sid));
     verEspera(String(x?.sid));
     return lider.mandarDirecto({ sid: x?.sid, texto: x?.texto, imagenes: x?.imagenes, modelo: x?.modelo, effort: x?.effort });
   });
@@ -1460,6 +1517,7 @@ export function armarNucleo() {
   // La cola: encolar, sacar, editar, ordenar, frenar su salida un rato, lo que hay (una vista que recién abre) y "ahora" (reintentar, o cortar el turno y que siga).
   manejar("lider:encolar", async (_e, x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string; modo?: string; nombre?: string }) => {
     const { sid, item } = lider.paraCola(x ?? {});
+    cierreChats.duenoEscribio(sid);
     verEspera(sid);
     await leerCola();
     cola.encolar(sid, item);

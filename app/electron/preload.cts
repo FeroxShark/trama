@@ -169,6 +169,10 @@ contextBridge.exposeInMainWorld("hilos", {
     revisionCancelar: (sid: string): Promise<boolean> => invocar("lider:revisionCancelar", sid),
     revisionReintentar: (sid: string): Promise<unknown> => invocar("lider:revisionReintentar", sid),
     revisionDescartar: (sid: string): Promise<void> => invocar("lider:revisionDescartar", sid),
+    /** El cierre por cupo en cada chat (tarjeta «Cupo bajo»): lo que hay, el interruptor de retomar solo y los cambios. */
+    cierres: (): Promise<unknown> => invocar("lider:cierres"),
+    cierreRetomar: (x: unknown): Promise<void> => invocar("lider:cierreRetomar", x),
+    alCierre: oir("lider:cierre"),
     puntos: (sid: string): Promise<unknown> => invocar("lider:puntos", sid),
     puntoDif: (x: unknown): Promise<unknown> => invocar("lider:puntoDif", x),
     puntoVolver: (x: unknown): Promise<unknown> => invocar("lider:puntoVolver", x),

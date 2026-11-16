@@ -736,6 +736,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "aviso.vOtro": "Límite de uso",
   "aviso.limiteCerca": "{v}: usaste {p}% · se reinicia {h}",
   "aviso.limiteCercaSinHora": "{v}: usaste {p}%",
+  "aviso.cupoBajo": "Cupo bajo en {s}: cerré los trabajos con resumen; vuelve a las {h}",
+  "aviso.cupoBajoSinHora": "Cupo bajo en {s}: cerré los trabajos con resumen",
   "aviso.limite": "{v}: llegaste al tope · se reinicia {h}",
   "aviso.limiteSinHora": "{v}: llegaste al tope",
   "aviso.compacto": "Se compactó la conversación",

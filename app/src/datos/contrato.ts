@@ -321,7 +321,7 @@ export type HaceLider =
 /** Un aviso en línea del chat de un líder (espejo de `Aviso` en electron/lider-arma.ts). */
 export type AvisoLider =
   | { clase: "reintento"; intento: number; max: number; espera_ms: number; estado: number | null; error: string | null }
-  | { clase: "limite"; rechazado: boolean; ventana: string | null; hasta: number | null; uso: number | null }
+  | { clase: "limite"; rechazado: boolean; ventana: string | null; hasta: number | null; uso: number | null; cierre?: { suscripcion: string; restante: number } }
   | { clase: "error"; texto: string; codigo: string | null }
   | { clase: "compacto"; auto: boolean; antes: number | null }
   | { clase: "nota"; texto: string; grave: boolean }

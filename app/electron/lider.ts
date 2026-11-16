@@ -278,6 +278,10 @@ function alEv(sid: string, e: EventoLider) {
   j.t = setTimeout(() => soltar(sid), falta);
   j.t.unref?.();
 }
+/** Un evento que no sale del `claude` sino de Trama (el aviso del cierre por cupo): llega a la vista como cualquier otro. */
+export function emitir(sid: string, e: EventoLider) {
+  alEv(sid, e);
+}
 /** Cambió la lista o el estado de un líder: hay que releer el statusline. */
 export function alCambiar(fn: () => void) {
   alCambio = fn;
@@ -394,6 +398,8 @@ export function procDe(sid: string): { pid: number | null; ocupado: boolean; ped
 export const ocupados = () => [...procs.values()].filter((p) => p.ocupado).length;
 export const vivos = () => procs.size;
 /** Los líderes con proceso de la app (lanzados o traídos por trama), respondan o no. */
+/** La cuenta agregada de Claude con que corre el chat (`undefined`: la de siempre, o sin proceso). */
+export const cuentaDeProceso = (sid: string) => procs.get(sid)?.cuenta;
 export const conProceso = () => [...procs.keys()];
 /** Los que un relanzo de trama cortaría: los que responden y los que están a mitad de un `mandar`. */
 export const respondiendo = () => respondiendoSids().length;

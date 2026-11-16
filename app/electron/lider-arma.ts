@@ -446,7 +446,7 @@ export type Aviso =
   /** `system/api_retry`: la API falló (529 sobrecarga, 429 límite, 5xx) y reintenta. */
   | { clase: "reintento"; intento: number; max: number; espera_ms: number; estado: number | null; error: string | null }
   /** `rate_limit_event` con status ≠ allowed: cerca del límite o rechazado; `hasta` en epoch s. */
-  | { clase: "limite"; rechazado: boolean; ventana: string | null; hasta: number | null; uso: number | null }
+  | { clase: "limite"; rechazado: boolean; ventana: string | null; hasta: number | null; uso: number | null; cierre?: { suscripcion: string; restante: number } }
   /** Un error del turno: `result` con `is_error` (o `errors[]`), o un `assistant` con `error`. */
   | { clase: "error"; texto: string; codigo: string | null }
   /** `system/compact_boundary`: compactó (auto o /compact), con los tokens de antes. */
