@@ -3,6 +3,9 @@
 ## Próxima versión
 
 - Base del cierre ordenado cuando se acaba el cupo: Trama vigila cuánto le queda a cada suscripción y anota cuándo cruza el umbral (por defecto 5 %). Todavía sin efecto visible.
+
+## 0.2.99
+
 - «Revisar con otro modelo» ya no pierde la revisión: se entrega a tu líder por su cola aunque esté respondiendo, queda guardada hasta entrar y, si falla, aparece «Reintentar entregar».
 - La revisión se ve en vivo: tiempo transcurrido, qué lee o busca el revisor y el texto a medida que sale. Se puede cancelar de verdad, y si cerrás el modal sigue en el chat como «Revisando con…».
 - Al elegir revisor, los modelos de una suscripción sin sesión (por ejemplo Google AI Pro sin `agy`) salen atenuados, con el motivo, y no se pueden elegir. Los errores del revisor se dicen en palabras simples.

@@ -46,7 +46,7 @@ export async function pedirModelos(tope = 1500): Promise<ConfigModelos | null> {
     // `modelo` con `sin-cupo`: las cinco columnas a la vista (Google con modelos agotados, OpenCode gratis agotado) para ver el cupo de cada uno.
     const todas = MODO.captura === "modelo" && MODO.variante === "sin-cupo";
     return {
-      gemini: (MODO.captura === "lider-comandos" && MODO.variante === "agy") || MODO.captura === "lider-cambio-motor" || todas,
+      gemini: (MODO.captura === "lider-comandos" && MODO.variante === "agy") || MODO.captura === "lider-cambio-motor" || MODO.captura === "lider-revision-sin-sesion" || todas,
       // `lider-cambio-motor`: todos los motores a la vista (el selector de una conversación que ya empezó muestra todas las columnas).
       ...(MODO.variante === "dsh-menu" || MODO.captura === "lider-cambio-motor" || todas ? { dsh: true } : {}),
       ...(MODO.captura === "lider-cambio-motor" || todas ? { opencode: ["opencode/big-pickle"] } : {}),

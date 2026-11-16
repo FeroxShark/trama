@@ -3,6 +3,9 @@
 ## Next version
 
 - Groundwork for the orderly shutdown when quota runs out: Trama watches how much each subscription has left and records when it crosses the threshold (5 % by default). No visible effect yet.
+
+## 0.2.99
+
 - "Review with another model" no longer loses the review: it is delivered to your lead through its queue even while it is answering, kept on disk until it goes in and, if it fails, "Retry delivery" appears.
 - The review is visible live: elapsed time, what the reviewer reads or searches, and the text as it comes out. It can really be cancelled, and if you close the modal it stays in the chat as "Reviewing with…".
 - When picking a reviewer, models from a subscription with no session (for example Google AI Pro without `agy`) show dimmed, with the reason, and cannot be picked. Reviewer errors are worded in plain language.

@@ -1915,6 +1915,7 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
           opciones={MODELOS.filter((m) => revisores.includes(m.id))}
           actual={null}
           preferido={REVISOR_DEFECTO}
+          busquedaInicial={MODO.captura === "lider-revision-sin-sesion" ? "ge" : undefined}
           alElegir={async (elegido) => {
             // El main arranca al revisor y vuelve enseguida: el progreso se ve en el modal y, si se cierra, en el chat (RevisionVista).
             // Al terminar, el main le niega el plan al líder y le entrega la revisión por su cola; la tarjeta llega por el transcript.
