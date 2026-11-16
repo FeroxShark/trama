@@ -227,7 +227,7 @@ for b in pa tablero trama-estado trama-motor; do enlazar "$MOTOR/bin/$b" "$BIN";
 for b in proyecto-ruta workers reparto cuentas gate; do [[ -e "$MOTOR/bin/$b" ]] && enlazar "$MOTOR/bin/$b" "$BIN"; done
 # pantalla: el control de pantalla de los workers de frontend (#1869).
 [[ -e "$MOTOR/bin/pantalla" ]] && enlazar "$MOTOR/bin/pantalla" "$BIN"
-for h in latido.sh destructive-guard.sh statusline-espejo.sh resumen-modelos.sh; do [[ -e "$MOTOR/hooks/$h" ]] && enlazar "$MOTOR/hooks/$h" "$HOOKS"; done
+for h in latido.sh destructive-guard.sh statusline-espejo.sh resumen-modelos.sh cierre-cupo.mjs cierre-cupo-textos.mjs; do [[ -e "$MOTOR/hooks/$h" ]] && enlazar "$MOTOR/hooks/$h" "$HOOKS"; done
 enlazar "$MOTOR/skills/trama-orquestar" "$SKILLS"
 
 # Plugin de agy para los workers Gemini (misma receta que instalar.sh): carpeta real con symlinks adentro.
@@ -278,6 +278,21 @@ registrar_resumen() {
   printf '%s\n' "$nuevo" >"$destino.tmp.$$" && mv -f "$destino.tmp.$$" "$destino" && hecho "$CFG: resumen-modelos registrado (SessionStart del líder)"
 }
 registrar_resumen
+
+# Cierre por cupo (PostToolUse y UserPromptSubmit): avisa a las sesiones del `claude` oficial cuando a su suscripción le queda poco cupo.
+# Va con `node` (no hay versión bash) y aparte de registrar_hooks, igual que registrar_resumen; app/electron/cli/hooks.ts lo replica.
+registrar_cierre() {
+  local cierre="$HOOKS/cierre-cupo.mjs" nuevo destino
+  [[ -e "$cierre" ]] && command -v node >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 && [[ -s "$CFG" ]] && jq -e 'type == "object"' "$CFG" >/dev/null 2>&1 || return 0
+  nuevo="$(jq --arg cierre "$cierre" '
+      reduce ("PostToolUse", "UserPromptSubmit") as $e (.;
+        if ([.hooks[$e][]?.hooks[]?.command // empty] | any(test("cierre-cupo\\.(sh|mjs)"))) then .
+        else .hooks[$e] = ((.hooks[$e] // []) + [{hooks: [{type: "command", command: ("node " + ($cierre | @sh)), timeout: 10}]}]) end)' "$CFG")" || return 0
+  [[ "$nuevo" == "$(jq . "$CFG")" ]] && return 0
+  destino="$(readlink -f "$CFG" 2>/dev/null || echo "$CFG")"
+  printf '%s\n' "$nuevo" >"$destino.tmp.$$" && mv -f "$destino.tmp.$$" "$destino" && hecho "$CFG: cierre-cupo registrado (PostToolUse y UserPromptSubmit)"
+}
+registrar_cierre
 
 # --- home: líder genérico (sólo si no existen) -----------------------------------------------------------
 for p in CLAUDE.md GEMINI.md; do
