@@ -20,8 +20,7 @@ export type ClaveSola = { [K in Clave]: Args<K> extends [] ? K : never }[Clave];
 
 type Diccionario = Record<Clave, string>;
 
-// Cada idioma es un chunk aparte (en.ts / es.ts): la app carga sólo el que se usa (abajo). En node (los tests) se cargan
-// los dos para que `cambiarIdioma` siga siendo síncrono.
+// Cada idioma es un chunk aparte (en.ts / es.ts); se cargan los dos (abajo) para que `cambiarIdioma` sea síncrono.
 const cargar: Record<Idioma, () => Promise<Diccionario>> = {
   en: () => import("./en.ts").then((m) => m.en),
   es: () => import("./es.ts").then((m) => m.es),
@@ -37,9 +36,9 @@ function inicial(): Idioma {
 }
 
 let actual: Idioma = inicial();
-// `import.meta.env` lo pone vite: sin él (node --test, aun con un `document` de mentira) se cargan los dos.
-const conVite = (import.meta as { env?: unknown }).env !== undefined;
-for (const i of conVite ? [actual] : IDIOMAS) DICCIONARIOS[i] = await cargar[i]();
+// Se cargan los dos en paralelo antes de pintar: `Reserva`/`enOtros` (./Fijo.tsx) necesitan el texto del otro idioma para
+// reservar el ancho, y sin él `tDe(otro)` cae al actual y las cajas cambian de ancho al alternar ES ↔ EN.
+await Promise.all(IDIOMAS.map(async (i) => void (DICCIONARIOS[i] = await cargar[i]())));
 if (typeof document !== "undefined") document.documentElement.lang = actual;
 const oyentes = new Set<() => void>();
 
