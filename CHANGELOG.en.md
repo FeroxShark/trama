@@ -1,5 +1,11 @@
 # Changes
 
+## 0.3.2
+
+- «Review with another model»: you can now also pick the reviewer's effort, only among the ones that model supports and you have enabled in Settings > Models.
+- Debate mode: with the «Debate» switch, 2 or 3 models discuss the plan in turns (1 to 3 rounds) to improve it. You follow it live in a chat card; if a model asks you something, you answer with a button. You can wrap up early or cancel, and the conclusion goes to your lead.
+- «See the card» (in «Review delivered to your lead») now scrolls to the reviewer's card in the chat and highlights it, even if it's further up; if the review hasn't arrived yet, it says it's on its way.
+
 ## 0.3.1
 
 - Model pickers (like the one in «New lead») now always match Settings > Models: new models (for example Fable 5.2) and enabled providers (Google, OpenCode, DeepSeek) show up without restarting Trama, and a new lead starts with the current model.

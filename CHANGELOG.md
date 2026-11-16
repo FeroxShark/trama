@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.3.2
+
+- «Revisar con otro modelo»: ahora se elige también el esfuerzo del revisor, sólo entre los que ese modelo admite y tenés prendidos en Ajustes > Modelos.
+- Modo debate: con el interruptor «Debate», 2 o 3 modelos discuten el plan por turnos (de 1 a 3 rondas) para mejorarlo. Se ve en vivo en una tarjeta del chat; si un modelo te pregunta algo, contestás con un botón. Podés cortar y concluir o cancelar, y la conclusión le llega a tu líder.
+- «Ver la tarjeta» (en «Revisión entregada a tu líder») ahora lleva a la tarjeta del revisor en el chat y la resalta, aunque esté más arriba; si la revisión todavía no llegó, avisa que está en camino.
+
 ## 0.3.1
 
 - Los selectores de modelo (como el de «Nuevo líder») muestran siempre lo mismo que Ajustes > Modelos: aparecen los modelos nuevos (por ejemplo Fable 5.2) y los proveedores habilitados (Google, OpenCode, DeepSeek) sin reiniciar Trama, y un líder nuevo arranca con el modelo vigente.
