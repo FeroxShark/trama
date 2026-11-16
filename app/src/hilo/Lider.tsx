@@ -37,7 +37,7 @@ import { cacheAplica } from "../../electron/cache";
 import { BORRADOR_LIDER, cursorDe, escucharBorrador, guardarCursor, leerBorrador, ponerBorrador } from "./borradores";
 import { effortPara } from "./elegir";
 import { effortsLeidos, leerEfforts, recordarEffort } from "./efforts";
-import { effortDe, effortsOpciones, MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo } from "./opciones";
+import { effortDe, effortsOpciones, MODELO_DEFAULT, MODELOS, modeloDe, modeloVigente, nombreModelo, useModelosVivos } from "./opciones";
 import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, reajustarEffort, sinWorkers } from "./modelos";
 import { ContextoLocal } from "./ContextoLocal";
 import { t as tr } from "../i18n";
@@ -342,7 +342,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     };
   }, []);
   // El cupo de cada modelo y de cada proveedor: el mismo dato que la tarjeta de cupos (sin cupo, con su hora; poco cupo, el punto ámbar).
-  const cupos = useMemo(() => estadosCupoModelos(MODELOS.map((m) => m.id), uso, Date.now() / 1000), [uso]);
+  // La tabla de modelos cambia sin reiniciar (catálogo nuevo, Ajustes): lo armado con ella se rehace.
+  const tablaModelos = useModelosVivos();
+  const cupos = useMemo(() => estadosCupoModelos(MODELOS.map((m) => m.id), uso, Date.now() / 1000), [uso, tablaModelos]);
   const cuposColumnas = useMemo(() => estadosCupoProveedores(uso, Date.now() / 1000), [uso]);
   const [senalModelo, setSenalModelo] = useState(0);
   // «Seguir con otro modelo» (#1791): el selector que abre el aviso de límite o de sin cupo. Captura `lider-avisos` con `HILOS_VARIANTE=seguir-con`: ya abierto.
@@ -377,6 +379,17 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       : (effortDe(l?.effort, modelo) ?? effortPara(modelo, effortsLeidos() ?? {})),
   );
   const tocado = useRef(!!l);
+  // Un líder nuevo sigue a la tabla viva: sin tocar el modelo, pasa al default vigente (Fable 5.2 cuando la cuenta lo trae y la caja tenía el 5.1);
+  // y si lo elegido ya no existe en la tabla, al vigente de su familia. Uno ya creado conserva el modelo que tiene.
+  useEffect(() => {
+    if (l || tablaModelos === 0) return;
+    const hay = (id: string) => MODELOS.some((m) => m.id === id);
+    const nuevo = !tocado.current ? (hay(MODELO_DEFAULT) ? MODELO_DEFAULT : modeloVigente(MODELO_DEFAULT)) : hay(modelo) ? modelo : modeloVigente(modelo);
+    if (nuevo === modelo) return;
+    setModelo(nuevo);
+    setEffort((antes) => reajustarEffort(nuevo, antes, effortsLeidos() ?? {}));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tablaModelos]);
   // El modelo del líder cambió del otro lado (otro motor confirmado en otra ventana o el celular, /model): la caja lo sigue.
   // Sin esto quedaba el de cuando se abrió la conversación, y Volver/Editar mandaba ese (un DeepSeek después de pasar a Opus).
   const modeloServidor = l ? modeloDe(l.modelo) : undefined;
@@ -393,7 +406,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const turnoModelo = modeloDe(l?.modelo);
   const enTurno = app && ocupado;
   const pend = pendienteDe({ ocupado: enTurno, modelo, effort, turno: l ? { modelo: turnoModelo ?? undefined, effort: effortDe(l.effort, turnoModelo) } : null });
-  const modelosEnTurno = useMemo(() => opcionesEnTurno(MODELOS, enTurno, l?.modelo, tr("lider.cruceEnTurno")), [enTurno, l?.modelo]);
+  const modelosEnTurno = useMemo(() => opcionesEnTurno(MODELOS, enTurno, l?.modelo, tr("lider.cruceEnTurno")), [enTurno, l?.modelo, tablaModelos]);
   // Con mensajes en la cola, cada cambio de la caja se avisa al main: el que sale lleva lo vigente al desencolarse, no lo de cuando se encoló.
   const selVista = useRef<string | null>(null);
   useEffect(() => {

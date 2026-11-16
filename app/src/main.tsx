@@ -6,8 +6,7 @@ import { createRoot } from "react-dom/client";
 import { armarActualizando } from "./actualizando";
 import { App } from "./App";
 import { pedirDueno } from "./datos/dueno-pedir";
-import { pedirModelos } from "./datos/modelos-config";
-import { aplicarModelos } from "./hilo/opciones";
+import { arrancarModelosVivos } from "./datos/modelos-vivos";
 import { Cartel, ErrorBoundary } from "./ErrorBoundary";
 import { armarErrores } from "./errores";
 import { t } from "./i18n";
@@ -39,6 +38,6 @@ const pintar = () =>
   );
 
 // Tras el reinicio que pidió el usuario (o una recarga en el celular) arranca como estaba: se espera, apenas, a saber cómo.
-// Antes, los modelos de modelos.json (Gemini, Ollama, el líder por defecto): los selectores se arman con ellos.
+// Antes, los modelos de modelos.json (Gemini, Ollama, el líder por defecto): los selectores se arman con ellos y después se mantienen vivos (modelos-vivos.ts).
 const vuelta = MODO.cartel === null ? traerVuelta() : null;
-void (MODO.cartel === null ? Promise.all([pedirModelos().then(aplicarModelos), pedirDueno()]) : Promise.resolve()).then(() => (vuelta ? vuelta.then(pintar) : pintar()));
+void (MODO.cartel === null ? Promise.all([arrancarModelosVivos(), pedirDueno()]) : Promise.resolve()).then(() => (vuelta ? vuelta.then(pintar) : pintar()));

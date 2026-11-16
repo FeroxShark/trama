@@ -34,7 +34,7 @@ import { llanaRuta } from "../hilo/carpeta-nueva";
 import { pedirCarpeta } from "../hilo/carpeta-nueva-estado";
 import { fuenteProyectos, useProyectos } from "../datos/proyectos";
 import { dondeSeVe, mapaQuitados, mapaReemplazos } from "../../electron/reemplazos";
-import { fantasma, MODELO_DEFAULT, MODELOS, MODELOS_WORKER, modeloDe, primeraLinea } from "../hilo/opciones";
+import { fantasma, MODELO_DEFAULT, MODELOS, MODELOS_WORKER, modeloDe, primeraLinea, useModelosVivos } from "../hilo/opciones";
 import { SeguirCon } from "../hilo/SeguirCon";
 import { ClaudeCode } from "./ClaudeCode";
 import { carpetaCorta, carpetasExtra, claveClaude, OTRAS, repartirClaude } from "./claude-code";
@@ -315,6 +315,8 @@ function useUltimo<T>(valor: T) {
 export function Barra() {
   // Lo que no es `memo` se re-renderiza desde acá al cambiar de idioma.
   useIdioma();
+  // Los selectores de modelo (Seguir con…) se repintan si cambia la tabla (catálogo nuevo, Ajustes).
+  useModelosVivos();
   const [hilos, setHilos] = useState<Hilo[] | null>(null);
   const [lideres, setLideres] = useState<Lider[]>([]);
   const [caidos, setCaidos] = useState<Caido[]>([]);

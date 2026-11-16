@@ -17,7 +17,7 @@ import { fuenteContexto, type Quien } from "../datos/contexto";
 import { crearRefresco, mismoDesglose } from "./contexto-refresco";
 import { fuente } from "../datos/fuente";
 import { tareaDe, tipoDe } from "../barra/piezas";
-import { effortDe, MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo } from "../hilo/opciones";
+import { effortDe, MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo, useModelosVivos } from "../hilo/opciones";
 import { useCompactando } from "../hilo/compactando";
 import { useGastoSubagentes } from "../hilo/gasto-sub";
 import { claveEstadoSub, ordenSubs, pctContexto, tipoEstadoSub } from "../hilo/gasto-sub-logica";
@@ -952,6 +952,7 @@ const fechaCorta = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString(
  * esta versión de Claude Code se captura una vez (contexto-base.ts); sin la PC sólo se mira.
  */
 function VistaPreviaTab({ refresco }: { refresco: number }) {
+  useModelosVivos();
   const { apagados, puede } = useContext(Acc);
   const [tipo, setTipo] = useState<"lider" | "worker">("lider");
   const [proyecto, setProyecto] = useState(MODO.captura === "contexto-panel-previa" ? "/home/persona/proyectos/atlas" : "");

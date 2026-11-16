@@ -52,7 +52,7 @@ import {
 } from "../datos/tablero";
 import { useFoco } from "../foco";
 import { Selector, type Opcion } from "../hilo/Selector";
-import { MODELOS, modeloDe } from "../hilo/opciones";
+import { MODELOS, modeloDe, useModelosVivos } from "../hilo/opciones";
 import { locale, t, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { useNombreProyecto } from "../datos/proyectos";
@@ -651,6 +651,7 @@ type PropsConfirmar = {
 
 /** La confirmación: por proyecto, sus tareas (como van numeradas en el mensaje) y el líder que las recibe. */
 function Confirmar({ grupos, elegidos, modelos, enviando, alElegir, alModelo, alEnviar, alCancelar }: PropsConfirmar) {
+  useModelosVivos();
   const caja = useRef<HTMLDivElement>(null);
   // Es una barra, no un modal: Tab puede salir. Al cancelar o enviar, el foco vuelve al botón Iniciar de la barra de marcadas.
   useFoco(caja, { alCerrar: alCancelar, atrapar: false, ignorar: '[role="listbox"]', devolver: () => document.querySelector<HTMLElement>(".tb-ini-m .tb-iniciar") });

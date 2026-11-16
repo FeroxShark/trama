@@ -6,8 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { carcasa, type Cuenta, type Proveedor } from "../carcasa";
 import { fuente, type CuentaEstado, type EstadoCuentas } from "../datos/fuente";
-import { pedirModelos } from "../datos/modelos-config";
-import { aplicarModelos } from "../hilo/opciones";
+import { refrescarModelos } from "../datos/modelos-vivos";
 import { t, textoMain, type ClaveSola } from "../i18n";
 import { Fijo } from "../i18n/Fijo";
 import { useIdioma } from "../i18n/react";
@@ -55,7 +54,7 @@ export function AjustesCuentas({ Dato }: { Dato: FilaDato }) {
       setC(r);
       setError(null);
       // Gemini instalado y la tabla de modelos sin sus filas (agy apareció después de abrir la app): se arma de nuevo.
-      if (r.agy.instalado) void pedirModelos(5000).then((m) => m && m.gemini && aplicarModelos(m));
+      if (r.agy.instalado) void refrescarModelos();
     } catch (e) {
       if (vivo.current) setError(mensaje(e));
     } finally {

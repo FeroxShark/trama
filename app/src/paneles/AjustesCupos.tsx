@@ -12,8 +12,7 @@ import { fuente, type CuentaEstado, type EstadoCuentas } from "../datos/fuente";
 import { Selector } from "../hilo/Selector";
 import { goAgotadosHasta } from "../hilo/agotados";
 import { fuentePaneles, type EstadoNim, type EstadoOpencodeUi, type VistaPlanGo } from "../datos/paneles";
-import { pedirModelos } from "../datos/modelos-config";
-import { aplicarModelos } from "../hilo/opciones";
+import { refrescarModelos } from "../datos/modelos-vivos";
 import { nombreOpencode } from "../hilo/modelos";
 import { mensaje } from "../puente";
 import { t, textoMain, type ClaveSola } from "../i18n";
@@ -817,7 +816,7 @@ function TarjetaOpencode({ uso, perfiles, lista, alCambiar, detalleDe }: { uso: 
       window.dispatchEvent(new Event(EVENTO_PLAN_OPENCODE));
       // Los modelos que se ofrecen cambian con el plan: el estado y los selectores se piden de nuevo.
       mirar();
-      void pedirModelos(5000).then((m) => m && aplicarModelos(m));
+      void refrescarModelos();
     } catch (x) {
       if (vivo.current) setErrPlan(mensaje(x));
     } finally {

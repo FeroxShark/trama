@@ -2,6 +2,7 @@
 // Se ofrece todo (directiva 3): `pa` rechaza lo que no va y la app muestra su
 // mensaje. "default" es la tabla de routing de ~/CLAUDE.md para un worker que
 // escribe código. `clave` es lo que se busca en el id de modelo de un hilo.
+import { useSyncExternalStore } from "react";
 import { t, type ClaveSola } from "../i18n";
 import type { Opcion } from "./Selector";
 import { GENERAL, type Lider } from "../datos/contrato";
@@ -49,15 +50,56 @@ export const MODELOS: (Opcion & { clave: string })[] = TABLA.map((m) => conDivis
 /** Los modelos de un worker de `pa` (`-m`): los mismos, sin los que sólo corren en un líder (los locales, Gemini, Ollama). */
 export const MODELOS_WORKER: (Opcion & { clave: string })[] = MODELOS.filter((m) => !defDe(m.id)?.local && !defDe(m.id)?.soloLider);
 
+/** Lo que identifica a la tabla de hoy (ids, nombres, niveles, cuál es el default): si no cambia, un refresco no repinta nada. */
+const firmaTabla = () => JSON.stringify([MODELO_DEFAULT, TABLA.map((m) => [m.id, m.nombre, m.rec === true, m.anterior === true, m.efforts, m.effortDefecto])]);
+let firma = "";
+let version = 0;
+const oyentes = new Set<() => void>();
+
+/** Se llama cuando cambia la tabla de modelos (catálogo de Claude, Ajustes, un proveedor que aparece): los selectores abiertos se repintan solos. */
+export const alCambiarModelos = (f: () => void) => {
+  oyentes.add(f);
+  return () => void oyentes.delete(f);
+};
+const versionModelos = () => version;
+
+/** Un número que sube cada vez que cambia la tabla de modelos: va en las dependencias de lo que se arma con `MODELOS` y repinta al componente que lo usa. */
+export const useModelosVivos = (): number => useSyncExternalStore(alCambiarModelos, versionModelos, versionModelos);
+
 /**
  * `modelos.json` (src/datos/modelos-config.ts): las filas de Gemini y de Ollama que pide, y el líder por defecto. Cambia los arreglos
- * en su lugar (quien los importó los sigue viendo) y se llama una sola vez, antes de pintar. Sin el archivo no cambia nada.
+ * en su lugar (quien los importó los sigue viendo) y se llama al arrancar y cada vez que `modelos-vivos.ts` vuelve a leer la config
+ * (al enfocar la ventana, al guardar Ajustes, cada tanto). Si lo que ofrece cambió, avisa a los selectores (`useModelosVivos`).
+ * Sin el archivo no cambia nada.
  */
 export function aplicarModelos(c: ConfigModelos | null) {
   const lider = ponerConfig(c);
   MODELOS.splice(0, MODELOS.length, ...TABLA.map((m) => conDivisor(opcionDe(m), m)));
   MODELOS_WORKER.splice(0, MODELOS_WORKER.length, ...MODELOS.filter((m) => !defDe(m.id)?.local && !defDe(m.id)?.soloLider));
   MODELO_DEFAULT = lider?.modelo ?? "claude-opus-5-5";
+  const nueva = firmaTabla();
+  if (nueva === firma) return;
+  const habia = firma !== "";
+  firma = nueva;
+  // La primera vez (arranque) todavía no hay nadie mirando.
+  if (!habia) return;
+  version++;
+  for (const f of [...oyentes]) f();
+}
+
+/**
+ * El modelo vigente para uno que se eligió antes: si ya no está en la tabla, o es de una generación anterior (Fable 5.1 cuando la
+ * cuenta ya tiene 5.2), el primero vigente de su familia; si no hay otro, el default de siempre. Un modelo vigente se queda como está.
+ */
+export function modeloVigente(id: string): string {
+  const def = defDe(id);
+  if (def && !def.anterior) return def.id;
+  if (id.startsWith("claude-")) {
+    const familia = (x: string) => /^claude-[a-z]+/.exec(x)?.[0];
+    const nuevo = TABLA.find((m) => m.empresa === "anthropic" && !m.anterior && familia(m.id) === familia(id));
+    if (nuevo) return nuevo.id;
+  }
+  return def?.anterior ? def.id : MODELO_DEFAULT;
 }
 
 const Nivel = ({ n }: { n: number }) => (

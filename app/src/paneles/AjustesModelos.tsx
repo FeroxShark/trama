@@ -8,6 +8,7 @@ import { ChevronDown, Info, Plus, X } from "lucide-react";
 import { Interruptor } from "../ui/componentes";
 import { VERSION, type Uso } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
+import { refrescarModelos } from "../datos/modelos-vivos";
 import { avisarPerfil, EVENTO_PERFIL, perfilDe, type Perfil } from "../datos/perfil-reparto";
 import { fuentePaneles, type Bajada, type EntornoOllama, type EstadoModelos, type Sondeo } from "../datos/paneles";
 import { defDe, EMPRESAS, type Empresa } from "../hilo/modelos";
@@ -372,6 +373,8 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
       setB(borradorDe(nuevo));
       setOk(true);
       pedirEfectivo();
+      // Los selectores de modelo (nuevo líder, etc.) siguen lo guardado sin reiniciar.
+      void refrescarModelos();
       // La barra de cupos muestra el perfil guardado.
       avisarPerfil(perfilDe(nuevo.config));
     } catch (x) {
