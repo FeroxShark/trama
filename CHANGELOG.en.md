@@ -1,5 +1,9 @@
 # Changes
 
+## 0.3.1
+
+- Model pickers (like the one in «New lead») now always match Settings > Models: new models (for example Fable 5.2) and enabled providers (Google, OpenCode, DeepSeek) show up without restarting Trama, and a new lead starts with the current model.
+
 ## 0.3.0
 
 - Orderly shutdown on low quota, now visible: when a subscription is nearly out (5 % by default), every chat on that subscription that was working shows the card "Quota running low: wrapped up at this point" ("Wrapping up…" first, then how much was left, when the quota comes back and a link to the summary), and the chat says "Quota running low on …: I closed the jobs with a summary; it comes back at HH:MM". You can keep chatting.

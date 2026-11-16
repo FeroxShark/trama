@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.3.1
+
+- Los selectores de modelo (como el de «Nuevo líder») muestran siempre lo mismo que Ajustes > Modelos: aparecen los modelos nuevos (por ejemplo Fable 5.2) y los proveedores habilitados (Google, OpenCode, DeepSeek) sin reiniciar Trama, y un líder nuevo arranca con el modelo vigente.
+
 ## 0.3.0
 
 - Cierre ordenado por cupo, ya visible: cuando a una suscripción le queda poco (por defecto 5 %), cada chat de esa suscripción que estaba trabajando muestra la tarjeta «Cupo bajo: cerré en este punto» (primero «Cerrando…», después cuánto quedó, a qué hora vuelve el cupo y un enlace al resumen) y el chat avisa «Cupo bajo en …: cerré los trabajos con resumen; vuelve a las HH:MM». Podés seguir chateando.
