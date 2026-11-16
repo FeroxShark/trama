@@ -135,6 +135,9 @@ const CAPTURAS = [
   "lider-revision-chat",
   // El punto de control de un turno del líder (HILOS_VARIANTE=abierto: la lista con el primer diff; =confirmar: el diálogo de volver atrás).
   "lider-puntos",
+  // La tarjeta «Cupo bajo» del cierre por cupo en el chat de un líder (HILOS_VARIANTE: `cerrando` = el turno sigue; `cerrada` = ya cerró, con «Retomar solo» prendido; `apagado` = cerrada con el interruptor apagado). `ajustes-cierre`: Ajustes > Plan y cupos con el bloque «Cierre ordenado» a la vista.
+  "lider-cierre",
+  "ajustes-cierre",
   // Tablas del markdown en la respuesta de un líder.
   "lider-tabla",
   // Cada forma del texto de un mensaje, y lo que no tiene espacios (`HILOS_VARIANTE=pegado`).

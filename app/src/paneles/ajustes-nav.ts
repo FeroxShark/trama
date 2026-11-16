@@ -51,6 +51,10 @@ export const ITEMS: readonly Item[] = [
   { cat: "cupos", nombre: "cu.nvidia", que: "cu.nvidiaQue", sin: "nvidia nim build.nvidia.com gratis free cupo quota pedidos requests minuto minute tope limit 429 clave key uso usage" },
   { cat: "cupos", nombre: "cu.chatgpt", que: "cu.chatgptQue", sin: "chatgpt openai codex gpt suscripcion subscription plan cupo quota conectar connect login" },
   { cat: "cupos", nombre: "cu.topes", que: "cu.topesQue", sin: "tope limite limit cupo quota llena full umbral threshold porcentaje percent usado used dejar de usar stop using claude google gemini chatgpt codex opencode reserva reserve guardar save sesiones sessions codigo code fabrica factory" },
+  { cat: "cupos", nombre: "ajustes.cierre", que: "ajustes.cierreQue", sin: "cierre ordenado shutdown wrap up cupo bajo low quota umbral threshold resumen summary retomar resume solo own workers" },
+  { cat: "cupos", nombre: "ajustes.cierreActivo", que: "ajustes.cierreActivoQue", sin: "cierre ordenado shutdown cupo bajo low quota" },
+  { cat: "cupos", nombre: "ajustes.cierreUmbral", que: "ajustes.cierreUmbralQue", sin: "umbral threshold porcentaje percent cierre ordenado shutdown cupo bajo" },
+  { cat: "cupos", nombre: "ajustes.cierreRetomar", que: "ajustes.cierreRetomarQue", sin: "retomar resume solo own volver back cupo quota cierre ordenado" },
   { cat: "cupos", nombre: "ajustes.cuposSinCupo", que: "ajustes.cuposSinCupoQue", sin: "sin cupo out of quota agotado usar otro use another esperar wait fallar fail reemplazo fallback proveedor provider" },
 
   { cat: "locales", nombre: "ajustes.mdlLocales", que: "ajustes.mdlOllamaQue", sin: "ollama local llama gpu offline detectar detect" },

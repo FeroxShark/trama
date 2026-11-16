@@ -256,3 +256,40 @@ test("el aviso de tope dice la ventana y cuándo vuelve; apagado o sin dato no d
   assert.equal(GOOGLE_LLENA, 97);
   assert.equal(GOOGLE_CODIGO, 70);
 });
+
+// --- Cierre ordenado por cupo (Plan y cupos > «Cierre ordenado») ---
+const { cierreDe, ponerCierre, umbralDeTexto } = await import("../src/paneles/cupos-cierre.ts");
+const { validarCierre } = await import("../electron/valida-ajustes.ts");
+
+test("cierre: de fábrica el borrador no escribe nada y rige 5 % prendido sin retomar solo", () => {
+  const e = estado({});
+  assert.deepEqual(cierreDe(borradorDe(e)), { activo: true, umbral: 5, retomar_solo: false });
+  assert.equal(configDe(borradorDe(e))!.cierre, undefined);
+});
+
+test("cierre: sólo lo que se tocó va al archivo, y volver a la fábrica lo saca", () => {
+  const e = estado({});
+  let b = ponerCierre(borradorDe(e), "umbral", 10);
+  b = ponerCierre(b, "retomar_solo", true);
+  assert.deepEqual(configDe(b)!.cierre, { umbral: 10, retomar_solo: true });
+  assert.equal(sucio(e, b), true);
+  b = ponerCierre(ponerCierre(b, "umbral", 5), "retomar_solo", false);
+  assert.equal(configDe(b)!.cierre, undefined);
+  assert.equal(sucio(e, b), false);
+  // Lo guardado vuelve al borrador, y Cancelar es volver a nacer de ahí.
+  const g = estado({ cierre: { activo: false, umbral: 8 } });
+  assert.deepEqual(cierreDe(borradorDe(g)), { activo: false, umbral: 8, retomar_solo: false });
+  assert.equal(sucio(g, borradorDe(g)), false);
+});
+
+test("cierre: el umbral se valida de 2 a 20, entero; vacío vuelve a la fábrica", () => {
+  assert.deepEqual(umbralDeTexto("2"), { valor: 2, error: null });
+  assert.deepEqual(umbralDeTexto("20"), { valor: 20, error: null });
+  assert.deepEqual(umbralDeTexto(" 7 "), { valor: 7, error: null });
+  assert.deepEqual(umbralDeTexto(""), { valor: null, error: null });
+  for (const mal of ["1", "21", "0", "-3", "5.5", "cinco", "1e1"]) assert.equal(umbralDeTexto(mal).error, "ajustes.errCierreUmbral", mal);
+  assert.equal(validarCierre({ umbral: 1 }), "ajustes.errCierreUmbral");
+  assert.equal(validarCierre({ umbral: 21 }), "ajustes.errCierreUmbral");
+  assert.equal(validarCierre({ umbral: 5, activo: true, retomar_solo: false }), null);
+  assert.equal(validarCierre({ otro: 1 }), "ajustes.errCierreForma");
+});

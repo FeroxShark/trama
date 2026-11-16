@@ -1,0 +1,85 @@
+/* La tarjeta del cierre por cupo (src/hilo/TarjetaCierre.tsx). Mismo molde que la del revisor; sólo tokens de src/tokens.css; fondo liso, sin degradados. */
+.cq {
+  display: grid;
+  gap: var(--esp-3);
+  max-width: 100%;
+  margin-bottom: var(--esp-2);
+  padding: var(--esp-3) var(--esp-4);
+  border-radius: var(--r-lg);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+}
+.cq-cab {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+}
+.cq-ico {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--alto-chip);
+  height: var(--alto-chip);
+  border-radius: var(--r-cap);
+  background: var(--acento-tinte);
+  color: var(--decision-texto);
+}
+.cq[data-fase="retomado"] .cq-ico,
+.cq[data-fase="volvio"] .cq-ico {
+  color: var(--ok);
+}
+.cq-txt {
+  min-width: 0;
+}
+.cq-t {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--texto);
+}
+.cq-s {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--inactivo);
+}
+.cq-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2) var(--esp-4);
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-tile);
+}
+.cq-enlace {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  min-height: 2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--acento);
+  cursor: pointer;
+}
+.cq-enlace:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+.cq-retomar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-2);
+  min-height: 2rem;
+  color: var(--texto);
+  cursor: pointer;
+}
+@media (pointer: coarse), (max-width: 40rem) {
+  .cq-enlace,
+  .cq-retomar {
+    min-height: 2.75rem;
+  }
+}

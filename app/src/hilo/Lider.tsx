@@ -51,6 +51,8 @@ import { proyectosDe, useProyectos, type ProyectoNombre } from "../datos/proyect
 import { CuentaLider, cuentasDeClaude, nombreCuentaClaude, useCuentasClaude } from "./CuentaLider";
 import { filasDeCupos } from "../datos/cuentas";
 import { OfertaCuenta } from "./OfertaCuenta";
+import { TarjetaCierre } from "./TarjetaCierre";
+import { useCierre } from "./cierre-vivo";
 import { cuentasClaude, ofertaDeCambio } from "../barra/cupos-riel-logica";
 import { opcionesEnTurno, pendienteDe } from "./pendiente";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
@@ -155,6 +157,7 @@ const textoCaptura = () =>
 export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrirHilo, integrar, mirar = true, alRespuesta, mostrar, archivar }: Props) {
   const corrige = useCorrector();
   const sid = l?.id ?? "";
+  const cierreCupo = useCierre(sid);
   const clave = l ? `lider:${l.id}` : BORRADOR_LIDER;
   const vivo = useSyncExternalStore(
     useCallback((fn: () => void) => suscribir(sid, fn), [sid]),
@@ -1613,6 +1616,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
           </div>
         )}
         {errorCaja ? <div className="caja-error" role="alert">{errorCaja}</div> : null}
+        {cierreCupo ? <TarjetaCierre c={cierreCupo} /> : null}
         {ofertaCuenta ? <OfertaCuenta oferta={ofertaCuenta} alPasar={() => elegirCuenta(ofertaCuenta.otra.id)} deshabilitado={ocupado} /> : null}
         {cruceDatos ? (
           <DialogoCambio

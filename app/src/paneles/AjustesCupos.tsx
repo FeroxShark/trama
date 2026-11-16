@@ -37,6 +37,7 @@ import { FilaCuenta, FilaFija, LimiteCupo, LineaHallazgo, LineaNota, nombreVenta
 import { esEnUso, estadoCuenta, hallazgo, ventanasDeSusc, type FilaResumen } from "./cupos-tejido";
 import { PERFILES, SIN_CUPO, type Borrador, type Perfil, type SinCupo } from "./modelos-borrador";
 import { reservaDePerfil, ritmoSemanal, type Ritmo } from "./cupos-ritmo";
+import { AjustesCierre } from "./AjustesCierre";
 
 const SIN_CUPO_CLAVES: Record<SinCupo, { nombre: ClaveSola; que: ClaveSola }> = {
   otro: { nombre: "cu.sinCupoOtro", que: "cu.sinCupoOtroQue" },
@@ -1035,6 +1036,8 @@ export function AjustesCupos({ Dato, b, cambiar, uso }: { Dato: FilaDato; b: Bor
   };
 
   return (
+    <>
+    <AjustesCierre Dato={Dato} b={b} cambiar={cambiar} />
     <section className="pn-sec pn-edita cu-avanzado" data-abierta={abierto ? "" : undefined}>
       <h3 className="pn-h cu-av-h">
         <button type="button" className="cu-av-b" aria-expanded={abierto} onClick={alTocar}>
@@ -1044,6 +1047,7 @@ export function AjustesCupos({ Dato, b, cambiar, uso }: { Dato: FilaDato; b: Bor
       </h3>
       {abierto ? <AvanzadoCuerpo Dato={Dato} b={b} cambiar={cambiar} grupos={grupos} chatgpt={chatgpt} reserva={reserva} /> : null}
     </section>
+    </>
   );
 }
 

@@ -1,5 +1,6 @@
 // De dónde saca los datos la app: de `pa` por el main (`window.hilos`) o, en
 // bench y capturas (o con HILOS_FIXTURES=1), de los fixtures. La UI no se entera.
+import type { CierreVisto } from "../../electron/cierre-chats";
 import type { Compactando } from "../../electron/compactando";
 import type { Subagente, Subagentes } from "../../electron/subagentes";
 import { archivoVistoDe, tipoDeArchivo, type ArchivoVisto } from "../../electron/archivo-ruta";
@@ -247,6 +248,12 @@ export interface Fuente {
   liderRevisionReintentar(sid: string): Promise<RevisionEstado | null>;
   /** Saca de la vista la última revisión terminada. */
   liderRevisionDescartar(sid: string): Promise<void>;
+  /** El cierre por cupo de cada chat (tarjeta «Cupo bajo»): los que cerraron, con su hora de vuelta y el interruptor de retomar solo. */
+  liderCierres(): Promise<CierreVisto[]>;
+  /** «Retomar solo cuando vuelva el cupo» de un chat. */
+  ponerRetomarCierre(sid: string, on: boolean): Promise<void>;
+  /** Cambió el cierre de algún chat: llega la lista entera. */
+  alCierreLider(fn: (l: CierreVisto[]) => void): () => void;
   /** Los puntos de control de la conversación (uno por turno: qué archivos tocó). Sin git en su carpeta, vacío. */
   liderPuntos(sid: string): Promise<PuntoControl[]>;
   /** El diff (unificado) de un turno, de uno de sus archivos o de todos. */
@@ -1990,6 +1997,13 @@ const fija: Fuente = {
     return null;
   },
   async liderRevisionDescartar() {},
+  async liderCierres() {
+    return [];
+  },
+  async ponerRetomarCierre() {},
+  alCierreLider() {
+    return () => {};
+  },
   async liderSeguirCon(sid) {
     // Fixtures: un líder nuevo con lo hablado hasta ahora (el resumen de verdad lo arma el main).
     const nuevo = `00000000-0000-4000-8000-${String(++creados).padStart(12, "0")}`;
@@ -2815,6 +2829,18 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async liderRevisionDescartar(sid) {
     await m.lider.revisionDescartar(sid).catch(() => {});
+  },
+  async liderCierres() {
+    const r = await m.lider.cierres().catch(() => []);
+    return Array.isArray(r) ? (r as CierreVisto[]) : [];
+  },
+  async ponerRetomarCierre(sid, on) {
+    await m.lider.cierreRetomar({ sid, on }).catch(() => {});
+  },
+  alCierreLider(fn) {
+    return m.lider.alCierre((x) => {
+      if (Array.isArray(x)) fn(x as CierreVisto[]);
+    });
   },
   async liderSeguirCon(sid, x) {
     return m.lider.seguirCon({ sid, modelo: x.modelo, effort: x.effort }).catch((e) => {
