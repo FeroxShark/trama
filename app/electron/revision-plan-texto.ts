@@ -4,6 +4,50 @@
 
 /** El revisor por defecto (cupo de Google: no gasta el de Claude, que es el del líder). */
 export const REVISOR_DEFECTO = "gemini-4-argon";
+
+/** Los niveles de esfuerzo que conoce Ajustes > Modelos, de menor a mayor (los de `efforts_permitidos`). */
+const NIVELES = ["low", "medium", "high", "xhigh", "max"] as const;
+const FAMILIAS_EFFORT = ["fable", "opus", "sonnet", "haiku", "argon", "hydrogen", "gpt-oss", "astra", "sol", "luna"];
+
+/**
+ * Los esfuerzos que el dueño dejó prendidos en Ajustes > Modelos para ese modelo (`efforts_permitidos`, con la misma cuenta que `pa` y
+ * `reparto`: id exacto, id sin el sufijo de esfuerzo o familia). `null`: no hay regla, valen todos; `[]`: los apagó todos.
+ */
+export function effortsPermitidosDe(modelo: string, permitidos: Readonly<Record<string, readonly string[]>> | null | undefined): string[] | null {
+  if (!permitidos) return null;
+  const m = modelo.toLowerCase();
+  const base = m.replace(/-(?:low|medium|high|xhigh|max)$/, "");
+  const f = FAMILIAS_EFFORT.find((x) => m.includes(x));
+  const k = [m, base, f].find((x): x is string => x !== undefined && x in permitidos);
+  return k === undefined ? null : NIVELES.filter((e) => permitidos[k]!.includes(e));
+}
+
+/** ¿Ese esfuerzo está apagado en Ajustes > Modelos para ese modelo? Un esfuerzo vacío (el del modelo) nunca. */
+export const effortApagado = (modelo: string, effort: string, permitidos: Readonly<Record<string, readonly string[]>> | null | undefined): boolean => {
+  if (!effort) return false;
+  const ok = effortsPermitidosDe(modelo, permitidos);
+  return ok !== null && !ok.includes(effort.toLowerCase());
+};
+
+/**
+ * Los esfuerzos que se ofrecen para un revisor y cuál queda de entrada. `admitidos`: los que el modelo corre (su tabla, sin `off`);
+ * `permitidos`: lo prendido en Ajustes (los apagados no se ofrecen). `defecto`: el de fábrica del modelo si se ofrece, si no `high`, si
+ * no el más alto que no sea `max`: el máximo nunca es el de entrada salvo que sea el único. Sin ninguno que ofrecer: `niveles` vacío y
+ * `defecto` vacío (se corre con el esfuerzo propio del modelo).
+ */
+export function esfuerzosRevisor(
+  modelo: string,
+  admitidos: readonly string[],
+  fabrica: string | null | undefined,
+  permitidos: Readonly<Record<string, readonly string[]>> | null | undefined,
+): { niveles: string[]; defecto: string } {
+  const ok = effortsPermitidosDe(modelo, permitidos);
+  const niveles = admitidos.filter((e) => e !== "off" && (ok === null || ok.includes(e)));
+  const sinMax = niveles.filter((e) => e !== "max");
+  const defecto = [fabrica ?? "", "high"].find((e) => e && sinMax.includes(e)) ?? sinMax.at(-1) ?? niveles[0] ?? "";
+  return { niveles, defecto };
+}
+
 export type Revision = {
   bien: string;
   riesgos: string;

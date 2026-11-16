@@ -292,6 +292,15 @@ export function excluirGuardado(): string[] {
   }
 }
 
+/** Los `efforts_permitidos` del archivo guardado (lo que Ajustes > Modelos dejó prendido por modelo); `null` si no hay archivo o no dice nada. */
+export function effortsPermitidosGuardado(): Record<string, string[]> | null {
+  try {
+    return leerConfig(JSON.parse(readFileSync(rutaModelos(), "utf8"))).efforts_permitidos ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** ¿«Destrabar solo cuando se repite» está prendido para este modelo? Lo mira el puente de agy en cada turno (sin archivo o roto: la fábrica). */
 export function destrabarModelo(modelo: string): boolean {
   try {

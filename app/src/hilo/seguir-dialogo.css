@@ -194,7 +194,41 @@
 .seg-pie {
   display: flex;
   flex: none;
+  gap: var(--esp-2);
   justify-content: flex-end;
+}
+/* El esfuerzo del revisor: un grupo de opciones (una sola marcada) al lado de la lista de modelos; la marcada lleva tilde, no sólo color. */
+.seg-esf {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1) var(--esp-2);
+}
+.seg-esf-t {
+  margin-right: var(--esp-1);
+  font-size: var(--letra-4);
+  font-weight: 600;
+  color: var(--apagado);
+}
+.seg-esf-b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  height: var(--alto-chip);
+  padding: 0 var(--esp-2-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  font-size: var(--letra-4);
+  font-weight: 600;
+  cursor: pointer;
+}
+.seg-esf-b[aria-checked="true"] {
+  background: var(--acento-tinte);
+  box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
+}
+.seg-esf-b:disabled {
+  cursor: default;
 }
 .seg-cancelar {
   height: var(--alto-chip);

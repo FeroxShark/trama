@@ -59,7 +59,7 @@ import {
   type Rama,
 } from "./lider-arma.js";
 import * as puntos from "./puntos.ts";
-import { archivosDelPlan, correrRevisor, revisoresPermitidos, type OpcionesCorrida, type RevisionEstado } from "./revision-plan.ts";
+import { archivosDelPlan, correrRevisor, effortApagado, revisoresPermitidos, type OpcionesCorrida, type RevisionEstado } from "./revision-plan.ts";
 import { crearTrabajos, type Pendiente } from "./revision-trabajo.ts";
 import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
@@ -73,7 +73,7 @@ import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTr
 import { paraAcp, resueltos } from "./mcp-config.ts";
 import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
-import { claseDeModelo, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
+import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
 import { parsearModelo } from "./dsh.ts";
 import { parsearModelo as parsearOpencode } from "./opencode.ts";
 import { pedidoDe } from "./cache.ts";
@@ -2066,11 +2066,14 @@ export async function revisarPlanLider(x: { sid: string; id: string; modelo: str
   if (!q || q.herramienta !== "ExitPlanMode") throw errorT("main.revisionSinPlan");
   const modelo = String(x.modelo ?? "");
   if (!revisoresPermitidos([modelo], excluirGuardado()).length) throw errorT("main.revisorNoSirve", { v: modelo });
+  const effort = String(x.effort ?? "");
+  // Un esfuerzo que el dueño apagó en Ajustes > Modelos no se corre (la ventana tampoco lo ofrece).
+  if (effortApagado(modelo, effort, effortsPermitidosGuardado())) throw errorT("main.revisorEffortApagado", { v: modelo, e: effort });
   const g = (await lideresApp()).find((l) => l.sid === sid);
   if (!g) throw errorT("main.noEsDeLaApp");
   const nombre = String(x.nombre ?? "").slice(0, 60) || modelo;
   const plan = String((q.ev as { plan?: string | null }).plan ?? "");
-  return revisiones.iniciar({ sid, planId: String(x.id), modelo, effort: String(x.effort ?? ""), plan, nombre }, () => ({
+  return revisiones.iniciar({ sid, planId: String(x.id), modelo, effort, plan, nombre }, () => ({
     correr: (m, e, p, o: OpcionesCorrida) => correr(m, e, p, g.cwd, o),
     pedidoOriginal: async () => (await temaDe(sid, await transcriptDe(sid, g.cwd))).primero ?? null,
     cwd: () => g.cwd,

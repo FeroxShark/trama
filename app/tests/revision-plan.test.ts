@@ -7,7 +7,8 @@ import { crearTrabajos, type Pendiente } from "../electron/revision-trabajo.ts";
 import { LectorAgy, LectorClaude } from "../electron/revision-flujo.ts";
 import { falloDeRevisor, type RevisionEstado } from "../electron/revision-plan.ts";
 import { esperarHasta } from "./esperar.ts";
-import { ADJUNTO_BYTES, ADJUNTOS_MAX, ADJUNTOS_TOTAL, archivosDelPlan, rutasDelPlan, leerMensajeRevision, mensajeParaLider, parsearRevision, promptRevisor, revisarPlan, revisoresPermitidos, respuestaDeAgy, type DepsRevision } from "../electron/revision-plan.ts";
+import { esfuerzosDeRevisor } from "../src/hilo/esfuerzo-revisor.ts";
+import { effortApagado, effortsPermitidosDe, esfuerzosRevisor, ADJUNTO_BYTES, ADJUNTOS_MAX, ADJUNTOS_TOTAL, archivosDelPlan, rutasDelPlan, leerMensajeRevision, mensajeParaLider, parsearRevision, promptRevisor, revisarPlan, revisoresPermitidos, respuestaDeAgy, type DepsRevision } from "../electron/revision-plan.ts";
 
 const RESPUESTA = "## Qué está bien\n- El orden\n\n## Riesgos y huecos\n- Falta un test\n\n## Mejoras concretas\n- Agregar el test\n\n## Plan mejorado\n1. Test\n2. Código\n";
 
@@ -253,4 +254,35 @@ test("los lectores del stream: Claude saca pasos y texto vivo; agy, herramientas
   assert.deepEqual(a.linea('{"event":"step_update","step_update":{"step_type":"agent_response","step_index":3,"text_delta":"mundo"}}'), { texto: "Hola mundo" });
   assert.deepEqual(a.linea('{"event":"step_update","step_update":{"step_type":"tool","step_index":4,"state":"ACTIVE","tool_name":"view_file","tool_info":{"parameters":{"AbsolutePath":"/p/x.ts"}}}}'), { paso: { k: "leer", v: "/p/x.ts" } });
   assert.equal(a.linea('{"event":"step_update","step_update":{"step_type":"tool","step_index":4,"state":"DONE","tool_name":"view_file"}}'), null);
+});
+
+test("effortsPermitidosDe: la regla se busca por id, por id sin esfuerzo o por familia; sin regla valen todos", () => {
+  assert.equal(effortsPermitidosDe("claude-opus-5-5", null), null);
+  assert.equal(effortsPermitidosDe("claude-opus-5-5", { sonnet: ["low"] }), null);
+  assert.deepEqual(effortsPermitidosDe("claude-opus-5-5", { opus: ["high", "low"] }), ["low", "high"]);
+  assert.deepEqual(effortsPermitidosDe("gemini-4-argon-high", { "gemini-4-argon": ["medium"], argon: ["low"] }), ["medium"]);
+  assert.deepEqual(effortsPermitidosDe("gemini-4-hydrogen", { hydrogen: [] }), []);
+  assert.equal(effortApagado("claude-opus-5-5", "max", { opus: ["low", "high"] }), true);
+  assert.equal(effortApagado("claude-opus-5-5", "high", { opus: ["low", "high"] }), false);
+  assert.equal(effortApagado("claude-opus-5-5", "", { opus: [] }), false);
+});
+
+test("esfuerzosRevisor: ofrece lo que el modelo corre y Ajustes deja prendido; el de entrada es el de fábrica y nunca max", () => {
+  const todos = ["low", "medium", "high", "xhigh", "max"];
+  assert.deepEqual(esfuerzosRevisor("claude-opus-5-5", todos, "high", null), { niveles: todos, defecto: "high" });
+  // Apagados en Ajustes: no se ofrecen, y si cae el de fábrica queda `high` o, si tampoco, el más alto que no sea max.
+  assert.deepEqual(esfuerzosRevisor("claude-opus-5-5", todos, "high", { opus: ["low", "medium", "max"] }), { niveles: ["low", "medium", "max"], defecto: "medium" });
+  assert.equal(esfuerzosRevisor("claude-opus-5-5", todos, "max", null).defecto, "high");
+  // Max sólo es el de entrada si es lo único que queda.
+  assert.deepEqual(esfuerzosRevisor("claude-opus-5-5", todos, "high", { opus: ["max"] }), { niveles: ["max"], defecto: "max" });
+  // Todo apagado o sin niveles (`off` no es un nivel): nada que ofrecer, se corre con el esfuerzo del modelo.
+  assert.deepEqual(esfuerzosRevisor("claude-opus-5-5", todos, "high", { opus: [] }), { niveles: [], defecto: "" });
+  assert.deepEqual(esfuerzosRevisor("ollama:x", ["off"], null, null), { niveles: [], defecto: "" });
+});
+
+test("esfuerzosDeRevisor: con la tabla de modelos de la ventana (Claude y Gemini)", () => {
+  assert.deepEqual(esfuerzosDeRevisor("claude-opus-5-5", null), { niveles: ["low", "medium", "high", "xhigh", "max"], defecto: "high" });
+  assert.deepEqual(esfuerzosDeRevisor("claude-opus-5-5", { opus: ["low", "xhigh"] }), { niveles: ["low", "xhigh"], defecto: "xhigh" });
+  assert.deepEqual(esfuerzosDeRevisor("gemini-4-argon", null), { niveles: ["low", "medium", "high"], defecto: "high" });
+  assert.deepEqual(esfuerzosDeRevisor("gemini-4-argon", { argon: ["low", "medium"] }), { niveles: ["low", "medium"], defecto: "medium" });
 });

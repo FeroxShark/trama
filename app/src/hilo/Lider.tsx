@@ -23,6 +23,7 @@ import { ArrowUp, Check, Clock, Cpu, FastForward, Folder, Paperclip, Pause, Scan
 import { motion, useReducedMotion } from "motion/react";
 import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type PuntoControl, type Tokens, type Uso } from "../datos/contrato";
 import { fuente, type EnvioLider } from "../datos/fuente";
+import { fuentePaneles } from "../datos/paneles";
 import { ChipSubagentes } from "../barra/Fila";
 import { Reloj } from "../barra/piezas";
 import { LogoCab } from "../barra/Logo";
@@ -36,6 +37,7 @@ import { pintorCache } from "../tiempo";
 import { cacheAplica } from "../../electron/cache";
 import { BORRADOR_LIDER, cursorDe, escucharBorrador, guardarCursor, leerBorrador, ponerBorrador } from "./borradores";
 import { effortPara } from "./elegir";
+import { esfuerzosDeRevisor, type PermitidosAjustes } from "./esfuerzo-revisor";
 import { effortsLeidos, leerEfforts, recordarEffort } from "./efforts";
 import { effortDe, effortsOpciones, MODELO_DEFAULT, MODELOS, modeloDe, modeloVigente, nombreModelo, useModelosVivos } from "./opciones";
 import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, reajustarEffort, sinWorkers } from "./modelos";
@@ -1846,11 +1848,14 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
   // «Revisar con otro modelo»: el selector de revisor (sólo Claude o Gemini no desactivados en Ajustes).
   const [revisando, setRevisando] = useState(plan && ((MODO.captura === "lider-plan" && MODO.variante === "revisar") || MODO.captura === "lider-revision-sin-sesion"));
   const [revisores, setRevisores] = useState<string[] | null>(null);
+  // Lo que Ajustes > Modelos dejó prendido por modelo: de ahí salen los esfuerzos que se ofrecen (los apagados no).
+  const [permitidos, setPermitidos] = useState<PermitidosAjustes>(null);
   const enRevision = revisionViva(useRevision(sid).estado);
   useEffect(() => {
     if (!revisando) return;
     let vivo = true;
     void fuente.liderRevisores(MODELOS.map((m) => m.id)).then((ids) => vivo && setRevisores(ids), () => vivo && setRevisores(MODELOS.map((m) => m.id)));
+    void fuentePaneles.modelos().then((r) => vivo && setPermitidos(r.config.efforts_permitidos ?? null), () => {});
     return () => {
       vivo = false;
     };
@@ -1933,10 +1938,11 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
           actual={null}
           preferido={REVISOR_DEFECTO}
           busquedaInicial={MODO.captura === "lider-revision-sin-sesion" ? "ge" : undefined}
-          alElegir={async (elegido) => {
+          esfuerzos={(m) => esfuerzosDeRevisor(m, permitidos)}
+          alElegir={async (elegido, effort) => {
             // El main arranca al revisor y vuelve enseguida: el progreso se ve en el modal y, si se cierra, en el chat (RevisionVista).
             // Al terminar, el main le niega el plan al líder y le entrega la revisión por su cola; la tarjeta llega por el transcript.
-            await fuente.liderRevisarPlan(sid, p.id, { modelo: elegido, effort: effortPara(elegido, effortsLeidos() ?? {}), nombre: nombreModelo(elegido) });
+            await fuente.liderRevisarPlan(sid, p.id, { modelo: elegido, effort: effort ?? esfuerzosDeRevisor(elegido, permitidos).defecto, nombre: nombreModelo(elegido) });
             setRevisando(false);
             modalRevision(sid, true);
           }}

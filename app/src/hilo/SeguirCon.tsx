@@ -26,7 +26,12 @@ type Props = {
   /** El modelo con el que venía (se ve, pero no se elige). */
   actual: string | null;
   /** Elegir un modelo: devuelve cuando ya está hecho (el diálogo lo cierra el host) o rechaza con el motivo (se muestra acá). */
-  alElegir: (modelo: string) => Promise<void>;
+  alElegir: (modelo: string, effort?: string) => Promise<void>;
+  /**
+   * Sólo la revisión: los esfuerzos que se ofrecen para un modelo (`niveles`, ya sin los apagados en Ajustes) y el de entrada. Con esto, elegir
+   * una fila sólo la marca (el selector de esfuerzo va al lado) y se confirma con «Revisar» o con Enter.
+   */
+  esfuerzos?: (modelo: string) => { niveles: readonly string[]; defecto: string };
   alCerrar: () => void;
   /** El modelo que queda resaltado al abrir si se puede usar ya (con cupo); si no, el primero que se puede. */
   preferido?: string;
@@ -45,7 +50,7 @@ function MotivoSesion({ s }: { s: SinSesion }) {
   );
 }
 
-export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido, busquedaInicial = "" }: Props) {
+export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido, busquedaInicial = "", esfuerzos }: Props) {
   useIdioma();
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
@@ -89,11 +94,17 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
 
   useFoco(raiz, { alCerrar: enviando ? undefined : alCerrar, enfocar: "primero" });
 
-  const elegir = (modelo: string) => {
+  // Con selector de esfuerzo (la revisión): la fila marcada es la elegida y su esfuerzo es el que se ve; cambiar de modelo vuelve al de entrada.
+  const conEsfuerzo = !!esfuerzos;
+  const marcada = resaltada >= 0 ? (filas[resaltada]?.opcion.id ?? null) : null;
+  const ofrecidos = useMemo(() => (esfuerzos && marcada ? esfuerzos(marcada) : null), [esfuerzos, marcada]);
+  const [esfuerzoElegido, setEsfuerzoElegido] = useState<{ modelo: string; nivel: string } | null>(null);
+  const esfuerzo = ofrecidos && esfuerzoElegido?.modelo === marcada && ofrecidos.niveles.includes(esfuerzoElegido.nivel) ? esfuerzoElegido.nivel : (ofrecidos?.defecto ?? "");
+  const elegir = (modelo: string, nivel?: string) => {
     if (enviando || filas.some((f) => f.opcion.id === modelo && noElegible(f))) return;
     setEnviando(modelo);
     setError(null);
-    alElegir(modelo).catch((e) => {
+    alElegir(modelo, conEsfuerzo ? (nivel ?? esfuerzos?.(modelo).defecto ?? "") : undefined).catch((e) => {
       setEnviando(null);
       setError(mensaje(e));
     });
@@ -104,7 +115,7 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
       setResaltada((i) => moverSeguir(filas, i, e.key as "ArrowDown" | "ArrowUp"));
     } else if (e.key === "Enter" && resaltada >= 0 && filas[resaltada] && (e.target as HTMLElement).tagName === "INPUT") {
       e.preventDefault();
-      elegir(filas[resaltada].opcion.id);
+      elegir(filas[resaltada].opcion.id, esfuerzo);
     }
   };
 
@@ -165,8 +176,12 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
                     data-cupo={sin ? "sin" : poco ? "poco" : undefined}
                     data-actual={f.actual ? "" : undefined}
                     data-enviando={enviando === f.opcion.id ? "" : undefined}
-                    onMouseEnter={() => !noElegible(f) && !enviando && setResaltada(i)}
-                    onClick={() => !noElegible(f) && elegir(f.opcion.id)}
+                    onMouseEnter={() => !conEsfuerzo && !noElegible(f) && !enviando && setResaltada(i)}
+                    onClick={() => {
+                      if (noElegible(f)) return;
+                      if (conEsfuerzo) !enviando && setResaltada(i);
+                      else elegir(f.opcion.id);
+                    }}
                   >
                     <span className="seg-n">{f.opcion.nombre}</span>
                     <span className="seg-m">{f.sinSesion ? <MotivoSesion s={f.sinSesion} /> : f.opcion.desc}</span>
@@ -206,10 +221,36 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
             {error}
           </div>
         ) : null}
+        {conEsfuerzo && marcada && ofrecidos && ofrecidos.niveles.length ? (
+          <div className="seg-esf" role="radiogroup" aria-label={t("revision.esfuerzoDe", { modelo: filas[resaltada]?.opcion.nombre ?? "" })}>
+            <span className="seg-esf-t" aria-hidden="true">
+              {t("revision.esfuerzo")}
+            </span>
+            {ofrecidos.niveles.map((n) => (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={n === esfuerzo}
+                className="seg-esf-b"
+                disabled={!!enviando}
+                onClick={() => setEsfuerzoElegido({ modelo: marcada, nivel: n })}
+              >
+                {n === esfuerzo ? <Check size={11} strokeWidth={2.4} aria-hidden="true" /> : null}
+                {n}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="seg-pie">
           <Boton className="seg-cancelar" disabled={!!enviando} onClick={alCerrar}>
             {t("seguir.cancelar")}
           </Boton>
+          {conEsfuerzo ? (
+            <Boton primario disabled={!!enviando || !marcada} onClick={() => marcada && elegir(marcada, esfuerzo)}>
+              {t("revision.empezar")}
+            </Boton>
+          ) : null}
         </div>
       </div>
     </div>,
