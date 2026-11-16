@@ -14,6 +14,7 @@ import path from "node:path";
 import { envSinNavegador, hallarAgy, hallarCodex, resolverClaude } from "../binario.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
+import { cierreDe, cierresVigentes, suscripcionDeProveedor, textoSinCupo } from "./cierre-cupo-lectura.ts";
 import { esPrincipal } from "./base/principal.ts";
 import {
   costoMedio,
@@ -3012,6 +3013,17 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
     };
   }
   let [cands, minimo, minimoFam] = armarCandidatos(tipo, cfg, cupos, now);
+  // Cierre por cupo (Ajustes > cierre, `$PA_STATE/cierre-cupo.json`): una suscripción bajo el umbral no se elige; si no queda ninguna con cupo
+  // sale `todo_lleno` con `vuelve_antes` y `pa` hace cola hasta entonces (cupo.ts).
+  const cierres = cierresVigentes(estadoPaPlat(), Math.floor(now.getTime() / 1000));
+  if (cierres.length) {
+    for (const c of cands) {
+      const e = c.descartado_por ? null : cierreDe(cierres, suscripcionDeProveedor(get(c, "proveedor")), get(c, "cuenta"));
+      if (!e) continue;
+      c.descartado_por = textoSinCupo(e, now.getTime() / 1000);
+      if (e.vuelve !== null) c.vuelve = iso(new Date(e.vuelve * 1000));
+    }
+  }
   let relajado = false;
   if (!cands.some((c) => !c.duro)) {
     for (const c of cands) {
