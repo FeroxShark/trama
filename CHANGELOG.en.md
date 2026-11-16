@@ -1,5 +1,9 @@
 # Changes
 
+## Next version
+
+- Groundwork for the orderly shutdown when quota runs out: Trama watches how much each subscription has left and records when it crosses the threshold (5 % by default). No visible effect yet.
+
 ## 0.2.98
 
 - A lead's plan: new «Review with another model» button. You pick the model (Gemini Argon by default; only those turned on in Settings and with quota), it reads the plan and returns what is good, risks, improvements and an improved plan. It shows in the chat as a reviewer card and your lead integrates it and presents the plan again.

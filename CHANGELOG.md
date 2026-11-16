@@ -1,5 +1,9 @@
 # Cambios
 
+## Próxima versión
+
+- Base del cierre ordenado cuando se acaba el cupo: Trama vigila cuánto le queda a cada suscripción y anota cuándo cruza el umbral (por defecto 5 %). Todavía sin efecto visible.
+
 ## 0.2.98
 
 - Plan de un líder: nuevo botón «Revisar con otro modelo». Elegís el modelo (por defecto Gemini Argon; sólo los activados en Ajustes y con cupo), lee el plan y devuelve qué está bien, riesgos, mejoras y un plan mejorado. Se ve en el chat como tarjeta del revisor y tu líder la integra y te presenta el plan de nuevo.

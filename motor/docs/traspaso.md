@@ -46,6 +46,8 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
 
 ## Datos útiles
 
+- Cierre por cupo: la señal `$PA_STATE/cierre-cupo.json` y su formato están en `motor/docs/protocolo-cierre-cupo.md`.
+
 - **Ajustes > Locales (modelos locales detectados):** `app/electron/locales-deteccion.ts` mira (sin prender nada) llama.cpp, LM Studio,
   vLLM y Ollama: instalado / apagado / andando, sus modelos y la VRAM. La ventana lo pinta en `LocalesDetectados.tsx` (canal
   `locales:detectar`), con las guías de instalación de Linux y Windows (`locales-detectados.ts`). Prender y apagar el servicio de un modelo
