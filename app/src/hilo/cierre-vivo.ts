@@ -36,7 +36,7 @@ export function cierreDeCaptura(sid: string, variante: string | null, ahora = Ma
     desde: ahora - 600,
     estado: cerrando ? "cerrando" : "cerrado",
     retomar: variante !== "apagado",
-    relevo: "/home/ferox/.local/state/trama/relevos/resumen.md",
+    relevo: "~/.local/state/trama/relevos/resumen.md",
     duenoEscribio: false,
     retomado: false,
     fase: cerrando ? "cerrando" : "cerrado",

@@ -31,7 +31,7 @@ export function AjustesCierre({ Dato, b, cambiar }: { Dato: FilaDato; b: Borrado
     if (u.error === null) cambiar(ponerCierre(b, "umbral", u.valor ?? 5));
   };
   return (
-    <section ref={raiz} className="pn-sec pn-edita cu-cierre" data-opc="cu.cierre">
+    <section ref={raiz} className="pn-sec pn-edita cu-cierre" data-opc="ajustes.cierre">
       <h3 className="pn-h">{t("ajustes.cierre")}</h3>
       <div className="cu-av-q">{t("ajustes.cierreQue")}</div>
       <Dato nombre="ajustes.cierreActivo" que="ajustes.cierreActivoQue" icono={<PauseCircle size={16} strokeWidth={2} aria-hidden="true" />}>

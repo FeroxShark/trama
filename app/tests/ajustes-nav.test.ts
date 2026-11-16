@@ -54,7 +54,7 @@ test("la barra agrupa las 12 categorías bajo tres títulos, cada una en un solo
 });
 
 test("cada fila del índice está dibujada con su data-opc (el salto la encuentra)", () => {
-  const fuente = ["Ajustes.tsx", "AjustesTema.tsx", "AjustesLimpieza.tsx", "AjustesModelos.tsx", "AjustesWorkers.tsx", "AjustesEditar.tsx", "AjustesCuentas.tsx", "AjustesCarcasa.tsx", "AjustesNovedades.tsx", "AjustesTrama.tsx", "AjustesCupos.tsx", "AjustesCompactar.tsx", "AjustesDsh.tsx", "AjustesOpencode.tsx", "AjustesNvidia.tsx", "AjustesConectores.tsx", "AjustesGuia.tsx", "AjustesProyectos.tsx", "AjustesVolver.tsx"]
+  const fuente = ["Ajustes.tsx", "AjustesTema.tsx", "AjustesLimpieza.tsx", "AjustesModelos.tsx", "AjustesWorkers.tsx", "AjustesEditar.tsx", "AjustesCuentas.tsx", "AjustesCarcasa.tsx", "AjustesNovedades.tsx", "AjustesTrama.tsx", "AjustesCupos.tsx", "AjustesCierre.tsx", "AjustesCompactar.tsx", "AjustesDsh.tsx", "AjustesOpencode.tsx", "AjustesNvidia.tsx", "AjustesConectores.tsx", "AjustesGuia.tsx", "AjustesProyectos.tsx", "AjustesVolver.tsx"]
     .map((f) => readFileSync(path.join(import.meta.dirname, "..", "src", "paneles", f), "utf8"))
     .join("\n");
   // Los tipos de worker se dibujan con la clave armada (`mdl.t.${tipo}`); el resto, con su clave literal.
