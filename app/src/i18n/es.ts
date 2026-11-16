@@ -809,6 +809,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "revision.cerrar": "Cerrar",
   "revision.sinSesion": "{v} sin sesión: abrí una terminal y corré `{c}` para iniciar sesión",
   "revision.sinSesionEtiqueta": "Sin sesión",
+  "revision.ver": "Ver el avance",
+  "revision.canceladaDesc": "Revisión cancelada. El plan sigue esperando tu respuesta.",
   "revision.libre": "Lo que dijo el revisor",
   "revision.nada": "Sin nada que decir",
   "permiso.titulo": "Quiere usar {herramienta}",

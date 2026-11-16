@@ -820,6 +820,8 @@ export const en = {
   "revision.cerrar": "Close",
   "revision.sinSesion": "{v} is signed out: open a terminal and run `{c}` to sign in",
   "revision.sinSesionEtiqueta": "Signed out",
+  "revision.ver": "See progress",
+  "revision.canceladaDesc": "Review cancelled. The plan is still waiting for your answer.",
   "revision.libre": "What the reviewer said",
   "revision.nada": "Nothing to add",
   "permiso.titulo": "Wants to use {herramienta}",

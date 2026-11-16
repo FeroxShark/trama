@@ -23,13 +23,31 @@ export const seguibleLider = (l: { ocupado: boolean }): boolean => !l.ocupado;
 export const ofreceSeguir = (a: AvisoVisto): boolean =>
   (a.clase === "limite" && a.rechazado) || (a.clase === "error" && (a.codigo === "rate_limit" || esAvisoSinCupoOpencode(a.texto)));
 
+/** Una suscripción sin sesión: el servicio y el comando de una terminal que la inicia (`revision.sinSesion` lo dice en palabras). */
+export type SinSesion = { v: string; c: string };
+
+/**
+ * ¿La suscripción de este modelo no tiene sesión? Con lo que dice el estado de cuentas de Ajustes > Cuentas: Gemini va por `agy` (Google AI
+ * Pro) y Claude por `claude`. Sólo cuenta como «sin sesión» lo que el CLI dijo claro (`logueado: false` sin error): si no se pudo saber, se deja elegir.
+ */
+export function sinSesionDe(modelo: string, cuentas: { claude: { logueado: boolean; error: string | null }; agy: { logueado: boolean; error: string | null } } | null): SinSesion | null {
+  if (!cuentas) return null;
+  if (modelo.startsWith("gemini")) return !cuentas.agy.logueado && !cuentas.agy.error ? { v: "Google AI Pro", c: "agy" } : null;
+  if (modelo.startsWith("claude")) return !cuentas.claude.logueado && !cuentas.claude.error ? { v: "Claude", c: "claude" } : null;
+  return null;
+}
+
 export type FilaSeguir<T extends OpcionSeguir = OpcionSeguir> = {
   opcion: T;
   /** El cupo del modelo (null: no se mide). */
   cupo: EstadoCupo | null;
   /** Es el modelo con el que venía (el que se cortó): se ve, pero no se elige. */
   actual: boolean;
+  /** Su suscripción no tiene sesión: se ve atenuado, con el motivo, y no se elige. */
+  sinSesion?: SinSesion | null;
 };
+/** Una fila que no se puede elegir: el modelo con el que venía o uno sin sesión. */
+export const noElegible = (f: Pick<FilaSeguir, "actual" | "sinSesion">): boolean => f.actual || !!f.sinSesion;
 export type GrupoSeguir<T extends OpcionSeguir = OpcionSeguir> = { clave: string; nombre: string; filas: FilaSeguir<T>[] };
 
 /** El proveedor de una opción (la clave de su columna, o su grupo): lo que separa la lista en secciones. */
@@ -41,7 +59,7 @@ const nombreDe = (o: OpcionSeguir) => o.colNombre ?? o.grupo ?? "";
  * y dentro de cada una lo que tiene cupo primero y lo que no, al final (sin cambiar el orden de cada mitad). Las secciones donde sólo
  * queda lo sin cupo van después de las que tienen algo disponible: lo primero que se ve es lo que se puede usar ya.
  */
-export function listaSeguir<T extends OpcionSeguir>(opciones: readonly T[], cupos: ReadonlyMap<string, EstadoCupo>, actual: string | null, busqueda: string): GrupoSeguir<T>[] {
+export function listaSeguir<T extends OpcionSeguir>(opciones: readonly T[], cupos: ReadonlyMap<string, EstadoCupo>, actual: string | null, busqueda: string, sesiones: ReadonlyMap<string, SinSesion> = new Map()): GrupoSeguir<T>[] {
   const visibles = filtrarLista(
     opciones.filter((o) => !o.deshabilitada),
     busqueda,
@@ -51,14 +69,14 @@ export function listaSeguir<T extends OpcionSeguir>(opciones: readonly T[], cupo
     const clave = claveDe(o);
     let g = porClave.get(clave);
     if (!g) porClave.set(clave, (g = { clave, nombre: nombreDe(o), filas: [] }));
-    g.filas.push({ opcion: o, cupo: cupos.get(o.id) ?? null, actual: o.id === actual });
+    g.filas.push({ opcion: o, cupo: cupos.get(o.id) ?? null, actual: o.id === actual, sinSesion: sesiones.get(o.id) ?? null });
   }
   const grupos = [...porClave.values()];
   for (const g of grupos) {
-    const con = g.filas.filter((f) => !f.cupo?.sin);
-    g.filas = [...con, ...g.filas.filter((f) => f.cupo?.sin)];
+    const sin = (f: FilaSeguir<T>) => !!f.cupo?.sin || !!f.sinSesion;
+    g.filas = [...g.filas.filter((f) => !sin(f)), ...g.filas.filter(sin)];
   }
-  const disponible = (g: GrupoSeguir<T>) => g.filas.some((f) => !f.actual && !f.cupo?.sin);
+  const disponible = (g: GrupoSeguir<T>) => g.filas.some((f) => !noElegible(f) && !f.cupo?.sin);
   return [...grupos.filter(disponible), ...grupos.filter((g) => !disponible(g))];
 }
 
@@ -67,13 +85,13 @@ export const filasSeguir = <T extends OpcionSeguir>(grupos: readonly GrupoSeguir
 
 /** Qué fila queda resaltada al abrir: la primera que se puede elegir y tiene cupo; si no hay, la primera que se puede elegir; si no, ninguna (-1). */
 export function resaltadaInicial(filas: readonly FilaSeguir[]): number {
-  const libre = filas.findIndex((f) => !f.actual && !f.cupo?.sin);
-  return libre >= 0 ? libre : filas.findIndex((f) => !f.actual);
+  const libre = filas.findIndex((f) => !noElegible(f) && !f.cupo?.sin);
+  return libre >= 0 ? libre : filas.findIndex((f) => !noElegible(f));
 }
 
 /** A dónde va la resaltada con una flecha, saltando el modelo actual (no se elige). Sin otra fila elegible, queda donde estaba. */
 export function moverSeguir(filas: readonly FilaSeguir[], i: number, tecla: "ArrowDown" | "ArrowUp"): number {
   const paso = tecla === "ArrowDown" ? 1 : -1;
-  for (let k = i + paso; k >= 0 && k < filas.length; k += paso) if (!filas[k].actual) return k;
+  for (let k = i + paso; k >= 0 && k < filas.length; k += paso) if (!noElegible(filas[k])) return k;
   return i;
 }

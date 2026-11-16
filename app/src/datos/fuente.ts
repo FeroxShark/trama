@@ -13,7 +13,7 @@ import type { EstadoPlanDia, ModoPlanDia } from "../../electron/plan-dia";
 import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electron/dictado-modelos";
 import type { PrefCache } from "../../electron/cache-pregunta";
 import { aplicarOpGuias, GUIAS_VACIO, normalizarGuias, type EstadoGuias, type OpGuias } from "../../electron/guias-estado";
-import type { RevisionVista as RevisionPlan } from "../../electron/revision-plan-texto";
+import type { RevisionEstado } from "../../electron/revision-plan-texto";
 import { versionNormal } from "../../electron/novedades-cambios";
 import { topeSano, type TopeConf, type TopeEntorno } from "../../electron/autocompact-tope.ts";
 import { main, mensaje, type Lectura } from "../puente";
@@ -237,8 +237,16 @@ export interface Fuente {
   liderSeguirCon(sid: string, x: { modelo: string; effort: string }): Promise<string>;
   /** «Revisar con otro modelo»: de esos `ids`, los que sirven de revisor (Claude o Gemini, no desactivados en Ajustes). */
   liderRevisores(ids: string[]): Promise<string[]>;
-  /** «Revisar con otro modelo»: `modelo` lee el plan pendiente `id` del líder `sid`; el líder recibe la revisión y presenta el plan remasterizado. Devuelve la revisión. */
-  liderRevisarPlan(sid: string, id: string, x: { modelo: string; effort: string; nombre: string }): Promise<RevisionPlan>;
+  /** «Revisar con otro modelo»: `modelo` lee el plan pendiente `id` del líder `sid`. Vuelve enseguida con el estado; el progreso llega por el evento `revision` del líder. */
+  liderRevisarPlan(sid: string, id: string, x: { modelo: string; effort: string; nombre: string }): Promise<RevisionEstado>;
+  /** El estado de la revisión de ese líder (la que corre, o cómo terminó la última); `null`: ninguna. */
+  liderRevisionDe(sid: string): Promise<RevisionEstado | null>;
+  /** Corta al revisor (lo mata). */
+  liderRevisionCancelar(sid: string): Promise<boolean>;
+  /** Reintenta entregar la revisión guardada que no entró en la cola del líder. */
+  liderRevisionReintentar(sid: string): Promise<RevisionEstado | null>;
+  /** Saca de la vista la última revisión terminada. */
+  liderRevisionDescartar(sid: string): Promise<void>;
   /** Los puntos de control de la conversación (uno por turno: qué archivos tocó). Sin git en su carpeta, vacío. */
   liderPuntos(sid: string): Promise<PuntoControl[]>;
   /** El diff (unificado) de un turno, de uno de sus archivos o de todos. */
@@ -790,6 +798,30 @@ const lideresBase = (): RespuestaLideres =>
 // La cola con fixtures: la misma del main, con líderes de mentira.
 const ocupadosFijos = new Set<string>();
 const oyentesCola = new Set<(a: AvisoCola) => void>();
+/** La revisión de un plan con fixtures: corriendo hace 1 m 20 s, con pasos y un borrador del texto (capturas `lider-revision-*`). */
+function revisionFija(sid: string, planId: string, modelo: string, nombre: string): RevisionEstado {
+  const fija = MODO.captura === "lider-revision-vivo" || MODO.captura === "lider-revision-chat";
+  return {
+    id: "f-revision",
+    sid,
+    planId,
+    modelo,
+    nombre,
+    fase: "corriendo",
+    inicio: Date.now() - (fija ? 80_000 : 0),
+    fin: null,
+    pasos: fija
+      ? [
+          { k: "leer", v: "electron/lider.ts" },
+          { k: "buscar", v: "mandarDirecto" },
+          { k: "leer", v: "electron/cola.ts" },
+        ]
+      : [],
+    texto: fija ? "## Qué está bien\n- El plan entrega la revisión por la cola, no por `mandar`.\n\n## Riesgos y huecos\n- No dice qué pasa si el líder ya no existe." : "",
+    error: null,
+    reintentable: false,
+  };
+}
 const emitir = (sid: string, e: EventoLider) => {
   if (e.tipo === "estado") {
     if (e.ocupado) ocupadosFijos.add(sid);
@@ -1669,7 +1701,7 @@ const fija: Fuente = {
   async cuentas() {
     return {
       claude: { instalado: true, logueado: true, cuenta: "ana@ejemplo.org", error: null },
-      agy: MODO.variante === "cuentas-error" ? { instalado: true, logueado: false, cuenta: null, error: "sin conexión con el servicio de Google" } : { instalado: true, logueado: (MODO.variante ?? "").startsWith("cupos"), cuenta: null, error: null },
+      agy: MODO.variante === "cuentas-error" ? { instalado: true, logueado: false, cuenta: null, error: "sin conexión con el servicio de Google" } : { instalado: true, logueado: (MODO.variante ?? "").startsWith("cupos") || (MODO.captura === "lider-plan" && !!MODO.variante) || (MODO.captura === "lider-revision-vivo" || MODO.captura === "lider-revision-chat"), cuenta: null, error: null },
       // Codex sin instalar: la tarjeta ChatGPT de Plan y cupos explica cómo conectarlo.
       codex: { instalado: false, logueado: false, cuenta: null, error: null },
     };
@@ -1943,12 +1975,21 @@ const fija: Fuente = {
     return ids;
   },
   async liderRevisarPlan(sid, id, x) {
-    // Fixtures: la revisión de un revisor simulado; la real la manda el main al líder como un mensaje con marca.
-    const r = { bien: "El orden (primero el modelo, después la interfaz) deja probar cada paso.", riesgos: "No dice qué pasa si el revisor no contesta a tiempo.\nNo nombra el caso de un plan muy largo.", mejoras: "Mostrar la revisión como tarjeta del revisor, no como mensaje tuyo.\nProbar con un revisor simulado antes de usar uno real.", plan: "1. Armar el prompt del revisor.\n2. Mostrar la tarjeta.\n3. Mandarle la revisión al líder.\n4. Probar de punta a punta." };
-    void sid;
-    void id;
-    return { ...r, modelo: x.modelo, nombre: x.nombre };
+    // Fixtures: una revisión que arranca (la real corre en el main y avisa por el evento `revision`).
+    const e = revisionFija(sid, id, x.modelo, x.nombre);
+    emitir(sid, { tipo: "revision", estado: e });
+    return e;
   },
+  async liderRevisionDe(sid) {
+    return MODO.captura === "lider-revision-vivo" || MODO.captura === "lider-revision-chat" ? revisionFija(sid, "f-plan", "claude-fable-5-2", "Fable 5.2") : null;
+  },
+  async liderRevisionCancelar() {
+    return true;
+  },
+  async liderRevisionReintentar() {
+    return null;
+  },
+  async liderRevisionDescartar() {},
   async liderSeguirCon(sid) {
     // Fixtures: un líder nuevo con lo hablado hasta ahora (el resumen de verdad lo arma el main).
     const nuevo = `00000000-0000-4000-8000-${String(++creados).padStart(12, "0")}`;
@@ -2756,10 +2797,24 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     return Array.isArray(r) ? r.filter((i): i is string => typeof i === "string") : ids;
   },
   async liderRevisarPlan(sid, id, x) {
-    const r = (await m.lider.revisarPlan({ sid, id, modelo: x.modelo, effort: x.effort, nombre: x.nombre }).catch((e) => {
+    const r = await m.lider.revisarPlan({ sid, id, modelo: x.modelo, effort: x.effort, nombre: x.nombre }).catch((e) => {
       throw new Error(mensaje(e));
-    })) as Partial<RevisionPlan> | null;
-    return { bien: String(r?.bien ?? ""), riesgos: String(r?.riesgos ?? ""), mejoras: String(r?.mejoras ?? ""), plan: String(r?.plan ?? ""), ...(r?.libre ? { libre: String(r.libre) } : {}), modelo: String(r?.modelo ?? x.modelo), nombre: String(r?.nombre ?? x.nombre) };
+    });
+    return r as RevisionEstado;
+  },
+  async liderRevisionDe(sid) {
+    return ((await m.lider.revisionDe(sid).catch(() => null)) as RevisionEstado | null) ?? null;
+  },
+  async liderRevisionCancelar(sid) {
+    return m.lider.revisionCancelar(sid).catch(() => false);
+  },
+  async liderRevisionReintentar(sid) {
+    return (await m.lider.revisionReintentar(sid).catch((e) => {
+      throw new Error(mensaje(e));
+    })) as RevisionEstado | null;
+  },
+  async liderRevisionDescartar(sid) {
+    await m.lider.revisionDescartar(sid).catch(() => {});
   },
   async liderSeguirCon(sid, x) {
     return m.lider.seguirCon({ sid, modelo: x.modelo, effort: x.effort }).catch((e) => {

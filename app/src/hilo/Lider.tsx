@@ -63,6 +63,9 @@ import { transcriptLeido } from "./contextoVivo";
 import { Avisos, HaceChat, useQuietoDesde } from "./Hace";
 import type { AvisoVisto } from "./avisos";
 import { SeguirCon } from "./SeguirCon";
+import { RevisionVista } from "./RevisionVista";
+import { modalRevision, useRevision } from "./revision-vivo";
+import { revisionViva } from "./revision-logica";
 import { TarjetaRevision } from "./TarjetaRevision";
 import { leerMensajeRevision, REVISOR_DEFECTO } from "../../electron/revision-plan-texto";
 import { CarpetaDelChat, Texto } from "./Texto";
@@ -1322,6 +1325,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         onLayoutAnimationComplete={() => bajo.current?.()}
         {...soltable}
       >
+        {app && sid ? <RevisionVista sid={sid} /> : null}
         {app && sid ? vivo.pide.filter((p) => !p.preguntas?.length).map((p) => <PedidoPermiso key={p.id} sid={sid} p={p} />) : null}
         {app && sid && tandas[0] ? <PedidoPreguntas key={tandas[0].id} sid={sid} p={tandas[0]} preguntas={tandas[0].preguntas} n={1} total={tandas.length} pendientes={contarPendientes(tandas)} /> : null}
         {ajeno ? (
@@ -1823,8 +1827,9 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
   const plan = p.herramienta === "ExitPlanMode";
   const [mandando, setMandando] = useState(false);
   // «Revisar con otro modelo»: el selector de revisor (sólo Claude o Gemini no desactivados en Ajustes).
-  const [revisando, setRevisando] = useState(plan && MODO.captura === "lider-plan" && MODO.variante === "revisar");
+  const [revisando, setRevisando] = useState(plan && ((MODO.captura === "lider-plan" && MODO.variante === "revisar") || MODO.captura === "lider-revision-sin-sesion"));
   const [revisores, setRevisores] = useState<string[] | null>(null);
+  const enRevision = revisionViva(useRevision(sid).estado);
   useEffect(() => {
     if (!revisando) return;
     let vivo = true;
@@ -1896,7 +1901,7 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
             {plan ? tr("plan.seguir") : tr("permiso.negar")}
           </button>
           {plan ? (
-            <button type="button" className="btn2" disabled={mandando} data-tip={tr("plan.revisarTip")} onClick={() => setRevisando(true)}>
+            <button type="button" className="btn2" disabled={mandando || enRevision} data-tip={tr("plan.revisarTip")} onClick={() => setRevisando(true)}>
               <ScanSearch size={14} strokeWidth={2} aria-hidden="true" />
               {tr("plan.revisar")}
             </button>
@@ -1911,10 +1916,11 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
           actual={null}
           preferido={REVISOR_DEFECTO}
           alElegir={async (elegido) => {
-            // El main corre al revisor, le niega el plan al líder y le manda la revisión; la tarjeta llega por el transcript del chat.
+            // El main arranca al revisor y vuelve enseguida: el progreso se ve en el modal y, si se cierra, en el chat (RevisionVista).
+            // Al terminar, el main le niega el plan al líder y le entrega la revisión por su cola; la tarjeta llega por el transcript.
             await fuente.liderRevisarPlan(sid, p.id, { modelo: elegido, effort: effortPara(elegido, effortsLeidos() ?? {}), nombre: nombreModelo(elegido) });
             setRevisando(false);
-            contestado(sid, p.id);
+            modalRevision(sid, true);
           }}
           alCerrar={() => setRevisando(false)}
         />

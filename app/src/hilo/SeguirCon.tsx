@@ -15,7 +15,7 @@ import { mensaje } from "../puente";
 import { cuandoFuturo } from "../tiempo";
 import { Boton } from "../ui/componentes";
 import { estadosCupoModelos } from "./cupo-modelos.ts";
-import { filasSeguir, listaSeguir, moverSeguir, resaltadaInicial, type OpcionSeguir } from "./seguir-con.ts";
+import { filasSeguir, listaSeguir, moverSeguir, noElegible, resaltadaInicial, sinSesionDe, type OpcionSeguir, type SinSesion } from "./seguir-con.ts";
 import "./seguir-dialogo.css";
 
 type Props = {
@@ -33,6 +33,17 @@ type Props = {
   /** Captura: nace con esta búsqueda escrita. */
   busquedaInicial?: string;
 };
+
+/** El motivo de un modelo sin sesión; lo que va entre `comillas` se ve como código. */
+function MotivoSesion({ s }: { s: SinSesion }) {
+  return (
+    <>
+      {t("revision.sinSesion", { v: s.v, c: s.c })
+        .split("`")
+        .map((x, i) => (i % 2 ? <code key={i}>{x}</code> : x))}
+    </>
+  );
+}
 
 export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido, busquedaInicial = "" }: Props) {
   useIdioma();
@@ -53,13 +64,23 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
       soltar();
     };
   }, []);
+  // Sólo la revisión mira las sesiones: el mismo estado de cuentas que Ajustes > Cuentas (`fuente.cuentas()`).
+  const [sesiones, setSesiones] = useState<ReadonlyMap<string, SinSesion>>(() => new Map());
+  useEffect(() => {
+    if (de !== "revisar") return;
+    let vivo = true;
+    void fuente.cuentas().then((c) => vivo && setSesiones(new Map(opciones.flatMap((o) => { const s = sinSesionDe(o.id, c); return s ? [[o.id, s] as const] : []; }))), () => {});
+    return () => {
+      vivo = false;
+    };
+  }, [de, opciones]);
   const cupos = useMemo(() => estadosCupoModelos(opciones.map((o) => o.id), uso, Date.now() / 1000), [opciones, uso]);
-  const grupos = useMemo(() => listaSeguir(opciones, cupos, actual, busqueda), [opciones, cupos, actual, busqueda]);
+  const grupos = useMemo(() => listaSeguir(opciones, cupos, actual, busqueda, sesiones), [opciones, cupos, actual, busqueda, sesiones]);
   const filas = useMemo(() => filasSeguir(grupos), [grupos]);
   const [resaltada, setResaltada] = useState(-1);
   // Al cambiar la búsqueda o llegar el cupo, la resaltada vuelve a la primera que se puede usar ya.
   useEffect(() => {
-    const p = preferido ? filas.findIndex((f) => f.opcion.id === preferido && !f.actual && !f.cupo?.sin) : -1;
+    const p = preferido ? filas.findIndex((f) => f.opcion.id === preferido && !noElegible(f) && !f.cupo?.sin) : -1;
     setResaltada(p >= 0 ? p : resaltadaInicial(filas));
   }, [filas, preferido]);
   useEffect(() => {
@@ -69,7 +90,7 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
   useFoco(raiz, { alCerrar: enviando ? undefined : alCerrar, enfocar: "primero" });
 
   const elegir = (modelo: string) => {
-    if (enviando) return;
+    if (enviando || filas.some((f) => f.opcion.id === modelo && noElegible(f))) return;
     setEnviando(modelo);
     setError(null);
     alElegir(modelo).catch((e) => {
@@ -139,18 +160,24 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
                     className="seg-op"
                     role="option"
                     aria-selected={elegida}
-                    aria-disabled={f.actual || undefined}
+                    aria-disabled={noElegible(f) || undefined}
+                    data-sinsesion={f.sinSesion ? "" : undefined}
                     data-cupo={sin ? "sin" : poco ? "poco" : undefined}
                     data-actual={f.actual ? "" : undefined}
                     data-enviando={enviando === f.opcion.id ? "" : undefined}
-                    onMouseEnter={() => !f.actual && !enviando && setResaltada(i)}
-                    onClick={() => !f.actual && elegir(f.opcion.id)}
+                    onMouseEnter={() => !noElegible(f) && !enviando && setResaltada(i)}
+                    onClick={() => !noElegible(f) && elegir(f.opcion.id)}
                   >
                     <span className="seg-n">{f.opcion.nombre}</span>
-                    <span className="seg-m">{f.opcion.desc}</span>
+                    <span className="seg-m">{f.sinSesion ? <MotivoSesion s={f.sinSesion} /> : f.opcion.desc}</span>
                     {enviando === f.opcion.id ? (
                       <span className="seg-e" data-e="envio" role="status">
                         {t(de === "revisar" ? "revision.revisando" : "seguir.continuando")}
+                      </span>
+                    ) : f.sinSesion ? (
+                      <span className="seg-e" data-e="sinsesion">
+                        <Ban size={11} strokeWidth={2.4} aria-hidden="true" />
+                        {t("revision.sinSesionEtiqueta")}
                       </span>
                     ) : f.actual ? (
                       <span className="seg-e" data-e="actual">

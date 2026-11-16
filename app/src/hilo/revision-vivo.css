@@ -1,0 +1,63 @@
+/* «Revisar con otro modelo» en vivo (RevisionVista.tsx): pasos del revisor, el texto que va saliendo y los botones de cada fase.
+   Sobre los estilos de `seguir-dialogo.css` (el modal) y `tarjeta-revision.css` (la tarjeta). Sólo tokens de tokens.css. */
+.rvv-modal {
+  max-height: min(36rem, 100%);
+  overflow: hidden auto;
+}
+.rvv-pasos {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: var(--esp-1);
+  list-style: none;
+}
+.rvv-pasos li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.rvv-pasos li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rvv-pasos li[data-ultimo] {
+  color: var(--texto);
+}
+.rvv-espera {
+  display: flex;
+  margin: 0;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.rvv-texto {
+  max-height: 14rem;
+  padding: var(--esp-3);
+  overflow: hidden auto;
+  border-radius: var(--r-sm);
+  background: var(--capa-tile);
+  font-size: var(--letra-4);
+  scrollbar-width: thin;
+}
+.rvv-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+}
+.rvv-cancelar {
+  margin-right: auto;
+}
+.rvv[data-fase="fallo"] .rv-ico {
+  background: var(--cupo-agotado-fondo);
+  color: var(--cupo-agotado-texto);
+}
+.rvv {
+  margin-bottom: var(--esp-2);
+}

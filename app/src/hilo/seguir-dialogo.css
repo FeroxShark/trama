@@ -223,3 +223,16 @@
     animation: none;
   }
 }
+
+/* Un modelo cuya suscripción no tiene sesión: atenuado, con su motivo y sin poder elegirse (revisión de plan). */
+.seg-op[data-sinsesion] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.seg-op[data-sinsesion] .seg-m {
+  white-space: normal;
+}
+.seg-e[data-e="sinsesion"] {
+  background: var(--capa-tile);
+  color: var(--apagado);
+}

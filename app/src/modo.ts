@@ -129,6 +129,10 @@ const CAPTURAS = [
   "lider-editar",
   // La tarjeta del revisor de un plan (el mensaje con la marca `[[revision-de-plan …]]`; `lider-plan` + `HILOS_VARIANTE=revisar` deja abierto el selector del revisor).
   "lider-revision",
+  // «Revisar con otro modelo» en vivo: el modal con el progreso del revisor (`lider-revision-vivo`), el selector con Google sin sesión (`lider-revision-sin-sesion`) y la tarjeta «Revisando con…» en el chat con el modal cerrado (`lider-revision-chat`).
+  "lider-revision-vivo",
+  "lider-revision-sin-sesion",
+  "lider-revision-chat",
   // El punto de control de un turno del líder (HILOS_VARIANTE=abierto: la lista con el primer diff; =confirmar: el diálogo de volver atrás).
   "lider-puntos",
   // Tablas del markdown en la respuesta de un líder.
