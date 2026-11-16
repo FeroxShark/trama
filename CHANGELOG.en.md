@@ -1,11 +1,10 @@
 # Changes
 
-## Next version
+## 0.3.0
 
 - Orderly shutdown on low quota, now visible: when a subscription is nearly out (5 % by default), every chat on that subscription that was working shows the card "Quota running low: wrapped up at this point" ("Wrapping up…" first, then how much was left, when the quota comes back and a link to the summary), and the chat says "Quota running low on …: I closed the jobs with a summary; it comes back at HH:MM". You can keep chatting.
 - "Resume on my own when the quota is back": a per-chat switch on the card. When the quota returns, the chat carries on by itself from its summary and the workers that were cut off; if you wrote in that chat after the shutdown it does not resume, and if Trama was off at that time it resumes when opened.
 - Settings > Plan and quotas > "Orderly shutdown": turn it on or off, the threshold (2 to 20 %) and "Always resume on my own".
-- Groundwork for the orderly shutdown when quota runs out: Trama watches how much each subscription has left and records when it crosses the threshold (5 % by default). No visible effect yet.
 - Quota shutdown, notices: when a subscription is at or below the threshold, every live leader and worker on that subscription is told to wrap up in an orderly way (leave what works committed, a summary to resume, a single message to the owner). Gemini, dsh and opencode leaders get it through their queue if they are responding. `pa` and the dispatcher stop picking that subscription: if no other has quota, the task waits with “no quota: back at HH:MM”, and a forced `-m` is stopped with the same message. Chatting works as usual.
 
 ## 0.2.99

@@ -1,11 +1,10 @@
 # Cambios
 
-## Próxima versión
+## 0.3.0
 
 - Cierre ordenado por cupo, ya visible: cuando a una suscripción le queda poco (por defecto 5 %), cada chat de esa suscripción que estaba trabajando muestra la tarjeta «Cupo bajo: cerré en este punto» (primero «Cerrando…», después cuánto quedó, a qué hora vuelve el cupo y un enlace al resumen) y el chat avisa «Cupo bajo en …: cerré los trabajos con resumen; vuelve a las HH:MM». Podés seguir chateando.
 - «Retomar solo cuando vuelva el cupo»: un interruptor en la tarjeta (por chat). Al volver el cupo, el chat sigue solo desde su resumen y con los workers que quedaron cortados; si escribiste en ese chat después del cierre no retoma, y si Trama estaba apagada a esa hora retoma al abrirse.
 - Ajustes > Plan y cupos > «Cierre ordenado»: se prende o apaga, el umbral (de 2 a 20 %) y «Retomar solo siempre».
-- Base del cierre ordenado cuando se acaba el cupo: Trama vigila cuánto le queda a cada suscripción y anota cuándo cruza el umbral (por defecto 5 %). Todavía sin efecto visible.
 - Cierre por cupo, avisos: cuando a una suscripción le queda el umbral o menos, cada líder y worker vivo de esa suscripción recibe el aviso de cerrar ordenado (dejar commiteado lo que anda, resumen para retomar, un solo mensaje al dueño). Los líderes de Gemini, dsh y opencode lo reciben por su cola si están respondiendo. `pa` y el reparto dejan de elegir esa suscripción: si no hay otra con cupo, la tarea espera con «sin cupo: vuelve a las HH:MM», y un `-m` forzado se frena con el mismo mensaje. Chatear sigue igual.
 
 ## 0.2.99
