@@ -84,13 +84,14 @@ const CONTRATO_L = [
   "hace el jefe después de integrar (un hook lo bloquea). Probá con cargo test/check o build debug.",
   FRASE_COMPACTA,
 ];
-const CIERRE_TAREA_L = [
-  "Te quedaste sin turnos. NO sigas con la tarea: cerrá.",
+const CIERRE_TAREA_PRIMERA = "Te quedaste sin turnos. NO sigas con la tarea: cerrá.";
+const CIERRE_PASOS_L = [
   "1) Commiteá, archivo por archivo, SOLO lo que tocaste vos (nada de `git add -A`, `-u` ni `.`).",
   "2) Respondé con el bloque RESULTADO / ARCHIVOS / DECISION / SIGUE / FRENÓ, y en DECISION decí explícitamente",
   "   qué quedó sin terminar.",
   "Si no hay nada tuyo para commitear, decilo y reportá igual. Nada de empezar trabajo nuevo.",
 ];
+const CIERRE_TAREA_L = [CIERRE_TAREA_PRIMERA, ...CIERRE_PASOS_L];
 const SIN_JEFE_L = [
   "No hagas preguntas: no hay nadie del otro lado para contestarlas. Si te falta información,",
   "tomá la suposición más razonable, seguí, y decí cuál tomaste en DECISION.",
@@ -100,6 +101,8 @@ const SIN_JEFE_L = [
 export const CONTRATO = CONTRATO_L.join("\n");
 /** Lo que se le manda como resume a un worker que se quedó sin turnos (con su propio tope de turnos). */
 export const CIERRE_TAREA = CIERRE_TAREA_L.join("\n");
+/** Los pasos de cierre de CIERRE_TAREA sin su primera línea: los reusa el aviso de cierre por cupo (motor/hooks/cierre-cupo-textos.mjs; un test los compara). */
+export const CIERRE_PASOS = CIERRE_PASOS_L.join("\n");
 export const CIERRE_TURNOS = 15;
 /** Sin jefe alcanzable (cron, timer, terminal suelta): el worker no tiene a quién preguntar. */
 export const SIN_JEFE = SIN_JEFE_L.join("\n");

@@ -14,7 +14,7 @@ import path from "node:path";
 import { escribirAtomicoSync } from "./base/archivo.ts";
 
 export type VarianteHook = "sh" | "mjs";
-export type NombreHook = "latido" | "destructive-guard" | "statusline-espejo" | "agy-pa";
+export type NombreHook = "latido" | "destructive-guard" | "statusline-espejo" | "agy-pa" | "cierre-cupo";
 
 /** Los hooks que `instalar-producto.sh` enlaza en `~/.claude/hooks`. */
 export const HOOKS_DE_CLAUDE: readonly NombreHook[] = ["latido", "destructive-guard", "statusline-espejo"];
@@ -25,6 +25,15 @@ export const HOOK_DE_AGY: NombreHook = "agy-pa";
 export const archivoHook = (nombre: NombreHook, variante: VarianteHook): string => `${nombre}.${variante}`;
 /** Archivos que los hooks cargan desde su propia carpeta (tienen que viajar con ellos). */
 export const apoyoDeHooks = (variante: VarianteHook): string[] => (variante === "sh" ? ["docker-guard.py"] : ["docker-guard.mjs"]);
+
+/**
+ * El aviso de cierre por cupo (`cierre-cupo.mjs`, con sus textos en `cierre-cupo-textos.mjs`): sólo existe en Node, también en Linux
+ * (va con `node`, en las dos variantes). PostToolUse y UserPromptSubmit de cada sesión del `claude` oficial: líderes y workers.
+ */
+export const EVENTOS_CIERRE_CUPO = ["PostToolUse", "UserPromptSubmit"] as const;
+export const ARCHIVOS_CIERRE_CUPO = ["cierre-cupo.mjs", "cierre-cupo-textos.mjs"] as const;
+/** Su comando: `node '<carpeta>/cierre-cupo.mjs'`. */
+export const comandoCierreCupo = (carpeta: string, o: OpcionesComando = {}): string => comandoHook("cierre-cupo", "mjs", carpeta, o);
 
 export type OpcionesComando = {
   /** El intérprete de la variante `.mjs` (default `node`; el instalador de Windows pasa el `node.exe` empaquetado). */
@@ -108,6 +117,16 @@ export function registrarEnAjustes(ajustes: Json, o: OpcionesRegistro): boolean 
         cambio = true;
       }
     }
+  }
+
+  // Cierre por cupo: PostToolUse y UserPromptSubmit, una vez cada uno (se agrega, nunca se pisa lo del usuario).
+  const cierre = comandoCierreCupo(o.carpeta, o);
+  for (const evento of EVENTOS_CIERRE_CUPO) {
+    const h2 = ajustes.hooks as Json;
+    if (h2[evento] !== undefined && h2[evento] !== null && !Array.isArray(h2[evento])) throw new Error(`hooks.${evento} no es una lista`);
+    if (comandosDe(h2[evento]).some((h) => typeof h.command === "string" && marca("cierre-cupo").test(h.command))) continue;
+    h2[evento] = [...((h2[evento] as unknown[] | null | undefined) ?? []), { hooks: [{ type: "command", command: cierre, timeout: 10 }] }];
+    cambio = true;
   }
 
   // statusLine: el espejo envuelve al que haya.

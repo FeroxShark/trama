@@ -40,7 +40,7 @@ import { iconosDe } from "./iconos.js";
 import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
 import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
-import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, guardarAvisoLider, avisoLiderGuardado, guardarCacheVencida, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTerminalAgentes, guardarTiernos, guiasEstado, guardarLimpieza, leerLimpieza, leerPreferencias } from "./preferencias.js";
+import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, guardarAvisoLider, avisoLiderGuardado, guardarCacheVencida, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, idiomaGuardado, guardarTerminalAgentes, guardarTiernos, guiasEstado, guardarLimpieza, leerLimpieza, leerPreferencias } from "./preferencias.js";
 import { cerrarNovedades, leerNovedades } from "./novedades.js";
 import { aplicarLimpieza, pasadaAutomatica, programarPasadas, verLimpieza } from "./limpieza-pa.js";
 import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, lanzarTareaMd, leerAjustes, leerMedicion, pasarALider, relanzarWorker, retomarDatos, seguirConWorker, tareaMdEnCurso, type AccionRama, type TipoTareaMd } from "./paneles.js";
@@ -55,6 +55,7 @@ import { agyOfrecidos } from "./agy-ofrecidos.ts";
 import { revisoresPermitidos } from "./revision-plan.ts";
 import { crearCierreCupo } from "./cierre-cupo-disco.ts";
 import { crearCierreChats } from "./cierre-chats.ts";
+import { avisarLideres, carpetaHooksCierre } from "./cierre-cupo-texto.ts";
 import { autocompactLiderGuardado, cierreGuardado, efectivoDePa, excluirGuardado, guardarModelos, leerModelos, modelosConfig, sondearOllama, topeEntorno, vistaModelos } from "./modelos-config.ts";
 import { accesos } from "./celular-accesos.js";
 import { guardarConfig, leerEditable } from "./remoto-config.js";
@@ -660,6 +661,26 @@ const vivosDe = (s: { lideres: { lideres: { id: string; vivo: boolean }[] } }) =
  * vigilante mira cada suscripción y escribe `$PA_STATE/cierre-cupo.json`. `cierreCupo.alCierreCupo(fn)`: cada entrada que se dispara.
  */
 export const cierreCupo = crearCierreCupo(PA_STATE, cierreGuardado);
+// Los líderes de otro motor (Gemini, dsh, opencode) no corren hooks: el aviso de cierre les llega por la cola, y sólo si están respondiendo
+// y son de la suscripción que se acaba (un líder ocioso no se despierta; los del `claude` oficial lo reciben por el hook). cierre-cupo-texto.ts.
+cierreCupo.alCierreCupo((entrada) => {
+  const hooks = carpetaHooksCierre();
+  if (!hooks) return;
+  void (async () => {
+    await leerCola();
+    await avisarLideres({
+      entrada,
+      vivos: lider.vivosParaCierre(),
+      idioma: idiomaGuardado() ?? "es",
+      hooks,
+      archivoRelevo: lider.archivoRelevo,
+      encolar: (sid, texto, modelo, effort) => {
+        const { item } = lider.paraCola({ sid, texto, modelo, effort });
+        cola.encolar(sid, { ...item, aviso: true });
+      },
+    });
+  })().catch(silencio("cierre-cupo-avisar"));
+});
 function revisarCierre(s: Statusline) {
   try {
     cierreCupo.revisar(s.uso && "ts" in s.uso ? s.uso : null);

@@ -17,7 +17,7 @@ import { esEjecutable } from "../base/buscar.ts";
 import { paraLanzar, resolverClaude } from "../../binario.ts";
 import { tomar } from "../base/lock.ts";
 import { matarArbol } from "../base/proc.ts";
-import { comandoHook, entreComillas, type VarianteHook } from "../hooks.ts";
+import { comandoCierreCupo, comandoHook, entreComillas, type VarianteHook } from "../hooks.ts";
 import { CIERRE_TAREA, CIERRE_TURNOS, SIN_JEFE, conJefe } from "./contrato.ts";
 import { contratoActualizar } from "./auditar.ts";
 import { caminoDe, configTrama } from "../../rutas.ts";
@@ -257,6 +257,8 @@ export function settingsWorker(
   const latido = comandoHook("latido", variante, hooks, opc);
   const hb = entreComillas(pa.plat === "win32" ? o.hb.replace(/\\/g, "/") : o.hb);
   const modo = o.leer ? " leer" : "";
+  // Cierre por cupo (motor/hooks/cierre-cupo.mjs): le avisa al worker, una vez por ventana, que cierre. Sin el archivo no se registra.
+  const cierreCupo = existsSync(cam.join(hooks, "cierre-cupo.mjs")) ? [{ hooks: [{ type: "command", command: comandoCierreCupo(hooks, opc), timeout: 10 }] }] : [];
   let deny: string[] = [];
   if (o.espejo) {
     const d = cam.dirname(o.espejo);
@@ -274,7 +276,8 @@ export function settingsWorker(
         ...(guardOtro ? [] : [{ matcher: "Bash", hooks: [{ type: "command", command: guard }] }]),
         { hooks: [{ type: "command", command: `${latido} ${hb} pre${modo}` }] },
       ],
-      PostToolUse: [{ hooks: [{ type: "command", command: `${latido} ${hb} post` }] }],
+      PostToolUse: [{ hooks: [{ type: "command", command: `${latido} ${hb} post` }] }, ...cierreCupo],
+      UserPromptSubmit: cierreCupo,
     },
   };
   if (deny.length) s.permissions = { deny };

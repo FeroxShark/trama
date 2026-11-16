@@ -67,6 +67,7 @@ import { barrerEtiqueta, nuevaEtiqueta, VARIABLE } from "./huerfanos.js";
 import { arranqueDe } from "./local.js";
 import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts";
 import { fragmentoVigente } from "./apagados.ts";
+import { carpetaHooksCierre, settingsCierreCupo } from "./cierre-cupo-texto.ts";
 import { conClaves } from "./claves.ts";
 import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTramaApp, tramaParaAcp } from "./mcp.ts";
 import { paraAcp, resueltos } from "./mcp-config.ts";
@@ -397,6 +398,8 @@ export function procDe(sid: string): { pid: number | null; ocupado: boolean; ped
 
 export const ocupados = () => [...procs.values()].filter((p) => p.ocupado).length;
 export const vivos = () => procs.size;
+/** Los líderes con proceso de la app y qué son (modelo, clase, si responden): el aviso de cierre por cupo elige a quiénes mandarlo. */
+export const vivosParaCierre = () => [...procs].map(([sid, p]) => ({ sid, modelo: p.modelo, effort: p.effort, clase: p.clase as string, ocupado: p.ocupado }));
 /** Los líderes con proceso de la app (lanzados o traídos por trama), respondan o no. */
 /** La cuenta agregada de Claude con que corre el chat (`undefined`: la de siempre, o sin proceso). */
 export const cuentaDeProceso = (sid: string) => procs.get(sid)?.cuenta;
@@ -635,6 +638,14 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   } catch (e) {
     silencio("apagados-lanzar")(e);
   }
+  // El aviso de cierre por cupo (motor/hooks/cierre-cupo.mjs) para un líder de Claude de verdad; sin los hooks del motor, nada.
+  let cierreCupo: string | undefined;
+  try {
+    const hooks = clase === "claude" && !local && !extra.ollama ? carpetaHooksCierre() : null;
+    if (hooks) cierreCupo = settingsCierreCupo(hooks, { plataforma: plat });
+  } catch (e) {
+    silencio("cierre-cupo-lanzar")(e);
+  }
   const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : clase === "opencode" ? "opencode" : path.basename(CLAUDE).replace(/\.(exe|cmd|bat)$/i, "");
   const p =
     clase === "opencode"
@@ -659,7 +670,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: [LINEA_CHAT, extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, autocompact: tope, advisor: asesor, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
+      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, cierreCupo, autocompact: tope, advisor: asesor, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
   const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");
