@@ -1341,7 +1341,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         onLayoutAnimationComplete={() => bajo.current?.()}
         {...soltable}
       >
-        {app && sid ? <RevisionVista sid={sid} /> : null}
+        {app && sid ? <RevisionVista sid={sid} zona={zona} /> : null}
         {app && sid ? vivo.pide.filter((p) => !p.preguntas?.length).map((p) => <PedidoPermiso key={p.id} sid={sid} p={p} />) : null}
         {app && sid && tandas[0] ? <PedidoPreguntas key={tandas[0].id} sid={sid} p={tandas[0]} preguntas={tandas[0].preguntas} n={1} total={tandas.length} pendientes={contarPendientes(tandas)} /> : null}
         {ajeno ? (

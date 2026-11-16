@@ -73,3 +73,31 @@
   outline: 2px solid var(--acento);
   outline-offset: 2px;
 }
+/* Al tocar «Ver la tarjeta» (RevisionVista): la tarjeta se trae a la vista y se resalta un instante. Un velo que se apaga una vez (sólo opacidad). */
+.rv[data-resalta] {
+  position: relative;
+}
+.rv[data-resalta]::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--acento) 16%, transparent);
+  content: "";
+  pointer-events: none;
+  animation: rv-resalta 1.4s ease-out forwards;
+}
+@keyframes rv-resalta {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rv[data-resalta]::before {
+    animation: none;
+    opacity: 0.8;
+  }
+}

@@ -827,6 +827,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "revision.entregando": "Entregando la revisión a tu líder…",
   "revision.hecha": "Revisión entregada a tu líder",
   "revision.verTarjeta": "Ver la tarjeta",
+  "revision.enCamino": "En camino al chat…",
   "revision.reintentar": "Reintentar entregar",
   "revision.fallo": "La revisión no se pudo completar",
   "revision.otroModelo": "Elegir otro modelo",

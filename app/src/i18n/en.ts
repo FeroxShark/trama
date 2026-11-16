@@ -838,6 +838,7 @@ export const en = {
   "revision.entregando": "Delivering the review to your lead…",
   "revision.hecha": "Review delivered to your lead",
   "revision.verTarjeta": "See the card",
+  "revision.enCamino": "On its way to the chat…",
   "revision.reintentar": "Retry delivery",
   "revision.fallo": "The review could not be completed",
   "revision.otroModelo": "Pick another model",
