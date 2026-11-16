@@ -2,6 +2,11 @@
 // revisores permitidos y la orquestación de punta a punta con un revisor simulado (sin gastar cupo).
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { crearCola, type Encolado } from "../electron/cola.ts";
+import { crearTrabajos, type Pendiente } from "../electron/revision-trabajo.ts";
+import { LectorAgy, LectorClaude } from "../electron/revision-flujo.ts";
+import { falloDeRevisor, type RevisionEstado } from "../electron/revision-plan.ts";
+import { esperarHasta } from "./esperar.ts";
 import { ADJUNTO_BYTES, ADJUNTOS_MAX, ADJUNTOS_TOTAL, archivosDelPlan, rutasDelPlan, leerMensajeRevision, mensajeParaLider, parsearRevision, promptRevisor, revisarPlan, revisoresPermitidos, respuestaDeAgy, type DepsRevision } from "../electron/revision-plan.ts";
 
 const RESPUESTA = "## Qué está bien\n- El orden\n\n## Riesgos y huecos\n- Falta un test\n\n## Mejoras concretas\n- Agregar el test\n\n## Plan mejorado\n1. Test\n2. Código\n";
@@ -55,7 +60,7 @@ function deps(salida: string | Error): { d: DepsRevision; hecho: { prompt: strin
       cwd: () => "/p/trama",
       nombre: () => "Gemini 4 Argon",
       negar: (m) => hecho.negado.push(m),
-      mandar: async (t) => void hecho.mandado.push(t),
+      entregar: async (t) => void hecho.mandado.push(t),
     },
   };
 }
@@ -109,4 +114,143 @@ test("revisarPlan: los archivos que pide `archivos` van pegados en el prompt del
   const { d, hecho } = deps(RESPUESTA);
   await revisarPlan({ modelo: "gemini-4-argon", effort: "high", plan: "# P\ntocar app/a.ts" }, { ...d, archivos: async () => [{ ruta: "app/a.ts", texto: "const SECRETO_VISIBLE = 1;", cortado: false }] });
   assert.ok(hecho.prompt.includes("### app/a.ts") && hecho.prompt.includes("SECRETO_VISIBLE"));
+});
+
+// ---- Entrega por la cola, progreso en vivo, cancelar y reintentar ----
+
+const SID = "5a1f0c1d-0000-4000-8000-0000000000aa";
+const tic = () => new Promise((r) => setImmediate(r));
+
+test("la entrega con el líder respondiendo se encola (no se rechaza) y llega al terminar el turno", async () => {
+  const llegaron: string[] = [];
+  let disp: "ocupado" | "app" = "ocupado";
+  const cola = crearCola({
+    disponible: async () => disp,
+    traer: async () => ({ ok: true }),
+    mandar: async (_sid, x) => void llegaron.push(x.texto),
+    total: async () => 1,
+    textoError: () => "x",
+    guardar: async () => {},
+    avisar: () => {},
+    puedeEnTurno: () => false,
+    enTurno: async () => {},
+    agrupar: 5,
+  });
+  const { d } = deps(RESPUESTA);
+  // Como nucleo.ts: la revisión va a la cola del líder, que está respondiendo (ocupado).
+  const entregar = async (texto: string) => cola.encolar(SID, { texto, modelo: "claude-opus-5-5", effort: "high" } as Omit<Encolado, "id">);
+  const v = await revisarPlan({ modelo: "gemini-4-argon", effort: "high", plan: "# Plan\n1. X" }, { ...d, entregar });
+  assert.equal(v.nombre, "Gemini 4 Argon");
+  assert.deepEqual(llegaron, [], "con el líder respondiendo espera en la cola");
+  disp = "app";
+  void cola.libre(SID);
+  await esperarHasta(() => llegaron.length === 1);
+  assert.equal(leerMensajeRevision(llegaron[0])?.riesgos, "- Falta un test");
+});
+
+/** Los trabajos de revisión con un disco de mentira y los estados que se emiten anotados. */
+function trabajos() {
+  let disco: Pendiente[] = [];
+  const emitidos: RevisionEstado[] = [];
+  let t = 1000;
+  const tr = crearTrabajos({ ahora: () => (t += 1000), emitir: (e) => emitidos.push(e), leer: async () => disco, escribir: async (l) => void (disco = l), juntarMs: 1 });
+  return { tr, emitidos, disco: () => disco };
+}
+const pedido = { sid: SID, planId: "p1", modelo: "claude-fable-5-2", effort: "high", plan: "# Plan\n1. X", nombre: "Fable 5.2" };
+
+test("el progreso se actualiza con un revisor que emite pasos y texto; al final queda entregada", async () => {
+  const { tr, emitidos, disco } = trabajos();
+  const { d, hecho } = deps(RESPUESTA);
+  let suelta!: () => void;
+  const espera = new Promise<void>((r) => (suelta = r));
+  const e0 = tr.iniciar(pedido, () => ({
+    ...d,
+    correr: async (_m, _e, _p, o) => {
+      o.avance({ paso: { k: "leer", v: "app/a.ts" } });
+      o.avance({ texto: "## Qué está" });
+      await espera;
+      o.avance({ paso: { k: "buscar", v: "mandar" } });
+      return RESPUESTA;
+    },
+  }));
+  assert.equal(e0.fase, "corriendo");
+  await esperarHasta(() => emitidos.some((e) => e.pasos.length === 1));
+  await esperarHasta(() => emitidos.some((e) => e.texto === "## Qué está"));
+  assert.equal((await tr.estado(SID))?.fase, "corriendo");
+  suelta();
+  await esperarHasta(async () => (await tr.estado(SID))?.fase === "hecha");
+  const fin = (await tr.estado(SID))!;
+  assert.deepEqual(fin.pasos.map((p) => p.v), ["app/a.ts", "mandar"]);
+  assert.ok(fin.fin! > fin.inicio);
+  assert.equal(hecho.mandado.length, 1);
+  assert.deepEqual(disco(), [], "entregada: ya no queda en disco");
+  assert.ok(emitidos.some((e) => e.fase === "entregando"));
+});
+
+test("si la entrega falla, la revisión queda en disco con un error traducible y «Reintentar entregar» la entrega", async () => {
+  const { tr, disco } = trabajos();
+  const { d, hecho } = deps(RESPUESTA);
+  tr.iniciar(pedido, () => ({ ...d, entregar: async () => Promise.reject(new Error("se cayó la cola")) }));
+  await esperarHasta(async () => (await tr.estado(SID))?.fase === "fallo");
+  const e = (await tr.estado(SID))!;
+  assert.equal(e.reintentable, true);
+  assert.match(e.error!, /i18n:main\.revisionNoEntro/);
+  assert.equal(disco().length, 1);
+  assert.equal(hecho.negado.length, 1, "el plan ya estaba negado: no se niega dos veces");
+  const r = await tr.reintentar(SID, async (t) => void hecho.mandado.push(t));
+  assert.equal(r.fase, "hecha");
+  assert.equal(hecho.mandado.length, 1);
+  assert.deepEqual(disco(), []);
+});
+
+test("cancelar mata al revisor: el plan sigue pendiente (nada negado ni entregado)", async () => {
+  const { tr } = trabajos();
+  const { d, hecho } = deps(RESPUESTA);
+  let visto: AbortSignal | null = null;
+  tr.iniciar(pedido, () => ({
+    ...d,
+    correr: (_m, _e, _p, o) =>
+      new Promise((_ok, no) => {
+        visto = o.señal;
+        o.señal.addEventListener("abort", () => no(new Error("cortado")));
+      }),
+  }));
+  await esperarHasta(() => visto !== null);
+  assert.equal(tr.cancelar(SID), true);
+  await esperarHasta(async () => (await tr.estado(SID))?.fase === "cancelada");
+  assert.deepEqual([hecho.negado, hecho.mandado], [[], []]);
+  assert.equal(tr.cancelar(SID), false);
+  // Y se puede empezar otra.
+  assert.equal(tr.iniciar(pedido, () => deps(RESPUESTA).d).fase, "corriendo");
+});
+
+test("una revisión por líder: otra mientras corre se rechaza con un texto traducible", async () => {
+  const { tr } = trabajos();
+  tr.iniciar(pedido, () => ({ ...deps(RESPUESTA).d, correr: () => new Promise(() => {}) }));
+  assert.throws(() => tr.iniciar(pedido, () => deps(RESPUESTA).d), /i18n:main\.revisionYaCorre/);
+});
+
+test("un fallo del revisor se dice en palabras simples: sin sesión, sin «salió 1»", () => {
+  assert.match(falloDeRevisor("gemini", "error: authentication failed or timed out").message, /i18n:main\.revisorSinSesion.*Google AI Pro/s);
+  const general = falloDeRevisor("claude", "salió 1: ").message;
+  assert.doesNotMatch(general, /salió 1/);
+  assert.match(falloDeRevisor("claude", "rate limit hit").message, /revisorFalloDetalle/);
+});
+
+test("los lectores del stream: Claude saca pasos y texto vivo; agy, herramientas y text_delta", () => {
+  const c = new LectorClaude("/home/yo");
+  assert.equal(c.linea('{"type":"stream_event","event":{"type":"message_start"}}'), null);
+  assert.deepEqual(c.linea('{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hola"}}}'), { texto: "Hola" });
+  assert.deepEqual(c.linea('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"/home/yo/a.ts"}}]}}'), { paso: { k: "leer", v: "~/a.ts" } });
+  assert.deepEqual(c.linea('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Grep","input":{"pattern":"mandar"}}]}}'), { paso: { k: "buscar", v: "mandar" } });
+  c.linea('{"type":"result","subtype":"success","is_error":false,"result":"FINAL"}');
+  assert.equal(c.final, "FINAL");
+  const f = new LectorClaude();
+  f.linea('{"type":"result","subtype":"success","is_error":true,"result":"Not logged in"}');
+  assert.equal(f.falla, "Not logged in");
+  const a = new LectorAgy();
+  assert.deepEqual(a.linea('{"event":"step_update","step_update":{"step_type":"agent_response","step_index":3,"text_delta":"Hola "}}'), { texto: "Hola " });
+  assert.deepEqual(a.linea('{"event":"step_update","step_update":{"step_type":"agent_response","step_index":3,"text_delta":"mundo"}}'), { texto: "Hola mundo" });
+  assert.deepEqual(a.linea('{"event":"step_update","step_update":{"step_type":"tool","step_index":4,"state":"ACTIVE","tool_name":"view_file","tool_info":{"parameters":{"AbsolutePath":"/p/x.ts"}}}}'), { paso: { k: "leer", v: "/p/x.ts" } });
+  assert.equal(a.linea('{"event":"step_update","step_update":{"step_type":"tool","step_index":4,"state":"DONE","tool_name":"view_file"}}'), null);
 });

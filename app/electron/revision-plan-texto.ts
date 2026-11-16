@@ -15,6 +15,36 @@ export type Revision = {
 };
 export type RevisionVista = Revision & { modelo: string; nombre: string };
 
+/** Un paso del revisor (lo que va leyendo o buscando): `v` es la ruta o el patrón; el texto lo arma la ventana (`revision.paso.<k>`). */
+export type PasoRevision = { k: "leer" | "buscar" | "listar" | "otro"; v: string };
+/** En qué está una revisión: el revisor trabajando, entregándosela al líder, entregada, con un fallo o cancelada. */
+export type FaseRevision = "corriendo" | "entregando" | "hecha" | "fallo" | "cancelada";
+/**
+ * Una revisión en curso (o la última de ese líder), tal cual la ve la ventana: viaja en el evento `revision` del líder.
+ * `error` es un texto del main (clave de i18n codificada, `textoMain` lo traduce); `reintentable`: la revisión ya salió y está
+ * guardada en disco, sólo falta entregarla (el botón «Reintentar entregar»).
+ */
+export type RevisionEstado = {
+  id: string;
+  sid: string;
+  /** El pedido de permiso (ExitPlanMode) que se está revisando. */
+  planId: string;
+  modelo: string;
+  nombre: string;
+  fase: FaseRevision;
+  /** Cuándo empezó (epoch ms) y cuándo terminó (`null`: sigue). */
+  inicio: number;
+  fin: number | null;
+  /** Los últimos pasos del revisor, el más nuevo al final. */
+  pasos: PasoRevision[];
+  /** El texto que va saliendo (el del mensaje en curso), recortado. */
+  texto: string;
+  error: string | null;
+  reintentable: boolean;
+};
+export const PASOS_MAX = 8;
+export const TEXTO_VIVO_MAX = 12_000;
+
 /** Las secciones que se le piden al revisor, en orden: `clave` en `Revision`, título y los nombres con que se las reconoce al leer. */
 const SECCIONES: { clave: Exclude<keyof Revision, "libre">; titulo: string; alias: RegExp }[] = [
   { clave: "bien", titulo: "Qué está bien", alias: /^(?:qu[eé] est[aá] bien|lo que est[aá] bien|aciertos|what(?:'s| is) good)\b/i },

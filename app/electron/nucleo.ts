@@ -1359,6 +1359,19 @@ export function armarNucleo() {
   );
   // «Seguir con otro modelo» (#1791): un líder nuevo, en la misma carpeta, que arranca con el resumen de traspaso de éste. Devuelve su sid.
   manejar("lider:revisarPlan", (_e, x: { sid: string; id: string; modelo: string; effort: string; nombre?: string }) => lider.revisarPlanLider({ sid: x?.sid, id: x?.id, modelo: x?.modelo, effort: x?.effort, nombre: x?.nombre }));
+  manejar("lider:revisionDe", (_e, sid: unknown) => lider.revisionDe(String(sid)));
+  manejar("lider:revisionCancelar", (_e, sid: unknown) => lider.cancelarRevision(String(sid)));
+  manejar("lider:revisionReintentar", (_e, sid: unknown) => lider.reintentarRevision(String(sid)));
+  manejar("lider:revisionDescartar", (_e, sid: unknown) => lider.descartarRevision(String(sid)));
+  // La revisión de un plan entra en la conversación del líder por su cola (como un mensaje de otro agente): nunca se rechaza porque esté respondiendo.
+  lider.ponerEntregaRevision(async (sid, texto) => {
+    const sel = await lider.seleccionGuardadaDe(sid);
+    if (!sel) throw errorT("main.mcpLiderDesconocido", { v: sid.slice(0, 40) });
+    const { item } = lider.paraCola({ sid, texto, modelo: sel.modelo, effort: sel.effort || "medium" });
+    verEspera(sid);
+    await leerCola();
+    cola.encolar(sid, item);
+  });
   manejar("lider:revisores", (_e, ids: unknown) => revisoresPermitidos(Array.isArray(ids) ? ids.filter((i): i is string => typeof i === "string") : [], excluirGuardado()));
   manejar("lider:seguirCon", (_e, x: { sid: string; modelo: string; effort: string }) => lider.seguirCon({ sid: x?.sid, modelo: x?.modelo, effort: x?.effort }));
   // Puntos de control por turno (#1787): los de una conversación, el diff de uno y volver a antes de él (puntos.ts).

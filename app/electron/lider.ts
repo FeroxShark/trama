@@ -59,7 +59,8 @@ import {
   type Rama,
 } from "./lider-arma.js";
 import * as puntos from "./puntos.ts";
-import { archivosDelPlan, correrRevisor, revisarPlan, revisoresPermitidos, type RevisionVista } from "./revision-plan.ts";
+import { archivosDelPlan, correrRevisor, revisoresPermitidos, type OpcionesCorrida, type RevisionEstado } from "./revision-plan.ts";
+import { crearTrabajos, type Pendiente } from "./revision-trabajo.ts";
 import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { barrerEtiqueta, nuevaEtiqueta, VARIABLE } from "./huerfanos.js";
@@ -173,6 +174,8 @@ export type EventoLider =
   | { tipo: "entregado"; texto: string }
   /** Quedó lista la foto de «después» de un turno (puntos de control, electron/puntos.ts): la vista los relee. */
   | { tipo: "puntos" }
+  /** La revisión de un plan hecha por otro modelo cambió de estado («Revisar con otro modelo», electron/revision-trabajo.ts). */
+  | { tipo: "revision"; estado: RevisionEstado }
   /**
    * El proceso terminó. `error` si salió mal (código ≠ 0, o a mitad de un turno) y no porque se lo
    * cerró: las últimas líneas del stderr, o "" si no dijo nada. `null`: salió bien.
@@ -2016,12 +2019,31 @@ export function responderPermiso(sid: string, id: string, r: { ok: boolean; mens
   alCambio();
 }
 
+const ARCHIVO_REVISIONES = path.join(ESTADO, "revisiones-pendientes.json");
+/** Las revisiones que salieron y todavía no entraron en la cola del líder (en disco: un fallo de entrega no las pierde). */
+const leerRevisiones = async (): Promise<Pendiente[]> => {
+  const j = await readFile(ARCHIVO_REVISIONES, "utf8").then((t) => JSON.parse(t) as { pendientes?: unknown }, () => null);
+  return Array.isArray(j?.pendientes) ? (j.pendientes as Pendiente[]).filter((p) => p && typeof p.sid === "string" && typeof p.mensaje === "string") : [];
+};
+const revisiones = crearTrabajos({
+  ahora: Date.now,
+  emitir: (e) => alEv(e.sid, { tipo: "revision", estado: e }),
+  leer: leerRevisiones,
+  escribir: (lista) => escribirAtomico(ARCHIVO_REVISIONES, JSON.stringify({ version: 1, pendientes: lista })),
+});
+/** Cómo entra la revisión en la conversación del líder: por su cola (la pone nucleo.ts, que es quien la tiene). */
+let entregaRevision: (sid: string, texto: string) => Promise<unknown> = async () => {
+  throw new Error("sin cola");
+};
+export const ponerEntregaRevision = (fn: typeof entregaRevision) => void (entregaRevision = fn);
+
 /**
  * «Revisar con otro modelo»: el plan pendiente (ExitPlanMode `id`) lo lee otro modelo, que devuelve qué está bien, riesgos,
- * mejoras y un plan mejorado. El líder recibe el plan negado y, enseguida, la revisión como mensaje (la ventana la dibuja como
- * tarjeta del revisor): la integra y presenta el plan remasterizado. El plan sale de lo que dijo el líder, no de lo que mande la ventana.
+ * mejoras y un plan mejorado. Devuelve enseguida con el estado de la revisión (el trabajo sigue solo y avisa por el evento
+ * `revision`). Al terminar, el líder recibe el plan negado y la revisión por su cola (la ventana la dibuja como tarjeta del
+ * revisor): la integra y presenta el plan remasterizado. El plan sale de lo que dijo el líder, no de lo que mande la ventana.
  */
-export async function revisarPlanLider(x: { sid: string; id: string; modelo: string; effort: string; nombre?: string }, correr: typeof correrRevisor = correrRevisor): Promise<RevisionVista> {
+export async function revisarPlanLider(x: { sid: string; id: string; modelo: string; effort: string; nombre?: string }, correr: typeof correrRevisor = correrRevisor): Promise<RevisionEstado> {
   const sid = String(x?.sid);
   const q = procs.get(sid)?.pedidos.get(String(x?.id));
   if (!q || q.herramienta !== "ExitPlanMode") throw errorT("main.revisionSinPlan");
@@ -2030,20 +2052,30 @@ export async function revisarPlanLider(x: { sid: string; id: string; modelo: str
   const g = (await lideresApp()).find((l) => l.sid === sid);
   if (!g) throw errorT("main.noEsDeLaApp");
   const nombre = String(x.nombre ?? "").slice(0, 60) || modelo;
-  return revisarPlan(
-    { modelo, effort: String(x.effort ?? ""), plan: String((q.ev as { plan?: string | null }).plan ?? "") },
-    {
-      correr: (m, e, p) => correr(m, e, p, g.cwd),
-      pedidoOriginal: async () => (await temaDe(sid, await transcriptDe(sid, g.cwd))).primero ?? null,
-      cwd: () => g.cwd,
-      // Gemini corre en una carpeta vacía (agy no tiene modo sólo lectura): se le pega lo que el plan nombra. Claude lee solo.
-      ...(claseDeModelo(modelo) === "gemini" ? { archivos: (p: string) => archivosDelPlan(p, g.cwd) } : {}),
-      nombre: () => nombre,
-      negar: (mensaje) => responderPermiso(sid, String(x.id), { ok: false, mensaje }),
-      mandar: (texto) => mandar({ sid, texto, modelo: g.modelo, effort: g.effort ?? "" }),
+  const plan = String((q.ev as { plan?: string | null }).plan ?? "");
+  return revisiones.iniciar({ sid, planId: String(x.id), modelo, effort: String(x.effort ?? ""), plan, nombre }, () => ({
+    correr: (m, e, p, o: OpcionesCorrida) => correr(m, e, p, g.cwd, o),
+    pedidoOriginal: async () => (await temaDe(sid, await transcriptDe(sid, g.cwd))).primero ?? null,
+    cwd: () => g.cwd,
+    // Gemini corre en una carpeta vacía (agy no tiene modo sólo lectura): se le pega lo que el plan nombra. Claude lee solo.
+    ...(claseDeModelo(modelo) === "gemini" ? { archivos: (p: string) => archivosDelPlan(p, g.cwd) } : {}),
+    nombre: () => nombre,
+    // El plan se niega sólo si sigue pendiente (la persona pudo contestarlo mientras el revisor leía).
+    negar: (mensaje) => {
+      if (procs.get(sid)?.pedidos.has(String(x.id))) responderPermiso(sid, String(x.id), { ok: false, mensaje });
     },
-  );
+    entregar: (texto) => entregaRevision(sid, texto),
+  }));
 }
+
+/** El estado de la revisión de un líder (la que corre, o cómo terminó la última), o `null`. */
+export const revisionDe = (sid: string) => revisiones.estado(String(sid));
+/** Corta al revisor de ese líder. */
+export const cancelarRevision = (sid: string) => revisiones.cancelar(String(sid));
+/** Reintenta entregar la revisión guardada de ese líder. */
+export const reintentarRevision = (sid: string) => revisiones.reintentar(String(sid), (t) => entregaRevision(String(sid), t));
+/** Saca de la vista la última revisión terminada. */
+export const descartarRevision = (sid: string) => revisiones.descartar(String(sid));
 
 /** Parar la respuesta: interrupt por stdin; si no contesta, SIGINT. */
 export function parar(sid: string) {

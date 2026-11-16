@@ -15,9 +15,12 @@ import { errorT } from "./errores.ts";
 import { entornoLider } from "./lider-arma.ts";
 import { claseDeModelo, idAgy, modeloAgy, partirGemini } from "./modelos-config.ts";
 import { reglaDeExcluir, familiaClaude } from "./reparto-claude.ts";
+import { matarArbol } from "./procesos.ts";
+import { LectorAgy, LectorClaude, type Avance } from "./revision-flujo.ts";
 import { mensajeParaLider, parsearRevision, promptRevisor, sinComillas, type ArchivoAdjunto, type RevisionVista } from "./revision-plan-texto.ts";
 
 export * from "./revision-plan-texto.ts";
+export type { Avance } from "./revision-flujo.ts";
 
 /** Lo más largo que se acepta de plan: más que esto no es un plan, es otra cosa. */
 export const PLAN_MAX = 60_000;
@@ -90,10 +93,14 @@ export async function archivosDelPlan(
   return fuera;
 }
 
+/** Cómo corre el revisor: a quién le cuenta lo que va haciendo y cómo se lo corta. */
+export type OpcionesCorrida = { avance: (a: Avance) => void; señal: AbortSignal };
+const SIN_OPCIONES: OpcionesCorrida = { avance: () => {}, señal: new AbortController().signal };
+
 /** Lo que `revisarPlan` necesita del resto del sistema. */
 export type DepsRevision = {
-  /** Corre al revisor y devuelve lo que contestó. */
-  correr: (modelo: string, effort: string, prompt: string) => Promise<string>;
+  /** Corre al revisor y devuelve lo que contestó; cuenta por `o.avance` lo que va haciendo y se corta con `o.señal`. */
+  correr: (modelo: string, effort: string, prompt: string, o: OpcionesCorrida) => Promise<string>;
   /** El primer mensaje de la persona en esa conversación. */
   pedidoOriginal: () => Promise<string | null>;
   cwd: () => string | undefined;
@@ -103,54 +110,126 @@ export type DepsRevision = {
   nombre: (modelo: string) => string;
   /** Niega el plan pendiente con ese mensaje (el líder lo lee como el resultado de ExitPlanMode). */
   negar: (mensaje: string) => void;
-  /** Manda un mensaje al líder (se encola si está respondiendo). */
-  mandar: (texto: string) => Promise<unknown>;
+  /**
+   * Le entrega la revisión al líder POR LA COLA (nunca se rechaza porque esté respondiendo: tras negar el plan el líder sigue
+   * en turno, y lo encolado entra en el próximo límite de herramienta o al terminar el turno). Rechaza si no pudo encolarla.
+   */
+  entregar: (texto: string) => Promise<unknown>;
+  /** Guarda la revisión terminada en disco hasta que se entregue (un fallo de entrega no la pierde). */
+  guardar?: (mensaje: string, r: RevisionVista) => Promise<void>;
+  /** Avisa que la revisión salió y que empieza a entregarse. */
+  alEntregar?: (r: RevisionVista) => void;
 };
 
+/** Entrega una revisión guardada y, si entró en la cola, ya no hace falta tenerla en disco. */
+export async function entregarGuardada(mensaje: string, d: Pick<DepsRevision, "entregar"> & { quitar?: () => Promise<void> }): Promise<void> {
+  try {
+    await d.entregar(mensaje);
+  } catch {
+    throw errorT("main.revisionNoEntro");
+  }
+  await d.quitar?.().catch(() => {});
+}
+
 /**
- * La segunda opinión de punta a punta: el revisor lee el plan, la ventana recibe la revisión, el líder recibe el plan negado
- * («esperá la revisión») y enseguida la revisión como mensaje, para que la integre y presente el plan remasterizado. Si el
- * revisor falla, el plan sigue pendiente (no se niega nada) y el error sube.
+ * La segunda opinión de punta a punta: el revisor lee el plan, la revisión se guarda en disco, el líder recibe el plan negado
+ * («esperá la revisión») y la revisión por la cola, para que la integre y presente el plan remasterizado. Si el revisor falla o se
+ * cancela, el plan sigue pendiente (no se niega nada) y el error sube. Si la entrega falla, la revisión queda guardada (se reintenta).
  */
-export async function revisarPlan(x: { modelo: string; effort: string; plan: string }, d: DepsRevision): Promise<RevisionVista> {
+export async function revisarPlan(
+  x: { modelo: string; effort: string; plan: string },
+  d: DepsRevision & { quitar?: () => Promise<void> },
+  o: OpcionesCorrida = SIN_OPCIONES,
+): Promise<RevisionVista> {
   const plan = x.plan.trim();
   if (!plan) throw errorT("main.revisionSinPlan");
   if (plan.length > PLAN_MAX) throw errorT("main.revisionPlanLargo");
   const prompt = promptRevisor({ plan, pedido: await d.pedidoOriginal(), cwd: d.cwd(), archivos: d.archivos ? await d.archivos(plan).catch(() => []) : [] });
-  const salida = (await d.correr(x.modelo, x.effort, prompt)).trim();
+  const salida = (await d.correr(x.modelo, x.effort, prompt, o)).trim();
+  if (o.señal.aborted) throw errorT("main.revisionCancelada");
   if (!salida) throw errorT("main.revisionVacia", { v: d.nombre(x.modelo) });
   const nombre = d.nombre(x.modelo);
   const r = parsearRevision(salida);
+  const vista = { ...r, modelo: x.modelo, nombre };
+  const mensaje = mensajeParaLider(x.modelo, nombre, r);
+  await d.guardar?.(mensaje, vista);
+  d.alEntregar?.(vista);
   d.negar(`La persona pidió revisar tu plan con ${sinComillas(nombre)}. La revisión llega en el próximo mensaje: no ejecutes nada hasta integrarla y presentar el plan remasterizado con ExitPlanMode.`);
-  await d.mandar(mensajeParaLider(x.modelo, nombre, r));
-  return { ...r, modelo: x.modelo, nombre };
+  await entregarGuardada(mensaje, d);
+  return vista;
 }
 
-/** Corre un proceso, le pasa `stdin` y junta la salida. Rechaza con `salió N: <stderr>` o por tiempo. */
-function ejecutar(file: string, args: string[], opc: { cwd: string; env: NodeJS.ProcessEnv; stdin: string; verbatim: boolean; espera: number }): Promise<string> {
+/** Cómo terminó un proceso del revisor. */
+type Salida = { rc: number | null; out: string; err: string };
+
+/**
+ * Corre un proceso, le pasa `stdin`, junta la salida y le pasa cada línea de stdout a `linea` apenas llega. Sólo rechaza si no
+ * se pudo lanzar (ENOENT: texto traducido), si se cortó con `señal` o si pasó el tiempo; un código ≠ 0 se devuelve (lo lee quien llama).
+ */
+function ejecutar(file: string, args: string[], opc: { cwd: string; env: NodeJS.ProcessEnv; stdin: string; verbatim: boolean; espera: number; señal: AbortSignal; linea?: (l: string) => void; quien: string }): Promise<Salida> {
   return new Promise((ok, no) => {
+    if (opc.señal.aborted) return no(errorT("main.revisionCancelada"));
     const p = spawn(file, args, { cwd: opc.cwd, env: opc.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, windowsVerbatimArguments: opc.verbatim });
     let out = "";
     let err = "";
-    const t = setTimeout(() => {
+    let resto = "";
+    let cerrado = false;
+    const fin = (f: () => void) => {
+      if (cerrado) return;
+      cerrado = true;
+      clearTimeout(t);
+      opc.señal.removeEventListener("abort", cortar);
+      f();
+    };
+    const matar = () => {
       p.kill();
-      no(new Error("sin respuesta"));
+      matarArbol(p.pid);
+    };
+    const t = setTimeout(() => {
+      matar();
+      fin(() => no(errorT("main.revisorSinRespuesta", { v: opc.quien })));
     }, opc.espera);
+    const cortar = () => {
+      matar();
+      fin(() => no(errorT("main.revisionCancelada")));
+    };
+    opc.señal.addEventListener("abort", cortar, { once: true });
     p.stdout!.setEncoding("utf8");
-    p.stdout!.on("data", (x: string) => (out += x));
+    p.stdout!.on("data", (x: string) => {
+      out += x;
+      if (!opc.linea) return;
+      resto += x;
+      const lineas = resto.split("\n");
+      resto = lineas.pop() ?? "";
+      for (const l of lineas) opc.linea(l);
+    });
     p.stderr!.setEncoding("utf8");
     p.stderr!.on("data", (x: string) => (err = (err + x).slice(-2000)));
-    p.on("error", (e) => {
-      clearTimeout(t);
-      no(e);
-    });
+    p.on("error", (e) => fin(() => no((e as NodeJS.ErrnoException).code === "ENOENT" ? errorT("main.revisorNoEncontrado", { v: opc.quien }) : e)));
     p.on("close", (rc) => {
-      clearTimeout(t);
-      rc === 0 ? ok(out) : no(new Error(`salió ${rc}: ${err.trim().split("\n").pop() ?? ""}`));
+      if (resto && opc.linea) opc.linea(resto);
+      fin(() => ok({ rc, out, err }));
     });
     p.stdin!.on("error", () => {});
     p.stdin!.end(opc.stdin);
   });
+}
+
+/** El nombre del servicio detrás de un revisor, para decirlo en palabras simples. */
+const servicioDe = (clase: "claude" | "gemini") => (clase === "claude" ? "Claude" : "Google AI Pro");
+/** El comando que inicia la sesión de cada servicio, para decirlo en el aviso de «sin sesión». */
+const comandoDe = (clase: "claude" | "gemini") => (clase === "claude" ? "claude" : "agy");
+
+/**
+ * Un fallo del revisor en palabras simples (nada de «salió 1»): sin sesión si el servicio dijo que no hay login o que venció; si no,
+ * lo último que dijo, si es corto y legible; si no, un texto general. El detalle crudo va al log de quien lo recibe, no a la pantalla.
+ */
+export function falloDeRevisor(clase: "claude" | "gemini", dijo: string): Error {
+  const servicio = servicioDe(clase);
+  const linea = dijo.trim().split("\n").filter(Boolean).pop()?.replace(/^error:\s*/i, "").trim() ?? "";
+  if (/authentication|not logged|log ?in|sign ?in|unauthori[sz]ed|credential|\b401\b|token (?:has )?expired|session expired/i.test(dijo)) return errorT("main.revisorSinSesion", { v: servicio, c: comandoDe(clase) });
+  if (linea && linea.length <= 140 && !/^salió \d+/.test(linea)) return errorT("main.revisorFalloDetalle", { v: servicio, d: linea });
+  return errorT("main.revisorFallo", { v: servicio });
 }
 
 /** La respuesta de `agy --output-format stream-json`: el `response` del `result`; si salió con error, rechaza con lo que dijo. */
@@ -173,8 +252,9 @@ export function respuestaDeAgy(salida: string): string {
 /**
  * Corre al revisor de verdad, una sola vez: Claude con `claude -p` (sólo Read, Grep y Glob, para mirar lo que el plan nombra) o
  * Gemini con `agy` (en una carpeta vacía, porque `--dangerously-skip-permissions` lo deja escribir y ejecutar: el proyecto no lo lee; `archivosDelPlan` le pega en el prompt lo que el plan nombra). Sin `ANTHROPIC_*` en el entorno: siempre la suscripción.
+ * Va contando lo que hace (`o.avance`: pasos y texto vivo) y se corta con `o.señal`.
  */
-export async function correrRevisor(modelo: string, effort: string, prompt: string, cwd?: string): Promise<string> {
+export async function correrRevisor(modelo: string, effort: string, prompt: string, cwd?: string, o: OpcionesCorrida = SIN_OPCIONES): Promise<string> {
   const home = os.homedir();
   const clase = claseDeModelo(modelo);
   if (clase === "claude") {
@@ -190,8 +270,30 @@ export async function correrRevisor(modelo: string, effort: string, prompt: stri
       "Read,Grep,Glob",
       "--no-session-persistence",
       "--disable-slash-commands",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--include-partial-messages",
     ]);
-    return ejecutar(l.file, l.args, { cwd: cwd ?? home, env: entornoLider(process.env, home) as NodeJS.ProcessEnv, stdin: prompt, verbatim: l.verbatim, espera: ESPERA_REVISOR_MS });
+    const lector = new LectorClaude(home);
+    const s = await ejecutar(l.file, l.args, {
+      cwd: cwd ?? home,
+      env: entornoLider(process.env, home) as NodeJS.ProcessEnv,
+      stdin: prompt,
+      verbatim: l.verbatim,
+      espera: ESPERA_REVISOR_MS,
+      señal: o.señal,
+      quien: servicioDe("claude"),
+      linea: (x) => {
+        const a = lector.linea(x);
+        if (a) o.avance(a);
+      },
+    });
+    if (lector.falla) throw falloDeRevisor("claude", lector.falla);
+    const r = lector.final ?? lector.ultimoTexto;
+    if (r.trim()) return r;
+    if (s.rc !== 0) throw falloDeRevisor("claude", s.err);
+    return "";
   }
   if (clase === "gemini") {
     const vacia = await mkdtemp(path.join(os.tmpdir(), "trama-revisor-"));
@@ -200,7 +302,25 @@ export async function correrRevisor(modelo: string, effort: string, prompt: stri
       const { args, stdin } = llamadaAgy({ prompt, modelo: modeloAgy(idAgy(g.modelo, g.effort)), conversacion: null, timeout: "10m" });
       const env = entornoAgy(Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "CLAUDE_CONFIG_DIR" && !/^ANTHROPIC_/.test(k))), home);
       const l = paraLanzar(resolverAgy(process.env, home), args, env);
-      return respuestaDeAgy(await ejecutar(l.file, l.args, { cwd: vacia, env: env as NodeJS.ProcessEnv, stdin, verbatim: l.verbatim, espera: ESPERA_REVISOR_MS }));
+      const lector = new LectorAgy(home);
+      const s = await ejecutar(l.file, l.args, {
+        cwd: vacia,
+        env: env as NodeJS.ProcessEnv,
+        stdin,
+        verbatim: l.verbatim,
+        espera: ESPERA_REVISOR_MS,
+        señal: o.señal,
+        quien: servicioDe("gemini"),
+        linea: (x) => {
+          const a = lector.linea(x);
+          if (a) o.avance(a);
+        },
+      });
+      try {
+        return respuestaDeAgy(s.out);
+      } catch (e) {
+        throw falloDeRevisor("gemini", `${(e as Error).message}\n${s.err}`);
+      }
     } finally {
       await rm(vacia, { recursive: true, force: true }).catch(() => {});
     }

@@ -189,6 +189,10 @@ type Main = {
     seguirCon(x: { sid: string; modelo: string; effort: string }): Promise<string>;
     revisarPlan(x: { sid: string; id: string; modelo: string; effort: string; nombre: string }): Promise<unknown>;
     revisores(ids: string[]): Promise<string[]>;
+    revisionDe(sid: string): Promise<unknown>;
+    revisionCancelar(sid: string): Promise<boolean>;
+    revisionReintentar(sid: string): Promise<unknown>;
+    revisionDescartar(sid: string): Promise<void>;
     /** Puntos de control por turno (electron/puntos.ts): los de una conversación, sin validar. */
     puntos(sid: string): Promise<unknown>;
     /** El diff de un turno (`id`), de un archivo (`ruta`) o de todos; sin validar. */
