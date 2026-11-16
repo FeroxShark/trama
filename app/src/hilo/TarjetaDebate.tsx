@@ -37,7 +37,7 @@ const POSTURA: Record<Postura, { ico: typeof Check; clave: string }> = {
   pregunta: { ico: Hand, clave: "debate.postura.pregunta" },
 };
 
-/** Una línea del debate: lo que dijo un modelo, lo que contestó Ferox, un modelo que salió, una nota o la conclusión. */
+/** Una línea del debate: lo que dijo un modelo, lo que contestó el dueño, un modelo que salió, una nota o la conclusión. */
 const Linea = memo(function Linea({ l }: { l: LineaDebate }) {
   useIdioma();
   if (l.tipo === "nota")
@@ -54,9 +54,9 @@ const Linea = memo(function Linea({ l }: { l: LineaDebate }) {
         <span>{t("debate.salio", { modelo: l.nombre, motivo: textoMain(l.error ?? "") })}</span>
       </li>
     );
-  if (l.tipo === "ferox")
+  if (l.tipo === "dueno")
     return (
-      <li className="dbt-turno" data-tipo="ferox">
+      <li className="dbt-turno" data-tipo="dueno">
         <div className="dbt-quien">
           <span className="dbt-nombre">{t("debate.vos")}</span>
         </div>

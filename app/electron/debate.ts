@@ -1,6 +1,6 @@
 // Modo debate entre modelos (etapa 2), el moderador: lleva el estado del debate y corre los turnos de a uno (nunca en paralelo: cada
 // uno lee lo que dijeron los anteriores), de 1 a 3 rondas, con tope de 3 turnos por modelo; corta antes si coinciden del todo, saca a
-// un modelo que falla, pausa cuando alguien le pregunta algo a Ferox y, al final, pide una conclusión conjunta a quien tenga más cupo y
+// un modelo que falla, pausa cuando alguien le pregunta algo al dueño y, al final, pide una conclusión conjunta a quien tenga más cupo y
 // se la entrega al líder (el plan pendiente se niega y la conclusión llega por la cola, como la revisión de la etapa 1).
 // Sin Electron ni procesos: lo que toca el sistema (correr el modelo, el transcript, el permiso, avisar a la ventana) entra por
 // `DepsDebate`, igual que `DepsRevision` en revision-plan.ts: tests/debate.test.ts lo prueba con modelos simulados. Un turno es una
@@ -61,7 +61,7 @@ export type Debate = {
   /** Una copia del estado de ahora. */
   estado: () => EstadoDebate;
   /**
-   * Ferox contesta la pregunta pendiente: una de sus opciones, o `null` para «Elegí vos» (que decidan ellos). `false` si no hay pregunta
+   * El dueño contesta la pregunta pendiente: una de sus opciones, o `null` para «Elegí vos» (que decidan ellos). `false` si no hay pregunta
    * pendiente o la opción no es una de las suyas.
    */
   responder: (respuesta: string | null) => boolean;
@@ -95,7 +95,7 @@ export function iniciarDebate(x: { sid: string; plan: string; participantes: rea
   const esperaMs = o.esperaPreguntaMs ?? PREGUNTA_ESPERA_MS;
   const id = o.id ?? `debate-${Date.now().toString(36)}-${++secuencia}`;
 
-  // El orden en que hablan: el de más cupo primero (a igualdad, el orden en que Ferox los eligió).
+  // El orden en que hablan: el de más cupo primero (a igualdad, el orden en que el dueño los eligió).
   const orden: Estado[] = unicos
     .map((p, i) => ({ p, i, c: d.cupo?.(p.modelo) ?? -1 }))
     .sort((a, b) => b.c - a.c || a.i - b.i)
@@ -143,7 +143,7 @@ export function iniciarDebate(x: { sid: string; plan: string; participantes: rea
     throw errorT("main.debateCancelado");
   };
 
-  /** Espera la respuesta de Ferox a una pregunta (o que pase el plazo, o que se corte el debate). */
+  /** Espera la respuesta del dueño a una pregunta (o que pase el plazo, o que se corte el debate). */
   const esperar = (opciones: string[]) =>
     new Promise<RespuestaDebate | "cortado">((ok, no) => {
       const fin = () => {
@@ -265,14 +265,14 @@ export function iniciarDebate(x: { sid: string; plan: string; participantes: rea
         }
         if (r === "cortado") break debate;
         if (r === "sin-respuesta") {
-          dicho.push({ quien: "Ferox", ronda, texto: "No contestó a tiempo: se siguió sin su respuesta." });
+          dicho.push({ quien: "El dueño", ronda, texto: "No contestó a tiempo: se siguió sin su respuesta." });
           sumar({ tipo: "nota", modelo: "", nombre: "", ronda, clave: "debate.sinRespuesta", vars: { min: Math.round(esperaMs / 60_000) } });
         } else if (r === null) {
-          dicho.push({ quien: "Ferox", ronda, texto: "Dejó que decidan ustedes." });
-          sumar({ tipo: "nota", modelo: "", nombre: "Ferox", ronda, clave: "debate.feroxElegiVos" });
+          dicho.push({ quien: "El dueño", ronda, texto: "Dejó que decidan ustedes." });
+          sumar({ tipo: "nota", modelo: "", nombre: "El dueño", ronda, clave: "debate.duenoElegiVos" });
         } else {
-          dicho.push({ quien: "Ferox", ronda, texto: r });
-          sumar({ tipo: "ferox", modelo: "", nombre: "Ferox", ronda, argumento: r });
+          dicho.push({ quien: "El dueño", ronda, texto: r });
+          sumar({ tipo: "dueno", modelo: "", nombre: "El dueño", ronda, argumento: r });
         }
       }
       const acuerdo = acuerdoTotal(deLaRonda);

@@ -1,6 +1,6 @@
 // Modo debate entre modelos (etapa 2), la parte sin Node (la comparte la ventana): los tipos del estado y del evento `debate:turno`, el
 // prompt de un turno y el de la conclusión, cómo se lee lo que contesta cada modelo (Postura / Argumento / Plan propuesto / Pregunta
-// para Ferox), la cuenta de si coinciden del todo y el mensaje que recibe el líder (con una marca, como la revisión de la etapa 1).
+// para el dueño), la cuenta de si coinciden del todo y el mensaje que recibe el líder (con una marca, como la revisión de la etapa 1).
 // Sin imports de Node: lo prueba tests/debate.test.ts. El moderador (rondas, turnos, cortes): debate.ts. Diseño: docs/modo-debate-diseno.md.
 import { sinComillas, type ArchivoAdjunto } from "./revision-plan-texto.ts";
 
@@ -15,7 +15,7 @@ export const PARTICIPANTES_MAX = 3;
 export const TURNOS_MAX_POR_MODELO = 3;
 /** Cuánto de lo dicho por cada participante se le pasa a los demás (caracteres). */
 export const TRANSCRIPCION_MAX = 6000;
-/** Cuánto se espera la respuesta de Ferox a una pregunta antes de seguir sin ella. */
+/** Cuánto se espera la respuesta del dueño a una pregunta antes de seguir sin ella. */
 export const PREGUNTA_ESPERA_MS = 10 * 60_000;
 /** Cuántas opciones puede traer una pregunta (más de eso se recorta; menos de 2 no es una pregunta con botones). */
 export const OPCIONES_MIN = 2;
@@ -27,20 +27,20 @@ export type PreguntaDebate = { texto: string; opciones: string[] };
 /** Lo que dijo un turno, ya partido en sus secciones. `libre`: no respetó el formato y es lo que dijo, tal cual. */
 export type TurnoLeido = { postura: Postura; argumento: string; plan: string | null; pregunta: PreguntaDebate | null; libre?: string };
 
-/** Un modelo del debate con su esfuerzo (el que eligió Ferox, o el de entrada; `""` = el propio del modelo). */
+/** Un modelo del debate con su esfuerzo (el que eligió el dueño, o el de entrada; `""` = el propio del modelo). */
 export type Participante = { modelo: string; effort: string };
 
 /**
  * Una línea de lo que se ve del debate, en orden:
  * - `turno`: lo que dijo un modelo (postura, argumento, plan propuesto, pregunta);
- * - `ferox`: la respuesta de Ferox a una pregunta (`argumento` lleva lo que contestó);
+ * - `dueno`: la respuesta del dueño a una pregunta (`argumento` lleva lo que contestó);
  * - `fallo`: un modelo falló y salió del debate (`error`: texto del main con clave de i18n, `textoMain` lo traduce);
  * - `nota`: algo que se dice sin que nadie lo diga (se siguió sin respuesta, se ignoró una segunda pregunta…): `clave` + `vars` de i18n;
  * - `conclusion`: la conclusión conjunta (`argumento` lleva los acuerdos y `plan` el plan consensuado).
  */
 export type LineaDebate = {
   n: number;
-  tipo: "turno" | "ferox" | "fallo" | "nota" | "conclusion";
+  tipo: "turno" | "dueno" | "fallo" | "nota" | "conclusion";
   modelo: string;
   nombre: string;
   ronda: number;
@@ -55,7 +55,7 @@ export type LineaDebate = {
 
 /** En qué está el debate. */
 export type FaseDebate = "corriendo" | "esperando" | "concluyendo" | "entregando" | "hecho" | "cancelado" | "fallo";
-/** Por qué terminó: todos coincidieron, se llegó al tope de rondas, Ferox cortó, o quedó un solo modelo y fue una revisión simple. */
+/** Por qué terminó: todos coincidieron, se llegó al tope de rondas, el dueño cortó, o quedó un solo modelo y fue una revisión simple. */
 export type MotivoDebate = "acuerdo" | "tope" | "cortado" | "simple";
 
 export type ParticipanteVisto = { modelo: string; nombre: string; effort: string; turnos: number; activo: boolean };
@@ -81,7 +81,7 @@ export type EstadoDebate = {
 /** Lo que viaja en el evento `debate:turno`: el estado completo y la línea que se acaba de sumar (`null`: sólo cambió el estado). */
 export type EventoDebate = { estado: EstadoDebate; linea: LineaDebate | null };
 
-/** Lo que Ferox contestó a una pregunta: una de las opciones, «Elegí vos» (`null`) o nada a tiempo (`"sin-respuesta"`). */
+/** Lo que el dueño contestó a una pregunta: una de las opciones, «Elegí vos» (`null`) o nada a tiempo (`"sin-respuesta"`). */
 export type RespuestaDebate = string | null | "sin-respuesta";
 
 /** La conclusión conjunta, partida en sus secciones. `libre`: no respetó el formato. */
@@ -96,7 +96,7 @@ const SECCIONES_TURNO: { clave: Seccion; alias: RegExp }[] = [
   { clave: "postura", alias: /^postura\b/i },
   { clave: "argumento", alias: /^argumento\b/i },
   { clave: "plan", alias: /^plan(?:\s+(?:propuesto|mejorado))?\b/i },
-  { clave: "pregunta", alias: /^pregunta(?:\s+(?:para|a)\s+(?:ferox|la persona))?\b/i },
+  { clave: "pregunta", alias: /^pregunta(?:\s+(?:para|a)\s+(?:el\s+due(?:ñ|n)o|la persona))?\b/i },
 ];
 
 /** Parte un texto en secciones por sus encabezados (nivel 1 a 3, fuera de los bloques de código). `hallo`: se reconoció alguno. */
@@ -193,7 +193,7 @@ export function textoDeTurno(t: Pick<TurnoLeido, "postura" | "argumento" | "plan
     `Postura: ${t.postura}`,
     t.argumento ? `Argumento: ${t.argumento}` : "",
     t.plan ? `Plan propuesto:\n${t.plan}` : "",
-    t.pregunta ? `Pregunta para Ferox: ${t.pregunta.texto} (${t.pregunta.opciones.join(" / ")})` : "",
+    t.pregunta ? `Pregunta para el dueño: ${t.pregunta.texto} (${t.pregunta.opciones.join(" / ")})` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -255,24 +255,24 @@ export function promptTurno(x: ContextoPrompt & { nombre: string; otros: readonl
     "## Cómo contestar",
     "Contestá en español con estos encabezados (nivel 2), en este orden y sin nada antes ni después:",
     "## Postura",
-    "una sola palabra: `acuerdo` (el plan o la propuesta vigente está bien así), `cambio` (proponés cambios) o `pregunta` (necesitás que Ferox decida algo para seguir).",
+    "una sola palabra: `acuerdo` (el plan o la propuesta vigente está bien así), `cambio` (proponés cambios) o `pregunta` (necesitás que el dueño decida algo para seguir).",
     "## Argumento",
     "tu razón, en 150 palabras o menos.",
     "## Plan propuesto",
     "sólo si la postura es `cambio`: el plan completo ya corregido, en el mismo formato del original. Si no, omití esta sección.",
     ...(x.puedePreguntar
       ? [
-          "## Pregunta para Ferox",
+          "## Pregunta para el dueño",
           "sólo si de verdad hace falta que decida la persona: la pregunta en una línea y después 2 a 4 opciones, una por línea, con `- opción`. Si no, omití esta sección.",
         ]
-      : ["(En esta ronda no podés preguntarle a Ferox: ya se le preguntó algo.)"]),
+      : ["(En esta ronda no podés preguntarle al dueño: ya se le preguntó algo.)"]),
   ].join("\n");
 }
 
 /** El prompt de la conclusión: quien tiene más cupo junta lo dicho en acuerdos, desacuerdos que quedan y el plan consensuado. */
 export function promptConclusion(x: ContextoPrompt & { nombre: string; participantes: readonly string[] }): string {
   return [
-    `Sos ${x.nombre}. ${x.participantes.join(", ")} debatieron un plan que armó otro modelo (el líder). Te toca cerrar el debate con una conclusión conjunta, fiel a lo que se dijo (incluidas las respuestas de Ferox): no agregues ideas nuevas.`,
+    `Sos ${x.nombre}. ${x.participantes.join(", ")} debatieron un plan que armó otro modelo (el líder). Te toca cerrar el debate con una conclusión conjunta, fiel a lo que se dijo (incluidas las respuestas del dueño): no agregues ideas nuevas.`,
     "No ejecutes comandos ni edites archivos.",
     "",
     ...bloqueContexto(x),

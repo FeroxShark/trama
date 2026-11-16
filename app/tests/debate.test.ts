@@ -6,7 +6,7 @@ import { acuerdoTotal, iniciarDebate, PREGUNTA_ESPERA_MS, leerMensajeDebate, men
 import { esperarHasta } from "./esperar.ts";
 
 const turno = (postura: string, arg = "razón", plan = "", pregunta = "") =>
-  `## Postura\n${postura}\n\n## Argumento\n${arg}\n${plan ? `\n## Plan propuesto\n${plan}\n` : ""}${pregunta ? `\n## Pregunta para Ferox\n${pregunta}\n` : ""}`;
+  `## Postura\n${postura}\n\n## Argumento\n${arg}\n${plan ? `\n## Plan propuesto\n${plan}\n` : ""}${pregunta ? `\n## Pregunta para el dueño\n${pregunta}\n` : ""}`;
 const CONCLUSION = "## Acuerdos\n- Todo\n\n## Desacuerdos que quedan\nNinguno\n\n## Plan consensuado\n1. Final\n";
 
 type Guion = Record<string, (string | Error)[]>;
@@ -88,17 +88,17 @@ test("tope de rondas: 9 se recorta a 3 y ningún modelo pasa de 3 turnos", async
   assert.deepEqual(r.estado.participantes.map((p) => p.turnos), [3, 3]);
 });
 
-test("una pregunta pausa el debate hasta que Ferox contesta, y entonces sigue con la respuesta en la transcripción", async () => {
+test("una pregunta pausa el debate hasta que el dueño contesta, y entonces sigue con la respuesta en la transcripción", async () => {
   const { d, hecho } = armar({ a: [turno("pregunta", "dudo", "", "¿Qué base?\n- Postgres\n- SQLite"), CONCLUSION], b: [turno("acuerdo")] });
   const deb = iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a"), P("b")], rondas: 1 }, d);
   await esperarHasta(() => deb.estado().fase === "esperando");
   assert.deepEqual(deb.estado().pregunta?.opciones, ["Postgres", "SQLite"]);
-  assert.equal(hecho.llamadas.length, 1, "b no habla mientras Ferox no contesta");
+  assert.equal(hecho.llamadas.length, 1, "b no habla mientras el dueño no contesta");
   assert.equal(deb.responder("Mongo"), false);
   assert.equal(deb.responder("SQLite"), true);
   const r = await deb.terminado;
   assert.ok(hecho.llamadas[1].prompt.includes("SQLite"));
-  assert.ok(r.estado.lineas.some((l) => l.tipo === "ferox" && l.argumento === "SQLite"));
+  assert.ok(r.estado.lineas.some((l) => l.tipo === "dueno" && l.argumento === "SQLite"));
   assert.equal(r.motivo, "tope");
 });
 
@@ -161,19 +161,19 @@ test("pregunta sin respuesta a los 10 min: sigue sin ella, lo deja dicho y le av
   t.mock.timers.tick(1);
   const r = await deb.terminado;
   assert.ok(r.estado.lineas.some((l) => l.tipo === "nota" && l.clave === "debate.sinRespuesta" && l.vars?.min === 10));
-  assert.ok(!r.estado.lineas.some((l) => l.tipo === "ferox"));
-  assert.ok(hecho.llamadas[1].prompt.includes("No contestó a tiempo"), "el siguiente lee que Ferox no contestó");
+  assert.ok(!r.estado.lineas.some((l) => l.tipo === "dueno"));
+  assert.ok(hecho.llamadas[1].prompt.includes("No contestó a tiempo"), "el siguiente lee que el dueño no contestó");
   assert.equal(deb.responder("SQLite"), false, "ya no hay pregunta pendiente");
   assert.equal(hecho.mandado.length, 1);
 });
 
-test("«Elegí vos» (null) sigue sin una respuesta de Ferox y lo deja dicho", async () => {
+test("«Elegí vos» (null) sigue sin una respuesta del dueño y lo deja dicho", async () => {
   const { d, hecho } = armar({ a: [turno("pregunta", "dudo", "", "¿Qué base?\n- Postgres\n- SQLite"), CONCLUSION], b: [turno("acuerdo")] });
   const deb = iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a"), P("b")], rondas: 1 }, d);
   await esperarHasta(() => deb.estado().fase === "esperando");
   assert.equal(deb.responder(null), true);
   const r = await deb.terminado;
-  assert.ok(r.estado.lineas.some((l) => l.tipo === "nota" && l.clave === "debate.feroxElegiVos"));
+  assert.ok(r.estado.lineas.some((l) => l.tipo === "nota" && l.clave === "debate.duenoElegiVos"));
   assert.ok(hecho.llamadas[1].prompt.includes("Dejó que decidan ustedes"));
 });
 

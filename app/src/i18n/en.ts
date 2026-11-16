@@ -688,7 +688,7 @@ export const en = {
   "main.debateSinConclusion": "No model could write the debate's conclusion. The plan is still waiting for your answer.",
   "debate.notaOtraPregunta": "{v} asked another question this round: it was skipped (one question per round)",
   "debate.sinRespuesta": "You did not answer in time ({min} min): the debate went on without your answer",
-  "debate.feroxElegiVos": "You let the models decide",
+  "debate.duenoElegiVos": "You let the models decide",
   "main.revisorEffortApagado": "Effort {e} for {v} is turned off in Settings > Models: pick another",
   "main.revisorNoSirve": "{v} cannot be used as a reviewer (only Claude or Gemini that are not turned off in Settings)",
   "main.accionRara": "Invalid action: {v}",

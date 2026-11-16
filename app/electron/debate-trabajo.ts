@@ -47,7 +47,7 @@ export function crearDebates(d: DepsDebates) {
     },
     /** El estado del debate de un líder (el que corre, o cómo terminó el último), o `null`. */
     estado: (sid: string): EstadoDebate | null => debates.get(String(sid))?.estado ?? null,
-    /** Ferox contesta la pregunta pendiente: una de sus opciones, o `null` para «Elegí vos». */
+    /** El dueño contesta la pregunta pendiente: una de sus opciones, o `null` para «Elegí vos». */
     responder: (sid: string, respuesta: unknown): boolean => debates.get(String(sid))?.debate.responder(typeof respuesta === "string" ? respuesta : null) ?? false,
     /** «Cortar y concluir». */
     cortar: (sid: string): void => debates.get(String(sid))?.debate.cortar(),

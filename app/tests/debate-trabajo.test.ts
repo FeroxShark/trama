@@ -6,7 +6,7 @@ import { crearDebates, type PreparacionDebate } from "../electron/debate-trabajo
 import { leerMensajeDebate, type EventoDebate } from "../electron/debate.ts";
 import { esperarHasta } from "./esperar.ts";
 
-const turno = (postura: string, plan = "", pregunta = "") => `## Postura\n${postura}\n\n## Argumento\nrazón\n${plan ? `\n## Plan propuesto\n${plan}\n` : ""}${pregunta ? `\n## Pregunta para Ferox\n${pregunta}\n` : ""}`;
+const turno = (postura: string, plan = "", pregunta = "") => `## Postura\n${postura}\n\n## Argumento\nrazón\n${plan ? `\n## Plan propuesto\n${plan}\n` : ""}${pregunta ? `\n## Pregunta para el dueño\n${pregunta}\n` : ""}`;
 const CONCLUSION = "## Acuerdos\n- Todo\n\n## Desacuerdos que quedan\nNinguno\n\n## Plan consensuado\n1. Final\n";
 const P = (modelo: string) => ({ modelo, effort: "high" });
 
@@ -66,7 +66,7 @@ test("responder, cortar y cancelar llegan al debate del líder indicado; un líd
   assert.equal(debates.responder("lid", "Mongo"), false);
   assert.equal(debates.responder("lid", "SQLite"), true);
   await esperarHasta(() => debates.estado("lid")?.fase === "hecho");
-  assert.ok(debates.estado("lid")!.lineas.some((l) => l.tipo === "ferox" && l.argumento === "SQLite"));
+  assert.ok(debates.estado("lid")!.lineas.some((l) => l.tipo === "dueno" && l.argumento === "SQLite"));
   assert.equal(hecho.mandado.length, 1);
   debates.descartar("lid");
   assert.equal(debates.estado("lid"), null);

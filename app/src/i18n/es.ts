@@ -677,7 +677,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "main.debateSinConclusion": "Ningún modelo pudo escribir la conclusión del debate. El plan sigue esperando tu respuesta.",
   "debate.notaOtraPregunta": "{v} hizo otra pregunta en esta ronda: se dejó pasar (se pregunta una vez por ronda)",
   "debate.sinRespuesta": "No contestaste a tiempo ({min} min): el debate siguió sin tu respuesta",
-  "debate.feroxElegiVos": "Dejaste que decidan los modelos",
+  "debate.duenoElegiVos": "Dejaste que decidan los modelos",
   "main.revisorEffortApagado": "El esfuerzo {e} de {v} está apagado en Ajustes > Modelos: elegí otro",
   "main.revisorNoSirve": "{v} no se puede usar de revisor (sólo Claude o Gemini que no estén desactivados en Ajustes)",
   "main.accionRara": "acción rara: {v}",
