@@ -235,7 +235,13 @@ const clic = (sel, texto = null) =>
 async function elegir(zona, i, opcion) {
   await en((zona, i) => document.querySelectorAll(`${zona} .pick > .pbtn`)[i]?.click(), zona, i);
   await hasta(() => !!document.querySelector('[role="option"]'), "menú abierto");
-  return clic('[role="option"]', opcion);
+  const elegida = await clic('[role="option"]', opcion);
+  // El menú del modelo no se cierra al elegir (trae la fila de esfuerzo al pie): se cierra con Esc para que el próximo selector abra limpio.
+  if (await en(() => !!document.querySelector('[role="option"]'))) {
+    await tecla("Escape");
+    await hasta(() => !document.querySelector('[role="option"]'), "menú cerrado");
+  }
+  return elegida;
 }
 
 try {
@@ -442,19 +448,27 @@ try {
   // Los anillos son un solo botón que abre el detalle (`.vuelo`) con cuándo vuelve cada ventana.
   const cabecera = () => {
     const entra = (e) => e.scrollWidth <= e.clientWidth;
-    const cajas = [...document.querySelectorAll(".top, .riel, .cupos-riel, .anillos, .vuelo, .v-ventana, .v-nota")];
+    // El detalle (`.vuelo`) sale a la derecha del riel a propósito (acople) y suma a su scrollWidth: del riel se mide lo que va
+    // en su flujo (sus hijos menos el detalle), y el detalle tiene que entrar entero en la ventana.
+    const rielEntra = (r) => {
+      const caja = r.getBoundingClientRect();
+      return [...r.querySelectorAll("*")].filter((e) => !e.closest(".vuelo") && !e.closest(".riel-proys")).every((e) => e.getBoundingClientRect().right <= caja.right + 0.5);
+    };
+    const cajas = [...document.querySelectorAll(".top, .cupos-riel, .anillos, .vuelo, .v-ventana, .v-nota")];
+    const desbordaRiel = [...document.querySelectorAll(".riel")].filter((r) => !rielEntra(r)).map((e) => e.className);
+    const vueloFuera = [...document.querySelectorAll(".vuelo")].filter((e) => e.getBoundingClientRect().right > innerWidth).map((e) => e.className);
     return {
       usos: document.querySelectorAll(".cupos-riel .an").length,
       logo: !!document.querySelector(".riel-logo svg"),
       botones: document.querySelectorAll(".cupos-riel .anillos").length,
-      desborda: cajas.filter((e) => !entra(e)).map((e) => e.className),
+      desborda: [...desbordaRiel, ...vueloFuera, ...cajas.filter((e) => !entra(e)).map((e) => e.className)],
       texto: [...document.querySelectorAll(".v-nota")].map((e) => e.textContent).join(" | "),
       niveles: [...document.querySelectorAll(".cupos-riel .an")].map((e) => e.dataset.nivel).join(","),
     };
   };
   const teclaTirador = (key, n = 1) =>
     en((key, n) => {
-      for (let i = 0; i < n; i++) document.querySelector(".tirador").dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      for (let i = 0; i < n; i++) document.querySelector(".acople-divisor").dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
     }, key, n);
   ok(await clic(".cupos-riel .anillos"), "el botón de los anillos abre el detalle de cupos");
   ok(await hasta(() => document.querySelectorAll(".vuelo .v-nota").length >= 2, "detalle de cupos"), "el detalle trae las dos ventanas");
@@ -463,7 +477,7 @@ try {
   // La regla: verde con tilde si va bien, ámbar desde 80 %, rojo sólo sin cupo. 74 % va bien; 93 % va en ámbar.
   ok(cab.niveles === "ok,ambar", `74 % va bien y 93 % en ámbar: ${cab.niveles}`);
   ok(!cab.desborda.length && /23 h (49|50) min/.test(cab.texto), `a 18 px el uso entra entero: ${JSON.stringify(cab)}`);
-  await teclaTirador("Home");
+  await teclaTirador("ArrowLeft", 40); // el divisor de la zona izquierda del acople (el `.tirador` es sólo del modo angosto)
   await espera(100);
   cab = await en(cabecera);
   ok(!cab.desborda.length && cab.usos === 2, `con la barra en su mínimo no desborda: ${JSON.stringify(cab)}`);
@@ -480,7 +494,7 @@ try {
     ok(cab.niveles === "ok,rojo" && /sin cupo, vuelve en 23 h (49|50) min/.test(cab.texto), `sin cupo: rojo y con la palabra: ${cab.niveles} · ${cab.texto}`);
     ok(!cab.desborda.length, `sin cupo tampoco desborda con la barra en su mínimo: ${JSON.stringify(cab.desborda)}`);
   }
-  await teclaTirador("ArrowRight", 5);
+  await teclaTirador("ArrowRight", 40);
   await tecla("Escape");
   ok(await hasta(() => !document.querySelector(".vuelo"), "detalle cerrado"), "Esc cierra el detalle de cupos");
   await tecla("0", CTRL);
