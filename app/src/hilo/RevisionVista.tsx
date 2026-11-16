@@ -1,6 +1,6 @@
 // «Revisar con otro modelo» en vivo: el modal de progreso (tiempo, pasos del revisor, el texto a medida que sale, Cancelar) y la tarjeta
 // «Revisando con X · 1 m 20 s» que queda en el chat con el modal cerrado. Los dos leen el mismo estado (`revision-vivo.ts`, que viene del
-// main). Cada fase se dice con ícono y palabra. Estilos: revision-vivo.css, sobre los del diálogo de `SeguirCon` y la tarjeta del revisor.
+// main). Cada fase se dice con ícono y palabra. Estilos: revision-progreso.css, sobre los del diálogo de `SeguirCon` y la tarjeta del revisor.
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, CircleAlert, Eye, Loader, ScanSearch, Search, X } from "lucide-react";
@@ -14,7 +14,7 @@ import { Texto } from "./Texto";
 import { clavePaso, duracionRevision, revisionViva, tiempoCorrido } from "./revision-logica";
 import { limpiarRevision, modalRevision, useRevision } from "./revision-vivo";
 import "./seguir-dialogo.css";
-import "./revision-vivo.css";
+import "./revision-progreso.css";
 
 /** Un segundo por tic mientras la revisión sigue: el reloj del título. */
 function useAhora(activo: boolean): number {
