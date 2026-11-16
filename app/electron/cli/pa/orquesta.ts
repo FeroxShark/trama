@@ -32,6 +32,7 @@ import { prepararWorktree, type Proyecto as ProyectoWt } from "./worktrees.ts";
 import type { Llamada } from "./politica.ts";
 import { ORDEN_PARAR } from "./matar.ts";
 import { Modelos } from "./modelos.ts";
+import { cierreDeModelo, cierresVigentes, textoSinCupo } from "../cierre-cupo-lectura.ts";
 import { dshProveedor, esNvidia, esOpencode, horasEnfriar } from "./motores/modelos.ts";
 import { cuentaEnvDe, ejecutarOtro, esMotorOtro, localesDe } from "./otros-motores.ts";
 
@@ -236,6 +237,13 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       }
       if (!c.terminada) io.err(`pa: (esa sesión ya compactó ${c.comp} vez/veces; la retomo igual porque la corrida quedó sin cerrar)\n`);
     }
+  }
+
+  // --- cierre por cupo: la suscripción de este modelo quedó bajo el umbral de Ajustes (`$PA_STATE/cierre-cupo.json`); un -m forzado también se frena
+  const cierre = cierreDeModelo(cierresVigentes(pa.state), l.modelo, l.cuentaUsada || null);
+  if (cierre) {
+    io.err(`pa: ${textoSinCupo(cierre)} (${l.modelo}; quedan ${cierre.restante} %, umbral ${cierre.umbral} %). No lanzo; con otra suscripción: -m <modelo>.\n`);
+    return 76;
   }
 
   // --- límite de sesión conocido
