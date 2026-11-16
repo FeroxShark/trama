@@ -53,7 +53,8 @@ import { guardarAjustes } from "./ajustes-editar.js";
 import { crearBajadas } from "./ollama-bajar.ts";
 import { agyOfrecidos } from "./agy-ofrecidos.ts";
 import { revisoresPermitidos } from "./revision-plan.ts";
-import { autocompactLiderGuardado, efectivoDePa, excluirGuardado, guardarModelos, leerModelos, modelosConfig, sondearOllama, topeEntorno, vistaModelos } from "./modelos-config.ts";
+import { crearCierreCupo } from "./cierre-cupo-disco.ts";
+import { autocompactLiderGuardado, cierreGuardado, efectivoDePa, excluirGuardado, guardarModelos, leerModelos, modelosConfig, sondearOllama, topeEntorno, vistaModelos } from "./modelos-config.ts";
 import { accesos } from "./celular-accesos.js";
 import { guardarConfig, leerEditable } from "./remoto-config.js";
 import { sesionesVistas, vive } from "./sesiones.js";
@@ -653,10 +654,34 @@ const subagentes = crearSubagentes({
 });
 const vivosDe = (s: { lideres: { lideres: { id: string; vivo: boolean }[] } }) => s.lideres.lideres.filter((l) => l.vivo).map((l) => l.id);
 
+/**
+ * Cierre ordenado cuando se acaba el cupo: con cada uso nuevo (el minuto, un cambio de cupos, un `rate_limit_event` de un líder) el
+ * vigilante mira cada suscripción y escribe `$PA_STATE/cierre-cupo.json`. `cierreCupo.alCierreCupo(fn)`: cada entrada que se dispara.
+ */
+export const cierreCupo = crearCierreCupo(PA_STATE, cierreGuardado);
+function revisarCierre(s: Statusline) {
+  try {
+    cierreCupo.revisar(s.uso && "ts" in s.uso ? s.uso : null);
+  } catch (e) {
+    silencio("cierre-cupo")(e);
+  }
+}
+let cierrePronto: NodeJS.Timeout | null = null;
+/** Un `rate_limit_event`: el uso que trae lo anota el líder en disco; se relee al ratito (uno solo si llegan varios). */
+function revisarCierrePronto() {
+  if (cierrePronto) return;
+  cierrePronto = setTimeout(() => {
+    cierrePronto = null;
+    void leerStatusline().then(revisarCierre, silencio("cierre-cupo"));
+  }, 1000);
+  cierrePronto.unref();
+}
+
 async function avisarSl() {
   // Un líder de la terminal que terminó su turno, o uno que cambió de manos: lo que esperaba en su cola puede salir.
   void leerCola().then(cola.revisar);
   const s = await leerStatusline();
+  revisarCierre(s);
   marcarEspera(s);
   consumo.faltantes();
   pasos.faltantes();
@@ -689,6 +714,9 @@ function mirarSl() {
       void lider.pedirUsoCuentas().then((nuevo) => { if (nuevo) void refrescarCupos(true); });
       void refrescarCupos(true, true);
       avisar(); // el uso gratis de OpenCode lo anota el puente (otro proceso) en agotado.json: se relee acá
+    } else {
+      // Sin nadie mirando, el cierre por cupo igual vigila.
+      void refrescarCupos(true, true).then(() => leerStatusline()).then(revisarCierre, silencio("cierre-cupo"));
     }
   }, 60_000).unref();
 }
@@ -1295,6 +1323,7 @@ export function armarNucleo() {
   lider.alEvento((sid, e) => {
     movio(sid);
     enviar("lider:evento", { sid, e });
+    if (e.tipo === "aviso" && e.aviso.clase === "limite") revisarCierrePronto();
     // Quedó libre (fin del turno, Parar, el proceso salió): sale lo que esperaba en la cola.
     if (e.tipo === "estado" && !e.ocupado) void leerCola().then(() => cola.libre(sid));
     // El eco del CLI: lo que estaba en camino a mitad del turno entró (recién ahora va al chat y deja el disco). El fin del turno, lo que salió como uno propio.

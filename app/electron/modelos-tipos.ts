@@ -6,6 +6,7 @@ import { EFFORTS_CALIDAD, type EffortCalidad } from "./efforts-calidad.ts";
 import { esUnidadesAA, migrarValor, UNIDADES_AA, viejaAAa } from "./calidad-migracion.ts";
 import { errorT } from "./errores.ts";
 import { esFamiliaAdvisor, parValido, type AdvisorConfig, type FamiliaAdvisor } from "./advisor.ts";
+import { umbralCierreValido, UMBRAL_CIERRE_MAX, UMBRAL_CIERRE_MIN, validarCierre, type AjustesCierre } from "./valida-ajustes.ts";
 
 export const TIPOS = ["default", "codigo-acotado", "codigo-multi", "frontend", "debug", "diseno", "lectura", "mecanico"] as const;
 export type Tipo = (typeof TIPOS)[number];
@@ -120,6 +121,11 @@ export type ConfigModelos = {
   autocompact_lider?: AutocompactConfig;
   /** Advisor de Claude Code: por familia del modelo principal, la del asesor (`--advisor`). Sin entradas la clave no se escribe (ver advisor.ts). */
   advisor?: AdvisorConfig;
+  /**
+   * Cierre ordenado cuando se acaba el cupo (electron/cierre-cupo.ts): sólo lo que el dueño tocó. Sin la clave (o sin un campo) vale
+   * `CIERRE_DEFECTO` (prendido, umbral 5 %, sin retomar solo). `umbral`: % que tiene que quedar, entero de 2 a 20.
+   */
+  cierre?: Partial<AjustesCierre>;
   /** `cupo_max` de un archivo viejo: el motor ya no lo usa; se lee (no rompe) pero Guardar no lo vuelve a escribir. */
   gemini: { cupo_max?: number };
   /** `sin_cupo` del archivo; un `gemini.sin_claude` viejo se lee como éste y se reescribe así al guardar. */
@@ -268,6 +274,13 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
     for (const [k, v] of Object.entries(j.advisor)) if (esFamiliaAdvisor(k) && parValido(k, v)) ad[k] = v as FamiliaAdvisor;
     if (Object.keys(ad).length) c.advisor = ad;
   }
+  if (esObj(j.cierre)) {
+    const ci: Partial<AjustesCierre> = {};
+    if (typeof j.cierre.activo === "boolean") ci.activo = j.cierre.activo;
+    if (umbralCierreValido(j.cierre.umbral)) ci.umbral = j.cierre.umbral;
+    if (typeof j.cierre.retomar_solo === "boolean") ci.retomar_solo = j.cierre.retomar_solo;
+    if (Object.keys(ci).length) c.cierre = ci;
+  }
   if (esObj(j.gemini)) {
     const g = j.gemini;
     if (typeof g.cupo_max === "number" && Number.isInteger(g.cupo_max) && g.cupo_max >= CUPO_MIN && g.cupo_max <= CUPO_MAX) c.gemini.cupo_max = g.cupo_max;
@@ -301,7 +314,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "advisor", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "advisor", "cierre", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -381,6 +394,17 @@ export function validarConfig(x: unknown): ConfigModelos {
       ad[k as FamiliaAdvisor] = v as FamiliaAdvisor;
     }
     if (Object.keys(ad).length) c.advisor = ad;
+  }
+  if (x.cierre !== undefined && x.cierre !== null) {
+    const motivo = validarCierre(x.cierre);
+    if (motivo === "ajustes.errCierreUmbral") throw errorT("main.modelosCierreUmbral", { min: UMBRAL_CIERRE_MIN, max: UMBRAL_CIERRE_MAX });
+    if (motivo) throw errorT("main.modelosForma");
+    const ci = x.cierre as Partial<AjustesCierre>;
+    const limpio: Partial<AjustesCierre> = {};
+    if (ci.activo !== undefined) limpio.activo = ci.activo;
+    if (ci.umbral !== undefined) limpio.umbral = ci.umbral;
+    if (ci.retomar_solo !== undefined) limpio.retomar_solo = ci.retomar_solo;
+    if (Object.keys(limpio).length) c.cierre = limpio;
   }
   if (x.permitir_max !== undefined && x.permitir_max !== null) {
     if (typeof x.permitir_max !== "boolean") throw errorT("main.modelosForma");
@@ -525,6 +549,9 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   // `advisor` lo leen Trama (líderes) y `pa` (workers): sin entradas la clave sale (sin asesor).
   if (c.advisor && Object.keys(c.advisor).length) base.advisor = { ...c.advisor };
   else delete base.advisor;
+  // `cierre` lo leen Trama (el vigilante) y, por la señal, `pa` y el hook: sólo lo tocado; sin nada, la clave sale.
+  if (c.cierre && Object.keys(c.cierre).length) base.cierre = { ...c.cierre };
+  else delete base.cierre;
 
   // `gemini.sin_claude` se retira: lo dice `sin_cupo`, que vale para cualquier proveedor.
   // `gemini.cupo_max` tampoco se escribe más: el motor ya no lo usa, y al guardar sale del archivo.

@@ -52,3 +52,22 @@ export function validarDispositivo(nombre: unknown, ya: readonly string[] = []):
   if (ya.some((d) => d.toLowerCase() === n)) return "ajustes.errDispRepetido";
   return null;
 }
+
+/** Cierre ordenado cuando se acaba el cupo (`cierre` de modelos.json; ver electron/cierre-cupo.ts). */
+export type AjustesCierre = { activo: boolean; umbral: number; retomar_solo: boolean };
+/** El umbral es el % que tiene que quedar de una ventana: entero entre estos dos. */
+export const UMBRAL_CIERRE_MIN = 2;
+export const UMBRAL_CIERRE_MAX = 20;
+export const CIERRE_DEFECTO: AjustesCierre = { activo: true, umbral: 5, retomar_solo: false };
+export const umbralCierreValido = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= UMBRAL_CIERRE_MIN && n <= UMBRAL_CIERRE_MAX;
+
+/** El `cierre` que llega a guardar: `null` vale; si no, la clave del motivo (`ajustes.errCierre*`, con `{min}` y `{max}`). */
+export function validarCierre(x: unknown): string | null {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return "ajustes.errCierreForma";
+  const o = x as Record<string, unknown>;
+  if (Object.keys(o).some((k) => k !== "activo" && k !== "umbral" && k !== "retomar_solo")) return "ajustes.errCierreForma";
+  if (o.activo !== undefined && typeof o.activo !== "boolean") return "ajustes.errCierreForma";
+  if (o.retomar_solo !== undefined && typeof o.retomar_solo !== "boolean") return "ajustes.errCierreForma";
+  if (o.umbral !== undefined && !umbralCierreValido(o.umbral)) return "ajustes.errCierreUmbral";
+  return null;
+}

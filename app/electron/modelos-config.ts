@@ -14,6 +14,7 @@ import type { ModeloClaudeCuenta } from "./claude-catalogo.ts";
 import { leerDestrabos, type CuentaDestrabos } from "./destrabar-registro.ts";
 import { errorT, textoT } from "./errores.ts";
 import { topeAutocompact, topeDeEntorno, type TopeConf, type TopeEntorno } from "./autocompact-tope.ts";
+import { CIERRE_DEFECTO, type AjustesCierre } from "./valida-ajustes.ts";
 import { asesorDe, envDeSettings, motivoAdvisor, type AdvisorConfig, type FamiliaAdvisor, type MotivoAdvisor } from "./advisor.ts";
 import { entornoLider } from "./lider-arma.ts";
 import { destrabarActivo, leerConfig, unir, urlOllama, validarConfig, TIPOS, type ConfigModelos, type Eleccion, type Tipo } from "./modelos-tipos.ts";
@@ -319,6 +320,16 @@ export function autocompactLiderGuardado(): TopeConf | null {
     return c?.autocompact_lider ?? c?.autocompact ?? null;
   } catch {
     return null;
+  }
+}
+
+/** `cierre` del archivo guardado con lo de fábrica en lo que falte (sin archivo o roto: de fábrica). Lo lee el vigilante (cierre-cupo-disco.ts). */
+export function cierreGuardado(): AjustesCierre {
+  try {
+    const { obj } = analizar(readFileSync(rutaModelos(), "utf8"), "");
+    return { ...CIERRE_DEFECTO, ...((obj ? leerConfig(obj).cierre : undefined) ?? {}) };
+  } catch {
+    return { ...CIERRE_DEFECTO };
   }
 }
 
