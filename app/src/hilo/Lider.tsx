@@ -71,7 +71,11 @@ import { RevisionVista } from "./RevisionVista";
 import { modalRevision, useRevision } from "./revision-vivo";
 import { revisionViva } from "./revision-logica";
 import { TarjetaRevision } from "./TarjetaRevision";
+import { TarjetaConclusionDebate, TarjetaDebate } from "./TarjetaDebate";
+import { debateVivo } from "./debate-logica";
+import { ponerDebate, useDebate } from "./debate-vivo";
 import { leerMensajeRevision, REVISOR_DEFECTO } from "../../electron/revision-plan-texto";
+import { leerMensajeDebate } from "../../electron/debate-texto";
 import { CarpetaDelChat, Texto } from "./Texto";
 import { Hora, pintorAviso, tokens, Turno } from "./Turno";
 import { PuntoTurno } from "./Punto";
@@ -1344,6 +1348,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         {...soltable}
       >
         {app && sid ? <RevisionVista sid={sid} zona={zona} /> : null}
+        {app && sid ? <TarjetaDebate sid={sid} zona={zona} /> : null}
         {app && sid ? vivo.pide.filter((p) => !p.preguntas?.length).map((p) => <PedidoPermiso key={p.id} sid={sid} p={p} />) : null}
         {app && sid && tandas[0] ? <PedidoPreguntas key={tandas[0].id} sid={sid} p={tandas[0]} preguntas={tandas[0].preguntas} n={1} total={tandas.length} pendientes={contarPendientes(tandas)} /> : null}
         {ajeno ? (
@@ -1794,6 +1799,15 @@ const YoEditable = memo(function YoEditable({ x, acciones, editar, guardar }: { 
         <TarjetaRevision r={revision} />
       </Fragment>
     );
+  // La conclusión de un debate entre modelos: también tarjeta, no globo de la persona.
+  const debate = leerMensajeDebate(x.texto);
+  if (debate)
+    return (
+      <Fragment>
+        <Marca k={x.key} />
+        <TarjetaConclusionDebate d={debate} />
+      </Fragment>
+    );
   return (
     <Fragment>
       <Marca k={x.key} />
@@ -1850,7 +1864,7 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
   const [revisores, setRevisores] = useState<string[] | null>(null);
   // Lo que Ajustes > Modelos dejó prendido por modelo: de ahí salen los esfuerzos que se ofrecen (los apagados no).
   const [permitidos, setPermitidos] = useState<PermitidosAjustes>(null);
-  const enRevision = revisionViva(useRevision(sid).estado);
+  const enRevision = revisionViva(useRevision(sid).estado) || debateVivo(useDebate(sid));
   useEffect(() => {
     if (!revisando) return;
     let vivo = true;
@@ -1945,6 +1959,13 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
             await fuente.liderRevisarPlan(sid, p.id, { modelo: elegido, effort: effort ?? esfuerzosDeRevisor(elegido, permitidos).defecto, nombre: nombreModelo(elegido) });
             setRevisando(false);
             modalRevision(sid, true);
+          }}
+          alDebatir={async ({ participantes, rondas }) => {
+            // Igual que la revisión simple: el main arranca el debate y vuelve enseguida; se sigue en la tarjeta del chat (TarjetaDebate).
+            // Al terminar, el líder recibe el plan negado y la conclusión por su cola.
+            const estado = await fuente.liderDebatirPlan(sid, p.id, { participantes: participantes.map((x) => ({ ...x, nombre: nombreModelo(x.modelo) })), rondas });
+            ponerDebate(estado);
+            setRevisando(false);
           }}
           alCerrar={() => setRevisando(false)}
         />

@@ -15,6 +15,7 @@ import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electr
 import type { PrefCache } from "../../electron/cache-pregunta";
 import { aplicarOpGuias, GUIAS_VACIO, normalizarGuias, type EstadoGuias, type OpGuias } from "../../electron/guias-estado";
 import type { RevisionEstado } from "../../electron/revision-plan-texto";
+import type { EstadoDebate, EventoDebate } from "../../electron/debate-texto";
 import { versionNormal } from "../../electron/novedades-cambios";
 import { topeSano, type TopeConf, type TopeEntorno } from "../../electron/autocompact-tope.ts";
 import { main, mensaje, type Lectura } from "../puente";
@@ -248,6 +249,20 @@ export interface Fuente {
   liderRevisionReintentar(sid: string): Promise<RevisionEstado | null>;
   /** Saca de la vista la última revisión terminada. */
   liderRevisionDescartar(sid: string): Promise<void>;
+  /** Modo debate de «Revisar con otro modelo»: 2 o 3 modelos debaten el plan pendiente `id`. Vuelve enseguida con el estado; cada turno llega por `alDebate`. */
+  liderDebatirPlan(sid: string, id: string, x: { participantes: { modelo: string; effort: string; nombre: string }[]; rondas: number }): Promise<EstadoDebate>;
+  /** El estado del debate de ese líder (el que corre, o cómo terminó el último); `null`: ninguno. */
+  debateDe(sid: string): Promise<EstadoDebate | null>;
+  /** Contesta la pregunta pendiente del debate: una de sus opciones, o `null` para «Seguir sin responder». */
+  debateResponder(sid: string, respuesta: string | null): Promise<boolean>;
+  /** «Cortar y concluir». */
+  debateCortar(sid: string): Promise<void>;
+  /** «Cancelar»: no se manda nada al líder. */
+  debateCancelar(sid: string): Promise<void>;
+  /** Saca de la vista el último debate terminado. */
+  debateDescartar(sid: string): Promise<void>;
+  /** Cada turno y cada cambio de estado de un debate (de cualquier líder: el evento trae su `sid`). */
+  alDebate(fn: (e: EventoDebate) => void): () => void;
   /** El cierre por cupo de cada chat (tarjeta «Cupo bajo»): los que cerraron, con su hora de vuelta y el interruptor de retomar solo. */
   liderCierres(): Promise<CierreVisto[]>;
   /** «Retomar solo cuando vuelva el cupo» de un chat. */
@@ -1997,6 +2012,21 @@ const fija: Fuente = {
     return null;
   },
   async liderRevisionDescartar() {},
+  async liderDebatirPlan() {
+    throw new Error("sin debate en las fixtures");
+  },
+  async debateDe() {
+    return null;
+  },
+  async debateResponder() {
+    return false;
+  },
+  async debateCortar() {},
+  async debateCancelar() {},
+  async debateDescartar() {},
+  alDebate() {
+    return () => {};
+  },
   async liderCierres() {
     return [];
   },
@@ -2829,6 +2859,33 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async liderRevisionDescartar(sid) {
     await m.lider.revisionDescartar(sid).catch(() => {});
+  },
+  async liderDebatirPlan(sid, id, x) {
+    const r = await m.lider.debatirPlan({ sid, id, participantes: x.participantes, rondas: x.rondas }).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+    return r as EstadoDebate;
+  },
+  async debateDe(sid) {
+    return ((await m.lider.debateDe(sid).catch(() => null)) as EstadoDebate | null) ?? null;
+  },
+  async debateResponder(sid, respuesta) {
+    return m.lider.debateResponder({ sid, respuesta }).catch(() => false);
+  },
+  async debateCortar(sid) {
+    await m.lider.debateCortar(sid).catch(() => {});
+  },
+  async debateCancelar(sid) {
+    await m.lider.debateCancelar(sid).catch(() => {});
+  },
+  async debateDescartar(sid) {
+    await m.lider.debateDescartar(sid).catch(() => {});
+  },
+  alDebate(fn) {
+    return m.lider.alDebate((e) => {
+      const x = e as EventoDebate | null;
+      if (x && typeof x === "object" && x.estado && typeof x.estado.sid === "string") fn(x);
+    });
   },
   async liderCierres() {
     const r = await m.lider.cierres().catch(() => []);

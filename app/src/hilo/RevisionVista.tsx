@@ -74,7 +74,7 @@ function Cuerpo({ e, compacto = false }: { e: RevisionEstado; compacto?: boolean
 }
 
 /** Lleva a esa tarjeta del chat y la resalta un instante (el mismo velo que Ajustes al saltar a una fila; sólo opacidad). */
-function irA(el: Element) {
+export function irA(el: Element) {
   el.scrollIntoView({ block: "center", behavior: "smooth" });
   el.setAttribute("data-resalta", "");
   setTimeout(() => el.removeAttribute("data-resalta"), 1400);

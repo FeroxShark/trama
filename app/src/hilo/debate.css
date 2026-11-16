@@ -1,0 +1,289 @@
+/* El modo debate de «Revisar con otro modelo»: el interruptor y la elección de modelos de SeguirCon, y la tarjeta en vivo del chat
+   (TarjetaDebate.tsx). Sobre los estilos de `seguir-dialogo.css` y `tarjeta-revision.css`. Fondo liso, sin degradados; sólo tokens de
+   tokens.css. Cada postura y cada fase llevan ícono y palabra: el color sólo acompaña. */
+
+/* ── El interruptor «Debate» del selector ── */
+.dbt-modo {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-3);
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-tile);
+}
+.dbt-modo-t {
+  min-width: 0;
+}
+.dbt-modo-n {
+  display: block;
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.dbt-modo-d {
+  display: block;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.4;
+}
+
+/* ── Los modelos elegidos y sus esfuerzos, y las rondas ── */
+.dbt-elegidos {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dbt-el {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1) var(--esp-2);
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-tile);
+}
+.dbt-el-n {
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dbt-el .seg-esf {
+  flex: 0 1 auto;
+}
+.dbt-quitar {
+  display: grid;
+  width: var(--alto-chip);
+  height: var(--alto-chip);
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-cap);
+  background: none;
+  color: var(--apagado);
+  cursor: pointer;
+}
+.dbt-quitar:hover {
+  background: var(--capa-card);
+  color: var(--texto);
+}
+.dbt-quitar:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+.dbt-ayuda {
+  flex: none;
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.45;
+}
+.seg-e[data-e="marcado"] {
+  background: var(--acento-tinte);
+  color: var(--acento);
+}
+.seg-op[data-marcado] {
+  background: var(--acento-tinte);
+}
+
+/* ── La tarjeta en vivo ── */
+.dbt {
+  margin-bottom: var(--esp-2);
+}
+.dbt[data-fase="cancelado"] .rv-ico,
+.dbt[data-fase="fallo"] .rv-ico {
+  background: var(--cupo-agotado-fondo);
+  color: var(--cupo-agotado-texto);
+}
+.dbt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dbt-p {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1-5);
+  height: var(--alto-chip);
+  padding: 0 var(--esp-2-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+}
+.dbt-p[data-habla] {
+  background: var(--acento-tinte);
+  box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
+  color: var(--texto);
+}
+.dbt-p:not([data-activo]) {
+  opacity: 0.7;
+  text-decoration: line-through;
+}
+.dbt-p-n {
+  overflow: hidden;
+  color: var(--texto);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+.dbt-lista {
+  display: flex;
+  max-height: 22rem;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: 0;
+  padding: 0;
+  overflow: hidden auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+.dbt-lista:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+.dbt-turno {
+  display: grid;
+  gap: var(--esp-1);
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-tile);
+}
+.dbt-quien {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.dbt-nombre {
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.dbt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  height: var(--alto-chip);
+  padding: 0 var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.dbt-turno[data-postura="acuerdo"] .dbt-chip {
+  color: var(--ok);
+}
+.dbt-turno[data-postura="cambio"] .dbt-chip {
+  color: var(--decision-texto);
+}
+.dbt-turno[data-postura="pregunta"] .dbt-chip,
+.dbt-turno[data-tipo="conclusion"] .dbt-chip {
+  color: var(--acento);
+}
+.dbt-ronda {
+  margin-left: auto;
+  color: var(--inactivo);
+  font-size: var(--letra-4);
+}
+.dbt-texto {
+  font-size: var(--letra-4);
+}
+.dbt-dicho {
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--letra-4);
+}
+.dbt-plan {
+  background: var(--capa-card);
+}
+.dbt-nota {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-1);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.dbt-nota[data-tipo="fallo"] {
+  color: var(--cupo-agotado-texto);
+}
+.dbt-espera {
+  display: flex;
+  margin: 0;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.dbt-pregunta {
+  display: grid;
+  gap: var(--esp-2);
+  padding: var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--acento-tinte);
+}
+.dbt-q {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.dbt-q svg {
+  flex: none;
+  margin-top: 0.2em;
+}
+.dbt-opciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+}
+.dbt-aviso {
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.dbt-fin {
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.dbt-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+}
+.dbt-cancelar {
+  margin-right: auto;
+}
+
+/* La conclusión que llegó al chat (la tarjeta `rv` del revisor, con otras secciones). */
+.rv-sec[data-k="acuerdos"] .rv-h {
+  color: var(--ok);
+}
+.rv-sec[data-k="desacuerdos"] .rv-h {
+  color: var(--decision-texto);
+}
+
+/* En el debate la fila resaltada con el teclado se ve aunque no esté elegida. */
+.seg-op[data-foco] {
+  box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
+}

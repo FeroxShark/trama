@@ -5,7 +5,7 @@
 // se ve acá y se puede elegir otro. La lógica de la lista (orden, marcas, flechas): seguir-con.ts.
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRightLeft, Ban, Check, Clock, ScanSearch, Search } from "lucide-react";
+import { ArrowRightLeft, Ban, Check, Clock, MessagesSquare, ScanSearch, Search, X } from "lucide-react";
 import { fuente } from "../datos/fuente";
 import type { Uso } from "../datos/contrato";
 import { useFoco } from "../foco";
@@ -13,10 +13,12 @@ import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { mensaje } from "../puente";
 import { cuandoFuturo } from "../tiempo";
-import { Boton } from "../ui/componentes";
+import { Boton, Interruptor } from "../ui/componentes";
 import { estadosCupoModelos } from "./cupo-modelos.ts";
+import { peorCasoLlamadas } from "./debate-logica.ts";
 import { filasSeguir, listaSeguir, moverSeguir, noElegible, resaltadaInicial, sinSesionDe, type OpcionSeguir, type SinSesion } from "./seguir-con.ts";
 import "./seguir-dialogo.css";
+import "./debate.css";
 
 type Props = {
   /** Qué se sigue: cambia lo que el diálogo dice que va a pasar. `revisar`: la segunda opinión sobre un plan (los mismos modelos, otro título y otro verbo). */
@@ -32,6 +34,11 @@ type Props = {
    * una fila sólo la marca (el selector de esfuerzo va al lado) y se confirma con «Revisar» o con Enter.
    */
   esfuerzos?: (modelo: string) => { niveles: readonly string[]; defecto: string };
+  /**
+   * Sólo la revisión: con esto aparece el interruptor «Debate». Prendido, se eligen 2 o 3 modelos (cada uno con su esfuerzo) y de 1 a 3
+   * rondas, y «Empezar debate» llama a esto; el flujo de un solo revisor (`alElegir`) queda como estaba.
+   */
+  alDebatir?: (x: { participantes: { modelo: string; effort: string }[]; rondas: number }) => Promise<void>;
   alCerrar: () => void;
   /** El modelo que queda resaltado al abrir si se puede usar ya (con cupo); si no, el primero que se puede. */
   preferido?: string;
@@ -50,7 +57,12 @@ function MotivoSesion({ s }: { s: SinSesion }) {
   );
 }
 
-export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido, busquedaInicial = "", esfuerzos }: Props) {
+/** Cuántos modelos puede tener un debate y de cuántas rondas (los topes del moderador: electron/debate-texto.ts). */
+const MODELOS_DEBATE = { min: 2, max: 3 } as const;
+const RONDAS_DEBATE = [1, 2, 3] as const;
+const RONDAS_DEFECTO = 2;
+
+export function SeguirCon({ de, opciones, actual, alElegir, alDebatir, alCerrar, preferido, busquedaInicial = "", esfuerzos }: Props) {
   useIdioma();
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
@@ -100,6 +112,33 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
   const ofrecidos = useMemo(() => (esfuerzos && marcada ? esfuerzos(marcada) : null), [esfuerzos, marcada]);
   const [esfuerzoElegido, setEsfuerzoElegido] = useState<{ modelo: string; nivel: string } | null>(null);
   const esfuerzo = ofrecidos && esfuerzoElegido?.modelo === marcada && ofrecidos.niveles.includes(esfuerzoElegido.nivel) ? esfuerzoElegido.nivel : (ofrecidos?.defecto ?? "");
+  // El debate: los modelos marcados (en el orden en que se marcaron), el esfuerzo de cada uno y las rondas.
+  const [debate, setDebate] = useState(false);
+  const [marcados, setMarcados] = useState<string[]>([]);
+  const [esfuerzosDeb, setEsfuerzosDeb] = useState<Record<string, string>>({});
+  const [rondas, setRondas] = useState<number>(RONDAS_DEFECTO);
+  const enDebate = debate && !!alDebatir;
+  const esfuerzoDe = (m: string) => {
+    const o = esfuerzos?.(m);
+    const e = esfuerzosDeb[m];
+    return o && e && o.niveles.includes(e) ? e : (o?.defecto ?? "");
+  };
+  const alternar = (modelo: string) => {
+    if (enviando || filas.some((f) => f.opcion.id === modelo && noElegible(f))) return;
+    setMarcados((m) => (m.includes(modelo) ? m.filter((x) => x !== modelo) : m.length < MODELOS_DEBATE.max ? [...m, modelo] : m));
+  };
+  const debatible = marcados.length >= MODELOS_DEBATE.min && marcados.length <= MODELOS_DEBATE.max;
+  const empezarDebate = () => {
+    if (enviando || !alDebatir || !debatible) return;
+    setEnviando("debate");
+    setError(null);
+    alDebatir({ participantes: marcados.map((m) => ({ modelo: m, effort: esfuerzoDe(m) })), rondas }).catch((e) => {
+      setEnviando(null);
+      setError(mensaje(e));
+    });
+  };
+  const nombreDe = (id: string) => opciones.find((o) => o.id === id)?.nombre ?? id;
+  const proveedores = [...new Set(marcados.map((m) => opciones.find((o) => o.id === m)).map((o) => o?.colNombre ?? o?.grupo ?? "").filter(Boolean))];
   const elegir = (modelo: string, nivel?: string) => {
     if (enviando || filas.some((f) => f.opcion.id === modelo && noElegible(f))) return;
     setEnviando(modelo);
@@ -115,7 +154,8 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
       setResaltada((i) => moverSeguir(filas, i, e.key as "ArrowDown" | "ArrowUp"));
     } else if (e.key === "Enter" && resaltada >= 0 && filas[resaltada] && (e.target as HTMLElement).tagName === "INPUT") {
       e.preventDefault();
-      elegir(filas[resaltada].opcion.id, esfuerzo);
+      if (enDebate) alternar(filas[resaltada].opcion.id);
+      else elegir(filas[resaltada].opcion.id, esfuerzo);
     }
   };
 
@@ -125,17 +165,26 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
       <div ref={raiz} className="seg" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} aria-describedby={`${id}-d`} tabIndex={-1} onKeyDown={tecla}>
         <div className="seg-cab">
           <span className="seg-ico" aria-hidden="true">
-            {de === "revisar" ? <ScanSearch size={16} strokeWidth={2.2} /> : <ArrowRightLeft size={16} strokeWidth={2.2} />}
+            {enDebate ? <MessagesSquare size={16} strokeWidth={2.2} /> : de === "revisar" ? <ScanSearch size={16} strokeWidth={2.2} /> : <ArrowRightLeft size={16} strokeWidth={2.2} />}
           </span>
           <div className="seg-txt">
             <h3 id={`${id}-t`} className="seg-t">
-              {t(de === "revisar" ? "revision.titulo" : "seguir.titulo")}
+              {t(enDebate ? "debate.titulo" : de === "revisar" ? "revision.titulo" : "seguir.titulo")}
             </h3>
             <p id={`${id}-d`} className="seg-d">
-              {t(de === "revisar" ? "revision.desc" : de === "worker" ? "seguir.descWorker" : "seguir.descLider")}
+              {t(enDebate ? "debate.desc" : de === "revisar" ? "revision.desc" : de === "worker" ? "seguir.descWorker" : "seguir.descLider")}
             </p>
           </div>
         </div>
+        {alDebatir ? (
+          <div className="dbt-modo">
+            <label className="dbt-modo-t" htmlFor={`${id}-deb`}>
+              <span className="dbt-modo-n">{t("debate.modo")}</span>
+              <span className="dbt-modo-d">{t("debate.modoDesc")}</span>
+            </label>
+            <Interruptor id={`${id}-deb`} activo={debate} disabled={!!enviando} alCambiar={setDebate} />
+          </div>
+        ) : null}
         <label className="seg-buscar">
           <Search size={14} strokeWidth={2} aria-hidden="true" />
           <input
@@ -152,7 +201,7 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
             autoComplete="off"
           />
         </label>
-        <div className="seg-lista" ref={lista} id={`${id}-l`} role="listbox" aria-label={t("seguir.lista")} aria-busy={!!enviando}>
+        <div className="seg-lista" ref={lista} id={`${id}-l`} role="listbox" aria-multiselectable={enDebate || undefined} aria-label={t("seguir.lista")} aria-busy={!!enviando}>
           {!filas.length ? <p className="seg-vacio">{t("seguir.sinResultados")}</p> : null}
           {grupos.map((g) => (
             <Fragment key={g.clave}>
@@ -163,7 +212,8 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
                 const i = ++n;
                 const sin = !!f.cupo?.sin;
                 const poco = !sin && !!f.cupo?.poco;
-                const elegida = i === resaltada;
+                const marcado = enDebate && marcados.includes(f.opcion.id);
+                const elegida = enDebate ? marcado : i === resaltada;
                 return (
                   <div
                     key={f.opcion.id}
@@ -176,10 +226,15 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
                     data-cupo={sin ? "sin" : poco ? "poco" : undefined}
                     data-actual={f.actual ? "" : undefined}
                     data-enviando={enviando === f.opcion.id ? "" : undefined}
+                    data-marcado={marcado ? "" : undefined}
+                    data-foco={enDebate && i === resaltada ? "" : undefined}
                     onMouseEnter={() => !conEsfuerzo && !noElegible(f) && !enviando && setResaltada(i)}
                     onClick={() => {
                       if (noElegible(f)) return;
-                      if (conEsfuerzo) !enviando && setResaltada(i);
+                      if (enDebate) {
+                        setResaltada(i);
+                        alternar(f.opcion.id);
+                      } else if (conEsfuerzo) !enviando && setResaltada(i);
                       else elegir(f.opcion.id);
                     }}
                   >
@@ -188,6 +243,11 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
                     {enviando === f.opcion.id ? (
                       <span className="seg-e" data-e="envio" role="status">
                         {t(de === "revisar" ? "revision.revisando" : "seguir.continuando")}
+                      </span>
+                    ) : marcado ? (
+                      <span className="seg-e" data-e="marcado">
+                        <Check size={11} strokeWidth={2.4} aria-hidden="true" />
+                        {t("debate.elegido")}
                       </span>
                     ) : f.sinSesion ? (
                       <span className="seg-e" data-e="sinsesion">
@@ -221,7 +281,51 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
             {error}
           </div>
         ) : null}
-        {conEsfuerzo && marcada && ofrecidos && ofrecidos.niveles.length ? (
+        {enDebate ? (
+          <>
+            {marcados.length ? (
+              <ul className="dbt-elegidos" aria-label={t("debate.elegidos")}>
+                {marcados.map((m) => {
+                  const o = esfuerzos?.(m);
+                  const nivel = esfuerzoDe(m);
+                  return (
+                    <li key={m} className="dbt-el">
+                      <span className="dbt-el-n">{nombreDe(m)}</span>
+                      {o && o.niveles.length ? (
+                        <div className="seg-esf" role="radiogroup" aria-label={t("revision.esfuerzoDe", { modelo: nombreDe(m) })}>
+                          {o.niveles.map((n) => (
+                            <button key={n} type="button" role="radio" aria-checked={n === nivel} className="seg-esf-b" disabled={!!enviando} onClick={() => setEsfuerzosDeb((x) => ({ ...x, [m]: n }))}>
+                              {n === nivel ? <Check size={11} strokeWidth={2.4} aria-hidden="true" /> : null}
+                              {n}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      <button type="button" className="dbt-quitar" aria-label={t("debate.quitar", { modelo: nombreDe(m) })} disabled={!!enviando} onClick={() => alternar(m)}>
+                        <X size={13} strokeWidth={2.4} aria-hidden="true" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+            <div className="seg-esf" role="radiogroup" aria-label={t("debate.rondas")}>
+              <span className="seg-esf-t" aria-hidden="true">
+                {t("debate.rondas")}
+              </span>
+              {RONDAS_DEBATE.map((n) => (
+                <button key={n} type="button" role="radio" aria-checked={n === rondas} className="seg-esf-b" disabled={!!enviando} onClick={() => setRondas(n)}>
+                  {n === rondas ? <Check size={11} strokeWidth={2.4} aria-hidden="true" /> : null}
+                  {n}
+                </button>
+              ))}
+            </div>
+            <p className="dbt-ayuda" role="status">
+              {debatible ? t("debate.ayudaCosto", { n: marcados.length, llamadas: peorCasoLlamadas(marcados.length, rondas), proveedores: proveedores.join(", ") }) : t("debate.ayudaElegi", { n: marcados.length })}
+            </p>
+          </>
+        ) : null}
+        {!enDebate && conEsfuerzo && marcada && ofrecidos && ofrecidos.niveles.length ? (
           <div className="seg-esf" role="radiogroup" aria-label={t("revision.esfuerzoDe", { modelo: filas[resaltada]?.opcion.nombre ?? "" })}>
             <span className="seg-esf-t" aria-hidden="true">
               {t("revision.esfuerzo")}
@@ -246,7 +350,11 @@ export function SeguirCon({ de, opciones, actual, alElegir, alCerrar, preferido,
           <Boton className="seg-cancelar" disabled={!!enviando} onClick={alCerrar}>
             {t("seguir.cancelar")}
           </Boton>
-          {conEsfuerzo ? (
+          {enDebate ? (
+            <Boton primario disabled={!!enviando || !debatible} onClick={empezarDebate}>
+              {enviando ? t("debate.iniciando") : t("debate.empezar")}
+            </Boton>
+          ) : conEsfuerzo ? (
             <Boton primario disabled={!!enviando || !marcada} onClick={() => marcada && elegir(marcada, esfuerzo)}>
               {t("revision.empezar")}
             </Boton>
