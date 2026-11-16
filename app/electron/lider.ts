@@ -61,6 +61,8 @@ import {
 import * as puntos from "./puntos.ts";
 import { archivosDelPlan, correrRevisor, effortApagado, revisoresPermitidos, type OpcionesCorrida, type RevisionEstado } from "./revision-plan.ts";
 import { crearTrabajos, type Pendiente } from "./revision-trabajo.ts";
+import { type EventoDebate, type Participante } from "./debate.ts";
+import { crearDebates } from "./debate-trabajo.ts";
 import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { barrerEtiqueta, nuevaEtiqueta, VARIABLE } from "./huerfanos.js";
@@ -2087,6 +2089,70 @@ export async function revisarPlanLider(x: { sid: string; id: string; modelo: str
     entregar: (texto) => entregaRevision(sid, texto),
   }));
 }
+
+/** Cómo se avisa a la ventana de cada turno del debate (el evento `debate:turno`; lo pone nucleo.ts, que es quien difunde). */
+let avisoDebate: (e: EventoDebate) => void = () => {};
+export const ponerAvisoDebate = (fn: typeof avisoDebate) => void (avisoDebate = fn);
+
+/**
+ * Modo debate de «Revisar con otro modelo» (docs/modo-debate-diseno.md): 2 o 3 modelos debaten el plan pendiente (ExitPlanMode `id`)
+ * en rondas, de a un turno; el estado vive en debate-trabajo.ts. Al terminar, el líder recibe el plan negado y la conclusión por su
+ * cola (marca `[[debate-de-plan …]]`); cancelar no manda nada y deja el plan pendiente. Los modelos y sus esfuerzos se validan igual
+ * que en la revisión simple y el plan sale de lo que dijo el líder, no de lo que mande la ventana.
+ */
+export function debatesDe(correr: typeof correrRevisor = correrRevisor) {
+  return crearDebates({
+    avisar: (e) => avisoDebate(e),
+    preparar: async (x) => {
+      const q = procs.get(x.sid)?.pedidos.get(x.id);
+      if (!q || q.herramienta !== "ExitPlanMode") throw errorT("main.revisionSinPlan");
+      if (["corriendo", "entregando"].includes((await revisiones.estado(x.sid))?.fase ?? "")) throw errorT("main.revisionYaCorre");
+      const participantes = x.participantes as readonly (Participante & { nombre?: string })[];
+      const permitidos = new Set(revisoresPermitidos(participantes.map((p) => String(p.modelo)), excluirGuardado()));
+      const efforts = effortsPermitidosGuardado();
+      for (const p of participantes) {
+        if (!permitidos.has(p.modelo)) throw errorT("main.revisorNoSirve", { v: p.modelo });
+        // Un esfuerzo que el dueño apagó en Ajustes > Modelos no se corre (la ventana tampoco lo ofrece).
+        if (effortApagado(p.modelo, p.effort, efforts)) throw errorT("main.revisorEffortApagado", { v: p.modelo, e: p.effort });
+      }
+      const g = (await lideresApp()).find((l) => l.sid === x.sid);
+      if (!g) throw errorT("main.noEsDeLaApp");
+      const nombres = new Map(participantes.map((p) => [p.modelo, String(p.nombre ?? "").slice(0, 60) || p.modelo]));
+      const idPendiente = randomUUID();
+      const inicio = Date.now();
+      const sin = async () => (await leerRevisiones()).filter((p) => p.id !== idPendiente);
+      return {
+        plan: String((q.ev as { plan?: string | null }).plan ?? ""),
+        deps: {
+          correr: (m, e, p, o: OpcionesCorrida) => correr(m, e, p, g.cwd, o),
+          pedidoOriginal: async () => (await temaDe(x.sid, await transcriptDe(x.sid, g.cwd))).primero ?? null,
+          cwd: () => g.cwd,
+          // Gemini corre en una carpeta vacía (agy no tiene modo sólo lectura): se le pega lo que el plan nombra. Claude lee solo.
+          ...(participantes.some((p) => claseDeModelo(p.modelo) === "gemini") ? { archivos: (p: string) => archivosDelPlan(p, g.cwd) } : {}),
+          nombre: (m) => nombres.get(m) ?? m,
+          // El plan se niega sólo si sigue pendiente (la persona pudo contestarlo mientras debatían).
+          negar: (mensaje) => {
+            if (procs.get(x.sid)?.pedidos.has(x.id)) responderPermiso(x.sid, x.id, { ok: false, mensaje });
+          },
+          // La conclusión se guarda en disco hasta que entra por la cola del líder (como la revisión simple: un fallo de entrega no la pierde).
+          guardar: async (mensaje) =>
+            escribirAtomico(ARCHIVO_REVISIONES, JSON.stringify({ version: 1, pendientes: [...(await sin()), { id: idPendiente, sid: x.sid, planId: x.id, modelo: participantes[0]!.modelo, nombre: [...nombres.values()].join(", "), mensaje, inicio }] })),
+          entregar: async (texto) => {
+            await entregaRevision(x.sid, texto);
+            await escribirAtomico(ARCHIVO_REVISIONES, JSON.stringify({ version: 1, pendientes: await sin() })).catch(() => {});
+          },
+        },
+      };
+    },
+  });
+}
+const debates = debatesDe();
+export const iniciarDebatePlan = debates.iniciar;
+export const debateDe = debates.estado;
+export const responderDebate = debates.responder;
+export const cortarDebate = debates.cortar;
+export const cancelarDebate = debates.cancelar;
+export const descartarDebate = debates.descartar;
 
 /** El estado de la revisión de un líder (la que corre, o cómo terminó la última), o `null`. */
 export const revisionDe = (sid: string) => revisiones.estado(String(sid));

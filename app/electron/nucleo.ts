@@ -1441,6 +1441,16 @@ export function armarNucleo() {
   manejar("lider:revisionCancelar", (_e, sid: unknown) => lider.cancelarRevision(String(sid)));
   manejar("lider:revisionReintentar", (_e, sid: unknown) => lider.reintentarRevision(String(sid)));
   manejar("lider:revisionDescartar", (_e, sid: unknown) => lider.descartarRevision(String(sid)));
+  // Modo debate de la revisión de un plan (debate.ts): 2 o 3 modelos, en rondas; cada turno viaja por el evento `debate:turno`.
+  lider.ponerAvisoDebate((e) => enviar("debate:turno", e));
+  manejar("debate:iniciar", (_e, x: { sid: string; id: string; participantes: { modelo: string; effort: string; nombre?: string }[]; rondas?: number }) =>
+    lider.iniciarDebatePlan({ sid: String(x?.sid), id: String(x?.id), participantes: Array.isArray(x?.participantes) ? x.participantes.map((p) => ({ modelo: String(p?.modelo ?? ""), effort: String(p?.effort ?? ""), nombre: String(p?.nombre ?? "") })) : [], rondas: x?.rondas }),
+  );
+  manejar("debate:estado", (_e, sid: unknown) => lider.debateDe(String(sid)));
+  manejar("debate:responder", (_e, x: { sid: string; respuesta: string | null }) => lider.responderDebate(String(x?.sid), x?.respuesta));
+  manejar("debate:cortar", (_e, sid: unknown) => lider.cortarDebate(String(sid)));
+  manejar("debate:cancelar", (_e, sid: unknown) => lider.cancelarDebate(String(sid)));
+  manejar("debate:descartar", (_e, sid: unknown) => lider.descartarDebate(String(sid)));
   // La revisión de un plan entra en la conversación del líder por su cola (como un mensaje de otro agente): nunca se rechaza porque esté respondiendo.
   lider.ponerEntregaRevision(async (sid, texto) => {
     const sel = await lider.seleccionGuardadaDe(sid);

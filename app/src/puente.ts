@@ -195,6 +195,12 @@ type Main = {
     revisionDescartar(sid: string): Promise<void>;
     /** El debate entre modelos sobre un plan: cada turno y cada cambio de estado (`EventoDebate`). */
     alDebate(fn: (evento: unknown) => void): Soltar;
+    debatirPlan(x: { sid: string; id: string; participantes: { modelo: string; effort: string; nombre: string }[]; rondas: number }): Promise<unknown>;
+    debateDe(sid: string): Promise<unknown>;
+    debateResponder(x: { sid: string; respuesta: string | null }): Promise<boolean>;
+    debateCortar(sid: string): Promise<void>;
+    debateCancelar(sid: string): Promise<void>;
+    debateDescartar(sid: string): Promise<void>;
     cierres(): Promise<unknown>;
     cierreRetomar(x: { sid: string; on: boolean }): Promise<void>;
     alCierre(fn: (x: unknown) => void): Soltar;

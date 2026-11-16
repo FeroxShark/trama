@@ -171,6 +171,12 @@ contextBridge.exposeInMainWorld("hilos", {
     revisionDescartar: (sid: string): Promise<void> => invocar("lider:revisionDescartar", sid),
     /** El debate entre modelos sobre un plan: cada turno y cada cambio de estado (`EventoDebate`, electron/debate-texto.ts). */
     alDebate: oir("debate:turno"),
+    debatirPlan: (x: unknown): Promise<unknown> => invocar("debate:iniciar", x),
+    debateDe: (sid: string): Promise<unknown> => invocar("debate:estado", sid),
+    debateResponder: (x: unknown): Promise<boolean> => invocar("debate:responder", x),
+    debateCortar: (sid: string): Promise<void> => invocar("debate:cortar", sid),
+    debateCancelar: (sid: string): Promise<void> => invocar("debate:cancelar", sid),
+    debateDescartar: (sid: string): Promise<void> => invocar("debate:descartar", sid),
     /** El cierre por cupo en cada chat (tarjeta «Cupo bajo»): lo que hay, el interruptor de retomar solo y los cambios. */
     cierres: (): Promise<unknown> => invocar("lider:cierres"),
     cierreRetomar: (x: unknown): Promise<void> => invocar("lider:cierreRetomar", x),
