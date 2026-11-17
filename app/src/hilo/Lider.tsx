@@ -478,7 +478,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     let n = 0;
     for (; n < 3; n++) {
       b.dataset.nivel = String(n);
-      if (b.scrollWidth <= b.clientWidth + 1) break;
+      // En el celular los chips pueden achicarse (flex-shrink) sin desbordar la fila: un chip recortado también cuenta como que no entra.
+      const recortado = [...b.querySelectorAll<HTMLElement>(".pbtn")].some((p) => p.offsetParent && p.scrollWidth > p.clientWidth + 1);
+      if (b.scrollWidth <= b.clientWidth + 1 && !recortado) break;
     }
     b.dataset.nivel = String(n);
     setNivel(n);

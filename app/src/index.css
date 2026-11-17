@@ -5055,6 +5055,7 @@ summary.sis-div-t:hover,
   font-size: var(--letra-4);
 }
 .img-local[data-estado="lista"] {
+  max-width: min(100%, 28rem);
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--borde-3);
@@ -5064,7 +5065,7 @@ summary.sis-div-t:hover,
 }
 .img-local[data-estado="lista"] img {
   display: block;
-  max-width: min(100%, 28rem);
+  max-width: 100%;
   max-height: 18rem;
   object-fit: contain;
 }
@@ -5731,10 +5732,6 @@ summary.sis-div-t:hover,
     padding: 0 var(--esp-1-5);
   }
   .modo-t {
-    display: none;
-  }
-  /* Respondiendo: Parar ocupa el lugar del esfuerzo, que durante un turno no se puede cambiar. */
-  .barra-c:has(.barra-der > .btn2) > .pick:has(.nivel) {
     display: none;
   }
   /* Si igual no entrara (un nombre de modelo más largo), lo que cede es el selector, nunca el enviar. */

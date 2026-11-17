@@ -174,7 +174,8 @@
 }
 .tarjeta-img-btn {
   display: block;
-  max-width: 100%;
+  /* El tope de ancho va en el botón, no en la imagen: si no, el botón toma el ancho que da el alto máximo y queda una franja vacía al costado. */
+  max-width: min(100%, 32rem);
   padding: 0;
   border: 1px solid var(--borde-2);
   border-radius: var(--r-md);
@@ -192,13 +193,15 @@
 }
 .tarjeta-img-btn > img {
   display: block;
-  max-width: min(100%, 32rem);
+  max-width: 100%;
   max-height: 22rem;
   width: auto;
   height: auto;
 }
-.tarjetas-img[data-varias] .tarjeta-img-btn > img {
+.tarjetas-img[data-varias] .tarjeta-img-btn {
   max-width: min(100%, 20rem);
+}
+.tarjetas-img[data-varias] .tarjeta-img-btn > img {
   max-height: 14rem;
 }
 .tarjeta-img-cargando {
