@@ -809,6 +809,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "effort.sinNivelesTip": "Este modelo no declara niveles de esfuerzo: no hay nada que elegir.",
   "effort.sinNivelesOpencodeTip": "OpenCode no le dice a Trama los niveles de esfuerzo de este modelo: no hay nada que elegir.",
   "plan.titulo": "Plan listo",
+  "plan.tituloRevisado": "Plan revisado listo",
   "plan.aprobar": "Aprobar",
   "plan.seguir": "Seguir planeando",
   "plan.volver": "Volver",

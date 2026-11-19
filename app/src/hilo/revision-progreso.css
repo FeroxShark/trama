@@ -61,3 +61,15 @@
 .rvv {
   margin-bottom: var(--esp-2);
 }
+
+/* Entregada: una sola fila chica (título y botones al lado), para no tapar el chat ni el plan que viene. */
+.rvv[data-fase="hecha"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-3);
+}
+.rvv[data-fase="hecha"] .rvv-acciones {
+  margin-left: auto;
+}

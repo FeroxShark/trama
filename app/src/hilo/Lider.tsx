@@ -640,6 +640,14 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
 
   // Lo del transcript y, detrás, lo que llegó por el stream y todavía no está en él.
   const mensajes = useMemo(() => mensajesVistos(pag, vivo), [pag, vivo.ocupado, vivo.base, vivo.tanda, vivo.parcial, vivo.pensando]);
+  // ¿El último pedido del chat es la revisión de un plan? Entonces el plan que llega es el corregido: «Plan revisado listo».
+  const trasRevision = useMemo(() => {
+    for (let i = mensajes.length - 1; i >= 0; i--) {
+      const m = mensajes[i]!;
+      if (m.rol === "user" && m.texto.trim()) return !!leerMensajeRevision(m.texto);
+    }
+    return false;
+  }, [mensajes]);
   const transcript = pag?.transcript ?? null;
   const todos = useMemo(
     () => turnos(mostrar ? mensajes.flatMap((m) => mostrar(m) ?? []) : mensajes, transcript),
@@ -1349,9 +1357,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         onLayoutAnimationComplete={() => bajo.current?.()}
         {...soltable}
       >
-        {app && sid ? <RevisionVista sid={sid} zona={zona} /> : null}
+        {app && sid ? <RevisionVista sid={sid} zona={zona} pides={vivo.pide.map((p) => p.id)} /> : null}
         {app && sid ? <TarjetaDebate sid={sid} zona={zona} /> : null}
-        {app && sid ? vivo.pide.filter((p) => !p.preguntas?.length).map((p) => <PedidoPermiso key={p.id} sid={sid} p={p} />) : null}
+        {app && sid ? vivo.pide.filter((p) => !p.preguntas?.length).map((p) => <PedidoPermiso key={p.id} sid={sid} p={p} revisado={trasRevision} />) : null}
         {app && sid && tandas[0] ? <PedidoPreguntas key={tandas[0].id} sid={sid} p={tandas[0]} preguntas={tandas[0].preguntas} n={1} total={tandas.length} pendientes={contarPendientes(tandas)} /> : null}
         {ajeno ? (
           <div className="caja-ajeno" data-espera={enEspera ? "" : undefined}>
@@ -1854,7 +1862,7 @@ const Yo = memo(function Yo({ texto, imagenes }: { texto: string; imagenes?: rea
   );
 });
 
-function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
+function PedidoPermiso({ sid, p, revisado = false }: { sid: string; p: Pedido; revisado?: boolean }) {
   const corrige = useCorrector();
   const [planear, setPlanear] = useState(false);
   const [nota, setNota] = useState("");
@@ -1906,9 +1914,10 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
     }
   };
   return (
-    <div className="pide" data-plan={plan ? "" : undefined}>
+    <div className="pide" data-plan={plan ? "" : undefined} data-revisado={plan && revisado ? "" : undefined}>
       <div className="pide-t">
-        {plan ? tr("plan.titulo") : tr("permiso.titulo", { herramienta: p.herramienta })}
+        {plan && revisado ? <ScanSearch size={14} strokeWidth={2.2} aria-hidden="true" /> : null}
+        {plan ? tr(revisado ? "plan.tituloRevisado" : "plan.titulo") : tr("permiso.titulo", { herramienta: p.herramienta })}
       </div>
       {plan ? (
         <div className="pide-plan el">

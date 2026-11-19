@@ -3450,11 +3450,19 @@ html[data-titulo-nativo] #root::after {
   border-left-color: var(--modo-plan);
 }
 .pide-t {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
   color: var(--texto-4);
   font-size: var(--letra-4);
 }
+/* El plan que volvió corregido después de «Revisar con otro modelo»: título con ícono y en el color del modo plan. */
+.pide[data-revisado] .pide-t {
+  color: var(--modo-plan);
+  font-weight: 600;
+}
 .pide-plan {
-  max-height: min(22.5rem, 45vh);
+  max-height: min(18rem, 30vh);
   overflow-y: auto;
   font-size: var(--letra-6);
   scrollbar-width: thin;

@@ -161,9 +161,18 @@ function Modal({ sid, e, enCamino, alVer }: { sid: string; e: RevisionEstado; en
  * La revisión de un líder: el modal si está abierto y, siempre, la tarjeta del chat encima de la caja. `zona` es el chat (`.conv-zona`
  * de ChatLider): donde se busca la tarjeta del revisor, que llega como mensaje del líder.
  */
-export function RevisionVista({ sid, zona }: { sid: string; zona: RefObject<HTMLDivElement | null> }) {
+export function RevisionVista({ sid, zona, pides = [] }: { sid: string; zona: RefObject<HTMLDivElement | null>; pides?: string[] }) {
   useIdioma();
   const { estado: e, modal } = useRevision(sid);
+  // Entregada la revisión, el aviso se va solo cuando el líder pide algo nuevo (el plan corregido): no se apila encima del plan.
+  const pidesAlTerminar = useRef<{ id: string; ids: Set<string> } | null>(null);
+  const clavePides = pides.join(",");
+  useEffect(() => {
+    if (!e || e.fase !== "hecha") return;
+    if (pidesAlTerminar.current?.id !== e.id) pidesAlTerminar.current = { id: e.id, ids: new Set(pides) };
+    else if (pides.some((x) => !pidesAlTerminar.current!.ids.has(x))) limpiarRevision(sid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [e?.id, e?.fase, clavePides, sid]);
   const ahora = useAhora(e?.fase === "corriendo");
   // Cuántas tarjetas había en el chat cuando empezó la revisión: la que llega es la que sobra después (ver revision-ver.ts).
   const base = useRef<{ id: string; n: number } | null>(null);

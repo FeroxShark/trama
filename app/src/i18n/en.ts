@@ -820,6 +820,7 @@ export const en = {
   "effort.sinNivelesTip": "This model doesn't declare effort levels: there is nothing to pick.",
   "effort.sinNivelesOpencodeTip": "OpenCode doesn't tell Trama this model's effort levels: there is nothing to pick.",
   "plan.titulo": "Plan ready",
+  "plan.tituloRevisado": "Reviewed plan ready",
   "plan.aprobar": "Approve",
   "plan.seguir": "Keep planning",
   "plan.volver": "Back",
