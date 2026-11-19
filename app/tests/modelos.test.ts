@@ -60,7 +60,7 @@ test("el menú agrupa por empresa: cada una en filas contiguas, Anthropic primer
     empresas.filter((e, i) => e !== empresas[i - 1]),
     ["anthropic", "local"],
   );
-  assert.deepEqual(EMPRESAS, { anthropic: "Anthropic", google: "Google", local: "Local", ollama: "Ollama", dsh: "DeepSeek Harness", opencode: "OpenCode" });
+  assert.deepEqual(EMPRESAS, { anthropic: "Anthropic", google: "Google", openai: "OpenAI", local: "Local", ollama: "Ollama", dsh: "DeepSeek Harness", opencode: "OpenCode" });
   assert.deepEqual(TABLA.filter((m) => m.local).map((m) => m.empresaNombre), ["Empresa de ejemplo", "Otra empresa"]);
   assert.deepEqual(
     TABLA.filter((m) => m.empresa === "anthropic" && !m.anterior).map((m) => m.clave),
