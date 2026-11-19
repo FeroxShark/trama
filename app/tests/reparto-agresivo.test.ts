@@ -83,15 +83,20 @@ function correr(motor: "ts" | "py", t: string, fijos: string, mod: string, med: 
  * Corre en TS y en python, exige la misma salida y devuelve una. La política de modelos de 2026-11-10 vive sólo en el TS (el python está
  * congelado): diseno con piso sonnet, sin Opus en frontend/codigo-multi y, con `ahorro`, historial exigido a lo que no gasta cupo (y `historial` en cada candidato). Ahí corre sólo el TS.
  */
-/** La salida sin los candidatos de Gemini 4 Hydrogen y Neon (familias sólo del TS): lo que el python congelado puede igualar. */
-const sinHydrogen = (crudo: string) => {
-  const j = JSON.parse(crudo) as Sal;
-  return JSON.stringify({ ...j, candidatos: j.candidatos.filter((c) => !/^gemini-4-(?:hydrogen|neon)/.test(c.modelo)) });
-};
-/** La salida sin Gemini 3.8 Flash (sacada del TS; el python congelado todavía la tiene). */
-const sinFlash = (crudo: string) => {
-  const j = JSON.parse(crudo) as Sal;
-  return JSON.stringify({ ...j, candidatos: j.candidatos.filter((c) => !c.modelo.startsWith("gemini-3.8-flash")) });
+/**
+ * Lo que el python congelado todavía puede igualar desde 2026-11-19: el puntaje y el motivo ya no (el bono del cupo que se pierde va al más
+ * barato de su grupo, lo estimado y el mal historial restan) y Argon dejó de ser solo_final. Se comparan los candidatos que comparten
+ * (sin puntaje, sin orden) y el resto de la salida; el elegido sólo si no es Argon.
+ */
+const comparable = (crudo: string) => {
+  const j = JSON.parse(crudo) as Sal & Record<string, unknown>;
+  const { motivo: _m, candidatos, ...resto } = j;
+  if (/argon/.test(String(resto.modelo))) delete resto.modelo;
+  const cs = candidatos
+    .filter((c) => !/^gemini-4-(?:hydrogen|neon|argon)|^gemini-3\.8-flash/.test(c.modelo))
+    .map((c) => JSON.stringify([c.modelo, c.effort, c.calidad, c.cupo_libre, c.descartado_por]))
+    .sort();
+  return JSON.stringify({ ...resto, candidatos: cs });
 };
 const DIVERGEN_DEL_PY = ["diseno", "frontend", "codigo-multi"];
 function tipo(t: string, fijos: string, mod: string, med = SIN_HISTORIAL) {
@@ -102,7 +107,7 @@ function tipo(t: string, fijos: string, mod: string, med = SIN_HISTORIAL) {
   // Gemini 4 Hydrogen (2026-11-12) es una familia sólo del TS: si el motivo lo nombra, el python no puede decir lo mismo; si no, se
   // compara sin sus candidatos.
   if (/Hydrogen|Neon/.test(ts.sal.motivo)) return { ...ts, py: ts };
-  assert.equal(sinHydrogen(ts.crudo), sinFlash(py.crudo), `ts y python difieren en ${t}`);
+  assert.equal(comparable(ts.crudo), comparable(py.crudo), `ts y python difieren en ${t}`);
   return { ...ts, py };
 }
 const cand = (s: Sal, m: string) => s.candidatos.find((c) => c.modelo === m)!;
@@ -211,7 +216,7 @@ test("sin ningún otro modelo que sirva, el gratis sin historial vuelve a entrar
   const solo = arch({ version: 1, leido: AHORA, suscripciones: [] });
   const r = correr("ts", "codigo-acotado", solo, modelos({ perfil: "agresivo", excluir: ["claude-*", "gemini-*", "agy:*"] }), SIN_HISTORIAL);
   const py = correr("py", "codigo-acotado", solo, modelos({ perfil: "agresivo", excluir: ["claude-*", "gemini-*", "agy:*"] }), SIN_HISTORIAL);
-  assert.equal(sinHydrogen(r.crudo), sinFlash(py.crudo));
+  assert.equal(comparable(r.crudo), comparable(py.crudo));
   assert.equal(r.sal.modelo, BIG, r.sal.motivo);
   assert.match(r.sal.motivo, /No queda ningún otro modelo que sirva: entra .* aunque no tiene historial en codigo-acotado \(perfil agresivo\)/);
 });

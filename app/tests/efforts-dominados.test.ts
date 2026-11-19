@@ -122,3 +122,12 @@ test("esfuerzos estimados: se muestran (con su rótulo) pero no se comparan; el 
   assert.deepEqual(effortsMostrados(fila("x", "dsh", "opencode", {})), [], "sin desglose no hay chips");
   assert.deepEqual(permitidosDe(OPUS_AA, ponerEffort(b0(), OPUS_AA, "low", false)), ["medium", "high", "xhigh", "max"], "un estimado se apaga como cualquiera");
 });
+
+test("Argon tiene cupo aparte: otro modelo más barato e inteligente no lo marca «No conviene»; su propio esfuerzo sí", () => {
+  const argon = fila("gemini-4-argon", "argon", "google", { medium: 45, high: 50 }, { medium: 900, high: 800 });
+  const neon = fila("gemini-4-neon", "neon", "google", { high: 60 }, { high: 400 });
+  const d = dominados(paresDe([argon, neon], b0()));
+  assert.ok(!d.some((z) => z.par.id === argon.id && z.por.id === neon.id), JSON.stringify(d));
+  // medium (45 @ 900) lo domina su high (50 @ 800)
+  assert.ok(d.some((z) => z.par.id === argon.id && z.par.effort === "medium" && z.por.id === argon.id && z.por.effort === "high"));
+});

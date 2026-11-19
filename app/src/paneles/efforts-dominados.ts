@@ -25,6 +25,9 @@ export const COSTO_DEFECTO = 0.25;
 export const ESCALA_INDICE = 2000;
 /** Proveedores que se pagan con suscripción (el costo es el equivalente en API). */
 export const SUSCRIPCION = ["claude", "google", "openai"];
+/** Familias con cupo propio, aparte del resto de su suscripción (Argon: su semana de Google). Usarlas no le quita cupo a nadie y lo que no se
+ * usa se pierde: otro modelo no las domina (sólo otro esfuerzo del mismo modelo). Igual que GRUPOS_CUPO_APARTE de electron/cli/reparto.ts. */
+export const CUPO_APARTE = ["argon"];
 
 export type Par = {
   /** Clave de `efforts_permitidos` (la de `calidad`). */
@@ -38,6 +41,8 @@ export type Par = {
   /** El plan con el que se multiplicó el costo (`ratio` de Priors); ausente: precio de API. */
   plan?: string;
   suscripcion: boolean;
+  /** La familia, si tiene cupo aparte (CUPO_APARTE). */
+  cupoAparte?: string;
 };
 export type Dominado = { par: Par; por: Par };
 
@@ -87,14 +92,14 @@ export function paresDe(filas: FilaTabla[], b: Borrador, ctx?: ContextoPlanes | 
       const q = f.calidadPorEffort[e];
       if (q === undefined) continue;   // un esfuerzo estimado no se compara: no hay dato de AA con qué decir que otro lo domina
       const c = costoDe(f, e, ctx);
-      out.push({ clave: claveCalidad(f), id: f.id, nombre: f.nombre, effort: e, inteligencia: q, costo: c.costo, fuenteCosto: c.fuente, ...(c.plan ? { plan: c.plan } : {}), suscripcion: SUSCRIPCION.includes(f.proveedor) });
+      out.push({ clave: claveCalidad(f), id: f.id, nombre: f.nombre, effort: e, inteligencia: q, costo: c.costo, fuenteCosto: c.fuente, ...(c.plan ? { plan: c.plan } : {}), suscripcion: SUSCRIPCION.includes(f.proveedor), ...(CUPO_APARTE.includes(f.familia) ? { cupoAparte: f.familia } : {}) });
     }
   }
   return out;
 }
 
-/** ¿`b` rinde igual o más por igual o menos, y mejor en algo? (Dos pares idénticos no se dominan.) */
-const domina = (b: Par, a: Par) => b.inteligencia >= a.inteligencia && b.costo <= a.costo && (b.inteligencia > a.inteligencia || b.costo < a.costo);
+/** ¿`b` rinde igual o más por igual o menos, y mejor en algo? (Dos pares idénticos no se dominan; a uno de cupo aparte sólo lo domina su mismo modelo.) */
+const domina = (b: Par, a: Par) => (!a.cupoAparte || b.id === a.id) && b.inteligencia >= a.inteligencia && b.costo <= a.costo && (b.inteligencia > a.inteligencia || b.costo < a.costo);
 
 /** Los pares dominados y quién los domina (el más barato de los que rinden igual o más; a igual costo, el más inteligente). */
 export function dominados(pares: Par[]): Dominado[] {
