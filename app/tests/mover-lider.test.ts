@@ -64,13 +64,13 @@ test("un arrastre sólo cae en otra carpeta, no en la propia", () => {
 });
 
 test("el menú «Mover a proyecto…» lista el home primero, las carpetas por nombre y sin repetidos", () => {
-  const nombre = (p: string) => (p === "general" ? "ferox" : p === "omc" ? "Atlas" : p);
+  const nombre = (p: string) => (p === "general" ? "inicio" : p === "omc" ? "Atlas" : p);
   const l = carpetasParaMover({ registro: ["trama", "omc"], enBarra: ["trama", "general", "brote"], ya: "viejo", nombre });
   assert.deepEqual(
     l.map((x) => x.p),
     ["general", "omc", "brote", "trama", "viejo"],
   );
-  assert.equal(l[0].texto, "ferox");
+  assert.equal(l[0].texto, "inicio");
   // Dos slugs que se ven igual: queda uno.
   assert.equal(carpetasParaMover({ registro: ["a", "b"], enBarra: [], ya: null, nombre: () => "Igual" }).length, 2);
 });
