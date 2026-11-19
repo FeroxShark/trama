@@ -9,8 +9,8 @@
 //     (Opus 5.5 high, familia 1, cuesta ~2.170 USD). Es un proxy: sólo sirve para ordenar pares entre sí.
 // En los modelos de suscripción (Claude, Google, ChatGPT) no se paga por token: con el plan de la persona (elegido en Ajustes o detectado)
 // y el `ratio` de Priors (la parte del precio de API que paga un suscriptor de ese plan, electron/costo-planes-texto.ts) el costo es
-// (1) o (2) × ratio: lo que de verdad le cuesta con SU plan. Sin ratio (sin datos, sin plan o un modelo que el plan no cubre) queda el
-// equivalente en API, como proxy del cupo que se gasta. Los gratis y locales no entran (no hay nada que ahorrar con ellos).
+// (1) × ratio: lo que de verdad le cuesta con SU plan. Sin ratio (sin datos, sin plan o un modelo que el plan no cubre) o sin costo de AA
+// (la estimación (2) no se multiplica) queda el equivalente en API, como proxy del cupo que se gasta. Los gratis y locales no entran (no hay nada que ahorrar con ellos).
 import { EFFORTS_CALIDAD, type EffortCalidad } from "../../electron/efforts-calidad";
 import type { FilaTabla } from "../../electron/reparto-tabla";
 import { ratioDeFila, type ContextoPlanes } from "../../electron/costo-planes-texto";
@@ -48,10 +48,10 @@ export const costoApiDe = (f: FilaTabla, effort: EffortCalidad): { costo: number
   return { costo: (COSTO_FAMILIA[f.familia] ?? COSTO_DEFECTO) * MULT_EFFORT[effort] * ESCALA_INDICE, fuente: "estimado" };
 };
 
-/** El costo de un par con el plan de la persona (× `ratio`) si se conoce; si no, el de API. */
+/** El costo de un par con el plan de la persona (costo de AA × `ratio`) si se conocen los dos; si no, el de API (o la estimación). */
 export const costoDe = (f: FilaTabla, effort: EffortCalidad, ctx?: ContextoPlanes | null): { costo: number; fuente: "aa" | "estimado"; plan?: string } => {
   const api = costoApiDe(f, effort);
-  const r = ratioDeFila(ctx, f);
+  const r = api.fuente === "aa" ? ratioDeFila(ctx, f) : null;
   return r ? { costo: api.costo * r.ratio, fuente: api.fuente, plan: r.plan } : api;
 };
 
