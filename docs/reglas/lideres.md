@@ -37,3 +37,7 @@ recalcula en un arranque, reinicio del motor ni relectura del transcript. Lo pue
 pierde si deja de verse; el recorte del primer mensaje (provisorio) sólo lo reemplaza el primer título bueno (`ai-title` o generado), y ése queda. El rename desde
 Trama vive en `nombres.json` (`titulos`) y gana en la barra. Cualquier reparación de títulos (`corregirBasura`) sólo toca lo automático (`tienePropio`).
 Un título nuevo del líder pasa por `titulosFijos.titulo`, no por `tituloLider` a secas. Lo controla `tests/titulo-estable.test.ts`.
+
+## Nombres sueltos de archivos en el chat
+
+- **Un archivo nombrado sólo por su nombre (`a.wav`, en código en línea o en una lista) se vuelve tocable** si el main confirma (`archivo:existen`, `app/electron/archivo-existe.ts`: sólo dice archivo o carpeta, nunca lee) que existe en una carpeta absoluta que el mismo mensaje nombra o, después, en la del chat (`app/src/hilo/nombres-sueltos.ts`, dibujado por `NombreSuelto` en `Texto.tsx`). No se busca en el resto del disco; un nombre con `..` o separadores no se resuelve. Se abre como cualquier ruta absoluta (`ArchivoEnLinea`). Lo controla `tests/nombres-sueltos.test.ts`.
