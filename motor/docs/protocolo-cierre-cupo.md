@@ -6,7 +6,7 @@ solo al reinicio de la ventana. El dueño puede seguir chateando: nada se bloque
 
 Este archivo es la **única fuente** que leen el hook, `pa`/`reparto` y la interfaz. Lo escribe Trama (vigilante en
 `app/electron/cierre-cupo.ts`, disco en `app/electron/cierre-cupo-disco.ts`) cada minuto y con cada `rate_limit_event` de un líder.
-Una entrada se suelta al pasar `vuelve` o con un reinicio antes de tiempo: una lectura con un reinicio posterior y cupo de sobra, o 60 s seguidos leyendo
+Una entrada se suelta al pasar `vuelve` o con un reinicio antes de tiempo: una lectura con un reinicio posterior y cupo de sobra, o 15 s seguidos leyendo
 más de `umbral` + 10 puntos (una sola lectura alta puede ser vieja).
 
 ## Formato

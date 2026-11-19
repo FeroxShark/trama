@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ajustesCierreDe, CIERRE_DEFECTO, crearVigilante, lecturasDeUso, leerSenal, suscripcionDeModelo, type AjustesCierre, type LecturaCupo } from "../electron/cierre-cupo.ts";
+import { ajustesCierreDe, CIERRE_DEFECTO, CONFIRMAR_VOLVIO_S, crearVigilante, lecturasDeUso, leerSenal, suscripcionDeModelo, type AjustesCierre, type LecturaCupo } from "../electron/cierre-cupo.ts";
 import { crearCierreCupo } from "../electron/cierre-cupo-disco.ts";
 import { validarCierre } from "../electron/valida-ajustes.ts";
 import { leerConfig, unir, validarConfig } from "../electron/modelos-tipos.ts";
@@ -110,6 +110,17 @@ test("una lectura vieja con más cupo no suelta la entrada aunque se repita más
   const w = crearVigilante();
   w.paso([claude(96)], ON, AHORA);
   assert.equal(w.paso([claude(10, R5 - 3000)], ON, AHORA + 60).entradas.length, 1);
+});
+
+test("la suba se confirma a los 15 s y mientras tanto avisa que hay que releer", () => {
+  const v = crearVigilante();
+  v.paso([claude(96)], ON, AHORA);
+  assert.equal(v.confirmando(), false);
+  v.paso([claude(0)], ON, AHORA + 60);
+  assert.equal(v.confirmando(), true);
+  assert.equal(v.paso([claude(0)], ON, AHORA + 60 + CONFIRMAR_VOLVIO_S - 1).volvieron.length, 0);
+  assert.equal(v.paso([claude(0)], ON, AHORA + 60 + CONFIRMAR_VOLVIO_S).volvieron.length, 1);
+  assert.equal(v.confirmando(), false);
 });
 
 test("cerca del umbral una lectura que redondea distinto no suelta la entrada ni la repite", () => {

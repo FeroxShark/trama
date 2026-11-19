@@ -82,8 +82,8 @@ export function lecturasDeUso(uso: UsoMin | null | undefined): LecturaCupo[] {
 export const MISMA_VENTANA_S = 900;
 /** Puntos por encima del umbral para dar por vuelto el cupo dentro de la misma ventana: dos lecturas pueden redondear distinto cerca del umbral. */
 export const MARGEN_VOLVIO = 10;
-/** Cuánto tiene que sostenerse la suba para creerla: una lectura vieja que dice más cupo aparece una vez y la siguiente la desmiente. */
-export const CONFIRMAR_VOLVIO_S = 60;
+/** Cuánto tiene que sostenerse la suba para creerla: una lectura vieja que dice más cupo aparece una vez y la siguiente la desmiente. Trama relee a este plazo. */
+export const CONFIRMAR_VOLVIO_S = 15;
 
 const base = (x: { proveedor: string; cuenta: string; ventana: string; grupo?: string }) => `${x.proveedor}|${x.cuenta}|${x.ventana}|${x.grupo ?? ""}`;
 const mismaVentana = (a: number | null, b: number | null) => a === null || b === null || Math.abs(a - b) <= MISMA_VENTANA_S;
@@ -169,7 +169,7 @@ export function crearVigilante(previas: EntradaCierre[] = []) {
     return { entradas: [...vigentes.values()], nuevas, volvieron, cambio: antes !== huella() };
   }
 
-  return { paso, entradas: () => [...vigentes.values()] };
+  return { paso, entradas: () => [...vigentes.values()], confirmando: () => subio.size > 0 };
 }
 
 /** El texto del archivo de señal. */

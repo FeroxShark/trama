@@ -56,5 +56,5 @@ export function crearCierreCupo(dir: string, ajustes: () => AjustesCierre) {
     return () => oyentesVolvio.delete(fn);
   }
 
-  return { archivo, revisar, alCierreCupo, alVolverCupo, entradas: vig.entradas };
+  return { archivo, revisar, alCierreCupo, alVolverCupo, entradas: vig.entradas, confirmando: vig.confirmando };
 }

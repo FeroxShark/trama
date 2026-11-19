@@ -54,6 +54,7 @@ import { crearBajadas } from "./ollama-bajar.ts";
 import { agyOfrecidos } from "./agy-ofrecidos.ts";
 import { revisoresPermitidos } from "./revision-plan.ts";
 import { crearCierreCupo } from "./cierre-cupo-disco.ts";
+import { CONFIRMAR_VOLVIO_S } from "./cierre-cupo.ts";
 import { crearCierreChats } from "./cierre-chats.ts";
 import { avisarLideres, carpetaHooksCierre } from "./cierre-cupo-texto.ts";
 import { autocompactLiderGuardado, cierreGuardado, efectivoDePa, excluirGuardado, guardarModelos, leerModelos, modelosConfig, sondearOllama, topeEntorno, vistaModelos } from "./modelos-config.ts";
@@ -681,9 +682,18 @@ cierreCupo.alCierreCupo((entrada) => {
     });
   })().catch(silencio("cierre-cupo-avisar"));
 });
+let confirmarVuelta: NodeJS.Timeout | null = null;
 function revisarCierre(s: Statusline) {
   try {
     cierreCupo.revisar(s.uso && "ts" in s.uso ? s.uso : null);
+    // El cupo parece haber vuelto: se relee enseguida para confirmarlo, sin esperar la vuelta del minuto.
+    if (cierreCupo.confirmando() && !confirmarVuelta) {
+      confirmarVuelta = setTimeout(() => {
+        confirmarVuelta = null;
+        void refrescarCupos(true, true).then(() => leerStatusline()).then(revisarCierre, silencio("cierre-cupo"));
+      }, CONFIRMAR_VOLVIO_S * 1000);
+      confirmarVuelta.unref();
+    }
   } catch (e) {
     silencio("cierre-cupo")(e);
   }
