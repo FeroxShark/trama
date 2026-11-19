@@ -46,6 +46,8 @@ type Props = {
   tema?: string;
   /** Etiqueta accesible propia cuando no es el menú de la barra. */
   ariaLabel?: string;
+  /** Una frase corta y apagada al pie (en «Mover a proyecto…»: que sólo cambia la carpeta de la barra). */
+  pie?: string;
 };
 
 const MARGEN = 8;
@@ -72,7 +74,7 @@ function useAncla(ancla: HTMLElement | null | undefined, propio: RefObject<HTMLE
   }, [ancla, propio]);
 }
 
-export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable, className, tema, ariaLabel }: Props) {
+export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable, className, tema, ariaLabel, pie }: Props) {
   const caja = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: x, top: y });
   const [armado, setArmado] = useState<string | null>(null);
@@ -230,6 +232,7 @@ export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable, 
         </Fragment>
       ))}
       {conBuscador && visibles.every((it) => it.fijo) ? <div className="cmenu-vacio">{tr("menu.sinResultados")}</div> : null}
+      {pie ? <div className="cmenu-pie">{pie}</div> : null}
     </motion.div>,
     document.body,
   );

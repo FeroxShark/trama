@@ -100,6 +100,7 @@ import {
 } from "./arbol";
 import { tituloTarea } from "../../electron/titulo-tarea";
 import { armarArrastre, CARPETAS } from "./arrastre";
+import { asignacionAlMover, carpetasParaMover } from "./mover-logica";
 import { diferir, workerVivo, type Trabajador } from "./activas";
 import { control } from "./control";
 import { Fila, FilaLider, PliegueTerminados, RESORTE } from "./Fila";
@@ -1735,6 +1736,20 @@ export function Barra() {
     fuente.guardarTitulo(r.id, quitar ? "" : t);
   };
 
+  /**
+   * Mueve un líder a una carpeta de la barra (arrastrando o desde su menú). Si es la que le tocaría sin nada elegido, se borra la
+   * asignación; si no, queda a mano (gana sobre el cwd y el primer worker). La carpeta de trabajo del líder no cambia.
+   */
+  const moverA = (sid: string, destino: string) => {
+    const sinMano = new Map(mover);
+    sinMano.delete(sid);
+    const natural = armarArbol(todos, { optimista, lideres: lideresVistos, settleados, mover: sinMano, reemplazos, fijadas, ocultos, titulos, caidos, ahora: Math.floor(Date.now() / 1000) }).lideres.get(sid)?.proyecto;
+    moverLider(sid, asignacionAlMover(natural, destino));
+  };
+  // El arrastre se arma una sola vez: llama siempre a la última.
+  const moverARef = useRef(moverA);
+  moverARef.current = moverA;
+
   const moverLider = (sid: string, slug: string | null) => {
     setNombres((n) => {
       const proyectos = { ...n.proyectos };
@@ -1760,6 +1775,8 @@ export function Barra() {
       // Mientras se arrastra, "Activas" y los proyectos no se reacomodan (`diferir`): lo que se agarra no se mueve de lugar.
       alArrastrar: (si) => setMirando((m) => (m.arrastre === si ? m : { ...m, arrastre: si })),
       alSoltar: (m) => {
+        // Soltado sobre otra carpeta: el líder se mueve ahí (no se reordena).
+        if (m.aCarpeta) return moverARef.current(m.id, m.aCarpeta);
         const { orden, grupos, titulos } = ultimo.current;
         const carpeta = m.grupo === CARPETAS ? null : m.grupo.slice(m.grupo.indexOf(":") + 1);
         const visibles = visiblesDe(grupos, orden, titulos, carpeta);
@@ -1945,14 +1962,7 @@ export function Barra() {
     if (de.tipo === "lider" && m.mover) {
       const ya = nombres.proyectos[de.sid] ?? null;
       const donde = arbol.lideres.get(de.sid)?.proyecto ?? null;
-      // Sin repetidos (por slug y por cómo se ve), el del home primero y el resto por nombre.
-      const vistos = new Set<string>();
-      const lista = [...new Set([...carpetasReg, ...grupos.map((g) => g.proyecto), ...(ya ? [ya] : [])])]
-        .filter((p) => p !== GENERAL)
-        .map((p) => ({ p, texto: nombreCarpeta(p, MODO.usuario, tr("barra.home"), titulosReg[p]) }))
-        .filter(({ texto }) => !vistos.has(texto.toLowerCase()) && !!vistos.add(texto.toLowerCase()))
-        .sort((a, b) => a.texto.localeCompare(b.texto, undefined, { sensitivity: "base", numeric: true }));
-      const casa = { p: GENERAL, texto: nombreCarpeta(GENERAL, MODO.usuario, tr("barra.home")) };
+      const [casa, ...lista] = carpetasParaMover({ registro: carpetasReg, enBarra: grupos.map((g) => g.proyecto), ya, nombre: (p) => nombreCarpeta(p, MODO.usuario, tr("barra.home"), titulosReg[p]) });
       return [
         { clave: "auto", texto: tr("menu.moverAuto"), marcado: ya === null, fijo: true, alElegir: () => (moverLider(de.sid, null), cerrarMenu()) },
         ...[casa, ...lista].map(({ p, texto }) => ({
@@ -1960,7 +1970,7 @@ export function Barra() {
           texto,
           marcado: ya === p,
           nota: ya === null && donde === p ? tr("menu.moverActual") : undefined,
-          alElegir: () => (moverLider(de.sid, p), cerrarMenu()),
+          alElegir: () => (moverA(de.sid, p), cerrarMenu()),
         })),
       ];
     }
@@ -2480,6 +2490,7 @@ export function Barra() {
             y={menu.y}
             nivel={menu.mover ? "mover" : "fila"}
             buscable={menu.mover}
+            pie={menu.mover ? tr("menu.moverPie") : undefined}
             items={itemsMenu(menu)}
             alCerrar={cerrarMenu}
             ancla={menu.origen}

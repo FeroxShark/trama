@@ -445,6 +445,18 @@ kbd {
   flex: none;
   padding: var(--esp-2);
 }
+/* Mientras se arrastra un líder: la carpeta que lo recibe se marca con un borde (forma, no sólo color) y su nombre dice qué pasa al soltar. */
+.proy[data-destino] {
+  border-radius: var(--r-xs);
+  outline: 0.125rem solid var(--acento);
+  outline-offset: -0.125rem;
+  background: var(--acento-tinte);
+}
+.proy[data-destino] > .proy-cab .proy-nom .n::after {
+  content: " · " attr(data-aqui);
+  font-weight: 500;
+  color: var(--acento);
+}
 .proy-nom {
   position: relative;
   display: flex;
@@ -4851,6 +4863,13 @@ summary.sis-div-t:hover,
   padding: var(--esp-2) var(--esp-2-5);
   color: var(--texto-6);
   font-size: var(--letra-4);
+}
+/* Una frase corta al pie de un menú (Mover a proyecto…: sólo cambia la carpeta de la barra). */
+.cmenu-pie {
+  padding: var(--esp-2) var(--esp-2-5);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  max-width: 18rem;
 }
 .renombre {
   position: fixed;

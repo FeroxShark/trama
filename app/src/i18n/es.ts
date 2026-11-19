@@ -2477,6 +2477,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "menu.buscar": "Buscar proyecto…",
   "menu.sinResultados": "Sin resultados",
   "menu.moverActual": "actual",
+  "menu.moverPie": "Sólo cambia la carpeta en la barra: su carpeta de trabajo sigue igual.",
+  "barra.moverAqui": "Mover a esta carpeta",
   "menu.ordenPrioridad": "Proyectos con actividad arriba",
   "menu.ordenFijo": "Proyectos siempre en su lugar",
   "wk.v.pensar": "Pensó",

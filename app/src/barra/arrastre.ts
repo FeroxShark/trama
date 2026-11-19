@@ -10,7 +10,8 @@
 /** El grupo de las carpetas; el de los líderes de una carpeta es `lider:<proyecto>` o `espera:<proyecto>`. */
 export const CARPETAS = "carpetas";
 
-export type Movida = { grupo: string; id: string; junto: string; antes: boolean };
+/** `aCarpeta`: un líder soltado sobre otra carpeta (su slug): se mueve ahí en vez de reordenarse. */
+export type Movida = { grupo: string; id: string; junto: string; antes: boolean; aCarpeta?: string };
 
 type Opciones = {
   /** La raíz de la app: lleva `data-moviendo` mientras dura (cursor, sin selección de texto). */
@@ -51,16 +52,47 @@ export function armarArrastre(lista: HTMLElement, o: Opciones): () => void {
     let destino: Movida | null = null;
     const linea = o.linea();
 
+    // La carpeta ajena que está bajo el puntero (sólo para un líder): se resalta mientras el puntero esté encima.
+    let marcada: HTMLElement | null = null;
+    const desmarcar = () => {
+      marcada?.removeAttribute("data-destino");
+      marcada = null;
+    };
     const esconder = () => {
       destino = null;
       linea?.removeAttribute("data-ve");
+      desmarcar();
+    };
+    const carpetaBajo = (): { el: HTMLElement; slug: string } | null => {
+      if (grupo === CARPETAS) return null;
+      // Por geometría: lo que queda bajo el puntero durante el arrastre no recibe eventos (`pointer-events: none`), así que elementFromPoint no sirve.
+      const el = [...lista.querySelectorAll<HTMLElement>(".proy")].find((p) => {
+        const c = p.getBoundingClientRect();
+        return x >= c.left && x <= c.right && y >= c.top && y <= c.bottom;
+      });
+      const slug = el?.querySelector<HTMLElement>(":scope > .proy-cab .proy-nom")?.dataset.carpeta;
+      const propia = unidad.closest<HTMLElement>(".proy");
+      return el && slug && el !== propia ? { el, slug } : null;
     };
 
     // Dónde caería con el puntero en (x, y): entre qué dos hermanos, y la línea ahí.
     const ubicar = () => {
       if (!unidad.isConnected) return terminar(false);
       const L = lista.getBoundingClientRect();
-      // Un líder no cambia de carpeta arrastrando: fuera de la suya es afuera.
+      // Sobre otra carpeta: soltarlo ahí lo mueve (la carpeta se resalta y la línea de orden se esconde).
+      const otra = carpetaBajo();
+      if (otra) {
+        linea?.removeAttribute("data-ve");
+        if (marcada !== otra.el) {
+          desmarcar();
+          marcada = otra.el;
+          marcada.setAttribute("data-destino", "");
+        }
+        destino = { grupo, id, junto: id, antes: false, aCarpeta: otra.slug };
+        return;
+      }
+      desmarcar();
+      // Reordenar sólo dentro de la carpeta propia: fuera de ella y de otra carpeta es afuera.
       const marco = grupo === CARPETAS ? L : (unidad.closest(".proy")?.getBoundingClientRect() ?? L);
       if (x < L.left || x > L.right || y < Math.max(L.top, marco.top) || y > Math.min(L.bottom, marco.bottom)) return esconder();
       const hs = hermanos();

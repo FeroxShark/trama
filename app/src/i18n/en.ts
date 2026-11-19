@@ -2491,6 +2491,8 @@ export const en = {
   "menu.buscar": "Search project…",
   "menu.sinResultados": "No matches",
   "menu.moverActual": "current",
+  "menu.moverPie": "Only changes its folder in the sidebar: its working folder stays the same.",
+  "barra.moverAqui": "Move to this folder",
   "menu.ordenPrioridad": "Projects with activity on top",
   "menu.ordenFijo": "Projects always in place",
   "wk.v.pensar": "Thought",
