@@ -680,8 +680,8 @@ export function Barra() {
     [extrasRiel, buscando, verVigente, filtroVigente],
   );
   // Clave con ":" = el pliegue de una rama; sin ":" = una carpeta (el nombre del proyecto).
-  // Buscando, las carpetas se abren pero los pliegues no: lo inactivo sigue en su "+N" / "N terminadas". Filtrando por un proyecto, el suyo se ve abierto.
-  const desplegada = (k: string) => (k.includes(":") ? pliegues.has(k) : buscando || k === filtroVigente || !colapsados.has(k));
+  // Buscando se abre todo: las carpetas y los terminados de cada rama (no hay pliegue que tocar; así también los recorre el teclado). Filtrando por un proyecto, el suyo se ve abierto.
+  const desplegada = (k: string) => (k.includes(":") ? buscando || pliegues.has(k) : buscando || k === filtroVigente || !colapsados.has(k));
   const verCerrados = cerradosAbiertos;
   const visibles = filasVisibles(arbolVisto, desplegada, verCerrados, buscando);
   const virtual = visibles.length > UMBRAL;
