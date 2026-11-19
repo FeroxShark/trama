@@ -99,6 +99,18 @@
 .dbt {
   margin-bottom: var(--esp-2);
 }
+/* Debate y plan juntos pueden medir más que la ventana: la zona de la caja se achica y scrollea adentro, con la caja de escribir siempre a la vista. */
+.caja-zona:has(> .dbt) {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden auto;
+  scrollbar-width: thin;
+}
+.caja-zona:has(> .dbt) > .caja {
+  position: sticky;
+  z-index: 1;
+  bottom: 0;
+}
 .dbt[data-fase="cancelado"] .rv-ico,
 .dbt[data-fase="fallo"] .rv-ico {
   background: var(--cupo-agotado-fondo);
@@ -142,7 +154,7 @@
 }
 .dbt-lista {
   display: flex;
-  max-height: 22rem;
+  max-height: min(22rem, 30vh);
   flex-direction: column;
   gap: var(--esp-2);
   margin: 0;
