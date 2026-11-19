@@ -10,9 +10,11 @@ export type Conexion = { anthropic: boolean; google: boolean; openai: boolean; o
 /** Lo que el main ya sabe sin preguntarle a nadie. */
 export type Instalado = { agy: boolean; dsh: boolean; opencode: boolean; local: boolean };
 
-/** Pura: junta la sesión de cada CLI con lo instalado. Un CLI que no contestó cuenta como sin conectar (el menú sólo ofrece «Conectar»). */
+/** Pura: junta la sesión de cada CLI con lo instalado. agy o codex que no contestaron cuentan como sin conectar (el menú sólo ofrece «Conectar»); claude no (ver abajo). */
 export const conexionDe = (cuentas: EstadoCuentas | null, i: Instalado): Conexion => ({
-  anthropic: cuentas?.claude.logueado === true,
+  // Claude es el motor de siempre: sólo se marca «Sin conectar» si no está instalado o dijo claro que no hay sesión. Si no contestó a
+  // tiempo o dijo otra cosa (error), no se le bloquea el modelo a nadie.
+  anthropic: cuentas === null || cuentas.claude.logueado === true || (cuentas.claude.instalado && cuentas.claude.error !== null),
   google: i.agy && cuentas?.agy.logueado === true,
   openai: cuentas?.codex?.logueado === true,
   opencode: i.opencode,

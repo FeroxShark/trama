@@ -60,6 +60,11 @@ const instalada = () => {
     return process.env.TRAMA_FALSO_VERSION ?? "2.1.287";
   }
 };
+// `claude auth status` (Ajustes y el selector preguntan si hay sesión): el falso siempre tiene una.
+if (args[0] === "auth" && args[1] === "status") {
+  process.stdout.write(JSON.stringify({ loggedIn: true, email: "falso@ejemplo.com" }) + "\n");
+  process.exit(0);
+}
 if (args[0] === "--version") {
   process.stdout.write(`${instalada()} (Claude Code)\n`);
   process.exit(0);

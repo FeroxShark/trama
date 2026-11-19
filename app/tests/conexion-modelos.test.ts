@@ -21,8 +21,15 @@ test("Gemini necesita agy instalado Y con sesión; ChatGPT sin `codex` en el est
   assert.equal(conexionDe(estado(true, true), todo).openai, false);
 });
 
-test("si las cuentas no se pudieron leer, nada con sesión queda conectado (pero lo instalado sí)", () => {
-  assert.deepEqual(conexionDe(null, todo), { anthropic: false, google: false, openai: false, opencode: true, dsh: true, local: true });
+test("si las cuentas no se pudieron leer, Gemini y ChatGPT quedan sin conectar; Claude no se bloquea", () => {
+  assert.deepEqual(conexionDe(null, todo), { anthropic: true, google: false, openai: false, opencode: true, dsh: true, local: true });
+});
+
+test("Claude sólo queda «Sin conectar» si no está instalado o dijo que no hay sesión; si no contestó, sigue elegible", () => {
+  const con = (claude: Cuenta) => conexionDe({ version: 1, claude, agy: cta(true) }, todo).anthropic;
+  assert.equal(con({ instalado: true, logueado: false, cuenta: null, error: "claude no contestó a tiempo" }), true);
+  assert.equal(con({ instalado: true, logueado: false, cuenta: null, error: null }), false);
+  assert.equal(con({ instalado: false, logueado: false, cuenta: null, error: null }), false);
 });
 
 test("las consultas seguidas comparten una sola; después del caché o de olvidarlo se pregunta de nuevo", async () => {
