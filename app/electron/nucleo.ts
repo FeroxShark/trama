@@ -100,6 +100,7 @@ import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
 import { cuentasDeEstaMaquina } from "./cuentas.ts";
 import { enTerminal } from "./actualizador.ts";
 import { armarReporte } from "./reporte.ts";
+import { bajarReportes, claveLectura, enviarReporte, urlReportes } from "./reporte-anonimo.ts";
 import { cuentasVarias } from "./cuentas-varias-canales.ts";
 import { cuentasDeEstaMaquinaVarias } from "./cuentas-varias.ts";
 import { alCambiarCupos, cuposActuales, refrescarCupos } from "./cupos.js";
@@ -966,6 +967,21 @@ export function armarNucleo() {
     .catch(silencio("lider"));
   // Las carpetas donde ya trabajan líderes (nuevos, retomados, traídos de Claude Code) quedan como proyectos, sin pasos manuales.
   void lider.anotarProyectosDeLideres().catch(silencio("proyectos"));
+  // Los reportes anónimos que llegaron: sólo con la clave de lectura del dueño (en cualquier otra Trama no hace nada). Cada 15 min.
+  const bajar = async () => {
+    const url = urlReportes();
+    const clave = url ? await claveLectura() : null;
+    if (!url || !clave) return;
+    await bajarReportes({
+      url,
+      clave,
+      dir: path.join(ESTADO, "reportes"),
+      // Texto fijo y la carpeta (la arma Trama): lo que escribió quien reportó nunca va al tablero.
+      avisar: (c) => void tablero.agregar(`Llegó un reporte anónimo de bug: ${c}`, "trama").catch(silencio("reportes")),
+    });
+  };
+  void bajar().catch(silencio("reportes"));
+  setInterval(() => void bajar().catch(silencio("reportes")), 15 * 60_000).unref();
   // Los adjuntos de hace más de una semana no sirven más.
   void limpiarAdjuntos(path.join(ESTADO, "adjuntos")).catch(silencio("adjuntos"));
   // Trama que arranca con algo en la cola (aunque nadie abra la ventana): lo que ya puede salir, sale.
@@ -993,6 +1009,9 @@ export function armarNucleo() {
   manejar("statusline:leer", leerSl);
   // «Reportar un bug»: la carpeta con la captura y el log limpio, y la URL del issue (reporte.ts). Sólo en la PC.
   manejar("reporte:armar", (e, x: unknown) => (tailnet(e) ? { ok: false, error: "main.soloPc" } : armarReporte(x)));
+  // «Enviar anónimo»: sólo si esta Trama tiene receptor (reporte-anonimo.ts).
+  manejar("reporte:anonimo", (e) => !tailnet(e) && urlReportes() !== null);
+  manejar("reporte:enviar", (e, x: unknown) => (tailnet(e) ? { ok: false, error: "main.soloPc" } : enviarReporte(x)));
   manejar("maquina:saludo", () => saludo());
   manejar("maquinas:leer", () => estadoMaquinas());
   // "Actualizar límites": antes de releer, el uso como lo dice claude.ai (`get_usage`, por `claude`

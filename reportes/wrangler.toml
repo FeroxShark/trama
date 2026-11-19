@@ -1,0 +1,30 @@
+# Receptor de reportes anónimos de Trama. Subir desde esta carpeta: `npx wrangler deploy`.
+# El id del KV no es secreto. La clave de lectura sí: `npx wrangler secret put CLAVE_LECTURA` (nunca acá).
+name = "trama-reportes"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+workers_dev = true
+preview_urls = false
+
+# Sin logs: no se guarda nada de quién manda.
+[observability]
+enabled = false
+
+[[kv_namespaces]]
+binding = "REPORTES"
+id = "57d4730e39304c2a801f63633d690785"
+
+# Vuelve a generar la captura (lo que traiga escondido el archivo no sobrevive).
+[images]
+binding = "IMAGES"
+
+# Topes: por IP (sólo en memoria de Cloudflare, no se guarda) y entre todos.
+[[ratelimits]]
+name = "LIMITE_IP"
+namespace_id = "1001"
+simple = { limit = 3, period = 60 }
+
+[[ratelimits]]
+name = "LIMITE_TOTAL"
+namespace_id = "1002"
+simple = { limit = 20, period = 60 }

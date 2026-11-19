@@ -308,6 +308,8 @@ export const CANALES = [
   ["archivo:abrirCarpeta", "invoke", "ventana"],
   ["ventana:captura", "invoke", "ventana"],
   ["reporte:armar", "invoke"],
+  ["reporte:anonimo", "invoke"],
+  ["reporte:enviar", "invoke"],
   ["bitacora:escribir", "invoke"],
   ["workers:aviso", "on"],
   ["workers:relanzar", "invoke"],

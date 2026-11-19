@@ -7,15 +7,19 @@ import os from "node:os";
 import path from "node:path";
 import { ESTADO } from "./estado.ts";
 
-/** app/package.json (electron/ y dist-electron/ están a la misma profundidad): la versión y el repo (`github:dueño/repo`). */
-function paquete(): { version: string | null; repo: string | null } {
+/**
+ * app/package.json (electron/ y dist-electron/ están a la misma profundidad): la versión, el repo (`github:dueño/repo`) y la dirección
+ * del receptor de reportes anónimos (`tramaReportes`, sólo https; no es secreta).
+ */
+export function paquete(): { version: string | null; repo: string | null; reportes: string | null } {
   try {
-    const p = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version?: unknown; repository?: unknown };
+    const p = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version?: unknown; repository?: unknown; tramaReportes?: unknown };
     const r = typeof p.repository === "string" ? p.repository : (p.repository as { url?: unknown } | undefined)?.url;
     const m = typeof r === "string" ? /^(?:github:|(?:git\+)?https:\/\/github\.com\/)([\w.-]+\/[\w.-]+?)(?:\.git)?\/?$/.exec(r.trim()) : null;
-    return { version: typeof p.version === "string" ? p.version : null, repo: m ? m[1]! : null };
+    const reportes = typeof p.tramaReportes === "string" && /^https:\/\/[\w.-]+(?::\d+)?\/?$/.test(p.tramaReportes) ? p.tramaReportes.replace(/\/$/, "") : null;
+    return { version: typeof p.version === "string" ? p.version : null, repo: m ? m[1]! : null, reportes };
   } catch {
-    return { version: null, repo: null };
+    return { version: null, repo: null, reportes: null };
   }
 }
 
@@ -108,10 +112,10 @@ const leerTexto = (f: string): string | null => {
 const dos = (n: number) => String(n).padStart(2, "0");
 const sello = (d: Date) => `${d.getFullYear()}${dos(d.getMonth() + 1)}${dos(d.getDate())}-${dos(d.getHours())}${dos(d.getMinutes())}${dos(d.getSeconds())}`;
 
-const sistemaDe = () => `${os.type()} ${os.release()} (${process.platform}, ${process.arch})`;
+export const sistemaDe = () => `${os.type()} ${os.release()} (${process.platform}, ${process.arch})`;
 
 /** El log de Trama y el de la ventana cliente, limpios, uno detrás del otro. `null`: no hay ninguno. */
-function logs(home: string): string | null {
+export function logs(home: string): string | null {
   const partes: string[] = [];
   for (const n of ["trama.log", "ventana.log"]) {
     const t = leerTexto(path.join(ESTADO, n));

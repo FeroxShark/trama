@@ -551,7 +551,11 @@ type Main = {
   /** La captura de esta ventana (PNG en base64, o `null`) para «Reportar un bug». Como `carpeta`: sólo con `esVentana()`. */
   captura?(): Promise<string | null>;
   /** «Reportar un bug»: escribe la carpeta en Descargas (captura y log limpio) y devuelve `{ ok, carpeta, url }` o `{ ok: false, error }`, sin validar. */
-  reporte?: { armar(x: { descripcion: string; captura: string | null; log: boolean }): Promise<unknown> };
+  reporte?: {
+    armar(x: { descripcion: string; captura: string | null; log: boolean }): Promise<unknown>;
+    anonimo?(): Promise<unknown>;
+    enviar?(x: { descripcion: string; captura: string | null; log: boolean }): Promise<unknown>;
+  };
   /** Vuelve a cargar la ventana (el cartel de error); por la tailnet no existe. */
   recargar?(): Promise<void>;
   /** Un error del renderer, al log del main (src/errores.ts). */

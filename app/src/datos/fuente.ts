@@ -222,6 +222,10 @@ export interface Fuente {
   capturaVentana(): Promise<string | null>;
   /** «Reportar un bug»: la carpeta en Descargas con la captura y el log limpio, y la URL del issue prellenado (electron/reporte.ts). */
   armarReporte(x: { descripcion: string; captura: string | null; log: boolean }): Promise<ReporteArmado>;
+  /** Si esta Trama puede mandar el reporte anónimo (tiene receptor). */
+  reporteAnonimo(): Promise<boolean>;
+  /** «Enviar anónimo»: la captura va en JPEG (base64); `ok` sólo si el receptor lo guardó (electron/reporte-anonimo.ts). */
+  enviarReporte(x: { descripcion: string; captura: string | null; log: boolean }): Promise<{ ok: true } | { ok: false; error: string }>;
   /**
    * Retomar un líder sin proceso (`Lider.caido`): pasa a ser de la app y queda listo para
    * escribirle. No lanza nada ni le manda nada: sale con el primer mensaje del usuario.
@@ -2158,6 +2162,13 @@ const fija: Fuente = {
   async capturaVentana() {
     return null;
   },
+  async reporteAnonimo() {
+    return MODO.variante !== "reporte-github";
+  },
+  async enviarReporte() {
+    await new Promise((r) => setTimeout(r, 400));
+    return MODO.variante === "reporte-falla" ? { ok: false, error: "No hay conexión a internet." } : { ok: true };
+  },
   async armarReporte() {
     await new Promise((r) => setTimeout(r, 400));
     return MODO.variante === "reporte-falla" ? { ok: false, error: "EACCES: permission denied" } : { ok: true, carpeta: "/home/ana/Descargas/trama-reporte-20261114-2310", url: "https://github.com/duenio/trama/issues/new" };
@@ -3031,6 +3042,14 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   async capturaVentana() {
     const c = await m.captura?.().catch(() => null);
     return typeof c === "string" && c ? c : null;
+  },
+  async reporteAnonimo() {
+    return (await (m.reporte?.anonimo?.() ?? Promise.resolve(false)).catch(() => false)) === true;
+  },
+  async enviarReporte(x) {
+    const r = (await (m.reporte?.enviar?.(x) ?? Promise.resolve(null)).catch((e) => ({ ok: false, error: mensaje(e) }))) as { ok?: unknown; error?: unknown } | null;
+    if (r?.ok === true) return { ok: true };
+    return { ok: false, error: typeof r?.error === "string" ? r.error : "?" };
   },
   async armarReporte(x) {
     return reporteValido(await (m.reporte?.armar(x) ?? Promise.resolve(null)).catch((e) => ({ ok: false, error: mensaje(e) })));

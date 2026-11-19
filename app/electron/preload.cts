@@ -429,7 +429,12 @@ contextBridge.exposeInMainWorld("hilos", {
   /** La captura de esta ventana (PNG en base64) para «Reportar un bug»; sólo la ventana de la PC. */
   captura: (): Promise<string | null> => invocar("ventana:captura"),
   /** «Reportar un bug»: la carpeta en Descargas con la captura y el log, y la URL del issue (electron/reporte.ts). */
-  reporte: { armar: (x: { descripcion: string; captura: string | null; log: boolean }): Promise<unknown> => invocar("reporte:armar", x) },
+  reporte: {
+    armar: (x: { descripcion: string; captura: string | null; log: boolean }): Promise<unknown> => invocar("reporte:armar", x),
+    /** «Enviar anónimo» (electron/reporte-anonimo.ts): si esta Trama tiene receptor, y mandarlo. */
+    anonimo: (): Promise<unknown> => invocar("reporte:anonimo"),
+    enviar: (x: { descripcion: string; captura: string | null; log: boolean }): Promise<unknown> => invocar("reporte:enviar", x),
+  },
   /** Vuelve a cargar la ventana (el cartel de error); sólo en la ventana de la PC. */
   recargar: (): Promise<void> => invocar("app:recargar"),
   /** Un error del renderer, al log del main (electron/log.ts). */

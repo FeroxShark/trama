@@ -58,6 +58,7 @@ un archivo colgado sale con 124. Un solo test: `node scripts/test.mjs tests/x.te
 | `app/electron/descubrir.ts`, `app/electron/plugins-claude.ts`, `app/electron/usos-historial.ts` | `docs/reglas/conectores.md` |
 | `app/electron/tarea-salida.ts`, `app/src/hilo/Fondo.tsx` | `docs/reglas/fondo.md` |
 | capturas, `pantalla`, `app/scripts/captura.sh` | `docs/reglas/pantalla.md` |
+| `reportes/`, `app/electron/reporte-anonimo.ts`, `app/electron/reportes-reglas.ts`, `app/src/barra/Reporte.tsx` | `docs/reglas/reportes.md` |
 
 ## Mapa rápido
 
