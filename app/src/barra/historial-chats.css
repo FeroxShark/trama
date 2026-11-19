@@ -128,7 +128,7 @@
   padding: 0 var(--esp-2-5);
   border: 0;
   border-radius: var(--r-sm);
-  background: var(--acento-tinte);
+  background: color-mix(in srgb, var(--h, var(--acento)) 14%, var(--sup-1));
   color: var(--texto);
   cursor: pointer;
   font: inherit;
@@ -148,7 +148,7 @@
   height: 0.5rem;
   flex: none;
   border-radius: 50%;
-  background: var(--acento);
+  background: var(--h, var(--acento));
 }
 .his-gr-n {
   min-width: 0;

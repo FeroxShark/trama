@@ -80,7 +80,7 @@ test("tiposDeRutas (el main): archivo, carpeta, lo que falta, un secreto y lo no
     await mkdir(path.join(dir, "voz"));
     await writeFile(path.join(dir, "voz", "a.wav"), "x");
     await writeFile(path.join(dir, ".env"), "x");
-    const r = await tiposDeRutas([path.join(dir, "voz", "a.wav"), path.join(dir, "voz"), path.join(dir, "voz", "b.wav"), path.join(dir, ".env"), "a.wav", `${dir}/voz/../voz/a.wav`, 7], "linux", dir);
+    const r = await tiposDeRutas([path.join(dir, "voz", "a.wav"), path.join(dir, "voz"), path.join(dir, "voz", "b.wav"), path.join(dir, ".env"), "a.wav", `${dir}/voz/../voz/a.wav`, 7], process.platform === "win32" ? "win32" : "linux", dir);
     assert.deepEqual(r, ["archivo", "carpeta", null, null, null, null, null]);
     assert.deepEqual(await tiposDeRutas("no es una lista"), []);
   } finally {

@@ -9,7 +9,8 @@ import { ChevronDown, Crown, History, Search, Trash2, TriangleAlert, X } from "l
 import { fuente } from "../datos/fuente";
 import type { ChatHistorial } from "../datos/contrato";
 import { useFoco } from "../foco";
-import { modeloDe, nombreModelo } from "../hilo/opciones";
+import { modeloCorto } from "./ficha";
+import { estiloProyecto } from "./Riel";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { pintorHace } from "../tiempo";
@@ -31,7 +32,7 @@ type Props = {
   confirmarInicial?: string;
 };
 
-const modeloLindo = (m: string | null) => (m ? nombreModelo(modeloDe(m) ?? m) : null);
+const modeloLindo = (m: string | null) => (m ? (modeloCorto(m) ?? m) : null);
 
 export function Historial({ nombreCarpeta, tituloDe, alAbrir, alCerrar, ahora, confirmarInicial }: Props) {
   useIdioma();
@@ -249,7 +250,7 @@ export function Historial({ nombreCarpeta, tituloDe, alAbrir, alCerrar, ahora, c
             </p>
           ) : (
             grupos.map((g) => (
-              <section key={g.clave} className="his-grupo">
+              <section key={g.clave} className="his-grupo" style={agrupar === "proyecto" && g.clave !== OTRAS ? estiloProyecto(g.clave) : undefined}>
                 {agrupar === "proyecto" ? (
                   <button type="button" className="his-gr" aria-expanded={!plegados.has(g.clave)} onClick={() => plegar(g.clave)}>
                     <ChevronDown size={14} strokeWidth={2} className="his-gr-chev" aria-hidden="true" />
