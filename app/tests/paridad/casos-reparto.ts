@@ -550,6 +550,6 @@ const conTabla = (c: Caso): boolean => [c.args ?? [], ...(c.pasos ?? []).map((p)
 export const casosReparto: Caso[] = casosReparto0.map((c) => {
   if (c.divergenciaSalida) return c;
   if (conTabla(c)) return { ...c, divergenciaSalida: DIVERGE_FABLE };
-  const d = DIVERGEN_2026_11_19.get(c.nombre);
+  const d = DIVERGEN_2026_11_19.get(c.nombre.replace(/^reparto: /, ""));
   return d ? { ...c, divergenciaSalida: d } : c;
 });
