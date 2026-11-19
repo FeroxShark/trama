@@ -87,6 +87,7 @@ export const CANALES = [
   ["claudeCode:listar", "invoke"],
   ["imagen:leer", "invoke"],
   ["archivo:ver", "invoke"],
+  ["archivo:existen", "invoke"],
   ["tarea:salida", "invoke"],
   ["lider:nuevo", "invoke"],
   ["lider:mandar", "invoke"],

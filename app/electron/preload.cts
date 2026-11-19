@@ -143,6 +143,8 @@ contextBridge.exposeInMainWorld("hilos", {
   imagen: { leer: (ruta: string): Promise<unknown> => invocar("imagen:leer", ruta) },
   /** Un archivo que nombra la actividad de un worker (electron/archivo-ver.ts), sin validar; `null` si ya no está. */
   archivoVer: (ruta: string): Promise<unknown> => invocar("archivo:ver", ruta),
+  /** De cada ruta, si existe y es `"archivo"` o `"carpeta"` (electron/archivo-existe.ts); `null` si no está. */
+  archivoExisten: (rutas: string[]): Promise<unknown> => invocar("archivo:existen", rutas),
   /** Las últimas líneas de la salida de una tarea de fondo (electron/tarea-salida.ts), sin validar; `null` si no hay. */
   tareaSalida: (ruta: string): Promise<unknown> => invocar("tarea:salida", ruta),
   lider: {

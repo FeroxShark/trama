@@ -33,6 +33,7 @@ import {
   CopiarRuta,
 } from "./TarjetaRuta";
 import { partirProsa, rutaDeCodigo } from "./rutas-mencionadas";
+import { claveNombre, esNombreSuelto, partirNombres, planDeNombres, resolverNombres } from "./nombres-sueltos";
 import {
   bloques,
   carpetaRelativa,
@@ -132,6 +133,43 @@ function Carpeta({ texto }: { texto: string }) {
   );
 }
 
+/**
+ * Los nombres sueltos del mensaje (`a.wav`) que el main confirmó que existen en una carpeta que el mismo mensaje nombra o en la del
+ * chat: nombre (`claveNombre`) → ruta absoluta. Vacío hasta que el main contesta; sin él, el nombre queda como texto.
+ */
+const NombresResueltos = createContext<ReadonlyMap<string, string>>(new Map());
+
+/** Pregunta al main cuáles de los nombres sueltos de `texto` existen (una sola vez por mensaje terminado). */
+function useNombresResueltos(texto: string, vivo: boolean): ReadonlyMap<string, string> {
+  const cwd = useContext(CarpetaDelChat);
+  const plat = plataformaActual();
+  const plan = useMemo(() => (vivo || !esVentana() ? null : planDeNombres(texto, cwd, plat)), [texto, cwd, plat, vivo]);
+  const [res, setRes] = useState<ReadonlyMap<string, string>>(new Map());
+  useEffect(() => {
+    if (!plan?.rutas.length) {
+      setRes((a) => (a.size ? new Map() : a));
+      return;
+    }
+    let vigente = true;
+    void fuente.archivoExisten(plan.rutas).then((tipos) => {
+      if (!vigente) return;
+      const porRuta = new Map(plan.rutas.map((r, i) => [r, tipos[i] ?? null] as const));
+      setRes(resolverNombres(plan, porRuta, plat));
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [plan, plat]);
+  return res;
+}
+
+/** Un nombre suelto: tocable (visor, «Mostrar en la carpeta», «Copiar la ruta») si el main lo encontró; si no, el texto de siempre. */
+function NombreSuelto({ nombre, codigo }: { nombre: string; codigo: boolean }) {
+  const ruta = useContext(NombresResueltos).get(claveNombre(nombre, plataformaActual()));
+  if (!ruta) return codigo ? <code data-ruta="">{nombre}</code> : <>{nombre}</>;
+  return <ArchivoEnLinea item={{ tipo: /\.html?$/i.test(ruta) ? "html" : "archivo", ruta }} texto={nombre} />;
+}
+
 /** Un `.html` o un archivo mostrable (no imagen: esas tienen su botón de ver) nombrado en código en línea. */
 function archivoDeCodigo(texto: string) {
   const r = rutaDeCodigo(texto, plataformaActual());
@@ -144,9 +182,9 @@ function archivoDeCodigo(texto: string) {
 
 function enLinea(
   texto: string,
-  op: { vivo?: boolean; enlaces?: boolean } = {},
+  op: { vivo?: boolean; enlaces?: boolean; lista?: boolean } = {},
 ): ReactNode[] {
-  const adentro = (s: string) => enLinea(s, { enlaces: op.enlaces });
+  const adentro = (s: string) => enLinea(s, { enlaces: op.enlaces, lista: op.lista });
   return trozos(texto, op).map((x, i) =>
     x.tipo === "code" &&
     op.enlaces !== false &&
@@ -162,6 +200,8 @@ function enLinea(
         item={archivoDeCodigo(x.texto)!}
         texto={x.texto}
       />
+    ) : x.tipo === "code" && op.enlaces !== false && esVentana() && esNombreSuelto(x.texto) ? (
+      <NombreSuelto key={i} nombre={x.texto} codigo />
     ) : x.tipo === "code" ? (
       <Fragment key={i}>
         <code data-ruta={esRuta(x.texto) ? "" : undefined}>{x.texto}</code>
@@ -180,7 +220,7 @@ function enLinea(
         {x.texto === x.url ? x.texto : enLinea(x.texto, { enlaces: false })}
       </Enlace>
     ) : op.enlaces !== false && esVentana() ? (
-      <Fragment key={i}>{prosa(x.texto)}</Fragment>
+      <Fragment key={i}>{prosa(x.texto, op.lista)}</Fragment>
     ) : (
       x.texto
     ),
@@ -188,10 +228,18 @@ function enLinea(
 }
 
 /** Las rutas que la prosa nombra sin comillas invertidas también se tocan donde están. */
-function prosa(texto: string): ReactNode[] {
+function prosa(texto: string, lista = false): ReactNode[] {
   return partirProsa(texto, plataformaActual()).map((p, j) =>
     typeof p === "string" ? (
-      p
+      lista ? (
+        <Fragment key={j}>
+          {partirNombres(p).map((n, k) =>
+            typeof n === "string" ? n : <NombreSuelto key={k} nombre={n.nombre} codigo={false} />,
+          )}
+        </Fragment>
+      ) : (
+        p
+      )
     ) : p.tipo === "carpeta" ? (
       <Carpeta key={j} texto={p.ruta} />
     ) : (
@@ -275,7 +323,7 @@ function Items({ l, vivo }: { l: Lista; vivo: boolean }) {
               x.hecho === undefined ? undefined : x.hecho ? "x" : ""
             }
           >
-            {enLinea(x.texto, { vivo: ultimo && !x.sub && !x.bloques })}
+            {enLinea(x.texto, { vivo: ultimo && !x.sub && !x.bloques, lista: true })}
             {x.bloques?.map((b, j) => (
               <Pieza
                 key={j}
@@ -399,12 +447,13 @@ export const Texto = memo(function Texto({
     () => bloques(texto, { vivo, terminal: propio }),
     [texto, vivo, propio],
   );
+  const nombres = useNombresResueltos(texto, vivo || propio);
   return (
-    <>
+    <NombresResueltos.Provider value={nombres}>
       {bs.map((b, i) => (
         <Pieza key={i} b={b} vivo={vivo && i === bs.length - 1} />
       ))}
       {!propio && !vivo ? <TarjetasRuta texto={texto} /> : null}
-    </>
+    </NombresResueltos.Provider>
   );
 });

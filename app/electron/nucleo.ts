@@ -5,6 +5,7 @@
 // La ventana lo usa por ipc.ts, que le suma lo que es sólo de la pantalla de la PC.
 import { guardarArchivo, limpiarAdjuntos } from "./archivos.js";
 import { leerArchivoVisto } from "./archivo-ver.js";
+import { tiposDeRutas } from "./archivo-existe.js";
 import { leerSalidaTarea } from "./tarea-salida.js";
 import { leerImagenLocal } from "./imagen-local.js";
 import { modelosDictado, transcribir } from "./dictado.ts";
@@ -1538,6 +1539,8 @@ export function armarNucleo() {
   manejar("imagen:leer", (_e, ruta: unknown) => leerImagenLocal(ruta));
   // Un archivo que leyó, escribió o editó un worker, un subagente o un líder, para el visor (archivo-ver.ts): ruta absoluta, sólo lectura; `null` si ya no está.
   manejar("archivo:ver", (_e, ruta: unknown) => leerArchivoVisto(ruta));
+  // Cuáles de estas rutas existen y si son archivo o carpeta (archivo-existe.ts): para volver tocable un nombre suelto del chat.
+  manejar("archivo:existen", (_e, rutas: unknown) => tiposDeRutas(rutas));
   // El final de la salida de una tarea de fondo (tarea-salida.ts): sólo archivos `tasks/*.output` del harness, con tope de bytes; `null` si no hay.
   manejar("tarea:salida", (_e, ruta: unknown) => leerSalidaTarea(ruta));
   manejar("lider:archivo", (_e, x: unknown) => guardarArchivo(path.join(ESTADO, "adjuntos"), x));

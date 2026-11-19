@@ -149,6 +149,8 @@ type Main = {
   };
   /** Un archivo que nombra la actividad de un worker (electron/archivo-ver.ts), sin validar; `null` si ya no está. */
   archivoVer(ruta: string): Promise<unknown>;
+  /** De cada ruta, si existe y es `"archivo"` o `"carpeta"` (electron/archivo-existe.ts); `null` si no está. */
+  archivoExisten(rutas: string[]): Promise<unknown>;
   /** Las últimas líneas de la salida de una tarea de fondo (electron/tarea-salida.ts), sin validar; `null` si no hay. */
   tareaSalida(ruta: string): Promise<unknown>;
   /** Los líderes: los de la app se manejan desde acá; los de la terminal se leen (electron/lider.ts). */

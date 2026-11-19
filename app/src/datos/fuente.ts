@@ -212,6 +212,8 @@ export interface Fuente {
   imagenLocal(ruta: string): Promise<Imagen | null>;
   /** Un archivo que leyó, escribió o editó un worker, un subagente o un líder (ruta absoluta), para el visor; `null` si ya no está o no se puede mostrar. */
   archivoVisto(ruta: string): Promise<ArchivoVisto | null>;
+  /** De cada ruta absoluta, si existe en esta máquina y es archivo o carpeta (`null` si no está): confirma un nombre suelto del chat (`hilo/nombres-sueltos.ts`). */
+  archivoExisten(rutas: string[]): Promise<Array<"archivo" | "carpeta" | null>>;
   /** Las últimas líneas de la salida de una tarea de fondo del líder (`Fondo.tsx`); `null` si todavía no hay (o la ruta no es de una tarea). */
   tareaSalida(ruta: string): Promise<SalidaTarea | null>;
   /** Lo abre con la app del sistema (sólo la ventana de la PC); `false` si no se pudo. */
@@ -2153,6 +2155,10 @@ const fija: Fuente = {
     if (tipo === "texto" || tipo === "markdown") return { tipo, texto: tipo === "markdown" ? "# Notas\n\nUn **resumen** de lo hecho:\n\n- primero\n- segundo\n" : "export function usarCuenta() {\n  return 1;\n}\n", recortado: false };
     return tipo === "otro" ? null : { tipo, mime, datos: tipo === "pdf" ? PDF_MUESTRA : "AAAA" };
   },
+  async archivoExisten(rutas) {
+    // Muestras: existe todo lo que no dice "falta" ni "no-esta"; lo que lleva extensión es archivo.
+    return rutas.map((r) => (/falta|no-esta/.test(r) ? null : /\.[A-Za-z0-9]{1,8}$/.test(r) ? "archivo" : "carpeta"));
+  },
   async archivoAbrir() {
     return true;
   },
@@ -3035,6 +3041,10 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async tareaSalida(ruta) {
     return salidaDe(await m.tareaSalida(ruta).catch(() => null));
+  },
+  async archivoExisten(rutas) {
+    const r = await m.archivoExisten?.(rutas).catch(() => null);
+    return rutas.map((_, i) => (Array.isArray(r) && (r[i] === "archivo" || r[i] === "carpeta") ? r[i] : null));
   },
   async archivoAbrir(ruta) {
     return (await m.archivo?.abrir(ruta).catch(() => false)) === true;
