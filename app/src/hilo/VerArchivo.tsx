@@ -648,8 +648,11 @@ function Hoja({ a, v, linea, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVi
 /* El archivo abierto: una imagen, en el visor propio (con las otras imágenes del chat, para pasar de una a otra); lo demás, en la hoja. */
 export function VerArchivo({ a, linea, alCerrar }: { a: ArchivoDeHerramienta; linea?: number | null; alCerrar: () => void }) {
   const [ruta, setRuta] = useState(a.ruta);
-  // Las del chat se juntan al abrir: lo que llegue después no mueve el lugar de la que se está mirando.
-  const [rutas] = useState(() => (a.tipo === "imagen" ? galeriaDe(rutasDeImagenes(a.ruta), a.ruta).rutas : [a.ruta]));
+  // Las del chat se juntan al abrir (con todo el chat ya dibujado: por eso no al crear el estado): lo que llegue después no mueve el lugar de la que se está mirando.
+  const [rutas, setRutas] = useState([a.ruta]);
+  useLayoutEffect(() => {
+    if (a.tipo === "imagen") setRutas(galeriaDe(rutasDeImagenes(a.ruta), a.ruta).rutas);
+  }, [a.ruta, a.tipo]);
   const actual = ruta === a.ruta ? a : (archivoDeRuta(ruta, "leer") ?? a);
   const v = useArchivoVisto(actual.ruta, true);
   if (actual.tipo === "imagen" || v?.tipo === "imagen") {
