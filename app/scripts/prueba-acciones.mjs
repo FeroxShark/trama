@@ -258,30 +258,25 @@ try {
   const cuelgan = (ids) => ids.every((id) => !!document.querySelector(`[data-fila="${id}"]`)?.closest(".arbol")?.querySelector(".lider"));
   const sinFila = (ids) => ids.every((id) => !document.querySelector(`[data-fila="${id}"]`));
   const TERMINADOS = ["20261003-100200-33333", "20261003-100500-77777"];
-  // "N terminados" (en inglés "N done", la app arranca en inglés) al final de sus workers, en `.pliegue`.
-  const pliegue = '.arbol:has([data-lider="s-falso-lider"]) .pliegue .mini-pliegue';
+  // Lo terminado no se lista ni se cuenta en la barra (sin pliegue ni "N terminados"): sólo aparece buscando.
+  // `buscar` escribe en el buscador de la barra; "" lo limpia y vuelve la barra normal.
+  const buscar = (q) => escribir(".buscar input", q);
+  const pliegues = () => document.querySelectorAll(".mini-pliegue").length;
   // Con `hasta`: al aparecer el líder, las filas que estaban como huérfanas salen animadas y un rato hay dos.
   ok(await hasta(cuelgan, "worker bajo el líder", ["20261003-100300-44444"]), "su worker vivo cuelga de él");
   ok(await hasta(sinFila, "terminados sin fila", TERMINADOS), "los que terminaron bajo el líder no tienen fila");
-  ok(await hasta((s) => document.querySelector(s)?.textContent.trim().startsWith("2 "), "2 terminados", pliegue), 'el líder los cuenta: "2 terminados"');
-  await clic(pliegue);
-  ok(await hasta(cuelgan, "desplegados", TERMINADOS), "un clic en los 2 terminados los despliega bajo su líder");
-  await clic(pliegue);
-  ok(await hasta(sinFila, "plegados", TERMINADOS), "otro clic los vuelve a esconder");
-  ok(await en(sinFila, ["20261003-100100-22222"]), "lo terminado sin rama y sin líder también se esconde");
-  // Una rama con commits sin integrar y sin líder vivo también se pliega ("N terminadas"): las ramas viven en el panel Ramas.
-  // Lo que sigue la usa abierta.
+  ok((await en(pliegues)) === 0, "no hay pliegue de terminados ni «N terminados»");
+  ok(await en(sinFila, ["20261003-100100-22222", "20261003-100000-11111", "20261003-100400-66666"]), "lo terminado sin líder tampoco tiene fila");
+  // Buscando al líder aparecen sus terminados, bajo él.
+  await buscar("ana-prueba");
+  ok(await hasta(cuelgan, "desplegados", TERMINADOS), "buscando al líder, sus terminados aparecen bajo él");
+  await buscar("");
+  ok(await hasta(sinFila, "plegados", TERMINADOS), "limpiada la búsqueda, vuelven a esconderse");
+  // Las terminadas sin líder (ramas con commits sin integrar) también salen buscando; lo que sigue usa la búsqueda abierta.
+  await buscar("cauce");
   ok(
-    await en(() => {
-      const pliegues = [...document.querySelectorAll('.arbol:is([data-tipo="sueltas"], [data-tipo="huerfanos"]) .mini-pliegue')];
-      for (const b of pliegues) b.click();
-      return pliegues.length > 0;
-    }),
-    "las terminadas sin líder se abren con un clic",
-  );
-  ok(
-    await hasta(() => !!document.querySelector('[data-fila="20261003-100400-66666"]') && !!document.querySelector('[data-fila="20261003-100000-11111"]'), "ramas a la vista"),
-    "y entre ellas están las ramas con commits sin integrar",
+    await hasta(() => !!document.querySelector('[data-fila="20261003-100400-66666"]'), "rama a la vista"),
+    "buscando su carpeta aparecen las terminadas sin líder, entre ellas la rama con commits sin integrar",
   );
   // --- Clic derecho (B20): el menú de la fila, renombrar en línea y el de la carpeta ---
   const F6 = '[data-fila="20261003-100400-66666"]';
@@ -330,6 +325,9 @@ try {
   await escribir("input.renombre", "");
   await tecla("Enter");
   ok(await hasta((s) => document.querySelector(`${s} .l1 .t`)?.textContent === "Rama para descartar", "original", F6), "vacío vuelve a la tarea de pa");
+  // La carpeta se ordena a mano sólo sin buscar: se limpia la búsqueda.
+  await buscar("");
+  ok(await hasta(() => !document.querySelector('[data-fila="20261003-100400-66666"]'), "sin búsqueda"), "limpiada la búsqueda vuelve la barra normal");
   ok(await derecho('[data-carpeta="cauce"]'), "clic derecho en la carpeta");
   await hasta(() => !!document.querySelector('[role="menu"] [data-accion]'), "menú de carpeta");
   const opsC = (await opciones()).join(" ");
@@ -605,6 +603,8 @@ try {
   ok(a.endsWith(" --parar 20261003-100300-44444"), `Parar → ${a.replace(/^\S+ /, "")}`);
 
   // --- Terminado: ni caja ni pie; con su botón de cerrar si no tiene líder ------------------
+  await buscar("atlas");
+  ok(await hasta(() => !!document.querySelector('[data-fila="20261003-100000-11111"]'), "11111 buscando"), "buscando su carpeta aparece el terminado 11111");
   await clic('[data-fila="20261003-100000-11111"] .wbtn');
   ok(await hasta(() => document.querySelector(".migas .ruta b")?.textContent.includes("Cerrar con rama"), "vista 11111"), "se abre el worker terminado");
   ok(
@@ -630,10 +630,12 @@ try {
   ok(lineas().some((l) => l.endsWith(" --hilo 20261003-100400-55555 --json -n 6")), "el main leyó el final entero con pa --hilo -n 6");
 
   // --- Integrar / Archivar: sólo lo que no cuelga de un líder; con rama integra -----------------------
-  await clic(pliegue);
-  ok(await hasta(cuelgan, "desplegados", TERMINADOS), "se despliegan los terminados del líder");
+  await buscar("ana-prueba");
+  ok(await hasta(cuelgan, "desplegados", TERMINADOS), "buscando al líder aparecen sus terminados");
   for (const id of TERMINADOS)
     ok(await en((id) => !document.querySelector(`[data-fila="${id}"] [data-cerrar]`), id), `${id.slice(-5)} (de un líder) no tiene Integrar ni Archivar propio`);
+  await buscar("atlas");
+  ok(await hasta(() => !!document.querySelector('[data-fila="20261003-100000-11111"]'), "11111 buscando"), "buscando su carpeta vuelve 11111");
   desde = acciones().length;
   ok(await clic('[data-fila="20261003-100000-11111"] [data-cerrar="integrar"]', "Integrar"), "11111 (con rama) tiene Integrar");
   a = await nuevas(desde);
@@ -641,6 +643,8 @@ try {
 
   // --- Lo que murió no se integra a ciegas: sin commits, Quitar descarta; con commits, Integrar o Quitar --
   // (cauce no está en el registry: sin `tests`, Integrar va sin --tests)
+  await buscar("cauce");
+  ok(await hasta(() => !!document.querySelector('[data-fila="20261003-100600-88888"]') && !!document.querySelector('[data-fila="20261003-100700-99999"]'), "cauce buscando"), "buscando su carpeta aparecen 88888 y 99999");
   ok(await en(() => !document.querySelector('[data-fila="20261003-100600-88888"] [data-cerrar]')), "88888 (murió) no tiene Integrar ni Archivar");
   desde = acciones().length;
   ok(await clic('[data-fila="20261003-100600-88888"] [data-quitar]', "Quitar"), "88888 (sin commits) tiene Quitar");
@@ -656,6 +660,7 @@ try {
   ok(a.endsWith(" cauce --integrar 20261003-100700-99999"), `Integrar sin tests en el registry → ${a.replace(/^\S+ /, "")}`);
 
   // --- Ramas: Integrar también le pasa a pa el nombre del registry, no la carpeta ------
+  await buscar("");
   ok(await clic(".pie button", "Ramas"), "el pie abre Ramas");
   const filaRama = '.pn-rama:has(.pn-tarea[data-id="20261003-100400-55555"])';
   ok(await hasta((s) => !!document.querySelector(s), "fila de la rama", filaRama), "Ramas lista la rama de atlas");
