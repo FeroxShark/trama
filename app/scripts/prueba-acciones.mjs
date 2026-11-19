@@ -978,9 +978,9 @@ try {
   await escribir(".caja-zona textarea", "/effort low");
   await tecla("Enter");
   ok(await hasta(() => document.querySelectorAll(".caja-zona .pick > .pbtn")[1]?.textContent.includes("low"), "low"), "/effort low cambia el esfuerzo");
-  await escribir(".caja-zona textarea", "/model gpt");
+  await escribir(".caja-zona textarea", "/model zzz-raro");
   await tecla("Enter");
-  ok(await hasta(() => document.querySelector(".caja-error")?.textContent.includes("gpt"), "error"), "/model con algo raro: error en línea");
+  ok(await hasta(() => document.querySelector(".caja-error")?.textContent.includes("zzz-raro"), "error"), "/model con algo raro: error en línea");
   ok(await mandar("usá la herramienta"), "Mandar con otro modelo, en default");
   ok(await hasta(() => document.querySelector(".pide-t")?.textContent.includes("Bash"), "permiso"), "en default, el Bash pide permiso");
   arr = arranques();
