@@ -21,7 +21,7 @@ import {
   type Ref,
 } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
-import { BarChart3, ChevronDown, Crown, Gauge, GitBranch, Layers, MessageSquare, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, Bug, type LucideIcon } from "lucide-react";
+import { BarChart3, ChevronDown, Gauge, GitBranch, Layers, MessageSquare, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, Bug, type LucideIcon } from "lucide-react";
 import { cerrable, cerrado, comoSettle, GENERAL, VERSION, type Caido, type ConvClaudeCode, type Estado, type EventoPa, type Hilo, type Leidos, type Lider, type Nombres, type Orden, type RespuestaLideres } from "../datos/contrato";
 import { compactarFijo, escenaFija, fuente } from "../datos/fuente";
 import { ARRANCANDO, EN_COLA, FRENADO, imagenFija } from "../datos/fixtures";
@@ -70,6 +70,7 @@ import {
   aDesplegar,
   armarArbol,
   plegarTerminados,
+  terminadosVisibles,
   claveDormidos,
   claveEspera,
   compararCarpetas,
@@ -679,7 +680,7 @@ export function Barra() {
   // Buscando, las carpetas se abren pero los pliegues no: lo inactivo sigue en su "+N" / "N terminadas". Filtrando por un proyecto, el suyo se ve abierto.
   const desplegada = (k: string) => (k.includes(":") ? pliegues.has(k) : buscando || k === filtroVigente || !colapsados.has(k));
   const verCerrados = cerradosAbiertos;
-  const visibles = filasVisibles(arbolVisto, desplegada, verCerrados);
+  const visibles = filasVisibles(arbolVisto, desplegada, verCerrados, buscando);
   const virtual = visibles.length > UMBRAL;
 
   const ultimo = useUltimo({ hilos, optimista, visibles, grupos, cursor, activa, busqueda, panel, enCurso, arbol, orden: nombres.orden, lideresVistos, carpetasReg, titulos, recientes });
@@ -2213,6 +2214,7 @@ export function Barra() {
             alPlegar={plegar}
             fila={fila}
             virtual={virtual}
+            conTerminados={buscando}
             resueltos={resueltos}
             orden={nombres.orden}
             recientes={recientes}
@@ -2236,6 +2238,7 @@ export function Barra() {
             alPlegar={plegar}
             fila={fila}
             virtual={virtual}
+            conTerminados={buscando}
             resueltos={resueltos}
             mueve={false}
             claude={porCarpetaCC.get(k) ?? SIN_CONVS}
@@ -2543,6 +2546,8 @@ type PropsCarpeta = {
   alPlegar: (clave: string) => void;
   fila: (item: Item, quieta?: boolean) => ReactNode;
   virtual: boolean;
+  /** Sólo buscando se listan los terminados (y «sin líder»): de otro modo la barra muestra lo vivo y nada más. */
+  conTerminados: boolean;
   /** Los workers que pidieron atención y ya no (`atencion-vigente.ts`): ni el ícono del líder ni su fila los cuentan. */
   resueltos: ReadonlySet<string>;
   /** El orden elegido y la foto de actividad: en "Recientes" las filas del proyecto van por fecha (`filasCarpeta`). */
@@ -2576,6 +2581,7 @@ function Carpeta({
   alPlegar,
   fila,
   virtual,
+  conTerminados,
   resueltos,
   orden,
   recientes,
@@ -2680,6 +2686,7 @@ function Carpeta({
                   alPlegar={alPlegar}
                   fila={fila}
                   virtual={virtual}
+                  conTerminados={conTerminados}
                 />
               ))}
               {claude.length ? (
@@ -2727,29 +2734,6 @@ const tipQuietos = (g: DatosCarpeta) => {
     .join("\n");
 };
 
-const SIN_NOMBRES: string[] = [];
-
-/**
- * La cabecera de lo que quedó sin líder. Si al líder lo mataron (su sesión quedó sin
- * proceso) lo dice: "líder muerto", con el nombre en el tooltip; si cerró, "sin líder".
- */
-function SinLider({ muertos, idos }: { muertos: string[]; idos: string[] }) {
-  const murio = muertos.length > 0;
-  const tip = murio
-    ? tr("barra.liderMuertoTip", { n: muertos.join(", ") })
-    : idos.length
-      ? tr("barra.sinLiderTip", { n: idos.join(", ") })
-      : undefined;
-  return (
-    <div className="sin-lider" data-muerto={murio ? "" : undefined} data-tip={tip}>
-      <span className="corona">
-        <Crown size={12} strokeWidth={2} />
-      </span>
-      {tr(murio ? "barra.liderMuerto" : "barra.sinLider")}
-    </div>
-  );
-}
-
 type PropsArbol = {
   ref?: Ref<HTMLDivElement>;
   r: Rama;
@@ -2763,6 +2747,7 @@ type PropsArbol = {
   alPlegar: (clave: string) => void;
   fila: PropsCarpeta["fila"];
   virtual: boolean;
+  conTerminados: boolean;
 };
 
 /**
@@ -2770,8 +2755,10 @@ type PropsArbol = {
  * terminó se esconde solo (`r.viejas`, `plegarTerminados`) en "N terminados"; a la vista, lo que trabaja o pide algo.
  * Lo que lanzó el usuario sin líder cuelga directo de la carpeta.
  */
-function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLider, plegada, alPlegar, fila, virtual }: PropsArbol) {
-  const n = r.viejas.length;
+function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLider, plegada, alPlegar, fila, virtual, conTerminados }: PropsArbol) {
+  // Los terminados no se ven (ni su «N terminados»): salen buscando y en el chat del líder. Tampoco hay cabecera «sin líder»: lo vivo cuelga de la carpeta.
+  const viejas = terminadosVisibles(r, conTerminados);
+  const n = viejas.length;
   const vivos = useMemo(() => r.vivas.filter((it) => workerVivo({ estado: it.estado, en_cola: it.h.en_cola })).length, [r.vivas]);
   const pliegue = n > 0;
   const lider = r.tipo === "lider";
@@ -2800,8 +2787,6 @@ function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLid
           alCerrar={alCerrarLider}
           alSettle={alSettleLider}
         />
-      ) : r.tipo === "huerfanos" ? (
-        <SinLider muertos={r.muertos ?? SIN_NOMBRES} idos={r.idos ?? SIN_NOMBRES} />
       ) : null}
       {r.lider ? <Subagentes sid={r.lider.id} /> : null}
       <ul className="ramas">
@@ -2810,7 +2795,7 @@ function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLid
             oculta, y con una lista larga no hay que bajar hasta el fondo. Abierto se queda pegado arriba al scrollear. */}
         {pliegue ? <PliegueTerminados key="pliegue" n={n} lider={lider} plegada={plegada} alPlegar={() => alPlegar(r.clave)} /> : null}
         {/* Siempre montada (salvo virtualizada): las filas entran y salen animadas al plegar. */}
-        {plegada && virtual ? null : <Filas items={plegada ? SIN_FILAS : r.viejas} virtual={virtual} fila={fila} />}
+        {plegada && virtual ? null : <Filas items={plegada ? SIN_FILAS : viejas} virtual={virtual} fila={fila} />}
       </ul>
     </motion.div>
   );

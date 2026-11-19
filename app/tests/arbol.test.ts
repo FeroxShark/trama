@@ -15,6 +15,7 @@ import {
   estadoVisto,
   filasVisibles,
   plegarTerminados,
+  terminadosVisibles,
   fin,
   lideresSinProceso,
   ordenCarpetas,
@@ -957,4 +958,24 @@ test("retirados: lo movido a mano manda sobre el reemplazo; sin reemplazo, el re
   const sin = armarArbol([w], { lideres: [l], ahora: AHORA });
   assert.equal(sin.lideres.get("a")!.proyecto, "hilos");
   assert.ok(nombres(sin).includes("hilos"));
+});
+
+test("la barra no lista terminados ni «sin líder» (sí lo vivo, con o sin líder); buscando vuelven", () => {
+  const vivoSinLider = hilo({ proyecto: "atlas", estado: "trabajando", inicio: AHORA - MIN, ...deL("muerto") });
+  const hechoSinLider = hilo({ proyecto: "atlas", estado: "listo", inicio: AHORA - 2 * MIN, ...deL("muerto") });
+  const vivoConLider = hilo({ proyecto: "atlas", estado: "trabajando", inicio: AHORA - 3 * MIN, ...deL("a") });
+  const hechoConLider = hilo({ proyecto: "atlas", estado: "listo", inicio: AHORA - 4 * MIN, ...deL("a") });
+  const v = plegarTerminados(armarArbol([vivoSinLider, hechoSinLider, vivoConLider, hechoConLider], { lideres: [lider("a")], caidos: [{ id: deL("muerto").jefe_id, nombre: "muerto", ts: AHORA }], ahora: AHORA }));
+  const sinLider = v.carpetas[0].ramas.find((x) => x.tipo === "huerfanos")!;
+  const conLider = ramaDe(v, "a");
+  // Lo vivo se lista siempre; los terminados, nunca (ni su «N terminados»), salvo buscando.
+  assert.deepEqual(ids(sinLider.vivas), [vivoSinLider.id]);
+  assert.deepEqual(ids(conLider.vivas), [vivoConLider.id]);
+  for (const r of [sinLider, conLider]) {
+    assert.deepEqual(terminadosVisibles(r, false), []);
+    assert.equal(terminadosVisibles(r, true).length, 1);
+  }
+  // El teclado recorre lo mismo que se ve, aunque el pliegue de una rama haya quedado abierto de antes.
+  assert.deepEqual(ids(filasVisibles(v, () => true, false, false)), [vivoConLider.id, vivoSinLider.id]);
+  assert.deepEqual(ids(filasVisibles(v, () => true, false, true)).sort(), [vivoConLider.id, vivoSinLider.id, hechoConLider.id, hechoSinLider.id].sort());
 });

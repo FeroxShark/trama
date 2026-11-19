@@ -97,7 +97,7 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 | **`+` en el encabezado de cada carpeta** (`Chat nuevo en <proyecto>`, `aria-label` y tooltip) | Abre un chat nuevo ya con esa carpeta (lo mismo que «Nueva tarea aquí» del menú). Va a la derecha del todo; no está en `Otras carpetas`. | Empezar algo en un proyecto sin pasar por el selector de carpeta. | nueva |
 | `4 en marcha` | Cuántos trabajan ahora en el proyecto. | Se ve aunque esté plegado. | igual (del Riel) |
 | Glifo `✕`/`?` en el encabezado plegado | Adentro hay algo que mirar. | Plegar no esconde lo urgente. | igual |
-| `N terminados` / `N terminadas` | Lo terminado se pliega solo, bajo su líder o sin líder. Sólo la palabra y la flecha. | La montaña de terminados no ocupa la barra; el botón va antes de la lista y, abierto, queda pegado bajo el encabezado del proyecto para no bajar hasta el fondo. | recuperada sin el ✓ |
+| ~~`N terminados` / `N terminadas`~~ | **Ya no se ve** (2026-11-19, pedido del dueño: «no quiero verlo, es al pedo»). Lo que terminó no se lista bajo su líder ni en la carpeta; sólo se ve lo que corre o pide algo (`terminadosVisibles`). Los terminados se encuentran buscando en la barra y en el chat del líder, que los nombra. | La barra muestra lo vivo y nada más. | cambió: se sacó |
 | Lo que falló no se pliega | Queda a la vista aunque terminó (`aRiel`). | | igual |
 | `Ver N más` | Los líderes quietos: en espera (30 min sin nada) y dormidos (sin proceso, más de una semana). Se ven de a dos. El tooltip dice cuántos de cada uno y que un dormido no se borra. | | cambió: reemplaza los pliegues «N en espera» y «N dormidos»; recuperadas las palabras en el tooltip. |
 | `Recientes` / `A-Z` / `Manual` | Cómo se acomoda; se recuerda. Lo movido a mano no cambia solo. En `Recientes`, lo que se ve de cada proyecto va por fecha, trabaje o esté quieto (`filasCarpeta`); qué queda detrás de `Ver N más` no cambia. | `279e281`. Antes los quietos iban siempre debajo y Recientes no parecía por fecha. | cambió |
@@ -129,7 +129,7 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 | `De Claude Code (N)` | Conversaciones de Claude Code que no se abrieron desde Trama, plegadas al final de cada proyecto. Tocar una la retoma; sus archivos no se tocan. `Sin carpeta` y `Otra cuenta` lo dicen. Buscador si son muchas. | `4ed1e11`. | igual |
 | `Otras carpetas` | Lo de Claude Code de carpetas que no son proyectos. | | igual |
 | Inicio | La carpeta personal; una línea de ayuda explica por qué hay conversaciones ahí. | | igual |
-| `sin líder` / `líder muerto` | Workers cuyo líder cerró o murió, con el nombre en el tooltip. | «Nadie está esperando esto». | igual |
+| ~~`sin líder` / `líder muerto`~~ | **Ya no se ve** la cabecera (2026-11-19, pedido del dueño). Los workers vivos cuyo líder cerró o murió cuelgan directo de la carpeta, como lo lanzado sin líder. | | cambió: se sacó |
 | Lanzado sin líder | Cuelga directo del proyecto y mide como un líder. Lo que pide, lo decidís vos. | | igual |
 | `Cerrados · N` | Lo que `pa` ya cerró, al fondo, plegado. Dice cómo: `Integrado`, `Cerrado`, `Descartado`, `Revertido`. | | igual |
 | Raya en el color del proyecto, en Cerrados | De qué proyecto es: están todos mezclados. El nombre, en el tooltip. | | cambió: antes era texto (`Integrado · atlas · hace 3 d`), que no entra en una línea. |

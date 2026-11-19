@@ -675,18 +675,25 @@ export function plegarTerminados(a: Arbol): Arbol {
 }
 
 /**
+ * Los terminados de una rama que la barra lista (su «N terminados»): ninguno, salvo buscando. Lo que corre o pide algo (`vivas`) se ve
+ * siempre, bajo su líder o, sin líder, colgando de la carpeta (sin cabecera «sin líder»). Los terminados siguen en el chat del líder y
+ * en la búsqueda.
+ */
+export const terminadosVisibles = (r: Rama, conTerminados: boolean): Item[] => (conTerminados ? r.viejas : []);
+
+/**
  * Las filas que se ven, en orden (para el teclado y para decidir si se
  * virtualiza). `abierta(clave)` dice si una carpeta (clave = proyecto) o el
  * pliegue de una rama (clave de la rama) está abierto.
  */
-export function filasVisibles(a: Arbol, abierta: (clave: string) => boolean, verCerrados: boolean): Item[] {
+export function filasVisibles(a: Arbol, abierta: (clave: string) => boolean, verCerrados: boolean, conTerminados = true): Item[] {
   const out: Item[] = [];
   // "Activas" va primero, como en la pantalla: el teclado recorre las filas en el orden en que se ven.
   if (a.activas.length && abierta(ACTIVAS)) {
     for (const r of a.activas) {
       const abre = abierta(r.clave);
       out.push(...r.vivas);
-      if (abre) out.push(...r.viejas);
+      if (abre && conTerminados) out.push(...r.viejas);
     }
   }
   for (const c of a.carpetas) {
@@ -694,7 +701,7 @@ export function filasVisibles(a: Arbol, abierta: (clave: string) => boolean, ver
     for (const r of c.ramas) {
       const abre = abierta(r.clave);
       out.push(...r.vivas);
-      if (abre) out.push(...r.viejas);
+      if (abre && conTerminados) out.push(...r.viejas);
     }
     // Los líderes en espera no tienen workers colgando (si no, no estarían en espera).
   }
