@@ -3955,6 +3955,7 @@ export const en = {
   "riel.anilloTipLleno": "{ventana}: no quota, {vuelve}",
   "riel.anilloTipLlenoSolo": "{ventana}: no quota",
   "riel.anilloBien": "on track",
+  "riel.anilloMarca": "The tick is the even pace: {pct}% used by this point of the week",
   "riel.anilloPoco": "low quota",
   "riel.anilloSinCupo": "no quota",
   "riel.anilloSeAcaba": "runs out in {falta}",

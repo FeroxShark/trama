@@ -186,7 +186,14 @@ function repararPluginAgy(d: DatosChequeo, plat: Plataforma): void {
   }
 }
 
-/** Gemini (agy): privacidad, agy en el PATH y el plugin pa-worker cargado. */
+/** ¿La salida de agy dice que no hay sesión de Google (o que la pidió y no llegó)? */
+export function sinSesionAgy(salida: string): boolean {
+  return /not logged into Antigravity|Authentication required|authentication failed|auth cancelled/i.test(salida);
+}
+
+export const MOTIVO_SIN_SESION_AGY = "agy no tiene sesión de Google (abrí `agy` en una terminal y entrá con tu cuenta)";
+
+/** Gemini (agy): privacidad, agy en el PATH, la sesión de Google y el plugin pa-worker cargado. */
 export function chequearAgy(d: DatosChequeo): string {
   const plat = d.plat ?? plataformaActual();
   const m = privacidadDe(d.proyecto, d.tarea, "Google", d.env);
@@ -195,8 +202,15 @@ export function chequearAgy(d: DatosChequeo): string {
   const bin = d.buscar ? d.buscar("agy") : hallarAgy(d.env, homeDe(d.env, plat), (f) => esEjecutable(f, plat), plat);
   if (!bin) return "agy no está en el PATH";
   const s = Number(d.env.PA_AGY_CHEQUEO_S) > 0 ? Number(d.env.PA_AGY_CHEQUEO_S) : 40;
-  const hooks = () => String(correr(bin, ["-p", "/hooks", "--output-format", "json"], { env: envSinNavegador(d.envCuenta ?? d.env, plat), encoding: "utf8", timeout: s * 1000, stdio: ["ignore", "pipe", "ignore"] }, d, plat).stdout ?? "");
+  let error = "";
+  const hooks = () => {
+    const r = correr(bin, ["-p", "/hooks", "--output-format", "json"], { env: envSinNavegador(d.envCuenta ?? d.env, plat), encoding: "utf8", timeout: s * 1000, stdio: ["ignore", "pipe", "pipe"] }, d, plat);
+    error = String(r.stderr ?? "");
+    return String(r.stdout ?? "");
+  };
   let json = hooks();
+  // Sin sesión, agy no contesta el json: pide entrar con Google (y espera). No es que falte el plugin.
+  if (!pluginCargado(json) && sinSesionAgy(json + "\n" + error)) return MOTIVO_SIN_SESION_AGY;
   if (!pluginCargado(json) && plat === "win32") {
     repararPluginAgy(d, plat);
     json = hooks();

@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import type { spawnSync } from "node:child_process";
-import { chequearAgy, chequearCodex } from "../electron/cli/pa/motores/chequeo.ts";
+import { MOTIVO_SIN_SESION_AGY, chequearAgy, chequearCodex } from "../electron/cli/pa/motores/chequeo.ts";
 
 type Llamada = { file: string; args: string[]; opciones: Record<string, unknown> };
 
@@ -20,11 +20,11 @@ function mundo() {
 }
 
 /** Un `spawnSync` falso que anota la llamada y contesta con `salidas` en orden. */
-function falso(salidas: string[], status = 0) {
+function falso(salidas: string[], status = 0, stderr = "") {
   const llamadas: Llamada[] = [];
   const f = ((file: string, args: string[], opciones: Record<string, unknown>) => {
     llamadas.push({ file, args, opciones });
-    return { status, stdout: salidas[Math.min(llamadas.length - 1, salidas.length - 1)] ?? "", stderr: "", signal: null, pid: 1, output: [] };
+    return { status, stdout: salidas[Math.min(llamadas.length - 1, salidas.length - 1)] ?? "", stderr, signal: null, pid: 1, output: [] };
   }) as unknown as typeof spawnSync;
   return { f, llamadas };
 }
@@ -79,6 +79,18 @@ test("chequearAgy en linux: no repara nada y el aviso es el de siempre (instalar
   assert.equal(reparos, 0);
   assert.equal(llamadas.length, 1);
   assert.equal(llamadas[0]!.file, "/usr/bin/agy");
+});
+
+test("chequearAgy sin sesión de Google: lo dice así, no como plugin faltante, y no intenta reparar", () => {
+  const m = mundo();
+  let reparos = 0;
+  for (const plat of ["linux", "win32"] as const) {
+    const { f, llamadas } = falso([""], 1, "Authentication required. Please visit the URL to log in:\nerror: authentication failed or timed out");
+    const motivo = chequearAgy({ proyecto: "demo", tarea: "nada", env: m.env, plat, spawn: f, buscar: () => "/usr/bin/agy", repararPlugin: () => reparos++ });
+    assert.equal(motivo, MOTIVO_SIN_SESION_AGY);
+    assert.equal(llamadas.length, 1);
+  }
+  assert.equal(reparos, 0);
 });
 
 test("chequearCodex en win32: codex.cmd por cmd.exe, sin shell", () => {

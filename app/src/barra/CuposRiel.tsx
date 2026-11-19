@@ -64,7 +64,9 @@ const pintorAnilloTip =
     const viejo = !!ts && d >= VIEJO_S;
     const hace = viejo ? t("uso.visto", { hace: pintorHace(ts)(a).texto }) : "";
     const linea2 = vuelve && hace ? `${vuelve} · ${hace}` : vuelve || hace;
-    const texto = linea2 ? `${linea1}\n${linea2}` : linea1;
+    // La rayita del anillo semanal: el ritmo parejo (cuánto se habría usado a esta altura gastando igual todos los días).
+    const ritmo = semanal && v.pct !== null && estado.esperado !== null ? t("riel.anilloMarca", { pct: Math.round(estado.esperado * 100) }) : "";
+    const texto = [linea1, linea2, ritmo].filter(Boolean).join("\n");
     return { texto: "", en: Math.min(falta?.en ?? Infinity, ts && !viejo ? VIEJO_S - d : Infinity, viejo ? 60 : Infinity, semanal && estado.esperado !== null ? 600 : Infinity), attrs: { "data-tip": texto } };
   };
 

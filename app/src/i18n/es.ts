@@ -3941,6 +3941,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "riel.anilloTipLleno": "{ventana}: sin cupo, {vuelve}",
   "riel.anilloTipLlenoSolo": "{ventana}: sin cupo",
   "riel.anilloBien": "va bien",
+  "riel.anilloMarca": "La rayita es el ritmo parejo: {pct} % usado a esta altura de la semana",
   "riel.anilloPoco": "queda poco cupo",
   "riel.anilloSinCupo": "sin cupo",
   "riel.anilloSeAcaba": "se acaba en {falta}",
