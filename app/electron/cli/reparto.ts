@@ -112,7 +112,9 @@ const MINIMO_POR_TIPO: Obj = {
 // Neon primero donde pesa la calidad: si no está o no tiene cupo, la banda se suelta y decide el puntaje de siempre.
 const PREFERIDO_POR_TIPO: Obj = { frontend: "neon", "codigo-multi": "neon", diseno: "neon", debug: "neon", "codigo-acotado": "haiku" };
 const SOLO_EN: Obj = {};
-const USO_POR_MODELO: Obj = { "gemini-4-argon": "solo_final" };
+// Argon tiene su propio cupo semanal (grupo gemini-4-argon) que se pierde si no se usa: es candidato libre y el empuje por «cupo que se
+// pierde» (PESO_PIERDE) lo sube cerca de su reinicio. Antes era solo_final y casi no se usaba.
+const USO_POR_MODELO: Obj = {};
 const USOS = ["libre", "poco_importante", "solo_final"];
 const TIPOS_POCO_IMPORTANTES = ["lectura", "mecanico"];
 const TIPOS_FINALES = ["final"];
@@ -150,6 +152,13 @@ const RINDE_MIN_OK = 50;
 const RINDE_DIAS = 60;
 const PESO_RITMO = 18.0;
 const PESO_BONO_RITMO = 10.0;
+// Lo que pesa una calidad estimada o un mal historial (pa --rinde): no ganan por inteligencia (la calidad que pasa el piso no suma) y restan.
+const PESO_ESTIMADA = 6.0;
+const PESO_HISTORIAL = 20.0;
+// El empuje de un cupo aparte que se pierde (ritmo por debajo y cerca del reinicio): sólo para el más barato de su grupo y fuera de Claude
+// (Claude ya tiene el bono del ritmo). `PIERDE_MIN`: desde cuánto de «se pierde» (0-1) ese candidato entra junto a la banda del preferido.
+const PESO_PIERDE = 30.0;
+const PIERDE_MIN = 0.5;
 const TOPE_EXCESO = 1.5;
 const RITMO_MIN_ESPERADO = 0.1;
 const RATIO_GASTAR_HOY = 0.2;
@@ -2640,6 +2649,67 @@ function aplicarAhorro(out: Obj[], tipo: string, now: Date): void {
   for (const c of out) exigirHistorialSinCupo(c, tipo, rinde, "ahorro");
 }
 
+/** Una propiedad que no sale en el JSON. */
+function oculto(o: Obj, k: string, v: unknown): void {
+  Object.defineProperty(o, k, { value: v, enumerable: false, writable: true, configurable: true });
+}
+
+/** El costo base de un candidato (relativo a Opus): el de su familia o el medido por corrida; lo gratis, 0. */
+const costoBase = (c: Obj, cfg: Obj): number => (typeof c._costo_base === "number" ? (c._costo_base as number) : costoRelativo(c, cfg));
+
+/**
+ * El cupo que se pierde (urgencia del reinicio y bono del ritmo) empuja a gastar ESE cupo, pero hacia el más barato de su grupo que alcance,
+ * nunca hacia el más caro: a cada candidato vivo de una suscripción el bono le llega en proporción a (más barato del grupo / su costo).
+ * Pasaba que, con el ritmo semanal de Claude bajo, Fable (x2,5) le ganaba a Neon (x0,35) por el bono que en realidad era para Sonnet.
+ * El más barato de un grupo que no es Claude (Argon, con su cupo semanal aparte) suma además PESO_PIERDE × lo que se pierde.
+ */
+function cupoQueSePierde(out: Obj[], cfg: Obj): void {
+  const grupos = new Map<string, Obj[]>();
+  for (const c of out) {
+    if (c.descartado_por || !["claude", "google", "openai"].includes(c.proveedor)) continue;
+    const l = grupos.get(c.clave) ?? [];
+    l.push(c);
+    grupos.set(c.clave, l);
+  }
+  for (const l of grupos.values()) {
+    const min = Math.min(...l.map((c) => costoBase(c, cfg)));
+    for (const c of l) {
+      const costo = costoBase(c, cfg);
+      const barato = costo <= min + 1e-9;
+      oculto(c, "_mas_barato", barato);
+      if (barato) {
+        if (c.proveedor !== "claude" && (c._pierde as number) > 0) {
+          const extra = PESO_PIERDE * (c._pierde as number);
+          c.puntaje = pyRound(c.puntaje + extra, 2);
+          c.ritmo_pts = pyRound(Number(get(c, "ritmo_pts", 0)) + extra, 2);
+          conFloat(c, "puntaje", "ritmo_pts");
+        }
+        continue;
+      }
+      const parte = 1 - (min > 0 ? min / costo : 0);
+      const sacaR = parte * Number(c._bono_ritmo ?? 0);
+      const saca = parte * Number(c._bono_urg ?? 0) + sacaR;
+      if (saca <= 0) continue;
+      c.puntaje = pyRound(c.puntaje - saca, 2);
+      if (sacaR > 0) c.ritmo_pts = pyRound(c.ritmo_pts - sacaR, 2);
+      conFloat(c, "puntaje", "ritmo_pts");
+    }
+  }
+}
+
+/** ¿El cupo de este candidato se perdería? Claude: el ritmo empuja a gastarlo; otro grupo (Argon): lo que se pierde pasa PIERDE_MIN. Sólo el más barato del grupo. */
+const seVaAPerder = (c: Obj): boolean =>
+  c._mas_barato === true && (c.proveedor === "claude" ? Number(get(c, "ritmo_pts", 0)) > 0 : Number(c._pierde ?? 0) >= PIERDE_MIN);
+
+/** `ahorro`: gana el más barato de los que pasan el piso; al más barato de un grupo cuyo cupo se pierde se le descuenta lo que se pierde
+ * (Argon cerca de su reinicio con cupo de sobra cuesta casi 0: ese cupo no se puede guardar). */
+function costoAhorro(c: Obj, cfg: Obj): number {
+  const base = costoBase(c, cfg);
+  if (c._mas_barato !== true) return base;
+  const pierde = c.proveedor === "claude" ? (Number(get(c, "ritmo_pts", 0)) > 0 ? Number(c._pierde ?? 0) : 0) : Number(c._pierde ?? 0);
+  return pyRound(base * (1 - Math.max(0, Math.min(1, pierde))), 4);
+}
+
 const efectivo = (_base: string, cfgEffort: string[], eTipo: string) => (cfgEffort.includes(eTipo) ? eTipo : cfgEffort[cfgEffort.length - 1]!);
 const utilDe = (q: number, minimo: number) => PTS_POR_AA * (q <= minimo + MARGEN ? q : minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA);
 const tipoEn = (tipo: string, pats: string[]) => pats.some((p) => fnmatchcase(tipo, p));
@@ -2658,6 +2728,7 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
   if (ofertasDsh.length && !claudeInstalado()) claudes = [];
 
   const carga = cargaPorGrupo(now);
+  const rinde = rindeDeModelos(now);
   const enfriadosAgy = googles.length ? leerEnfriados(stateDir(), now) : {}; // `pa` enfría el modelo que agy rechazó (--enfriar)
   let eTipo: string = effort || get(cfg.effort_por_tipo, tipo, "high");
   if (eTipo === "max") eTipo = "xhigh";
@@ -2845,7 +2916,14 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
         }
       }
     }
-    const util = utilDe(Number(calidad), minimo);
+    // Lo estimado y el mal historial (pa --rinde: 5 corridas o más con menos de la mitad sin retrabajo) no ganan por inteligencia:
+    // su calidad cuenta como si apenas pasara el piso, y además restan.
+    const [hd, hok] = rinde.get(`${tipo}\t${canonico(modelo, effortC).modelo}`) ?? [0, 0];
+    if (hd) cand.historial = { n: hd, ok_pct: pyRound((100 * hok) / hd, 0) };
+    const malHistorial = hd >= RINDE_MIN_N && 100 * hok < RINDE_MIN_OK * hd;
+    const util = utilDe(cand.estimada || malHistorial ? Math.min(Number(calidad), minimo) : Number(calidad), minimo);
+    let castigo = cand.estimada ? PESO_ESTIMADA : 0.0;
+    if (malHistorial) castigo += PESO_HISTORIAL * (1 - (100 * hok) / hd / RINDE_MIN_OK);
     const us: number[] = [];
     let rt: Obj | null = null;
     let urg7: number | null = null;
@@ -2869,10 +2947,15 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     // El costo que entra en el puntaje: el real medido por corrida (relativo a Opus, la escala de los pesos) si lo hay;
     // si no, el de la familia (los pesos corregidos sólo cuando hay medición).
     const costoPuntaje = typeof cand._costo_run === "number" ? (cand._costo_run as number) : get(cfg.costo, fam, 0.3);
-    let pts = pyRound(util + cfg.peso_urgencia * urg - multCosto * cfg.peso_costo * costoPuntaje - cfg.peso_carga * cand.carga, 2);
+    let pts = pyRound(util + cfg.peso_urgencia * urg - multCosto * cfg.peso_costo * costoPuntaje - cfg.peso_carga * cand.carga - castigo, 2);
+    oculto(cand, "_costo_base", costoPuntaje);
+    oculto(cand, "_bono_urg", cfg.peso_urgencia * urg);
+    oculto(cand, "_pierde", 0.0);
     if (rt) {
       let [pR, sR] = puntosRitmo(rt, urg7 || 0.0, cfg.peso_ritmo, cfg.peso_bono_ritmo, perfil.ritmo);
       pts += pR;
+      if (rt.ratio <= 1) oculto(cand, "_pierde", sR);
+      oculto(cand, "_bono_ritmo", Math.max(0.0, pR));
       if (sus === "claude" && perfil.sesgo) {
         pR -= perfil.sesgo * (1 - Math.max(sR, urg7 || 0.0));
         pts -= perfil.sesgo * (1 - Math.max(sR, urg7 || 0.0));
@@ -2985,6 +3068,7 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
   if (perfil.costo_primero) aplicarAgresivo(out, tipo, cfg, now);
   else if (cfg.perfil === "ahorro") aplicarAhorro(out, tipo, now);
   sinOpusDeCero(out, tipo);
+  if (!sinRitmo) cupoQueSePierde(out, cfg);
   return [out, minimo, minimoFam];
 }
 
@@ -3061,16 +3145,23 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
       }
     }
     if (cfg._relajado || PERFILES[cfg.perfil]!.costo_primero) pref = null;
-    // Neon no le gana a un cupo de Claude que se perdería: si el ritmo empuja a gastarlo, decide el puntaje.
-    if (pref === "neon" && vivos.some((c) => get(c, "proveedor") === "claude" && Number(get(c, "ritmo_pts", 0)) > 0)) pref = null;
     // la banda se ancla en el preferido sólo si está vivo: uno agotado o sin cupo no puede dejar afuera
     // a los más baratos (un gratis de OpenCode sin cupo hacía ganar a Sonnet en vez de Haiku); sólo en el TS
     if (pref !== null && !vivos.some((c) => c.modelo === pref || c.familia === pref)) pref = null;
     if (pref !== null && typeof pref === "string" && pref in cfg.calidad) {
       const ePref = get(cfg.effort_por_tipo, tipo, "high");
       const q0 = calidadEnEffort(mapaEfforts(cfg, pref), ePref === "max" ? "xhigh" : ePref, cfg.calidad[pref]);
-      const en = vivos.filter((c) => q0 <= c.calidad && c.calidad <= q0 + MARGEN);
-      if (en.length && en.length < vivos.length) [pool, banda] = [en, pref];
+      // la banda es de calidad Y de costo: uno más caro que el preferido no entra mientras el preferido o uno de su banda tenga cupo
+      // (Fable x2,5 entraba en la banda de Neon x0,35 por calidad y le ganaba)
+      const costoPref = Math.min(...vivos.filter((c) => c.modelo === pref || c.familia === pref).map((c) => costoBase(c, cfg)));
+      const en = vivos.filter((c) => q0 <= c.calidad && c.calidad <= q0 + MARGEN && costoBase(c, cfg) <= costoPref + 1e-9);
+      if (en.length && en.length < vivos.length) {
+        [pool, banda] = [en, pref];
+        // un cupo que se perdería (el ritmo de Claude por debajo, Argon cerca de su reinicio) entra junto a la banda, pero sólo el más
+        // barato de su grupo: el preferido ya no manda solo y decide el puntaje (o el costo, en ahorro)
+        const pierden = vivos.filter((c) => !en.includes(c) && seVaAPerder(c));
+        if (pierden.length) [pool, banda] = [[...en, ...pierden], null];
+      }
     }
   } else {
     pool = cands.filter((c) => !c.duro);
@@ -3088,7 +3179,11 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
     const vs = pool.filter((c) => parseIso(get(c, "vuelve"))).map((c) => parseIso(c.vuelve)!);
     extra.vuelve_antes = vs.length ? iso(new Date(Math.min(...vs.map((d) => d.getTime())))) : null;
   } else {
-    gana = PERFILES[cfg.perfil]!.costo_primero ? minPor(pool, (c) => [c.costo, -c.puntaje, -c.calidad]) : maxPor(pool, (c) => [c.puntaje, c.calidad]);
+    gana = PERFILES[cfg.perfil]!.costo_primero
+      ? minPor(pool, (c) => [c.costo, -c.puntaje, -c.calidad])
+      : cfg.perfil === "ahorro"
+        ? minPor(pool, (c) => [costoAhorro(c, cfg), -c.puntaje, -c.calidad])
+        : maxPor(pool, (c) => [c.puntaje, c.calidad]);
     const g0 = gana;
     gana = maxPor(pool.filter((c) => c.modelo === g0.modelo), (c) => [c.cupo_libre !== null ? c.cupo_libre : -1.0, !suf(get(c, "cuenta")), c.puntaje]);
   }
@@ -3217,7 +3312,7 @@ function explicar(r: Obj, now: Date, cupos: Obj, cfg: Obj): string {
   if (reglas.length) {
     L.push(`Uso por modelo: ${reglas.map(([k, v]) => `${k} → ${v.replace(/_/g, " ")}`).join("; ")}. Tareas poco importantes: ${cfg.tipos_poco_importantes.join(", ") || "ninguna"}. Tareas finales: ${cfg.tipos_finales.join(", ") || "ninguna"}.`);
   }
-  if (cfg.tipos_finales.includes(get(r, "tipo"))) L.push("Esta tarea cuenta como final: los modelos de uso solo final (Argon) pueden entrar.");
+  if (cfg.tipos_finales.includes(get(r, "tipo"))) L.push("Esta tarea cuenta como final: los modelos de uso solo final pueden entrar.");
   L.push("");
   L.push("Cupos que mira:");
   for (const s of get(cupos, "suscripciones", [])) {
