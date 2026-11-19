@@ -148,7 +148,7 @@ export type OpcionesIndice = {
 };
 
 /** Una conversación lista para mostrar. `ajena`: es de otra cuenta de Claude (su `projects` no es el de Trama). */
-export type ConvListada = ConvClaude & { ajena: boolean };
+export type ConvListada = ConvClaude & { ajena: boolean; /** El archivo del transcript (sólo para el main: nunca llega a la ventana). */ ruta?: string };
 
 /** Qué leyó una pasada (para el test y el log). */
 export type Pasada = { archivos: number; leidos: number };
@@ -232,7 +232,7 @@ export function crearIndiceClaudeCode(o: OpcionesIndice) {
     const porSid = new Map<string, ConvListada>();
     for (const [ruta, v] of anotados) {
       const c = v[2];
-      if (c && (porSid.get(c.sid)?.ms ?? -1) < c.ms) porSid.set(c.sid, { ...c, ajena: propia !== null && !ruta.startsWith(propia + path.sep) });
+      if (c && (porSid.get(c.sid)?.ms ?? -1) < c.ms) porSid.set(c.sid, { ...c, ajena: propia !== null && !ruta.startsWith(propia + path.sep), ruta });
     }
     return { convs: [...porSid.values()].sort((a, b) => b.ms - a.ms), pasada: m };
   }
@@ -268,7 +268,18 @@ const dentro = (c: string, r: string, plat: Plataforma) => {
  */
 export async function vistaConvs(
   convs: ConvListada[],
-  d: { excluidas: Set<string>; rutas: [string, string][]; casa: string; real: (p: string) => Promise<string>; existe: (p: string) => Promise<boolean>; worktrees?: string[]; plat?: Plataforma },
+  d: {
+    excluidas: Set<string>;
+    rutas: [string, string][];
+    casa: string;
+    real: (p: string) => Promise<string>;
+    existe: (p: string) => Promise<boolean>;
+    worktrees?: string[];
+    plat?: Plataforma;
+    /** `"trama"`: justo al revés, sólo las que lanzó Trama (las `deTrama` y las `conocidas`): lo que alimenta el historial de chats. */
+    de?: "ajenas" | "trama";
+    conocidas?: ReadonlySet<string>;
+  },
 ): Promise<VistaConv[]> {
   const plat = d.plat ?? plataformaActual();
   const sale: VistaConv[] = [];
@@ -287,7 +298,8 @@ export async function vistaConvs(
   };
   for (const c of convs) {
     // `excluidas`: los líderes y workers que Trama tiene ahora. `deTrama`: los que lanzó alguna vez, aunque ya no figuren (cerrados, archivados, ramificados).
-    if (d.excluidas.has(c.sid) || c.deTrama || esWorktreePa(c.cwd, d.worktrees)) continue;
+    const deTrama = !!c.deTrama || !!d.conocidas?.has(c.sid);
+    if (d.excluidas.has(c.sid) || deTrama !== (d.de === "trama") || esWorktreePa(c.cwd, d.worktrees)) continue;
     const [proyecto, existe] = await de(c.cwd);
     sale.push({ sid: c.sid, titulo: c.titulo, ms: c.ms, modelo: c.modelo, cwd: c.cwd, proyecto, existe, ajena: c.ajena });
   }
