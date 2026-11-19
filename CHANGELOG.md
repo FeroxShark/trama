@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.3.9
+
+- Historial de chats: una ventana con los chats archivados y cerrados, con buscador, filtros y agrupados por proyecto o por fecha. Se abre con el botón del reloj al lado de «Recientes» o con Ctrl+H. Cada uno se puede abrir o borrar; lo borrado va a la papelera del sistema.
+- Las imágenes que se ven dentro del chat también abren el visor nuevo, con su barra y las flechas para pasar a las otras.
+- Los subagentes que terminaron ya no ocupan la barra con «N terminados»: salen al buscar, como los workers. Buscando, los terminados también se recorren con el teclado.
+- Un worker de Claude que `pa` pasa a agy ya no se muere al arrancar cuando se le pidió un esfuerzo.
+
 ## 0.3.8
 
 - El visor de imágenes tiene una barra arriba: nombre, medida y «N de M», zoom (−, %, +, Ajustar, 100 %), girar, copiar la imagen o la ruta, «Guardar como…», mostrar en la carpeta, abrir con la app del sistema y cerrar. Con varias imágenes en el chat, flechas a los costados y ← → para pasar de una a otra.

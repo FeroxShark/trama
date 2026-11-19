@@ -1,5 +1,12 @@
 # Changes
 
+## 0.3.9
+
+- Chat history: a window with archived and closed chats, with search, filters and grouped by project or by date. Open it with the clock button next to «Recent» or with Ctrl+H. Each one can be opened or deleted; deleted ones go to the system trash.
+- Images shown inside the chat also open the new viewer, with its bar and the arrows to move to the others.
+- Finished subagents no longer fill the sidebar with «N done»: they show up when searching, like workers. While searching, finished ones can also be reached with the keyboard.
+- A Claude worker that `pa` moves to agy no longer dies at launch when an effort was requested.
+
 ## 0.3.8
 
 - The image viewer has a bar on top: name, size and «N of M», zoom (−, %, +, Fit, 100 %), rotate, copy the image or the path, «Save as…», show in folder, open with the system app and close. With several images in the chat, side arrows and ← → move between them.
