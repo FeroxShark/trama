@@ -106,6 +106,7 @@ test("Argon con cupo de sobra cerca de su reinicio gana donde pasa el piso; lejo
   // lectura: piso haiku y sin preferido. A 12 h del reinicio con 90 % libre, ese cupo se pierde
   const cerca = elegir("lectura", cupos({ argon: 0.1, argonVuelve: 12 }));
   assert.match(cerca.modelo, /^gemini-4-argon/, ver(cerca));
+  assert.match(cerca.motivo, /Perfil ahorro: de los que pasan el piso de lectura, el más barato \(costo relativo [\d.]+, 0\.6 menos el cupo que se pierde si no se usa\)/, ver(cerca));
   const lejos = elegir("lectura", cupos({ argon: 0.1, argonVuelve: 150 }));
   assert.doesNotMatch(lejos.modelo, /^gemini-4-argon/, ver(lejos));
   // en equilibrado, el empuje también lo sube por puntaje

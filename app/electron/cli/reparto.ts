@@ -2660,8 +2660,9 @@ function oculto(o: Obj, k: string, v: unknown): void {
 const costoBase = (c: Obj, cfg: Obj): number => (typeof c._costo_base === "number" ? (c._costo_base as number) : costoRelativo(c, cfg));
 
 /**
- * El cupo que se pierde (urgencia del reinicio y bono del ritmo) empuja a gastar ESE cupo, pero hacia el más barato de su grupo que alcance,
- * nunca hacia el más caro: a cada candidato vivo de una suscripción el bono le llega en proporción a (más barato del grupo / su costo).
+ * El cupo semanal que se pierde (bono del ritmo) empuja a gastar ESE cupo, pero hacia el más barato de su grupo que alcance, nunca hacia
+ * el más caro: a cada candidato vivo de una suscripción el bono le llega en proporción a (más barato del grupo / su costo). La urgencia del
+ * reinicio de 5 h no se toca (es la de siempre, compartida con el python congelado).
  * Pasaba que, con el ritmo semanal de Claude bajo, Fable (x2,5) le ganaba a Neon (x0,35) por el bono que en realidad era para Sonnet.
  * El de un grupo con cupo aparte (GRUPOS_CUPO_APARTE: Argon) suma además PESO_PIERDE × lo que se pierde.
  */
@@ -2690,7 +2691,7 @@ function cupoQueSePierde(out: Obj[], cfg: Obj): void {
       }
       const parte = 1 - (min > 0 ? min / costo : 0);
       const sacaR = parte * Number(c._bono_ritmo ?? 0);
-      const saca = parte * Number(c._bono_urg ?? 0) + sacaR;
+      const saca = sacaR;
       if (saca <= 0) continue;
       c.puntaje = pyRound(c.puntaje - saca, 2);
       if (sacaR > 0) c.ritmo_pts = pyRound(c.ritmo_pts - sacaR, 2);
@@ -2952,7 +2953,6 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     const costoPuntaje = typeof cand._costo_run === "number" ? (cand._costo_run as number) : get(cfg.costo, fam, 0.3);
     let pts = pyRound(util + cfg.peso_urgencia * urg - multCosto * cfg.peso_costo * costoPuntaje - cfg.peso_carga * cand.carga - castigo, 2);
     oculto(cand, "_costo_base", costoPuntaje);
-    oculto(cand, "_bono_urg", cfg.peso_urgencia * urg);
     oculto(cand, "_pierde", 0.0);
     if (rt) {
       let [pR, sR] = puntosRitmo(rt, urg7 || 0.0, cfg.peso_ritmo, cfg.peso_bono_ritmo, perfil.ritmo);
@@ -3200,6 +3200,11 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
     const medido = typeof gana._costo_exito === "number";
     const porExito = medido && typeof gana.usd_por_exito === "number" ? `, US$ ${fmtG(gana.usd_por_exito as number)} por éxito` : "";
     motivo += ` Perfil agresivo: de los que pasan el piso de ${tipo}, el más barato (costo relativo ${fmtG(gana.costo)}${medido ? ", medido" : ""}${porExito}).`;
+  }
+  if (cfg.perfil === "ahorro" && !todoLleno && pool.length > 1) {
+    const ca = costoAhorro(gana, cfg);
+    const cb = costoBase(gana, cfg);
+    motivo += ` Perfil ahorro: de los que pasan el piso de ${tipo}, el más barato (costo relativo ${fmtG(ca)}${ca < cb ? `, ${fmtG(cb)} menos el cupo que se pierde si no se usa` : ""}).`;
   }
   if (banda) motivo += ` Para ${tipo} se prefiere la calidad de ${banda}: los modelos más caros o menos parejos sólo entran si no queda cupo de esa banda.`;
   const ritmoInfo = !contra ? resumenRitmo(cfg, cupos, now) : [];
@@ -3643,7 +3648,7 @@ function paraQueSirve(f: Obj): string {
     sonnet: "pedido ambiguo, varias partes, o si Haiku ya falló",
     haiku: "default si la tarea se describe con precisión (archivos, qué cambiar, listo, chequeo): lectura, mecánico, código e interfaz chica",
     neon: "código, interfaz, diseño y bugs difíciles; cupo de Gemini, contexto largo (1M)",
-    argon: "diseño y segunda opinión; cupo semanal propio que se pierde si no se usa, contexto largo (1M)",
+    argon: "diseño y segunda opinión; contexto largo (1M)",
     hydrogen: "código e interfaz al nivel de Sonnet; cupo de Gemini",
     "gpt-oss": "mecánico simple; sigue poco el contrato",
     astra: "tareas grandes (ChatGPT); pa todavía no lo lanza", sol: "código medio (ChatGPT); pa todavía no lo lanza",
@@ -3651,8 +3656,7 @@ function paraQueSirve(f: Obj): string {
   };
   if (fam in porFamilia) return porFamilia[fam];
   if (f.proveedor === "local" || mid.toLowerCase().startsWith("ollama:") || mid.toLowerCase().startsWith("dsh:ollama")) return "mecánico y lectura; lento y usa la GPU del dueño";
-  // «no gasta cupo de pago» sólo si de verdad es gratis (a Fable, que no estaba en la lista de arriba, le salía eso y --tabla lo marca pago x2,5)
-  if (f.calidad >= 45) return f.gratis ? "código acotado con chequeo; no gasta cupo de pago" : "código acotado con chequeo";
+  if (f.calidad >= 45) return "código acotado con chequeo; no gasta cupo de pago";
   if (f.calidad >= 38) return "mecánico, lectura y código chico con chequeo";
   return "sólo mecánico con chequeo determinista";
 }

@@ -480,7 +480,76 @@ const casosReparto0: Caso[] = [
   ...casosModelos,
 ];
 
+/** Sólo en el TS (2026-11-19): Argon dejó de ser `solo_final` (cupo semanal aparte, con empuje cuando se pierde). Cambia `--explicar`: ya no sale la línea «Uso por modelo: gemini-4-argon → solo final» y el de un tipo final no nombra a Argon. */
+const DIVERGE_ARGON = "Argon libre, sin solo_final (sólo en el TS; reparto de python congelado)";
+/** Sólo en el TS (2026-11-19): `--resumen` le pone a Fable su propio «para qué sirve» (antes caía en «no gasta cupo de pago» y `--tabla` lo marca pago x2,5). */
+const DIVERGE_FABLE_RESUMEN = "--resumen: Fable con su propio «para qué sirve», no «no gasta cupo de pago» (sólo en el TS)";
+/** Sólo en el TS (2026-11-19): el bono del ritmo semanal va entero al más barato de su grupo y al resto en proporción al costo (Fable pierde puntos; en lectura Haiku le gana a Sonnet). */
+const DIVERGE_RITMO_BARATO = "el bono del ritmo va al más barato del grupo (sólo en el TS; reparto de python congelado)";
+/** Los casos que cambian por esas reglas (comprobado caso por caso contra la salida de antes). */
+const DIVERGEN_2026_11_19 = new Map<string, string>([
+  ["agy de otra cuenta: --tipo lectura --explicar", DIVERGE_ARGON],
+  ["agy de otra cuenta: --tipo debug --explicar", DIVERGE_ARGON],
+  ["agy de otra cuenta: --resumen", DIVERGE_FABLE_RESUMEN],
+  ["--resumen", DIVERGE_FABLE_RESUMEN],
+  ["--resumen --json", DIVERGE_FABLE_RESUMEN],
+  ["--resumen con agotados y enfriados", DIVERGE_FABLE_RESUMEN],
+  ["--resumen --json con cupos raros", DIVERGE_FABLE_RESUMEN],
+  ["--resumen sin caché de AA (sólo el suplemento)", DIVERGE_FABLE_RESUMEN],
+  ["--tipo final --explicar", DIVERGE_ARGON],
+  ["--tipo codigo-multi --explicar con cupos raros", DIVERGE_ARGON],
+  ["--tipo --mismo-proveedor claude --explicar", DIVERGE_ARGON],
+  ["--tipo --cuenta trabajo", DIVERGE_RITMO_BARATO],
+  ["preferida: --tipo con la cuenta de Claude elegida", DIVERGE_RITMO_BARATO],
+  ["preferida: --tipo --explicar", `${DIVERGE_ARGON}; ${DIVERGE_RITMO_BARATO}`],
+  ["preferida: --tipo --mismo-proveedor claude", DIVERGE_RITMO_BARATO],
+  ["--tipo --explicar con agotados, enfriados y plan", DIVERGE_ARGON],
+  ["--tipo con cupos del statusline", DIVERGE_ARGON],
+  ["agotar y ver los cupos", DIVERGE_ARGON],
+  ["--plan: ausente, presente, gastar-hoy y borrar", DIVERGE_RITMO_BARATO],
+  ["modelos.json (perfil ahorro): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (perfil agresivo): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (perfil agresivo): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (perfil rendimiento y reserva): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (perfil rendimiento y reserva): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (reserva por ventana y reserva_lider): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (reserva por ventana y reserva_lider): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (topes_uso): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (topes_uso): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (excluir y efforts_permitidos): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (excluir y efforts_permitidos): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (efforts_permitidos vacío): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (efforts_permitidos vacío): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (uso_por_modelo, tipos_finales y sin_cupo): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (uso_por_modelo, tipos_finales y sin_cupo): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (calidad, mínimos y calidad_effort): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (calidad, mínimos y calidad_effort): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (calidad en unidades de AA): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (calidad en unidades de AA): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (locales, llena, peso_costo y agy_min_libre_5h): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (locales, llena, peso_costo y agy_min_libre_5h): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (agy_min_libre_tipos y preferido_por_tipo): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (agy_min_libre_tipos y preferido_por_tipo): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (grupo vencido y gemini.sin_claude): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (grupo vencido y gemini.sin_claude): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (inválido: reserva): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (inválido: reserva): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (inválido: topes_uso con float): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (inválido: topes_uso con float): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (inválido: perfil): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (inválido: perfil): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (inválido: effort desconocido): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (inválido: effort desconocido): --resumen", DIVERGE_FABLE_RESUMEN],
+  ["modelos.json (no es un objeto): --tipo debug --explicar", DIVERGE_ARGON],
+  ["modelos.json (no es un objeto): --resumen", DIVERGE_FABLE_RESUMEN],
+]);
+
 /** Sólo en el TS (2026-11-11): `--tabla` suma a Fable 5.2 (`FAMILIAS`; no se elige solo, pero Ajustes lo muestra). El python congelado no lo conoce: los casos con `--tabla` no comparan stdout. */
 const DIVERGE_FABLE = "--tabla suma claude-fable-5-2 (sólo en el TS; reparto de python congelado)";
 const conTabla = (c: Caso): boolean => [c.args ?? [], ...(c.pasos ?? []).map((p) => p.args)].some((a) => a.includes("--tabla"));
-export const casosReparto: Caso[] = casosReparto0.map((c) => (conTabla(c) && !c.divergenciaSalida ? { ...c, divergenciaSalida: DIVERGE_FABLE } : c));
+export const casosReparto: Caso[] = casosReparto0.map((c) => {
+  if (c.divergenciaSalida) return c;
+  if (conTabla(c)) return { ...c, divergenciaSalida: DIVERGE_FABLE };
+  const d = DIVERGEN_2026_11_19.get(c.nombre);
+  return d ? { ...c, divergenciaSalida: d } : c;
+});
