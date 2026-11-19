@@ -12,7 +12,8 @@ import { claveRuta } from "./proyectos-auto.ts";
 import { caminoDe, plataformaActual, type Plataforma } from "./rutas.ts";
 import { esWorktreePa } from "./worktrees-pa.ts";
 
-const VERSION = 1;
+// 2: cada conversación sabe si la lanzó Trama (`deTrama`); lo anotado con la 1 se relee.
+const VERSION = 2;
 /** Cuánto se lee del principio y del final de cada transcript. */
 const CABEZA = 256 * 1024;
 const COLA = 256 * 1024;
@@ -22,7 +23,15 @@ const SID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const TITULO_MAX = 140;
 
 /** Una conversación de Claude Code. `ms`: la última vez que se tocó (mtime). */
-export type ConvClaude = { sid: string; titulo: string; ms: number; modelo: string | null; cwd: string };
+export type ConvClaude = {
+  sid: string;
+  titulo: string;
+  ms: number;
+  modelo: string | null;
+  cwd: string;
+  /** La lanzó Trama como líder (`--name trama-xxxx`, que queda en la primera línea del transcript): sea cual sea su suerte (cerrado, archivado, ramificado, retomado con otro sid), no es «de Claude Code». */
+  deTrama?: true;
+};
 
 type Anotado = [mtimeMs: number, tam: number, conv: ConvClaude | null];
 type Guardado = { version: number; archivos: Record<string, Anotado> };
@@ -49,7 +58,7 @@ function textoUsuario(content: unknown): string {
   return "";
 }
 
-type Dato = { cwd: string | null; primero: string; resumen: string; titulo: string; ia: string; ultimo: string; modelo: string | null; usuarios: number };
+type Dato = { cwd: string | null; primero: string; resumen: string; titulo: string; ia: string; ultimo: string; modelo: string | null; usuarios: number; deTrama: boolean };
 
 /** Junta lo que dicen las líneas de un trozo (el que viene después pisa al anterior). `parcial`: la primera línea pudo quedar cortada. */
 function recorrer(texto: string, d: Dato, parcial: boolean): void {
@@ -66,7 +75,10 @@ function recorrer(texto: string, d: Dato, parcial: boolean): void {
     if (d.cwd === null && typeof o.cwd === "string" && path.isAbsolute(o.cwd)) d.cwd = o.cwd;
     switch (o.type) {
       case "custom-title":
-        if (typeof o.customTitle === "string" && o.customTitle.trim() && !NOMBRE_INTERNO.test(o.customTitle.trim())) d.titulo = o.customTitle;
+        if (typeof o.customTitle === "string" && o.customTitle.trim()) {
+          if (NOMBRE_INTERNO.test(o.customTitle.trim())) d.deTrama = true;
+          else d.titulo = o.customTitle;
+        }
         break;
       case "ai-title":
         if (typeof o.aiTitle === "string" && o.aiTitle.trim()) d.ia = o.aiTitle;
@@ -101,12 +113,12 @@ function recorrer(texto: string, d: Dato, parcial: boolean): void {
  * El título es el que le puso la persona (/rename), el que generó Claude Code, el resumen de las viejas, o el primer mensaje.
  */
 export function leerConv(sid: string, ms: number, cabeza: string, cola: string | null): ConvClaude | null {
-  const d: Dato = { cwd: null, primero: "", resumen: "", titulo: "", ia: "", ultimo: "", modelo: null, usuarios: 0 };
+  const d: Dato = { cwd: null, primero: "", resumen: "", titulo: "", ia: "", ultimo: "", modelo: null, usuarios: 0, deTrama: false };
   recorrer(cabeza, d, false);
   if (cola !== null) recorrer(cola, d, true);
   const titulo = limpio(d.titulo || d.ia || d.resumen || d.primero || d.ultimo);
   if (!d.cwd || !titulo || (!d.usuarios && !d.ultimo)) return null;
-  return { sid, titulo, ms, modelo: d.modelo, cwd: d.cwd };
+  return { sid, titulo, ms, modelo: d.modelo, cwd: d.cwd, ...(d.deTrama ? { deTrama: true as const } : null) };
 }
 
 async function leerTrozos(archivo: string, tam: number): Promise<{ cabeza: string; cola: string | null }> {
@@ -250,7 +262,7 @@ const dentro = (c: string, r: string, plat: Plataforma) => {
 };
 
 /**
- * Lo que la barra recibe: sin las que ya son de Trama (`excluidas`: líderes y workers) ni las de los worktrees de `pa` (se ven desde el
+ * Lo que la barra recibe: sin las que ya son de Trama (`excluidas`: líderes y workers; y las que se reconocen por dentro, `deTrama`) ni las de los worktrees de `pa` (se ven desde el
  * worker; `worktrees`: además la carpeta `worktrees` real del estado de `pa`, por si no está en una ruta `pa/worktrees`), cada una con su
  * proyecto (por la ruta más larga que la contiene; la carpeta personal es `casa`) y si su carpeta existe. `rutas`: [ruta real, slug].
  */
@@ -274,7 +286,8 @@ export async function vistaConvs(
     return p;
   };
   for (const c of convs) {
-    if (d.excluidas.has(c.sid) || esWorktreePa(c.cwd, d.worktrees)) continue;
+    // `excluidas`: los líderes y workers que Trama tiene ahora. `deTrama`: los que lanzó alguna vez, aunque ya no figuren (cerrados, archivados, ramificados).
+    if (d.excluidas.has(c.sid) || c.deTrama || esWorktreePa(c.cwd, d.worktrees)) continue;
     const [proyecto, existe] = await de(c.cwd);
     sale.push({ sid: c.sid, titulo: c.titulo, ms: c.ms, modelo: c.modelo, cwd: c.cwd, proyecto, existe, ajena: c.ajena });
   }

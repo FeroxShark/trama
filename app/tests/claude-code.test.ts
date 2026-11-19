@@ -119,3 +119,27 @@ test("sidsDePa: los .sid de los workers", async () => {
   writeFileSync(path.join(pa, "atlas", "20260101-000000-2.sid"), "no valido!!\n");
   assert.deepEqual([...(await sidsDePa(pa))], [SID(7)]);
 });
+
+test("un líder de Trama que ya no está en lideres.json (cerrado, archivado, ramificado, renombrado) no sale como de Claude Code", async () => {
+  const nombre = l({ type: "custom-title", customTitle: "trama-0a1f", sessionId: SID(8) });
+  const base = usuario("Armá el informe") + asistente("claude-opus-4-5");
+  // Su marca queda en la cabeza aunque después lo renombren (la cola trae el nombre nuevo).
+  const renombrado = leerConv(SID(8), 5, nombre + base, "{cortada\n" + l({ type: "custom-title", customTitle: "Informe de ventas" }));
+  assert.equal(renombrado?.deTrama, true);
+  assert.equal(renombrado?.titulo, "Informe de ventas");
+  // Una conversación de la terminal no la trae.
+  assert.equal(leerConv(SID(9), 5, base, null)?.deTrama, undefined);
+
+  const casa = path.join(tmp, "casa");
+  const c = (n: number, extra: Partial<ConvListada> = {}): ConvListada => ({ sid: SID(n), titulo: `t${n}`, ms: n, modelo: null, cwd: path.join(casa, "atlas"), ajena: false, ...extra });
+  const r = await vistaConvs([c(8, { deTrama: true }), c(9)], { excluidas: new Set(), rutas: [[path.join(casa, "atlas"), "atlas"]], casa, real: async (p) => p, existe: async () => true });
+  assert.deepEqual(r.map((v) => v.sid), [SID(9)]);
+
+  // De punta a punta por el índice: el transcript de un líder cerrado no figura; el de la terminal sí.
+  escribir("-trama-cerrado", SID(8), nombre + usuario("Armá el informe") + asistente("claude-opus-4-5"), Date.now());
+  escribir("-trama-cerrado", SID(9), usuario("Algo de la terminal") + asistente("claude-opus-4-5"), Date.now());
+  const idx = crearIndiceClaudeCode({ raices: () => [path.join(proyectos)] });
+  const listadas = (await idx.listar()).convs.filter((x) => x.sid === SID(8) || x.sid === SID(9));
+  const vista = await vistaConvs(listadas, { excluidas: new Set(), rutas: [], casa, real: async (p) => p, existe: async () => true });
+  assert.deepEqual(vista.map((v) => v.sid), [SID(9)]);
+});
