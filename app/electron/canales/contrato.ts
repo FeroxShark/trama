@@ -196,6 +196,7 @@ export const CANALES = [
   ["descubrir:previa", "invoke"],
   ["descubrir:instalar", "invoke"],
   ["reparto:tabla", "invoke"],
+  ["planes:leer", "invoke"],
   ["aa:estado", "invoke"],
   ["aa:refrescar", "invoke"],
   ["opencode:estado", "invoke"],

@@ -194,6 +194,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "descubrir:previa": "local",
   "descubrir:instalar": "local",
   "reparto:tabla": "local",
+  "planes:leer": "local",
   "aa:estado": "local",
   "aa:refrescar": "local",
   "opencode:estado": "local",

@@ -359,6 +359,8 @@ type Main = {
     instalarDescubrir(id: string, huella?: string): Promise<unknown>;
     /** `reparto --tabla --json`: cada modelo que reparto conoce con su inteligencia, cupo y si está permitido; `null` sin `reparto` o con uno viejo. */
     repartoTabla(): Promise<unknown>;
+    /** Costo por suscripción: datos de planes de Priors (caché de 6 h), el plan de Claude detectado y si hay `agy`. */
+    planes(): Promise<unknown>;
     /** Artificial Analysis: si hay key (nunca el valor) y de cuándo es la caché de inteligencias. */
     estadoAA(): Promise<unknown>;
     /** Baja la lista de Artificial Analysis ahora (ignora el día de vigencia); devuelve qué pasó y cómo quedó la caché. Sólo desde la PC. */

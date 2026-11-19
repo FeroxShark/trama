@@ -83,6 +83,8 @@ export type Borrador = {
   codigoGoogle: number | null;
   /** «Destrabar solo cuando se repite», por modelo: sólo lo que se tocó (lo demás vale la fábrica). */
   destrabar: Record<string, boolean>;
+  /** El plan elegido a mano por proveedor (`claude`, `google`, `openai`); lo que no está vale lo detectado. Sin entradas la clave no se escribe. */
+  planes: Record<string, string>;
 };
 
 export const borradorDe = (e: EstadoModelos): Borrador => ({
@@ -106,6 +108,7 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   topes: { ...(e.config.topes_uso ?? {}) },
   codigoGoogle: e.config.google_codigo_5h ?? null,
   destrabar: { ...e.config.destrabar },
+  planes: { ...(e.config.planes ?? {}) },
 });
 
 /** Un porcentaje escrito (los topes): `null` vacío (sin definir), el número si vale, `"mal"` si no. */
@@ -145,6 +148,7 @@ export function configDe(b: Borrador): ConfigModelos | null {
     ...(Object.keys(b.topes).length ? { topes_uso: { ...b.topes } } : {}),
     ...(b.codigoGoogle !== null ? { google_codigo_5h: b.codigoGoogle } : {}),
     destrabar: { ...b.destrabar },
+    ...(Object.keys(b.planes).length ? { planes: { ...b.planes } } : {}),
   };
 }
 
@@ -171,6 +175,7 @@ const huella = (c: ConfigModelos) =>
     Object.entries(c.topes_uso ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.google_codigo_5h ?? null,
     Object.entries(c.destrabar).sort(([a], [z]) => (a < z ? -1 : 1)),
+    Object.entries(c.planes ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
   ]);
 
 /** Hay algo distinto de lo guardado (o un tope a medio escribir que no vale). */
@@ -293,6 +298,12 @@ export function ponerDestrabar(b: Borrador, modelo: string, on: boolean): Borrad
   if (on === destrabarPorDefecto(clave)) delete destrabar[clave];
   else destrabar[clave] = on;
   return { ...b, destrabar };
+}
+
+/** Elige el plan de un proveedor; `""` vuelve a lo detectado (la entrada sale). */
+export function elegirPlan(b: Borrador, proveedor: string, plan: string): Borrador {
+  const { [proveedor]: _, ...resto } = b.planes;
+  return { ...b, planes: plan ? { ...resto, [proveedor]: plan } : resto };
 }
 
 /** ¿Está prendido para ese modelo según el borrador? */

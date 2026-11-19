@@ -29,6 +29,8 @@ import { AjustesOpencode } from "./AjustesOpencode";
 import { AjustesConectores } from "./AjustesConectores";
 import { AjustesPrecios } from "./AjustesPrecios";
 import { ModelosParaWorkers } from "./AjustesWorkers";
+import { PlanesSuscripcion } from "./AjustesPlanes";
+import type { VistaPlanes } from "../../electron/costo-planes-texto";
 import { AutocompactFilas } from "./AjustesAutocompact";
 import { AdvisorFilas } from "./AjustesAdvisor";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
@@ -196,6 +198,8 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
   const [errBajar, setErrBajar] = useState<string | null>(null);
   const [listo, setListo] = useState<string | null>(null);
   const [uso, setUso] = useState<Uso | null>(null);
+  // Costo por suscripción: datos de planes (Priors) y el plan detectado; llegan aparte y nunca frenan el panel.
+  const [planes, setPlanes] = useState<VistaPlanes | null>(null);
   const [entorno, setEntorno] = useState<EntornoOllama | null>(null);
   // Lo que `pa --modelos` dice que corre hoy tarda (corre `reparto` por tipo): la config se muestra sin esperarlo y esto llega después.
   const [efectivo, setEfectivo] = useState<EfectivoPa | null | "pendiente">("pendiente");
@@ -217,6 +221,16 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
       () => vivo.current && mio === pedidoEfectivo.current && setEfectivo(null),
     );
   };
+  useEffect(() => {
+    const leer = () =>
+      void fuentePaneles.planes().then(
+        (v) => vivo.current && setPlanes(v),
+        () => undefined,
+      );
+    leer();
+    // El motor refresca Priors de fondo (cada hora, caché de 6 h) y avisa con la tabla nueva: se vuelve a leer.
+    return fuentePaneles.alTablaNueva(leer);
+  }, []);
   useEffect(() => {
     fuentePaneles.modelos().then(
       (r) => {
@@ -551,7 +565,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
             </>
           )}
 
-          <ModelosParaWorkers b={b} cambiar={cambiar} />
+          <ModelosParaWorkers b={b} cambiar={cambiar} planes={planes} />
 
           <Dato nombre="ajustes.mdlCompactar" que="ajustes.mdlCompactarQue">
             <AutocompactFilas b={b} cambiar={cambiar} />
@@ -768,6 +782,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
         <CuposTarjetas b={b} uso={uso} plan={plan} />
       </Cat>
       <Cat id="cupos" orden={2}>
+        <PlanesSuscripcion b={b} cambiar={cambiar} planes={planes} />
         <AjustesCupos Dato={Dato} b={b} cambiar={cambiar} uso={uso} />
       </Cat>
 

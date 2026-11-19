@@ -7,10 +7,13 @@
 //  2. si no, COSTO_FAMILIA (el costo relativo de un token que usa `reparto`, COSTO en motor/bin/reparto) × MULT_EFFORT (cuánto más piensa
 //     un esfuerzo alto: low 0,5, medium 0,75, high 1, xhigh 1,5, max 2,5) × ESCALA_INDICE, para llevarlo a la misma unidad que (1)
 //     (Opus 5.5 high, familia 1, cuesta ~2.170 USD). Es un proxy: sólo sirve para ordenar pares entre sí.
-// En los modelos de suscripción (Claude, Google, ChatGPT) no se paga por token: el costo es el equivalente en API y se usa como proxy
-// del cupo que se gasta. Los gratis y locales no entran (no hay nada que ahorrar con ellos).
+// En los modelos de suscripción (Claude, Google, ChatGPT) no se paga por token: con el plan de la persona (elegido en Ajustes o detectado)
+// y el `ratio` de Priors (la parte del precio de API que paga un suscriptor de ese plan, electron/costo-planes-texto.ts) el costo es
+// (1) o (2) × ratio: lo que de verdad le cuesta con SU plan. Sin ratio (sin datos, sin plan o un modelo que el plan no cubre) queda el
+// equivalente en API, como proxy del cupo que se gasta. Los gratis y locales no entran (no hay nada que ahorrar con ellos).
 import { EFFORTS_CALIDAD, type EffortCalidad } from "../../electron/efforts-calidad";
 import type { FilaTabla } from "../../electron/reparto-tabla";
+import { ratioDeFila, type ContextoPlanes } from "../../electron/costo-planes-texto";
 import type { Borrador } from "./modelos-borrador";
 import { claveCalidad, effortsMostrados, estadoDe } from "./modelos-workers";
 
@@ -32,14 +35,24 @@ export type Par = {
   inteligencia: number;
   costo: number;
   fuenteCosto: "aa" | "estimado";
+  /** El plan con el que se multiplicó el costo (`ratio` de Priors); ausente: precio de API. */
+  plan?: string;
   suscripcion: boolean;
 };
 export type Dominado = { par: Par; por: Par };
 
-export const costoDe = (f: FilaTabla, effort: EffortCalidad): { costo: number; fuente: "aa" | "estimado" } => {
+/** El costo de API de un par: el de AA o la estimación por familia. */
+export const costoApiDe = (f: FilaTabla, effort: EffortCalidad): { costo: number; fuente: "aa" | "estimado" } => {
   const aa = f.costoPorEffort?.[effort];
   if (aa !== undefined) return { costo: aa, fuente: "aa" };
   return { costo: (COSTO_FAMILIA[f.familia] ?? COSTO_DEFECTO) * MULT_EFFORT[effort] * ESCALA_INDICE, fuente: "estimado" };
+};
+
+/** El costo de un par con el plan de la persona (× `ratio`) si se conoce; si no, el de API. */
+export const costoDe = (f: FilaTabla, effort: EffortCalidad, ctx?: ContextoPlanes | null): { costo: number; fuente: "aa" | "estimado"; plan?: string } => {
+  const api = costoApiDe(f, effort);
+  const r = ratioDeFila(ctx, f);
+  return r ? { costo: api.costo * r.ratio, fuente: api.fuente, plan: r.plan } : api;
 };
 
 /** Los esfuerzos que se ofrecen para un modelo: los medidos y los estimados que puede correr; sin desglose, los cinco. */
@@ -66,15 +79,15 @@ export function ponerEffort(b: Borrador, f: FilaTabla, effort: EffortCalidad, on
 }
 
 /** Todos los pares modelo+esfuerzo permitidos (modelo permitido, esfuerzo permitido, con puntaje, de pago). */
-export function paresDe(filas: FilaTabla[], b: Borrador): Par[] {
+export function paresDe(filas: FilaTabla[], b: Borrador, ctx?: ContextoPlanes | null): Par[] {
   const out: Par[] = [];
   for (const f of filas) {
     if (f.gratis || !estadoDe(f, b).permitido) continue;
     for (const e of permitidosDe(f, b)) {
       const q = f.calidadPorEffort[e];
       if (q === undefined) continue;   // un esfuerzo estimado no se compara: no hay dato de AA con qué decir que otro lo domina
-      const c = costoDe(f, e);
-      out.push({ clave: claveCalidad(f), id: f.id, nombre: f.nombre, effort: e, inteligencia: q, costo: c.costo, fuenteCosto: c.fuente, suscripcion: SUSCRIPCION.includes(f.proveedor) });
+      const c = costoDe(f, e, ctx);
+      out.push({ clave: claveCalidad(f), id: f.id, nombre: f.nombre, effort: e, inteligencia: q, costo: c.costo, fuenteCosto: c.fuente, ...(c.plan ? { plan: c.plan } : {}), suscripcion: SUSCRIPCION.includes(f.proveedor) });
     }
   }
   return out;

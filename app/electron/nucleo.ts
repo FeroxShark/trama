@@ -93,6 +93,7 @@ import { modelosClaudeCuenta } from "./claude-catalogo.ts";
 import { actualizarOpencode, effortsOpencode, modelosOpencode, vistaOpencode } from "./opencode-ajustes.ts";
 import { estadoNim, guardarModelosNim, probarNim } from "./nvidia-nim.ts";
 import { guardarPlanOpencode, mantenerTopesGo, planOpencode, vistaPlanGo } from "./opencode-go.ts";
+import { refrescarPlanes, vistaPlanes } from "./costo-planes.ts";
 import { fijarPlanDia, leerPlanDia } from "./plan-dia.ts";
 import { guardarClave, leerClaves } from "./claves.ts";
 import { estadoAA, refrescarAA } from "./artificial-analysis.ts";
@@ -1340,6 +1341,17 @@ export function armarNucleo() {
   };
   void alDiaAA().catch(silencio("aa"));
   setInterval(() => void alDiaAA().catch(silencio("aa")), 3_600_000).unref();
+  // Costo por suscripción (Ajustes > Modelos): datos públicos de Priors con caché de 6 h y el plan de Claude del credentials (sólo
+  // `subscriptionType` y `rateLimitTier`). Aislado (pruebas, capturas) no sale a la red salvo con PRIORS_URL; si falla, caché o nada.
+  const sinRedPlanes = () => (process.env.HILOS_PRUEBA === "1" || process.env.HILOS_CAPTURA === "1" || process.env.HILOS_BENCH === "1") && !process.env.PRIORS_URL;
+  manejar("planes:leer", () => vistaPlanes({ sinRed: sinRedPlanes() }));
+  // Igual que AA: al arrancar y cada hora se refresca de fondo (la caché vale 6 h); si se bajó algo nuevo, Ajustes abierto se repinta.
+  const alDiaPlanes = async () => {
+    if (sinRedPlanes()) return;
+    if ((await refrescarPlanes()).nuevo) enviar("reparto:tablaNueva", null);
+  };
+  void alDiaPlanes().catch(silencio("planes"));
+  setInterval(() => void alDiaPlanes().catch(silencio("planes")), 3_600_000).unref();
   manejar("opencode:estado", () => vistaOpencode());
   manejar("opencode:actualizar", () => actualizarOpencode());
   // OpenCode Go (plan pago, apagado por defecto): el plan y los topes por modelo; elegir el plan es sólo de la PC (`SOLO_PC_TAILNET`).

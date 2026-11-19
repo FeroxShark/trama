@@ -17,6 +17,7 @@ import type { VistaPlanGo } from "../../electron/opencode-go";
 import type { FilaTabla, TablaReparto } from "../../electron/reparto-tabla";
 import { viejaAAa } from "../../electron/calidad-migracion";
 import { sumarClaudeCuenta } from "../../electron/reparto-claude";
+import type { DatosPriors } from "../../electron/costo-planes-texto";
 import type { Ajustes, Consulta, Medido, Corrida, EstadoAuto, EstadoSalud, Medicion, Muestra, PiezaConsulta } from "./paneles";
 
 const AHORA = Math.floor(Date.now() / 1000);
@@ -495,6 +496,24 @@ export const TABLA_REPARTO = (aa = false): TablaReparto => {
   // La cuenta de las capturas tiene Fable 5.2, que el reparto no conoce: entra en el grupo de Anthropic con el cupo de la cuenta.
   const conFable = sumarClaudeCuenta(modelos.map(conAA).map(usuario), CATALOGO_CLAUDE, aa ? AA_FABLE : null, ["fable"]);
   return { version: 1, leido: Date.now(), modelos: conFable };
+};
+
+/** Datos de planes de Priors de las capturas (`/api/plan-prices` ya validado): la parte del precio de API que paga cada plan. */
+export const PLANES_PRIORS: DatosPriors = {
+  fecha: "2026-11-19T05:04:33.799Z",
+  labs: [
+    { id: "anthropic", nombre: "Anthropic", planes: ["Claude Pro", "Claude Max 5x", "Claude Team Premium", "Claude Ultra"] },
+    { id: "google", nombre: "Google", planes: ["Google AI Pro", "Google AI Ultra 5x", "Google AI Ultra 20x"] },
+    { id: "openai", nombre: "OpenAI", planes: ["ChatGPT Plus", "ChatGPT Pro 10x", "ChatGPT Pro 20x"] },
+  ],
+  modelos: [
+    { id: "claude-opus-5.5", lab: "anthropic", aa: ["claude-opus-5-5"], planes: { "Claude Pro": { ratio: 0.015671, confianza: "medium" }, "Claude Max 5x": { ratio: 0.013018, confianza: "medium" }, "Claude Ultra": { ratio: 0.015135, confianza: "medium" } } },
+    { id: "claude-sonnet-5.5", lab: "anthropic", aa: ["claude-sonnet-5-5"], planes: { "Claude Pro": { ratio: 0.01563, confianza: "low" }, "Claude Max 5x": { ratio: 0.013018, confianza: "low" }, "Claude Ultra": { ratio: 0.015135, confianza: "low" } } },
+    { id: "claude-haiku-5.5", lab: "anthropic", aa: ["claude-haiku-5-5"], planes: { "Claude Pro": { ratio: 0.021881, confianza: "low" }, "Claude Max 5x": { ratio: 0.018225, confianza: "low" }, "Claude Ultra": { ratio: 0.021189, confianza: "low" } } },
+    { id: "gemini-4-hydrogen", lab: "google", aa: ["gemini-4-hydrogen"], planes: { "Google AI Pro": { ratio: 0.040497, confianza: "assumed" }, "Google AI Ultra 20x": { ratio: 0.020258, confianza: "medium" } } },
+    { id: "gemini-4-neon", lab: "google", aa: ["gemini-4-neon"], planes: { "Google AI Pro": { ratio: 0.048133, confianza: "preliminary" } } },
+    { id: "gpt-6.1-sol", lab: "openai", aa: ["gpt-6-1-sol"], planes: { "ChatGPT Plus": { ratio: 0.066968, confianza: "medium" }, "ChatGPT Pro 10x": { ratio: 0.033484, confianza: "medium" } } },
+  ],
 };
 
 /** El catálogo de la cuenta de las capturas: tiene Fable 5.2 (el reparto no la conoce). */

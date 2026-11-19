@@ -259,6 +259,7 @@ contextBridge.exposeInMainWorld("hilos", {
     previaDescubrir: (id: string): Promise<unknown> => invocar("descubrir:previa", id),
     instalarDescubrir: (id: string, huella?: string): Promise<unknown> => invocar("descubrir:instalar", id, huella),
     repartoTabla: (): Promise<unknown> => invocar("reparto:tabla"),
+    planes: (): Promise<unknown> => invocar("planes:leer"),
     estadoAA: (): Promise<unknown> => invocar("aa:estado"),
     refrescarAA: (): Promise<unknown> => invocar("aa:refrescar"),
     estadoOpencode: (): Promise<unknown> => invocar("opencode:estado"),

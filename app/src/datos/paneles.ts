@@ -12,7 +12,7 @@ import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
 import { claveCalidad } from "../paneles/modelos-workers";
-import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_NIM, CATALOGOS_FIJOS, CONECTORES_FIJOS, DESCUBRIR_FIJO, ESTADO_MCP, ESTADO_MCP_APAGADOS, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_NIM, CATALOGOS_FIJOS, CONECTORES_FIJOS, DESCUBRIR_FIJO, ESTADO_MCP, ESTADO_MCP_APAGADOS, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, PLANES_PRIORS, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
@@ -29,6 +29,7 @@ import type { CatalogoDescubrir, Previa, ResultadoInstalar } from "../../electro
 import type { NombreClave } from "../../electron/claves";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { VistaPlanGo } from "../../electron/opencode-go";
+import type { VistaPlanes } from "../../electron/costo-planes-texto";
 import type { EstadoNim, PruebaNim } from "../../electron/nvidia-nim";
 import type { TablaReparto } from "../../electron/reparto-tabla";
 import type { EstadoAA, ResultadoAA } from "../../electron/artificial-analysis";
@@ -212,6 +213,8 @@ export interface FuentePaneles {
   instalarDescubrir(id: string, huella?: string): Promise<ResultadoInstalar>;
   /** `reparto --tabla --json`: los modelos que reparto conoce con su inteligencia y cupo; `null` si no hay `reparto` (o es uno viejo). */
   repartoTabla(): Promise<TablaReparto | null>;
+  /** Datos de planes de Priors, el plan de Claude detectado y si hay `agy`; nunca rechaza por la red (sin datos: `datos: null`). */
+  planes(): Promise<VistaPlanes>;
   /** La caché de Artificial Analysis se actualizó de fondo: conviene volver a pedir la tabla. */
   alTablaNueva(fn: () => void): () => void;
   /** Artificial Analysis: si hay key y de cuándo es la caché (la key se guarda con `claveDsh`). */
@@ -504,6 +507,11 @@ const fija: FuentePaneles = {
   },
   alTablaNueva() {
     return () => undefined;
+  },
+  async planes() {
+    await espera(60);
+    // `mdl-wk-sin-planes`: Priors no contestó y no hay caché (todo con la estimación de siempre).
+    return { datos: MODO.variante === "mdl-wk-sin-planes" ? null : PLANES_PRIORS, claude: "Claude Max 5x", agy: true };
   },
   async repartoTabla() {
     // `mdl-wk-cargando`: la tabla no llega nunca (se ve su esqueleto con el resto del panel ya a la vista).
@@ -931,6 +939,9 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async repartoTabla() {
     return (await m.paneles.repartoTabla().catch(fallar)) as TablaReparto | null;
+  },
+  async planes() {
+    return (await m.paneles.planes().catch(() => ({ datos: null, claude: null, agy: false }))) as VistaPlanes;
   },
   alTablaNueva(fn) {
     return m.paneles.alTablaNueva(fn);

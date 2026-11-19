@@ -19,7 +19,8 @@ import { MODO } from "../modo";
 import { pintorVuelve } from "../tiempo";
 import { AtribucionAA, ClaveArtificialAnalysis } from "./AjustesWorkersAA";
 import { quitarExcluido, type Borrador } from "./modelos-borrador";
-import { aplicarSugerencias, dominados, paresDe, permitidosDe, ponerEffort, type Dominado } from "./efforts-dominados";
+import { aplicarSugerencias, costoDe, dominados, paresDe, permitidosDe, ponerEffort, type Dominado } from "./efforts-dominados";
+import { contextoPlanes, planCorto, ratioDeFila, URL_PRIORS, type ContextoPlanes, type VistaPlanes } from "../../electron/costo-planes-texto";
 import {
   agrupar,
   calidadEnEffort,
@@ -56,8 +57,27 @@ function estadoEffort(f: FilaTabla, e: (typeof EFFORTS_CALIDAD)[number]): string
   return fu === "suplemento" ? t("ajustes.mdlWkChipMedidoSup") : fu === "suplemento~" ? t("ajustes.mdlWkChipMedidoSupAprox") : t("ajustes.mdlWkChipMedido");
 }
 
+/** Qué parte del precio de API paga el plan, en el idioma («1,3 %», «1.3%»). */
+export const pctPlan = (ratio: number, lengua = idioma()): string => {
+  const n = ratio * 100;
+  const cifraPct = new Intl.NumberFormat(lengua === "en" ? "en-US" : "es-AR", { maximumFractionDigits: n < 1 ? 2 : 1 }).format(n);
+  return lengua === "en" ? `${cifraPct}%` : `${cifraPct} %`;
+};
+
+const CONFIANZAS = ["preliminary", "assumed", "estimated", "low", "medium", "high"] as const;
+const textoConfianza = (c: string | null): string => (CONFIANZAS as readonly string[]).includes(c ?? "") ? t(`ajustes.planConf_${c as (typeof CONFIANZAS)[number]}`) : t("ajustes.planConf_otra");
+
+/** El crédito de los datos de planes, con su enlace (va donde se usan: el pie de «Modelos para workers» y el selector de plan). */
+export function AtribucionPriors() {
+  return (
+    <a className="wk-aa-enlace" data-priors href={URL_PRIORS} target="_blank" rel="noopener noreferrer" data-tip={t("ajustes.planesCreditoTip")}>
+      {t("ajustes.planesCredito")}
+    </a>
+  );
+}
+
 /** El tooltip de un chip de esfuerzo: medido o estimado, código y agentes de AA (extras, si los hay), costo, tokens y tiempo por tarea. */
-function tipChip(f: FilaTabla, e: (typeof EFFORTS_CALIDAD)[number]): string {
+function tipChip(f: FilaTabla, e: (typeof EFFORTS_CALIDAD)[number], ctx: ContextoPlanes | null): string {
   const partes: string[] = [estadoEffort(f, e)];
   if (esEstimado(f, e)) partes.push(t("ajustes.mdlWkChipEstimadoQue"));
   const cod = f.codingPorEffort?.[e];
@@ -66,6 +86,10 @@ function tipChip(f: FilaTabla, e: (typeof EFFORTS_CALIDAD)[number]): string {
   if (ag !== undefined) partes.push(t("ajustes.mdlWkChipAgentes", { n: cifra(ag) }));
   const c = f.costoPorEffort?.[e];
   partes.push(c !== undefined ? t("ajustes.mdlWkChipCosto", { n: dinero(c) }) : t("ajustes.mdlWkChipCostoEst"));
+  if (c !== undefined) {
+    const cp = costoDe(f, e, ctx);
+    if (cp.plan) partes.push(t("ajustes.mdlWkChipCostoPlan", { n: dinero(cp.costo) }));
+  }
   const k = f.tokensPorEffort?.[e];
   if (k !== undefined) partes.push(t("ajustes.mdlWkChipTokens", { n: tokensCorto(k) }));
   const m = f.tiempoPorEffort?.[e];
@@ -122,7 +146,8 @@ function CampoInteligencia({ f, valor, fijada, alCambiar }: { f: FilaTabla; valo
 }
 
 /** Una fila: interruptor, nombre y datos de cupo, los chips de esfuerzo y la inteligencia al esfuerzo que se usaría. */
-function Fila({ f, b, cambiar, dom }: { f: FilaTabla; b: Borrador; cambiar: (n: Borrador) => void; dom: Dominado[] }) {
+function Fila({ f, b, cambiar, dom, ctx }: { f: FilaTabla; b: Borrador; cambiar: (n: Borrador) => void; dom: Dominado[]; ctx: ContextoPlanes | null }) {
+  const rp = f.gratis ? null : ratioDeFila(ctx, f);
   const est = estadoDe(f, b);
   const q = inteligenciaDe(f, b);
   const u = usadoDe(f, b);
@@ -154,6 +179,11 @@ function Fila({ f, b, cambiar, dom }: { f: FilaTabla; b: Borrador; cambiar: (n: 
           )}
           {f.libre !== null && f.vuelve !== null ? <Vuelve ms={f.vuelve} /> : null}
         </span>
+        {rp ? (
+          <span className="wk-meta" data-wk-plan data-tip={t("ajustes.mdlWkConPlanTip", { plan: rp.plan, confianza: textoConfianza(rp.confianza) })}>
+            {t("ajustes.mdlWkConPlan", { plan: planCorto(rp.plan), pct: pctPlan(rp.ratio) })}
+          </span>
+        ) : null}
         {/* Los excluidos no entran al reparto: la fila va atenuada (arriba) y sin el desglose por effort, que no se usa. */}
         {est.permitido && o.tipo === "aa" ? (
           medidos.length > 0 ? (
@@ -170,7 +200,7 @@ function Fila({ f, b, cambiar, dom }: { f: FilaTabla; b: Borrador; cambiar: (n: 
                     data-on={on ? "si" : "no"}
                     data-usado={u.efecto === e ? "" : undefined}
                     data-dominado={d ? "" : undefined}
-                    data-tip={tipChip(f, e)}
+                    data-tip={tipChip(f, e, ctx)}
                     onClick={() => cambiar(ponerEffort(b, f, e, !on))}
                   >
                     <span className="wk-chip-n">{t(`ajustes.mdlWkEffort_${e}`)}</span> <span className="wk-chip-v">{esEstimado(f, e) ? "~" : ""}{cifra(f.calidadPorEffort[e] ?? f.calidadEstimadaPorEffort[e] ?? calidadEnEffort(f.calidadPorEffort, e, f.calidad))}</span>
@@ -209,7 +239,7 @@ function Fila({ f, b, cambiar, dom }: { f: FilaTabla; b: Borrador; cambiar: (n: 
   );
 }
 
-export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: Borrador) => void }) {
+export function ModelosParaWorkers({ b, cambiar, planes = null }: { b: Borrador; cambiar: (n: Borrador) => void; planes?: VistaPlanes | null }) {
   const [tabla, setTabla] = useState<TablaReparto | null | "cargando">("cargando");
   const [q, setQ] = useState("");
   const [abiertos, setAbiertos] = useState<Partial<Record<GrupoTabla, boolean>>>(MODO.variante === "mdl-wk-todo" || MODO.variante === "mdl-wk-aa-todo" ? { anthropic: true, google: true, openai: true, opencode: true, deepseek: true, ollama: true, local: true } : { anthropic: true });
@@ -231,7 +261,9 @@ export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: B
   const grupos = useMemo(() => agrupar(filtrar(filas, q), b), [filas, q, b]);
   const sueltas = reglasSueltas(b.excluir, filas);
   // Los pares modelo+esfuerzo dominados (otro permitido rinde igual o más por menos): se ven en cada fila y se desmarcan con «Aplicar sugerencias».
-  const dom = useMemo(() => dominados(paresDe(filas, b)), [filas, b]);
+  // El costo de cada par con el plan de la persona (Priors): lo elegido en Plan y cupos o lo detectado.
+  const ctx = useMemo(() => (planes ? contextoPlanes(planes, b.planes) : null), [planes, b.planes]);
+  const dom = useMemo(() => dominados(paresDe(filas, b, ctx)), [filas, b, ctx]);
   const [confirmando, setConfirmando] = useState(false);
   const procedencia = procedenciaAA(filas);
   const hayAA = filas.some((f) => f.origen === "artificial-analysis");
@@ -277,7 +309,7 @@ export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: B
                 {abierto ? (
                   <ul className="wk-lista" aria-label={nombre}>
                     {g.filas.map((f) => (
-                      <Fila key={f.id} f={f} b={b} cambiar={cambiar} dom={dom} />
+                      <Fila key={f.id} f={f} b={b} cambiar={cambiar} dom={dom} ctx={ctx} />
                     ))}
                   </ul>
                 ) : null}
@@ -297,7 +329,15 @@ export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: B
               {t(procedencia.sinClave ? "ajustes.mdlWkAaDatosFoto" : "ajustes.mdlWkAaDatos", { fecha: fechaCortaIdioma(procedencia.fecha, idioma()) ?? "" })}
             </p>
           ) : null}
-          <p className="pn-nota">{t("ajustes.mdlWkCostoNota")}</p>
+          <p className="pn-nota" data-wk-costo-nota>
+            {t("ajustes.mdlWkCostoNota")}
+            {planes?.datos ? (
+              <>
+                {" "}
+                <AtribucionPriors />
+              </>
+            ) : null}
+          </p>
           {dom.length > 0 ? (
             confirmando ? (
               <p className="pn-nota" role="alert">

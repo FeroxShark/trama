@@ -156,7 +156,16 @@ export type ConfigModelos = {
    * la clave vale la fábrica (`destrabarPorDefecto`, electron/modelos-tipos.ts: prendido para Gemini 4 Hydrogen, apagado el resto).
    */
   destrabar: Record<string, boolean>;
+  /**
+   * El plan de suscripción de cada proveedor (`claude`, `google`, `openai`), con el nombre de Priors («Google AI Pro»): con él Ajustes calcula
+   * qué parte del precio de API se paga (electron/costo-planes-texto.ts). Sin la entrada vale lo detectado (Claude) o Google AI Pro con `agy`.
+   */
+  planes?: Record<string, string>;
 };
+
+/** Un nombre de plan como los de Priors (letras, números, espacios y signos comunes). */
+const FORMA_PLAN = /^[\p{L}\p{N}][\p{L}\p{N} .,()+&'\/¥$-]{0,99}$/u;
+const PROVEEDORES_CON_PLAN = ["claude", "google", "openai"];
 
 export const vacia = (): ConfigModelos => ({ workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
 
@@ -298,6 +307,11 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
   c.google_codigo_5h = googleCodigoDe(j.agy_min_libre_5h);
   if (c.google_codigo_5h === undefined) delete c.google_codigo_5h;
   if (esObj(j.destrabar)) for (const [k, v] of Object.entries(j.destrabar)) if (typeof v === "boolean" && FORMA_ID.test(k) && (esGemini(k) || esAgy(k))) c.destrabar[k] = v;
+  if (esObj(j.planes)) {
+    const pl: Record<string, string> = {};
+    for (const [k, v] of Object.entries(j.planes)) if (PROVEEDORES_CON_PLAN.includes(k) && typeof v === "string" && FORMA_PLAN.test(v.trim())) pl[k] = v.trim();
+    if (Object.keys(pl).length) c.planes = pl;
+  }
   return c;
 }
 
@@ -318,7 +332,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "advisor", "cierre", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "advisor", "cierre", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h", "planes"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -486,6 +500,15 @@ export function validarConfig(x: unknown): ConfigModelos {
       c.destrabar[k] = v;
     }
   }
+  if (x.planes !== undefined && x.planes !== null) {
+    if (!esObj(x.planes)) throw errorT("main.modelosForma");
+    const pl: Record<string, string> = {};
+    for (const [k, v] of Object.entries(x.planes)) {
+      if (!PROVEEDORES_CON_PLAN.includes(k) || typeof v !== "string" || !FORMA_PLAN.test(v.trim())) throw errorT("main.modelosForma");
+      pl[k] = v.trim();
+    }
+    if (Object.keys(pl).length) c.planes = pl;
+  }
   return c;
 }
 
@@ -596,6 +619,9 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   // `destrabar` es de trama (el puente de agy lo lee en cada turno): sin entradas la clave sale (vale la fábrica).
   if (Object.keys(c.destrabar).length) base.destrabar = { ...c.destrabar };
   else delete base.destrabar;
+  // `planes` es de trama (Ajustes > Modelos, costo con el plan): sin entradas la clave sale (vale lo detectado).
+  if (c.planes && Object.keys(c.planes).length) base.planes = { ...c.planes };
+  else delete base.planes;
   return base;
 }
 
