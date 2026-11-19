@@ -30,6 +30,7 @@ export function crearCierreCupo(dir: string, ajustes: () => AjustesCierre) {
   const archivo = path.join(dir, ARCHIVO_CIERRE);
   const vig = crearVigilante(leerSenal(leer(archivo)));
   const oyentes = new Set<(e: EntradaCierre) => void>();
+  const oyentesVolvio = new Set<(e: EntradaCierre, vigentes: readonly EntradaCierre[]) => void>();
 
   function revisar(uso: UsoMin | null | undefined, ahora = Math.floor(Date.now() / 1000)): EntradaCierre[] {
     const a = ajustes();
@@ -38,6 +39,7 @@ export function crearCierreCupo(dir: string, ajustes: () => AjustesCierre) {
       if (p.entradas.length) escribirSenalAtomica(archivo, JSON.stringify(senalDe(p.entradas, a, ahora), null, 2) + "\n");
       else rmSync(archivo, { force: true });
     }
+    for (const e of p.volvieron) for (const fn of oyentesVolvio) fn(e, p.entradas);
     for (const e of p.nuevas) for (const fn of oyentes) fn(e);
     return p.nuevas;
   }
@@ -48,5 +50,11 @@ export function crearCierreCupo(dir: string, ajustes: () => AjustesCierre) {
     return () => oyentes.delete(fn);
   }
 
-  return { archivo, revisar, alCierreCupo, entradas: vig.entradas };
+  /** Avisa cada entrada que dejó de regir porque el cupo volvió, con las que siguen vigentes. Devuelve cómo dejar de oír. */
+  function alVolverCupo(fn: (e: EntradaCierre, vigentes: readonly EntradaCierre[]) => void): () => void {
+    oyentesVolvio.add(fn);
+    return () => oyentesVolvio.delete(fn);
+  }
+
+  return { archivo, revisar, alCierreCupo, alVolverCupo, entradas: vig.entradas };
 }

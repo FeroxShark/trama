@@ -80,6 +80,10 @@ export function lecturasDeUso(uso: UsoMin | null | undefined): LecturaCupo[] {
 
 /** Dos horas de reinicio a menos de esto son la misma ventana (cada lectura redondea distinto). */
 export const MISMA_VENTANA_S = 900;
+/** Puntos por encima del umbral para dar por vuelto el cupo dentro de la misma ventana: dos lecturas pueden redondear distinto cerca del umbral. */
+export const MARGEN_VOLVIO = 10;
+/** Cuánto tiene que sostenerse la suba para creerla: una lectura vieja que dice más cupo aparece una vez y la siguiente la desmiente. */
+export const CONFIRMAR_VOLVIO_S = 60;
 
 const base = (x: { proveedor: string; cuenta: string; ventana: string; grupo?: string }) => `${x.proveedor}|${x.cuenta}|${x.ventana}|${x.grupo ?? ""}`;
 const mismaVentana = (a: number | null, b: number | null) => a === null || b === null || Math.abs(a - b) <= MISMA_VENTANA_S;
@@ -89,6 +93,8 @@ export type Paso = {
   entradas: EntradaCierre[];
   /** Las que se dispararon en este paso (una por ventana): el evento `alCierreCupo`. */
   nuevas: EntradaCierre[];
+  /** Las que dejaron de regir porque el cupo volvió: pasó la hora o hubo un reinicio antes de tiempo. */
+  volvieron: EntradaCierre[];
   /** Si la señal cambió (hay que escribir o borrar el archivo). */
   cambio: boolean;
 };
@@ -100,15 +106,24 @@ export type Paso = {
 export function crearVigilante(previas: EntradaCierre[] = []) {
   let vigentes = new Map(previas.map((e) => [base(e), e]));
   const huella = () => JSON.stringify([...vigentes.values()]);
+  /** Desde cuándo cada ventana viene leyendo cupo de sobra sin que otra lectura lo desmienta. */
+  const subio = new Map<string, number>();
 
   function paso(lecturas: LecturaCupo[], ajustes: AjustesCierre, ahora: number): Paso {
     const antes = huella();
     if (!ajustes.activo) {
       vigentes = new Map();
-      return { entradas: [], nuevas: [], cambio: antes !== huella() };
+      subio.clear();
+      return { entradas: [], nuevas: [], volvieron: [], cambio: antes !== huella() };
     }
     // Se rearma al pasar el reinicio: la entrada de esa ventana se borra.
-    for (const [k, e] of vigentes) if (e.vuelve !== null && e.vuelve <= ahora) vigentes.delete(k);
+    const volvieron: EntradaCierre[] = [];
+    for (const [k, e] of vigentes) {
+      if (e.vuelve === null || e.vuelve > ahora) continue;
+      vigentes.delete(k);
+      subio.delete(k);
+      volvieron.push(e);
+    }
     const nuevas: EntradaCierre[] = [];
     for (const l of lecturas) {
       if (l.usado === null || !Number.isFinite(l.usado)) continue;
@@ -117,17 +132,41 @@ export function crearVigilante(previas: EntradaCierre[] = []) {
       const k = base(l);
       const ya = vigentes.get(k);
       if (ya && mismaVentana(ya.vuelve, l.vuelve)) {
-        // Misma ventana: no se vuelve a disparar; se actualiza lo que queda y, si ahora se sabe, cuándo vuelve.
-        if (ya.vuelve === null && restante > ajustes.umbral) vigentes.delete(k); // sin reinicio conocido, se rearma cuando vuelve a haber cupo
-        else vigentes.set(k, { ...ya, restante, vuelve: l.vuelve ?? ya.vuelve });
+        // Misma ventana: no se vuelve a disparar; se actualiza lo que queda y, si ahora se sabe, cuándo vuelve. Sin reinicio conocido alcanza con
+        // pasar el umbral. Con hora conocida, un reinicio antes de tiempo puede dejar la misma hora: la suba se cree cuando se sostiene.
+        if (ya.vuelve === null && restante > ajustes.umbral) {
+          vigentes.delete(k);
+          subio.delete(k);
+          volvieron.push(ya);
+        } else if (restante > ajustes.umbral + MARGEN_VOLVIO) {
+          const desde = subio.get(k) ?? ahora;
+          subio.set(k, desde);
+          if (ahora - desde >= CONFIRMAR_VOLVIO_S) {
+            vigentes.delete(k);
+            subio.delete(k);
+            volvieron.push(ya);
+          }
+        } else {
+          subio.delete(k);
+          vigentes.set(k, { ...ya, restante, vuelve: l.vuelve ?? ya.vuelve });
+        }
         continue;
       }
-      if (restante > ajustes.umbral) continue;
+      if (restante > ajustes.umbral) {
+        // Con cupo y un reinicio más adelante: empezó otra ventana y la vieja ya no rige. Con uno anterior es una lectura vieja.
+        if (ya && l.vuelve !== null && ya.vuelve !== null && l.vuelve > ya.vuelve) {
+          vigentes.delete(k);
+          subio.delete(k);
+          volvieron.push(ya);
+        }
+        continue;
+      }
+      subio.delete(k);
       const e: EntradaCierre = { proveedor: l.proveedor, cuenta: l.cuenta, ventana: l.ventana, ...(l.grupo ? { grupo: l.grupo } : {}), restante, umbral: ajustes.umbral, vuelve: l.vuelve, desde: ahora };
       vigentes.set(k, e);
       nuevas.push(e);
     }
-    return { entradas: [...vigentes.values()], nuevas, cambio: antes !== huella() };
+    return { entradas: [...vigentes.values()], nuevas, volvieron, cambio: antes !== huella() };
   }
 
   return { paso, entradas: () => [...vigentes.values()] };

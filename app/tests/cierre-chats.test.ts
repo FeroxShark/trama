@@ -203,3 +203,51 @@ test("un cierre nuevo después de retomar empieza de cero", () => {
   pasar(3600 + MARGEN_RETOMAR_S);
   assert.equal(e.encolados.length, 2);
 });
+
+test("un reinicio antes de tiempo pasa la tarjeta a «Volvió el cupo» y avisa a la ventana", () => {
+  const { e, c } = armar();
+  c.alCierre(entrada());
+  c.revisar();
+  const vistas = e.vistas.length;
+  c.alVolvio(entrada(), []);
+  assert.equal(c.de("a")?.fase, "volvio");
+  assert.equal(e.vistas.length, vistas + 1);
+  assert.equal(e.vistas.at(-1)?.[0].fase, "volvio");
+});
+
+test("con el interruptor prendido, el reinicio antes de tiempo retoma sin esperar la hora vieja", () => {
+  const { e, c, pasar } = armar({ retomarSolo: true });
+  c.alCierre(entrada());
+  c.alVolvio(entrada(), []);
+  pasar(MARGEN_RETOMAR_S);
+  assert.deepEqual(e.encolados.map((x) => x.sid), ["a"]);
+  assert.equal(c.de("a")?.fase, "retomado");
+});
+
+test("si la persona ya siguió escribiendo, al volver el cupo la tarjeta se va", () => {
+  const { e, c } = armar();
+  c.alCierre(entrada());
+  c.duenoEscribio("a");
+  c.alVolvio(entrada(), []);
+  assert.equal(c.de("a"), null);
+  assert.deepEqual(e.vistas.at(-1), []);
+});
+
+test("si otra ventana de la cuenta sigue baja, el chat sigue cerrado hasta esa", () => {
+  const { c } = armar();
+  const semana = entrada({ ventana: "7d", vuelve: VUELVE + 86_400, restante: 3 });
+  c.alCierre(entrada());
+  c.alCierre(semana);
+  c.alVolvio(entrada(), [semana]);
+  assert.equal(c.de("a")?.fase, "cerrando");
+  assert.equal(c.de("a")?.vuelve, VUELVE + 86_400);
+  assert.equal(c.de("a")?.restante, 3);
+});
+
+test("el cupo de otra suscripción o de otra cuenta no toca la tarjeta", () => {
+  const { c } = armar();
+  c.alCierre(entrada());
+  c.alVolvio(entrada({ proveedor: "google", cuenta: "google" }), []);
+  c.alVolvio(entrada({ cuenta: "otra" }), []);
+  assert.equal(c.de("a")?.fase, "cerrando");
+});

@@ -187,6 +187,32 @@ export function crearCierreChats(d: Deps) {
     return tocados;
   }
 
+  /**
+   * Volvió el cupo de una ventana (a su hora o con un reinicio antes de tiempo). Si otra ventana de esa cuenta sigue baja, el chat sigue cerrado hasta
+   * esa. Si no, la tarjeta pasa a «Volvió el cupo»; y si la persona ya siguió escribiendo en ese chat, no queda nada que avisar y se va.
+   */
+  function alVolvio(e: EntradaCierre, vigentes: readonly EntradaCierre[]): void {
+    const ahora = d.ahora();
+    const siguen = vigentes.filter((v) => v.proveedor === e.proveedor && v.cuenta === e.cuenta);
+    const tocados: string[] = [];
+    for (const [sid, r] of registros) {
+      if (r.proveedor !== e.proveedor || r.cuenta !== e.cuenta || r.retomado) continue;
+      tocados.push(sid);
+      if (siguen.length) {
+        const vuelve = siguen.some((v) => v.vuelve === null) ? null : Math.max(...siguen.map((v) => v.vuelve as number));
+        registros.set(sid, { ...r, vuelve, restante: Math.min(...siguen.map((v) => v.restante)) });
+      } else if (r.duenoEscribio) {
+        soltarReloj(sid);
+        registros.delete(sid);
+      } else if (r.vuelve === null || r.vuelve > ahora) {
+        registros.set(sid, { ...r, vuelve: ahora });
+      }
+    }
+    if (!tocados.length) return;
+    guardar();
+    for (const sid of tocados) armar(sid);
+  }
+
   /** Cambió el estado de los chats: los que cerraban y ya no trabajan terminaron su turno. */
   function revisar(): void {
     const activos = new Set(d.trabajando());
@@ -242,7 +268,7 @@ export function crearCierreChats(d: Deps) {
     for (const sid of [...relojes.keys()]) soltarReloj(sid);
   }
 
-  return { lista, alCierre, revisar, duenoEscribio, ponerRetomar, arrancar, parar, de: (sid: string) => lista().find((r) => r.sid === sid) ?? null };
+  return { lista, alCierre, alVolvio, revisar, duenoEscribio, ponerRetomar, arrancar, parar, de: (sid: string) => lista().find((r) => r.sid === sid) ?? null };
 }
 
 export type CierreChats = ReturnType<typeof crearCierreChats>;

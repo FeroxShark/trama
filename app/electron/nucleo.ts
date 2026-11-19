@@ -734,6 +734,13 @@ cierreCupo.alCierreCupo((e) => {
     silencio("cierre-chats")(err);
   }
 });
+cierreCupo.alVolverCupo((e, vigentes) => {
+  try {
+    cierreChats.alVolvio(e, vigentes);
+  } catch (err) {
+    silencio("cierre-chats")(err);
+  }
+});
 let cierrePronto: NodeJS.Timeout | null = null;
 /** Un `rate_limit_event`: el uso que trae lo anota el líder en disco; se relee al ratito (uno solo si llegan varios). */
 function revisarCierrePronto() {

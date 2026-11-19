@@ -83,6 +83,63 @@ test("sin reinicio conocido se rearma cuando vuelve a haber cupo", () => {
   assert.equal(v.paso([claude(50, null as never)], ON, AHORA + 60).entradas.length, 0);
 });
 
+test("un reinicio antes de tiempo suelta la entrada, con la misma hora o con otra", () => {
+  const misma = crearVigilante();
+  misma.paso([claude(96)], ON, AHORA);
+  assert.equal(misma.paso([claude(0)], ON, AHORA + 60).entradas.length, 1, "una sola lectura puede ser vieja");
+  const p = misma.paso([claude(0)], ON, AHORA + 120);
+  assert.deepEqual(p.entradas, []);
+  assert.deepEqual(p.volvieron.map((e) => e.ventana), ["5h"]);
+  assert.equal(p.cambio, true);
+  const otra = crearVigilante();
+  otra.paso([claude(96)], ON, AHORA);
+  const q = otra.paso([claude(1, R5 + 7200)], ON, AHORA + 60);
+  assert.deepEqual(q.entradas, []);
+  assert.equal(q.volvieron.length, 1);
+  // Vuelve a gastarse: dispara de nuevo.
+  assert.equal(otra.paso([claude(97, R5 + 7200)], ON, AHORA + 120).nuevas.length, 1);
+});
+
+test("una lectura vieja con más cupo no suelta la entrada aunque se repita más tarde", () => {
+  const v = crearVigilante();
+  v.paso([claude(96)], ON, AHORA);
+  v.paso([claude(50)], ON, AHORA + 60);
+  v.paso([claude(97)], ON, AHORA + 90);
+  assert.equal(v.paso([claude(50)], ON, AHORA + 120).entradas.length, 1, "la lectura baja del medio reinició la cuenta");
+  // Con un reinicio anterior al de la entrada también es vieja.
+  const w = crearVigilante();
+  w.paso([claude(96)], ON, AHORA);
+  assert.equal(w.paso([claude(10, R5 - 3000)], ON, AHORA + 60).entradas.length, 1);
+});
+
+test("cerca del umbral una lectura que redondea distinto no suelta la entrada ni la repite", () => {
+  const v = crearVigilante();
+  v.paso([claude(96)], ON, AHORA);
+  const p = v.paso([claude(93)], ON, AHORA + 60);
+  assert.equal(p.entradas.length, 1);
+  assert.equal(p.volvieron.length, 0);
+  assert.equal(v.paso([claude(96)], ON, AHORA + 120).nuevas.length, 0);
+});
+
+test("pasar la hora de reinicio también cuenta como cupo vuelto", () => {
+  const v = crearVigilante();
+  v.paso([claude(96)], ON, AHORA);
+  assert.equal(v.paso([], ON, R5 + 1).volvieron.length, 1);
+});
+
+test("en disco: alVolverCupo avisa el reinicio y borra la señal", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "cierre-"));
+  const c = crearCierreCupo(dir, () => ON);
+  const oidos: { ventana: string; siguen: number }[] = [];
+  c.alVolverCupo((e, vigentes) => oidos.push({ ventana: e.ventana, siguen: vigentes.length }));
+  c.revisar({ five_hour: { pct: 96, resets_at: R5 }, seven_day: null }, AHORA);
+  c.revisar({ five_hour: { pct: 0, resets_at: R5 }, seven_day: null }, AHORA + 60);
+  assert.deepEqual(oidos, []);
+  c.revisar({ five_hour: { pct: 0, resets_at: R5 }, seven_day: null }, AHORA + 120);
+  assert.deepEqual(oidos, [{ ventana: "5h", siguen: 0 }]);
+  assert.equal(existsSync(c.archivo), false);
+});
+
 test("en disco: escribe atómico, avisa una vez, borra al reinicio y no repite al reabrir", () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "cierre-"));
   let ajustes: AjustesCierre = { ...ON, retomar_solo: true };
