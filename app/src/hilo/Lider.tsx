@@ -1866,7 +1866,10 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
   const [revisores, setRevisores] = useState<string[] | null>(null);
   // Lo que Ajustes > Modelos dejó prendido por modelo: de ahí salen los esfuerzos que se ofrecen (los apagados no).
   const [permitidos, setPermitidos] = useState<PermitidosAjustes>(null);
-  const enRevision = revisionViva(useRevision(sid).estado) || debateVivo(useDebate(sid));
+  // Los dos hooks siempre, en el mismo orden: con `||` el segundo se salteaba al arrancar la revisión y React se rompía.
+  const revision = useRevision(sid);
+  const debate = useDebate(sid);
+  const enRevision = revisionViva(revision.estado) || debateVivo(debate);
   useEffect(() => {
     if (!revisando) return;
     let vivo = true;
