@@ -6,7 +6,7 @@ import { deDueno, dueno } from "./dueno.ts";
 import { convNueva, type Cambio, type Corte, type Crudo, type EstadoConv } from "./lider-arma.ts";
 
 /** Los motores que no se mezclan en una misma sesión (`familiaDeModelo`, modelos-config.ts). */
-export type Familia = "claude" | "gemini" | "dsh" | "opencode";
+export type Familia = "claude" | "gemini" | "dsh" | "opencode" | "codex";
 
 /** Cuánto pesa, como mucho, el historial que se le pasa al motor nuevo (caracteres): lo más nuevo entra, lo viejo se omite. */
 export const TOPE_RELEVO = 40_000;
@@ -18,7 +18,7 @@ const TOPE_LINEA = 90;
 const TOPE_HERRAMIENTAS = 8;
 
 /** Un modelo "genérico" de cada familia, para anotar de dónde venía una sesión cuando no se sabe el modelo exacto. */
-export const MODELO_DE_FAMILIA: Record<Familia, string> = { claude: "claude", gemini: "gemini", dsh: "dsh:", opencode: "opencode:" };
+export const MODELO_DE_FAMILIA: Record<Familia, string> = { claude: "claude", gemini: "gemini", dsh: "dsh:", opencode: "opencode:", codex: "codex:" };
 
 /** La hora (ms) de un mensaje; `null` si no la trae. */
 export const msDe = (m: Crudo): number | null => {

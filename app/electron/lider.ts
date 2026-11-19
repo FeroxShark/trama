@@ -74,6 +74,7 @@ import { conClaves } from "./claves.ts";
 import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTramaApp, tramaParaAcp } from "./mcp.ts";
 import { paraAcp, resueltos } from "./mcp-config.ts";
 import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
+import { partirCodex } from "./codex-stream.ts";
 import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
 import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
 import { parsearModelo } from "./dsh.ts";
@@ -106,6 +107,8 @@ const CLAUDE = resolverClaude(process.env, HOME);
 const PUENTE_AGY = path.join(import.meta.dirname, `agy-puente${path.extname(import.meta.filename)}`);
 /** El puente de un líder de DeepSeek Harness (electron/dsh-puente.ts): habla como `claude -p` y por dentro corre `dsh --profile acp`. */
 const PUENTE_DSH = path.join(import.meta.dirname, `dsh-puente${path.extname(import.meta.filename)}`);
+/** El puente de un líder de ChatGPT (electron/codex-puente.ts): habla como `claude -p` y por dentro corre `codex exec --json`, un proceso por turno. */
+const PUENTE_CODEX = path.join(import.meta.dirname, `codex-puente${path.extname(import.meta.filename)}`);
 /** `claude` por `resolverClaude` + `paraLanzar` (en Windows un `.cmd` de npm no se lanza directo). */
 const spawnClaude = (args: string[], op: SpawnOptions): ChildProcess => {
   const l = paraLanzar(CLAUDE, args);
@@ -546,12 +549,19 @@ async function extraDe(modelo: string, cwd: string | undefined): Promise<Extra> 
     if (!parsearOpencode(modelo)) throw errorT("main.opencodeModelo", { v: modelo.slice(0, 80) });
     return { prefacio: await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME), motor: "opencode", modelo: modelo.replace(/^opencode:/, "") }).catch((e) => (silencio("contexto-opencode")(e), "")) };
   }
+  // ChatGPT (codex-puente.ts): codex lee AGENTS.md pero no los CLAUDE.md de la persona: el mismo prefacio que dsh, con lo de codex.
+  if (clase === "codex") return { prefacio: await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME), motor: "codex", modelo }).catch((e) => (silencio("contexto-codex")(e), "")) };
   return {};
 }
 
-/** Un modelo de Gemini viene como `gemini-4-argon` + `low|medium|high` o todo junto (`gemini-4-argon-high`, el contrato de modelos.json): siempre queda partido. */
+/** Un modelo de Gemini viene como `gemini-4-argon` + `low|medium|high` o todo junto (`gemini-4-argon-high`, el contrato de modelos.json): siempre queda partido. Uno de ChatGPT, igual (`codex:gpt-6.1-sol-high`, el id de `pa`). */
 function normalizar(modelo: string, effort: string): { modelo: string; effort: string } {
-  return claseDeModelo(modelo) === "gemini" ? partirGemini(modelo, effort) : { modelo, effort };
+  const c = claseDeModelo(modelo);
+  if (c === "codex") {
+    const x = partirCodex(modelo, effort);
+    return { modelo: `codex:${x.modelo}`, effort: x.effort };
+  }
+  return c === "gemini" ? partirGemini(modelo, effort) : { modelo, effort };
 }
 
 /** El entorno de un puente (agy / dsh / opencode) sobre los cortes del líder (`electron/cortes.ts`). */
@@ -564,7 +574,7 @@ function cortesParaPuente(g: Guardado, clase: Clase, relevo: string | undefined)
   } catch {
     /* sin relevo legible */
   }
-  const fam: Familia = clase === "gemini" ? "gemini" : clase === "dsh" ? "dsh" : "opencode";
+  const fam: Familia = clase === "gemini" ? "gemini" : clase === "dsh" ? "dsh" : clase === "codex" ? "codex" : "opencode";
   return {
     ...(g.cortes?.length ? { TRAMA_CORTES: JSON.stringify(g.cortes.slice(-50)) } : {}),
     ...(completo && !existsSync(lado(g.sid, fam)) ? { TRAMA_SIN_REPETIR: "1" } : {}),
@@ -615,7 +625,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   const relevo = existsSync(archivoRelevo(g.sid)) ? archivoRelevo(g.sid) : undefined;
   // Los puentes de agy / dsh / opencode no repiten en una sesión nueva lo que se descartó al volver atrás; y si el relevo es de una vuelta atrás o
   // de una rama (trae toda la conversación hasta el punto), tampoco repiten lo suyo: ya está en el relevo.
-  const cortesPuente: NodeJS.ProcessEnv = clase === "gemini" || clase === "dsh" || clase === "opencode" ? cortesParaPuente(g, clase, relevo) : {};
+  const cortesPuente: NodeJS.ProcessEnv = clase === "gemini" || clase === "dsh" || clase === "opencode" || clase === "codex" ? cortesParaPuente(g, clase, relevo) : {};
   // Los servidores MCP propios de Trama (Ajustes > Conectores), sólo a líderes. Un archivo 0600 / el entorno del puente, nunca el argv; un fallo no impide lanzar.
   let mcpClaude: string | undefined;
   let mcpAcp = "";
@@ -648,9 +658,16 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   } catch (e) {
     silencio("cierre-cupo-lanzar")(e);
   }
-  const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : clase === "opencode" ? "opencode" : path.basename(CLAUDE).replace(/\.(exe|cmd|bat)$/i, "");
+  const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : clase === "opencode" ? "opencode" : clase === "codex" ? "codex" : path.basename(CLAUDE).replace(/\.(exe|cmd|bat)$/i, "");
   const p =
-    clase === "opencode"
+    clase === "codex"
+      ? spawn(
+          process.execPath,
+          [PUENTE_CODEX, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--effort", g.effort, "--cwd", base.cwd, "--modo", g.modo ?? MODO_DEFAULT],
+          // Como el de Gemini: el Electron del motor como Node pelado. codex usa su login de ChatGPT (el puente saca OPENAI_API_KEY); el prefacio va por el entorno.
+          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_CODEX_PREFACIO: [LINEA_CHAT, extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_CODEX_RELEVO: relevo } : {}) } },
+        )
+      : clase === "opencode"
       ? spawn(
           process.execPath,
           [PUENTE_DSH, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--cwd", base.cwd, ...(g.effort ? ["--effort", g.effort] : [])],
@@ -1532,7 +1549,7 @@ const conVista = (g: Guardado) => !!(g.cambios?.length || g.cortes?.length || g.
 
 /** De qué motor es el transcript de un sid que no está en `lideres.json` (Claude si no hay de ninguno de los otros). */
 async function familiaDeTranscript(sid: string): Promise<Familia> {
-  for (const f of ["gemini", "dsh", "opencode"] as const) if (await transcriptFamilia(sid, f)) return f;
+  for (const f of ["gemini", "dsh", "opencode", "codex"] as const) if (await transcriptFamilia(sid, f)) return f;
   return "claude";
 }
 
@@ -1868,7 +1885,7 @@ async function anotar(
   }
   const t = await transcriptDe(sid);
   if (!t) return { ok: false, motivo: "sinSesion" };
-  const deLaFamilia = t === transcriptGemini(sid) ? "gemini" : t === transcriptDsh(sid) ? "dsh" : t === transcriptOpencode(sid) ? "opencode" : "claude";
+  const deLaFamilia = t === transcriptGemini(sid) ? "gemini" : t === transcriptDsh(sid) ? "dsh" : t === transcriptOpencode(sid) ? "opencode" : t === transcriptCodex(sid) ? "codex" : "claude";
   const f = await open(t, "r").catch(() => null);
   if (!f) return { ok: false, motivo: "sinSesion" };
   let cwd: string | null;
@@ -2383,6 +2400,8 @@ export async function transcriptDe(sid: string, cwd?: string): Promise<string | 
   if (await hay(dsh)) return dsh;
   const opencode = transcriptOpencode(sid);
   if (await hay(opencode)) return opencode;
+  const codex = transcriptCodex(sid);
+  if (await hay(codex)) return codex;
   for (const d of await readdir(PROYECTOS).catch(() => [] as string[])) {
     const f = path.join(PROYECTOS, d, `${sid}.jsonl`);
     if (await hay(f)) return f;
@@ -2394,7 +2413,7 @@ export async function transcriptDe(sid: string, cwd?: string): Promise<string | 
 export async function transcriptFamilia(sid: string, familia: Familia, cwd?: string): Promise<string | null> {
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
   const hay = (f: string) => access(f).then(() => true, () => false);
-  const propio = familia === "gemini" ? transcriptGemini(sid) : familia === "dsh" ? transcriptDsh(sid) : familia === "opencode" ? transcriptOpencode(sid) : null;
+  const propio = familia === "gemini" ? transcriptGemini(sid) : familia === "dsh" ? transcriptDsh(sid) : familia === "opencode" ? transcriptOpencode(sid) : familia === "codex" ? transcriptCodex(sid) : null;
   if (propio) return (await hay(propio)) ? propio : null;
   const directa = path.join(PROYECTOS, dirProyecto(cwd ?? HOME), `${sid}.jsonl`);
   if (await hay(directa)) return directa;
@@ -2439,6 +2458,9 @@ export const transcriptDsh = (sid: string) => path.join(ESTADO, "dsh", `${sid}.j
 
 /** El transcript de un líder de opencode (lo escribe el mismo puente que el de dsh): `$HILOS_STATE/opencode/<sid>.jsonl`. */
 export const transcriptOpencode = (sid: string) => path.join(ESTADO, "opencode", `${sid}.jsonl`);
+
+/** El transcript de un líder de ChatGPT (lo escribe su puente, codex-puente.ts): `$HILOS_STATE/codex/<sid>.jsonl`. */
+export const transcriptCodex = (sid: string) => path.join(ESTADO, "codex", `${sid}.jsonl`);
 
 /** Dónde va a estar el transcript de un líder de la app (antes de su primer turno no existe). */
 export const transcriptPorDefecto = (sid: string) => path.join(PROYECTOS, dirProyecto(HOME), `${sid}.jsonl`);

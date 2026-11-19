@@ -234,3 +234,28 @@ export function partirCodex(modelo: string, effort?: string | null): { modelo: s
   if (m) return { modelo: m[1]!, effort: m[2]! };
   return { modelo: base, effort: effort && ["low", "medium", "high"].includes(effort) ? effort : "medium" };
 }
+
+/** El sandbox de codex para el modo de permisos del líder. */
+export const sandboxDe = (m: string): string => (m === "plan" ? "read-only" : m === "bypassPermissions" ? "danger-full-access" : "workspace-write");
+
+/** Lo que se le pasa a codex: el turno por la entrada estándar (`-`) y, si hay, la conversación que retoma. */
+export function argsCodex(x: { modelo: string; effort: string; sandbox: string; cwd: string; imagenes: string[]; thread: string | null }): string[] {
+  return [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "-m",
+    x.modelo,
+    "-c",
+    `model_reasoning_effort="${x.effort}"`,
+    "-c",
+    'approval_policy="never"',
+    "--sandbox",
+    x.sandbox,
+    "-C",
+    x.cwd,
+    ...x.imagenes.flatMap((i) => ["-i", i]),
+    ...(x.thread ? ["resume", x.thread] : []),
+    "-",
+  ];
+}

@@ -13,7 +13,8 @@ import { actividadApp } from "./actividad-lider.ts";
 import { cacheDe } from "./cache.ts";
 import { textoT } from "./errores.ts";
 import { ESTADO, escribirAtomico, PA_STATE } from "./pa.js";
-import { lideresApp, procDe, transcriptDe, transcriptDsh, transcriptFamilia, transcriptGemini, transcriptOpencode, transcriptPorDefecto, usoVisto } from "./lider.js";
+import { lideresApp, procDe, transcriptDe, transcriptDsh, transcriptFamilia, transcriptGemini, transcriptOpencode,
+  transcriptCodex, transcriptPorDefecto, usoVisto } from "./lider.js";
 import { claseDeModelo, familiaDeModelo } from "./modelos-config.js";
 import { real, registro, rutasDeBarra, vivosDe, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
@@ -162,7 +163,7 @@ async function deQueTrata(sid: string, cwd: string | null, sesion: string, regs:
   // Un líder de Gemini (o de dsh) no escribe en `~/.claude/projects`: su puente guarda el transcript en `$HILOS_STATE/gemini/` (agy-puente.ts) o `$HILOS_STATE/dsh/` (dsh-puente.ts).
   // `modelo`: el de con que empezó la conversación (si cambió de motor, el título sale del primer transcript, no del último).
   const clase = modelo ? claseDeModelo(modelo) : "claude";
-  const archivo = cwd === null ? (clase === "gemini" ? transcriptGemini(sid) : clase === "dsh" ? transcriptDsh(sid) : clase === "opencode" ? transcriptOpencode(sid) : transcriptPorDefecto(sid)) : (await transcriptFamilia(sid, familiaDeModelo(modelo ?? "claude"), cwd).catch(() => null)) ?? (await transcriptDe(sid, cwd).catch(() => null));
+  const archivo = cwd === null ? (clase === "gemini" ? transcriptGemini(sid) : clase === "dsh" ? transcriptDsh(sid) : clase === "opencode" ? transcriptOpencode(sid) : clase === "codex" ? transcriptCodex(sid) : transcriptPorDefecto(sid)) : (await transcriptFamilia(sid, familiaDeModelo(modelo ?? "claude"), cwd).catch(() => null)) ?? (await transcriptDe(sid, cwd).catch(() => null));
   const t = await temaDe(sid, archivo);
   // El título corto de Haiku, si ya llegó; mientras tanto (o sin modelo) vale el recorte del primer mensaje (`tituloCorto`).
   await cargarGenerados();

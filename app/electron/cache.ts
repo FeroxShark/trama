@@ -13,13 +13,14 @@ export type Cache = { cache_ttl_s: number | null; cache_vence: number | null };
  *  - gemini (agy): caché implícito de Google, sin TTL documentado ni señal por pedido;
  *  - dsh / opencode: DeepSeek cachea en disco, sin ventana fija (horas a días, "best effort"); los modelos gratis de OpenCode
  *    Zen cobran $0 por lectura de caché pero no dicen cuánto vive;
+ *  - codex (ChatGPT): caché automático de OpenAI, sin TTL que el stream diga;
  *  - ollama / local: no hay caché de prompt que venza, hay un modelo cargado en memoria hasta su `keep_alive`.
  */
-export type MotorCache = "claude" | "gemini" | "dsh" | "opencode" | "ollama";
+export type MotorCache = "claude" | "gemini" | "dsh" | "opencode" | "ollama" | "codex";
 
 export function motorDeCache(modelo: string | null | undefined): MotorCache {
   const m = modelo ?? "";
-  return m.startsWith("dsh:") ? "dsh" : m.startsWith("opencode:") ? "opencode" : m.startsWith("ollama:") ? "ollama" : /^(?:gemini-|agy:)/.test(m) ? "gemini" : "claude";
+  return m.startsWith("codex:") ? "codex" : m.startsWith("dsh:") ? "dsh" : m.startsWith("opencode:") ? "opencode" : m.startsWith("ollama:") ? "ollama" : /^(?:gemini-|agy:)/.test(m) ? "gemini" : "claude";
 }
 
 /** ¿Tiene sentido mostrar "le quedan N min de caché" (y "Uncached") para este modelo? Sin modelo (se desconoce) se asume Claude. */

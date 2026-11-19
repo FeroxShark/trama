@@ -196,17 +196,17 @@ export type ModelosConfig = {
 };
 
 /** Qué clase de líder es un modelo: el `claude` de siempre, `agy` (Gemini), Ollama (el mismo `claude` contra otro endpoint) o `dsh` (DeepSeek Harness, `dsh:<proveedor>/<modelo>`). */
-export type Clase = "claude" | "gemini" | "ollama" | "dsh" | "opencode";
+export type Clase = "claude" | "gemini" | "ollama" | "dsh" | "opencode" | "codex";
 
 export const claseDeModelo = (modelo: string): Clase =>
-  modelo.startsWith("dsh:") ? "dsh" : modelo.startsWith("opencode:") ? "opencode" : modelo.startsWith("ollama:") ? "ollama" : /^(?:gemini-|agy:)/.test(modelo) ? "gemini" : "claude";
+  modelo.startsWith("codex:") ? "codex" : modelo.startsWith("dsh:") ? "dsh" : modelo.startsWith("opencode:") ? "opencode" : modelo.startsWith("ollama:") ? "ollama" : /^(?:gemini-|agy:)/.test(modelo) ? "gemini" : "claude";
 
 /**
  * El proceso que corre un líder: Gemini y dsh tienen puente propio y no cruzan con `claude` (ni entre sí) en la misma sesión;
  * `claude` y Ollama son el mismo `claude`. Cambiar de familia en una sesión no se puede (otro transcript, otro motor); dentro de
  * la misma, cambiar de modelo sí (dsh y Gemini relanzan su puente).
  */
-export const familiaDeModelo = (modelo: string): "claude" | "gemini" | "dsh" | "opencode" => {
+export const familiaDeModelo = (modelo: string): "claude" | "gemini" | "dsh" | "opencode" | "codex" => {
   const c = claseDeModelo(modelo);
   return c === "ollama" ? "claude" : c;
 };

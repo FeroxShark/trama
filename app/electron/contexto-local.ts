@@ -257,11 +257,18 @@ export const PROMPT_OPENCODE = PROMPT_DSH.replace(
   "corrés dentro de opencode (`opencode acp`), no como Claude ni dentro de DeepSeek Harness.",
 ).replace("las de dsh", "las de opencode");
 
+/** Lo mismo para un líder de ChatGPT (`codex exec`, que lee AGENTS.md pero no CLAUDE.md): sus herramientas son las de codex. */
+export const PROMPT_CODEX = PROMPT_DSH.replace(
+  "corrés dentro de DeepSeek Harness (`dsh`), no como Claude.",
+  "corrés como ChatGPT dentro de `codex` (OpenAI), no como Claude.",
+).replace("Tus herramientas son las de dsh (bash, read, write, edit, glob, grep y la web).", "Tus herramientas son las de codex (la terminal y la edición de archivos).")
+  .replace("leelo con read", "leelo con la terminal (`cat`)");
+
 /**
  * El prefacio completo de un líder de dsh u opencode en `cwd` (ver `PROMPT_DSH`/`PROMPT_OPENCODE`). `modelo`: el id con el que lo lanzó
  * Trama; se le dice tal cual, así cuando le preguntan qué modelo es no adivina por el nombre del harness.
  */
-export const prefacioDsh = (x: { home: string; cwd?: string; pa?: string; motor?: "dsh" | "opencode"; modelo?: string; deps?: Partial<DepsContexto> }): Promise<string> => {
-  const base = x.motor === "opencode" ? PROMPT_OPENCODE : PROMPT_DSH;
+export const prefacioDsh = (x: { home: string; cwd?: string; pa?: string; motor?: "dsh" | "opencode" | "codex"; modelo?: string; deps?: Partial<DepsContexto> }): Promise<string> => {
+  const base = x.motor === "opencode" ? PROMPT_OPENCODE : x.motor === "codex" ? PROMPT_CODEX : PROMPT_DSH;
   return prefacioCon(x.modelo ? `${base}\nEl modelo con el que corrés es \`${x.modelo}\`; si te preguntan qué modelo sos, decí ese.` : base, x);
 };

@@ -109,7 +109,7 @@ test("hijoEnGrupo: Linux sí (kill(-pid)); Windows no: `detached` le quitaría l
   assert.equal(hijoEnGrupo("darwin"), true);
   assert.equal(hijoEnGrupo("win32"), false);
   // Quien lanza líderes, agy o chequeos con pipes no puede volver a `detached: true` pelado (en Windows = DETACHED_PROCESS).
-  for (const f of ["agy-puente.ts", "lider.ts", "salud.ts"]) {
+  for (const f of ["agy-puente.ts", "codex-puente.ts", "lider.ts", "salud.ts"]) {
     const src = readFileSync(new URL(`../electron/${f}`, import.meta.url), "utf8");
     assert.doesNotMatch(src, /detached: true, windowsHide/, `${f}: detached: true + windowsHide`);
     assert.match(src, /detached: hijoEnGrupo\(\), windowsHide: true/, `${f}: usa hijoEnGrupo()`);

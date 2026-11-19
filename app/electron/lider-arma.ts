@@ -1043,7 +1043,7 @@ export type Crudo = {
   /** Es anterior a la última compactación: el `claude` no lo alcanza con `--resume-session-at` y hace falta una copia. */
   previa?: boolean;
   /** En una conversación con cortes o cambios de motor (`unirConvs`): el motor de cuyo transcript sale. Sin él (una parte heredada de otro líder) el mensaje no está en ningún transcript de este. */
-  motor?: "claude" | "gemini" | "dsh" | "opencode";
+  motor?: "claude" | "gemini" | "dsh" | "opencode" | "codex";
   /** Lo que dice de dónde salió (espejo de `Mensaje` en src/datos/contrato.ts; src/hilo/sistema-logica.ts). */
   marcas: Marcas;
   /** Las imágenes que mandó el usuario (B26). */
