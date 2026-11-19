@@ -1,5 +1,17 @@
 # Changes
 
+## 0.3.5
+
+- «Review with another model» no longer breaks the chat with «Something went wrong» when you open it.
+- «Not worth it» in Settings > Models now measures cost with your subscription (what each plan gives), not with API prices. Your Claude plan is detected automatically and the data updates in the background.
+- The model selector always shows every provider, OpenAI (ChatGPT) included. The ones you haven't connected say «Not connected», and picking one shows «Connect», which takes you to Settings.
+- Every path in the chat has a button to copy it.
+- Artificial Analysis stays up to date on its own, without opening Settings.
+- The tick on the weekly ring explains what it is: the even pace for the week.
+- If Gemini has no Google session, it says so instead of «plugin not loaded».
+- The low-quota notice answers in the chat's language.
+- Narrow sidebar: the pending chips no longer overlap, and «Archive» and «Close lead» stay inside the row.
+
 ## 0.3.4
 
 - «Report a bug» now has «Send anonymously»: only the developer gets the report, without your name, account or IP, and nothing is posted on GitHub. The screenshot is regenerated before it is stored. «Open on GitHub» is still there as a second option.

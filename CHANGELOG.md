@@ -1,5 +1,17 @@
 # Cambios
 
+## 0.3.5
+
+- «Revisar con otro modelo» ya no rompe el chat con «Something went wrong» al abrirlo.
+- «No conviene» en Ajustes > Modelos mide el costo con tu suscripción (cuánto da cada plan), no con el precio de la API. Tu plan de Claude se detecta solo y los datos se actualizan de fondo.
+- El selector de modelos muestra siempre todos los proveedores, también OpenAI (ChatGPT). Los que no tenés conectados dicen «Sin conectar», y al elegirlos aparece «Conectar», que te lleva a Ajustes.
+- Al lado de cada ruta del chat hay un botón para copiarla.
+- Artificial Analysis se mantiene al día solo, sin abrir Ajustes.
+- La rayita del anillo semanal explica qué es: el ritmo parejo de la semana.
+- Si Gemini no tiene sesión de Google, se dice así en vez de «plugin no cargado».
+- El aviso de cupo bajo te contesta en el idioma del chat.
+- Barra angosta: los chips de pendientes ya no se pisan, y «Archivar» y «Cerrar líder» quedan dentro de la fila.
+
 ## 0.3.4
 
 - «Reportar un bug» tiene «Enviar anónimo»: el reporte le llega sólo al desarrollador, sin tu nombre, tu cuenta ni tu IP, y no se publica en GitHub. La captura se vuelve a generar antes de guardarla. «Abrir en GitHub» sigue como segunda opción.
