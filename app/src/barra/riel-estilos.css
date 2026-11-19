@@ -780,9 +780,11 @@
   color: var(--acento-texto);
   filter: brightness(1.08);
 }
+/* Con la barra angosta los chips y el orden no entran en una fila: el orden baja a la línea de abajo (a la derecha), sin pisarse. */
 .resumen {
   display: flex;
   min-height: 1.875rem;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--esp-1);
   padding: 0 var(--esp-3) var(--esp-1) var(--esp-2-5);
