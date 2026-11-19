@@ -8,7 +8,7 @@ import type { Opcion } from "./Selector";
 import { GENERAL, type Lider } from "../datos/contrato";
 import { defDe, effortDeModelo, effortsDe, EMPRESAS, type Empresa, partirGeminiId, ponerConfig, porClave, TABLA, type ConfigModelos, type ModeloDef } from "./modelos";
 import { Logo } from "./Logos";
-import { conectarEmpresa } from "./conectar";
+import { marcaConexion } from "./conectar";
 
 // La descripción se dice al leerla: cambia con el idioma sin rearmar las listas.
 // (Un spread `{ ...o }` copia el texto del momento: hacerlo al pintar.)
@@ -40,7 +40,7 @@ const opcionDe = (m: ModeloDef) =>
       ...(m.gratis ? { gratis: true } : {}),
       ...(m.go ? { go: true } : {}),
       // Su proveedor no está conectado: atenuado, con «Sin conectar», y elegirlo ofrece «Conectar» (abre Ajustes en ese proveedor) en vez de cambiar el modelo.
-      ...(m.sinConectar ? { sinConectar: true, conectar: () => conectarEmpresa(m.empresa) } : {}),
+      ...marcaConexion(m),
       // DeepSeek Harness con la API de DeepSeek: tu clave, se paga por uso (los de Ollama de dsh corren acá y no cuestan).
       ...(m.id.startsWith("dsh:deepseek/") ? { pago: true } : {}),
     },

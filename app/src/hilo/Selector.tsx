@@ -10,6 +10,7 @@ import { t } from "../i18n";
 import { Reserva } from "../i18n/Fijo";
 import { cuandoFuturo } from "../tiempo";
 import { ChipLocal } from "./Logos";
+import { alTocar } from "./conectar";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import type { EstadoCupo } from "./cupo-modelos.ts";
 import { filtrar, moverEsfuerzo, repartir, type Flecha } from "./selector-columnas";
@@ -280,10 +281,10 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
 
   /** Un clic en una opción: sin conectar sólo ofrece «Conectar»; con otro motor pide confirmar; si no, elige. */
   const tocar = (o: Opcion) => {
-    if (o.sinConectar) return setConectando(o.id);
+    if (alTocar(o, false) === "conectar") return setConectando(o.id);
     const datos = confirmar?.(o.id);
     // Otro motor: el menú sigue abierto y el chip como estaba hasta que se confirme.
-    if (datos) return setPend({ id: o.id, datos });
+    if (alTocar(o, !!datos) === "confirmar") return setPend({ id: o.id, datos: datos! });
     alElegirOpcion(o.id);
   };
 

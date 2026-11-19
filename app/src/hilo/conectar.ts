@@ -21,3 +21,12 @@ export const conectarEmpresa = (empresa: Empresa): void => {
   const d = DESTINO_CONECTAR[empresa];
   abrirAjustes(d.cat, d.opc);
 };
+
+/**
+ * Qué hace tocar una opción del selector: un modelo de un proveedor sin conectar NO se elige (el menú ofrece «Conectar»); uno de otro motor
+ * pide confirmar; el resto se elige. Lo usa `Selector.tsx` y lo prueba tests/selector-conectar.test.ts.
+ */
+export const alTocar = (o: { sinConectar?: boolean }, pideConfirmar: boolean): "conectar" | "confirmar" | "elegir" => (o.sinConectar ? "conectar" : pideConfirmar ? "confirmar" : "elegir");
+
+/** Lo que una opción del selector lleva si su proveedor no está conectado: la marca y lo que hace «Conectar». Vacío si está conectado. */
+export const marcaConexion = (m: { empresa: Empresa; sinConectar?: boolean }): { sinConectar?: true; conectar?: () => void } => (m.sinConectar ? { sinConectar: true, conectar: () => conectarEmpresa(m.empresa) } : {});

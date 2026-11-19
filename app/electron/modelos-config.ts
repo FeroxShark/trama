@@ -388,14 +388,15 @@ export const localOllama = (id: string, cfg: ModelosConfig | null = modelosConfi
  * Lo que sabe el renderer: sin url ni nada que no sea para mostrar (`src/datos/modelos-config.ts`). Gemini está si el archivo
  * lo habilita o es el líder por defecto. `null`: no hay archivo y todo es como siempre (ni `agy`, ni `dsh`, ni modelos locales).
  */
-export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false, opencode: string[] = [], opencodeEfforts: Record<string, string[]> = {}, opencodePlan: string = "gratis", agyModelos: { id: string; nombre: string }[] = [], claudeModelos: ModeloClaudeCuenta[] | null = null) {
+export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false, opencode: string[] = [], opencodeEfforts: Record<string, string[]> = {}, opencodePlan: string = "gratis", agyModelos: { id: string; nombre: string }[] = [], claudeModelos: ModeloClaudeCuenta[] | null = null, conexion: Record<string, boolean> | null = null) {
   // El plan de OpenCode Go sólo viaja si está prendido (go / go-plus): el selector rotula así sus modelos. Sin plan Go, nada cambia.
   // Los modelos que `agy models` ofrece en esta cuenta (ids de pa); sin la lista, el selector muestra los de siempre.
   const ag = agy && agyModelos.length ? { agyModelos } : {};
   // Los de Claude que ofrece la cuenta (catálogo del `claude`); sin catálogo, la tabla de siempre.
   const cl = claudeModelos?.length ? { claudeModelos } : {};
-  const ef = { ...ag, ...cl, ...(opencode.length && Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {}), ...(opencode.length && (opencodePlan === "go" || opencodePlan === "go-plus") ? { opencodePlan } : {}) };
-  if (!cfg) return agy || llama.length || dsh || opencode.length ? { version: 1, gemini: agy, dsh, ...(opencode.length ? { opencode } : {}), ...ef, locales: [], llama, lider: null } : null;
+  // Con `conexion` el selector muestra a todos los proveedores y marca «Sin conectar» a los que no están listos.
+  const ef = { ...ag, ...cl, ...(conexion ? { conexion } : {}), ...(opencode.length && Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {}), ...(opencode.length && (opencodePlan === "go" || opencodePlan === "go-plus") ? { opencodePlan } : {}) };
+  if (!cfg) return agy || llama.length || dsh || opencode.length || conexion ? { version: 1, gemini: agy, dsh, ...(opencode.length ? { opencode } : {}), ...ef, locales: [], llama, lider: null } : null;
   return {
     version: 1,
     // DeepSeek Harness se ofrece si `dsh` está instalado o ya es el líder por defecto.

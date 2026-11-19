@@ -4,11 +4,11 @@
 import { main } from "../puente";
 import { MODO } from "../modo";
 import { LLAMA_FIJOS } from "./fixtures";
-import type { ConfigModelos, ModeloClaudeCuenta } from "../hilo/modelos";
+import { EMPRESAS, type ConfigModelos, type Empresa, type ModeloClaudeCuenta } from "../hilo/modelos";
 
 /** Lo que mandó el main, validado: lo que no se entiende no entra. */
 export function configValida(x: unknown): ConfigModelos | null {
-  const o = x as { version?: unknown; gemini?: unknown; dsh?: unknown; opencode?: unknown; opencodeEfforts?: unknown; opencodePlan?: unknown; agyModelos?: unknown; claudeModelos?: unknown; locales?: unknown; llama?: unknown; lider?: unknown } | null;
+  const o = x as { version?: unknown; gemini?: unknown; dsh?: unknown; opencode?: unknown; opencodeEfforts?: unknown; opencodePlan?: unknown; agyModelos?: unknown; claudeModelos?: unknown; conexion?: unknown; locales?: unknown; llama?: unknown; lider?: unknown } | null;
   if (!o || typeof o !== "object" || o.version !== 1) return null;
   const locales = (Array.isArray(o.locales) ? o.locales : [])
     .filter((l): l is { id: string; nombre: string; modelo?: unknown } => !!l && typeof l.id === "string" && l.id.startsWith("ollama:") && typeof l.nombre === "string")
@@ -34,9 +34,16 @@ export function configValida(x: unknown): ConfigModelos | null {
   const claudeModelos = (Array.isArray(o.claudeModelos) ? o.claudeModelos : [])
     .filter((m): m is ModeloClaudeCuenta => !!m && typeof m.id === "string" && /^claude-[a-z0-9][\w.-]{0,60}$/i.test(m.id) && typeof m.nombre === "string" && Array.isArray(m.efforts))
     .map((m) => ({ id: m.id, nombre: m.nombre.slice(0, 60), principal: m.principal === true, efforts: m.efforts.filter((e): e is string => typeof e === "string" && /^[a-z]{2,10}$/.test(e)), familia: typeof m.familia === "string" ? m.familia : "" }));
+  // Qué proveedores están conectados; sólo los booleanos de empresas que conocemos. Sin la clave, el selector es el de antes.
+  const conexion: Partial<Record<Empresa, boolean>> = {};
+  if (o.conexion && typeof o.conexion === "object" && !Array.isArray(o.conexion))
+    for (const e of Object.keys(EMPRESAS) as Empresa[]) {
+      const v = (o.conexion as Record<string, unknown>)[e];
+      if (typeof v === "boolean") conexion[e] = v;
+    }
   const l = o.lider as { modelo?: unknown; effort?: unknown } | null;
   const lider = l && typeof l.modelo === "string" ? { modelo: l.modelo, effort: typeof l.effort === "string" ? l.effort : null } : null;
-  return { gemini: o.gemini === true, ...(agyModelos.length ? { agyModelos } : {}), ...(claudeModelos.length ? { claudeModelos } : {}), ...(o.dsh === true ? { dsh: true } : {}), ...(opencode.length ? { opencode } : {}), ...(Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {}), ...(opencode.length && opencodePlan ? { opencodePlan } : {}), locales, llama, lider };
+  return { gemini: o.gemini === true, ...(Object.keys(conexion).length ? { conexion } : {}), ...(agyModelos.length ? { agyModelos } : {}), ...(claudeModelos.length ? { claudeModelos } : {}), ...(o.dsh === true ? { dsh: true } : {}), ...(opencode.length ? { opencode } : {}), ...(Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {}), ...(opencode.length && opencodePlan ? { opencodePlan } : {}), locales, llama, lider };
 }
 
 /** Pide la configuración al main; si tarda más de `tope` ms (el motor reconectando) se sigue sin ella. */

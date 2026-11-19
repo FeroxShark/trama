@@ -99,6 +99,7 @@ import { guardarClave, leerClaves } from "./claves.ts";
 import { estadoAA, refrescarAA } from "./artificial-analysis.ts";
 import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
 import { cuentasDeEstaMaquina } from "./cuentas.ts";
+import { conexionDe, cuentasConCache, olvidarConexion } from "./conexion-modelos.ts";
 import { enTerminal } from "./actualizador.ts";
 import { armarReporte } from "./reporte.ts";
 import { bajarReportes, claveLectura, enviarReporte, urlReportes } from "./reporte-anonimo.ts";
@@ -1107,7 +1108,14 @@ export function armarNucleo() {
   // Los paneles del pie: Ajustes, Estadísticas y las acciones de Ramas.
   // Con agy, los modelos son los que ofrece SU cuenta (`reparto --agy-modelos`, con caché); se calienta al arrancar para que el primer pedido no espere.
   if (hayAgy()) void agyOfrecidos();
-  manejar("modelos:config", async () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales(), hayDsh(), modelosOpencode(), effortsOpencode(), planOpencode(), hayAgy() ? ((await agyOfrecidos()) ?? []) : [], modelosClaudeCuenta()));
+  manejar("modelos:config", async () => {
+    const llama = vistaLocales();
+    const cfg = modelosConfig();
+    const opencode = modelosOpencode();
+    // Qué proveedores están conectados (sesión de claude, agy y codex; programa de opencode, dsh, locales): el selector los muestra todos y marca «Sin conectar» a los que no.
+    const conexion = conexionDe(await cuentasConCache(cuentasDeEstaMaquina), { agy: hayAgy(), dsh: hayDsh(), opencode: opencode.length > 0, local: llama.length > 0 || (cfg?.locales.length ?? 0) > 0 });
+    return vistaModelos(cfg, hayAgy(), llama, hayDsh(), opencode, effortsOpencode(), planOpencode(), hayAgy() ? ((await agyOfrecidos()) ?? []) : [], modelosClaudeCuenta(), conexion);
+  });
   manejar("dueno:nombre", () => nombreDueno());
   manejar("ajustes:leer", () => leerAjustes());
   // Ajustes editable: el plan y la red de seguridad (ajustes-editar.ts) y el acceso desde el celular (remoto-config.ts).
@@ -1682,7 +1690,11 @@ export function armarNucleo() {
   manejar("setup:estado", () => setupDeEstaMaquina());
   manejar("setup:descartar", (_e, id: unknown) => descartarSetup(id));
   // Ajustes > Cuentas: ¿están conectados Claude y Gemini? Se les pregunta a los CLI al pedirlo (sin reloj ni caché).
-  manejar("cuentas:estado", () => cuentasDeEstaMaquina());
+  manejar("cuentas:estado", () => {
+    // Ajustes mira las sesiones al conectar o desconectar: el selector de modelos no se queda con lo de hace unos segundos.
+    olvidarConexion();
+    return cuentasDeEstaMaquina();
+  });
   // Varias cuentas por proveedor (el CLI `cuentas`): lista, alta, renombre, baja y login. Después de un cambio el cupo se vuelve a pedir.
   // Con una cuenta recién conectada o agregada, su uso se pide ya (sin esperar a la vuelta de cada 5 minutos): si no, queda en «sin dato».
   cuentasVarias(manejar, cuentasDeEstaMaquinaVarias(enTerminal), (que) => {
