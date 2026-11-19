@@ -97,6 +97,8 @@ export interface Caso {
   divergencia?: string;
   /** La salida diverge a propósito del python congelado (política de modelos nueva): el código de salida y el estado se comparan, stdout/stderr no. */
   divergenciaSalida?: string;
+  /** Los archivos de estado divergen a propósito del bash congelado (p. ej. el TS limpia una corrida que murió antes de tomar puesto). */
+  divergenciaEstado?: string;
 }
 
 export interface Resultado {
