@@ -1,5 +1,14 @@
 # Cambios
 
+## 0.3.8
+
+- El visor de imágenes tiene una barra arriba: nombre, medida y «N de M», zoom (−, %, +, Ajustar, 100 %), girar, copiar la imagen o la ruta, «Guardar como…», mostrar en la carpeta, abrir con la app del sistema y cerrar. Con varias imágenes en el chat, flechas a los costados y ← → para pasar de una a otra.
+- Si un líder nombra una carpeta y debajo sólo los nombres de los archivos (audios, imágenes), esos nombres se pueden tocar y abren el visor (#7).
+- «Revisar con otro modelo» puede usar ChatGPT como revisor, en sólo lectura y con tu sesión de ChatGPT.
+- Arrastrar un líder sobre otra carpeta de la barra lo mueve ahí. «Mover a proyecto…» aclara que no cambia su carpeta de trabajo.
+- La barra ya no muestra «sin líder» ni «N terminados»: se ve lo que está vivo, y los terminados salen al buscar.
+- Los chats que lanzó Trama ya no aparecen en «De Claude Code», aunque su líder esté cerrado o archivado.
+
 ## 0.3.7
 
 - Los workers ya no eligen Fable para tareas chicas: si alcanza uno más barato con cupo (Neon, Sonnet, Haiku), va ese. Con cupo semanal de sobra, se gasta en el más barato que alcanza.

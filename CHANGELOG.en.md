@@ -1,5 +1,14 @@
 # Changes
 
+## 0.3.8
+
+- The image viewer has a bar on top: name, size and «N of M», zoom (−, %, +, Fit, 100 %), rotate, copy the image or the path, «Save as…», show in folder, open with the system app and close. With several images in the chat, side arrows and ← → move between them.
+- If a lead names a folder and lists only the file names below it (audio, images), those names can be clicked and open the viewer (#7).
+- «Review with another model» can use ChatGPT as the reviewer, read-only and with your ChatGPT session.
+- Dragging a lead onto another folder in the sidebar moves it there. «Move to project…» makes clear it doesn't change its working folder.
+- The sidebar no longer shows «no lead» or «N done»: you see what's alive, and finished ones show up when searching.
+- Chats launched by Trama no longer appear in «From Claude Code», even if their lead is closed or archived.
+
 ## 0.3.7
 
 - Workers no longer pick Fable for small tasks: if a cheaper model with quota is enough (Neon, Sonnet, Haiku), that one goes. With weekly quota to spare, it's spent on the cheapest one that's enough.
