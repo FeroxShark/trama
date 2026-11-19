@@ -682,7 +682,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "debate.sinRespuesta": "No contestaste a tiempo ({min} min): el debate siguió sin tu respuesta",
   "debate.duenoElegiVos": "Dejaste que decidan los modelos",
   "main.revisorEffortApagado": "El esfuerzo {e} de {v} está apagado en Ajustes > Modelos: elegí otro",
-  "main.revisorNoSirve": "{v} no se puede usar de revisor (sólo Claude o Gemini que no estén desactivados en Ajustes)",
+  "main.revisorNoSirve": "{v} no se puede usar de revisor (sólo Claude, Gemini o ChatGPT con sesión que no estén desactivados en Ajustes)",
   "main.accionRara": "acción rara: {v}",
   "main.rolRaro": "rol desconocido: {v}",
   "main.mensajeVacio": "mensaje vacío",

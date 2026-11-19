@@ -9,14 +9,16 @@ import { readFile, stat } from "node:fs/promises";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { entornoAgy, paraLanzar, resolverAgy, resolverClaude } from "./binario.ts";
+import { entornoAgy, paraLanzar, resolverAgy, resolverClaude, resolverCodex } from "./binario.ts";
+import { argsCodex, partirCodex } from "./codex-stream.ts";
+import { correrReal, sondearCodex } from "./cuentas.ts";
 import { llamadaAgy } from "./agy-llamada.ts";
 import { errorT } from "./errores.ts";
 import { entornoLider } from "./lider-arma.ts";
 import { claseDeModelo, idAgy, modeloAgy, partirGemini } from "./modelos-config.ts";
 import { reglaDeExcluir, familiaClaude } from "./reparto-claude.ts";
 import { matarArbol } from "./procesos.ts";
-import { LectorAgy, LectorClaude, type Avance } from "./revision-flujo.ts";
+import { LectorAgy, LectorClaude, LectorCodex, type Avance } from "./revision-flujo.ts";
 import { mensajeParaLider, parsearRevision, promptRevisor, sinComillas, type ArchivoAdjunto, type RevisionVista } from "./revision-plan-texto.ts";
 
 export * from "./revision-plan-texto.ts";
@@ -28,15 +30,23 @@ export const PLAN_MAX = 60_000;
 export const ESPERA_REVISOR_MS = 10 * 60_000;
 
 /**
- * Los modelos que se pueden usar de revisor, de entre `ids`: de Claude o de Gemini (los dos corren de una sola vez y por la
- * suscripción) y que Ajustes > Modelos no tenga desactivados (`excluir`: familia, id o prefijo con `*`, la regla de `reparto`).
+ * Los modelos que se pueden usar de revisor, de entre `ids`: de Claude, de Gemini o de ChatGPT (codex; los tres corren de una sola
+ * vez y por la suscripción) y que Ajustes > Modelos no tenga desactivados (`excluir`: familia, id o prefijo con `*`, la regla de
+ * `reparto`). ChatGPT sólo entra con `codexListo` (codex instalado y con sesión: `codexListo()` lo mira).
  */
-export function revisoresPermitidos(ids: readonly string[], excluir: readonly string[]): string[] {
+export function revisoresPermitidos(ids: readonly string[], excluir: readonly string[], codexListo = false): string[] {
   return ids.filter((id) => {
     const c = claseDeModelo(id);
+    if (c === "codex") return codexListo && !reglaDeExcluir(excluir, id, "codex");
     if (c !== "claude" && c !== "gemini") return false;
     return !reglaDeExcluir(excluir, id, c === "claude" ? familiaClaude(id) : "");
   });
+}
+
+/** ¿Está codex instalado y con la sesión de ChatGPT iniciada? (`codex login status`; nunca falla: ante la duda, no.) */
+export async function codexListo(env: NodeJS.ProcessEnv = process.env, home = os.homedir()): Promise<boolean> {
+  const c = await sondearCodex({ env, home, correr: correrReal }).catch(() => null);
+  return c?.instalado === true && c.logueado === true;
 }
 
 /** Topes de lo que se le adjunta a un revisor que no puede leer el proyecto (Gemini): archivos, bytes por archivo y bytes en total. */
@@ -159,6 +169,9 @@ export async function revisarPlan(
   return vista;
 }
 
+/** Lo que no pasa al hijo de codex: las claves de la API de OpenAI (se usa el login de ChatGPT) y el `CLAUDE_CONFIG_DIR`. */
+const SIN_CLAVES_CODEX = new Set(["CLAUDE_CONFIG_DIR", "OPENAI_API_KEY", "CODEX_API_KEY"]);
+
 /** Cómo terminó un proceso del revisor. */
 type Salida = { rc: number | null; out: string; err: string };
 
@@ -216,15 +229,15 @@ function ejecutar(file: string, args: string[], opc: { cwd: string; env: NodeJS.
 }
 
 /** El nombre del servicio detrás de un revisor, para decirlo en palabras simples. */
-const servicioDe = (clase: "claude" | "gemini") => (clase === "claude" ? "Claude" : "Google AI Pro");
+const servicioDe = (clase: "claude" | "gemini" | "codex") => (clase === "claude" ? "Claude" : clase === "codex" ? "ChatGPT" : "Google AI Pro");
 /** El comando que inicia la sesión de cada servicio, para decirlo en el aviso de «sin sesión». */
-const comandoDe = (clase: "claude" | "gemini") => (clase === "claude" ? "claude" : "agy");
+const comandoDe = (clase: "claude" | "gemini" | "codex") => (clase === "claude" ? "claude" : clase === "codex" ? "codex login" : "agy");
 
 /**
  * Un fallo del revisor en palabras simples (nada de «salió 1»): sin sesión si el servicio dijo que no hay login o que venció; si no,
  * lo último que dijo, si es corto y legible; si no, un texto general. El detalle crudo va al log de quien lo recibe, no a la pantalla.
  */
-export function falloDeRevisor(clase: "claude" | "gemini", dijo: string): Error {
+export function falloDeRevisor(clase: "claude" | "gemini" | "codex", dijo: string): Error {
   const servicio = servicioDe(clase);
   const linea = dijo.trim().split("\n").filter(Boolean).pop()?.replace(/^error:\s*/i, "").trim() ?? "";
   if (/authentication|not logged|log ?in|sign ?in|unauthori[sz]ed|credential|\b401\b|token (?:has )?expired|session expired/i.test(dijo)) return errorT("main.revisorSinSesion", { v: servicio, c: comandoDe(clase) });
@@ -251,6 +264,7 @@ export function respuestaDeAgy(salida: string): string {
 
 /**
  * Corre al revisor de verdad, una sola vez: Claude con `claude -p` (sólo Read, Grep y Glob, para mirar lo que el plan nombra) o
+ * ChatGPT con `codex exec --json` en sólo lectura (`--sandbox read-only`, con el login de ChatGPT: sin `OPENAI_API_KEY` ni `CODEX_API_KEY`) o
  * Gemini con `agy` (en una carpeta vacía, porque `--dangerously-skip-permissions` lo deja escribir y ejecutar: el proyecto no lo lee; `archivosDelPlan` le pega en el prompt lo que el plan nombra). Sin `ANTHROPIC_*` en el entorno: siempre la suscripción.
  * Va contando lo que hace (`o.avance`: pasos y texto vivo) y se corta con `o.señal`.
  */
@@ -292,6 +306,30 @@ export async function correrRevisor(modelo: string, effort: string, prompt: stri
     const r = lector.final ?? lector.ultimoTexto;
     if (r.trim()) return r;
     if (s.rc !== 0) throw falloDeRevisor("claude", s.err);
+    return "";
+  }
+  if (clase === "codex") {
+    const c = partirCodex(modelo, effort);
+    const args = argsCodex({ modelo: c.modelo, effort: c.effort, sandbox: "read-only", cwd: cwd ?? home, imagenes: [], thread: null });
+    const env = entornoAgy(Object.fromEntries(Object.entries(process.env).filter(([k]) => !SIN_CLAVES_CODEX.has(k))), home);
+    const l = paraLanzar(resolverCodex(process.env, home), args, env);
+    const lector = new LectorCodex();
+    const s = await ejecutar(l.file, l.args, {
+      cwd: cwd ?? home,
+      env: env as NodeJS.ProcessEnv,
+      stdin: prompt,
+      verbatim: l.verbatim,
+      espera: ESPERA_REVISOR_MS,
+      señal: o.señal,
+      quien: servicioDe("codex"),
+      linea: (x) => {
+        const a = lector.linea(x);
+        if (a) o.avance(a);
+      },
+    });
+    if (lector.falla) throw falloDeRevisor("codex", lector.falla);
+    if (lector.final?.trim()) return lector.final;
+    if (s.rc !== 0) throw falloDeRevisor("codex", s.err);
     return "";
   }
   if (clase === "gemini") {

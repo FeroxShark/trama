@@ -59,7 +59,7 @@ import {
   type Rama,
 } from "./lider-arma.js";
 import * as puntos from "./puntos.ts";
-import { archivosDelPlan, correrRevisor, effortApagado, revisoresPermitidos, type OpcionesCorrida, type RevisionEstado } from "./revision-plan.ts";
+import { archivosDelPlan, codexListo, correrRevisor, effortApagado, revisoresPermitidos, type OpcionesCorrida, type RevisionEstado } from "./revision-plan.ts";
 import { crearTrabajos, type Pendiente } from "./revision-trabajo.ts";
 import { type EventoDebate, type Participante } from "./debate.ts";
 import { crearDebates } from "./debate-trabajo.ts";
@@ -2084,7 +2084,7 @@ export async function revisarPlanLider(x: { sid: string; id: string; modelo: str
   const q = procs.get(sid)?.pedidos.get(String(x?.id));
   if (!q || q.herramienta !== "ExitPlanMode") throw errorT("main.revisionSinPlan");
   const modelo = String(x.modelo ?? "");
-  if (!revisoresPermitidos([modelo], excluirGuardado()).length) throw errorT("main.revisorNoSirve", { v: modelo });
+  if (!revisoresPermitidos([modelo], excluirGuardado(), claseDeModelo(modelo) === "codex" && (await codexListo())).length) throw errorT("main.revisorNoSirve", { v: modelo });
   const effort = String(x.effort ?? "");
   // Un esfuerzo que el dueño apagó en Ajustes > Modelos no se corre (la ventana tampoco lo ofrece).
   if (effortApagado(modelo, effort, effortsPermitidosGuardado())) throw errorT("main.revisorEffortApagado", { v: modelo, e: effort });
@@ -2125,7 +2125,7 @@ export function debatesDe(correr: typeof correrRevisor = correrRevisor) {
       if (!q || q.herramienta !== "ExitPlanMode") throw errorT("main.revisionSinPlan");
       if (["corriendo", "entregando"].includes((await revisiones.estado(x.sid))?.fase ?? "")) throw errorT("main.revisionYaCorre");
       const participantes = x.participantes as readonly (Participante & { nombre?: string })[];
-      const permitidos = new Set(revisoresPermitidos(participantes.map((p) => String(p.modelo)), excluirGuardado()));
+      const permitidos = new Set(revisoresPermitidos(participantes.map((p) => String(p.modelo)), excluirGuardado(), participantes.some((p) => claseDeModelo(String(p.modelo)) === "codex") && (await codexListo())));
       const efforts = effortsPermitidosGuardado();
       for (const p of participantes) {
         if (!permitidos.has(p.modelo)) throw errorT("main.revisorNoSirve", { v: p.modelo });

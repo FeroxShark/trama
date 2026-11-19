@@ -693,7 +693,7 @@ export const en = {
   "debate.sinRespuesta": "You did not answer in time ({min} min): the debate went on without your answer",
   "debate.duenoElegiVos": "You let the models decide",
   "main.revisorEffortApagado": "Effort {e} for {v} is turned off in Settings > Models: pick another",
-  "main.revisorNoSirve": "{v} cannot be used as a reviewer (only Claude or Gemini that are not turned off in Settings)",
+  "main.revisorNoSirve": "{v} cannot be used as a reviewer (only Claude, Gemini or ChatGPT, signed in and not turned off in Settings)",
   "main.accionRara": "Invalid action: {v}",
   "main.rolRaro": "Unknown role: {v}",
   "main.mensajeVacio": "Empty message",

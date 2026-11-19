@@ -2,11 +2,13 @@
 // revisores permitidos y la orquestación de punta a punta con un revisor simulado (sin gastar cupo).
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, existsSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { crearCola, type Encolado } from "../electron/cola.ts";
 import { crearTrabajos, type Pendiente } from "../electron/revision-trabajo.ts";
-import { LectorAgy, LectorClaude } from "../electron/revision-flujo.ts";
-import { falloDeRevisor, type RevisionEstado } from "../electron/revision-plan.ts";
+import { LectorAgy, LectorClaude, LectorCodex } from "../electron/revision-flujo.ts";
+import { codexListo, correrRevisor, falloDeRevisor, type RevisionEstado } from "../electron/revision-plan.ts";
 import { esperarHasta } from "./esperar.ts";
 import { esfuerzosDeRevisor } from "../src/hilo/esfuerzo-revisor.ts";
 import { effortApagado, effortsPermitidosDe, esfuerzosRevisor, ADJUNTO_BYTES, ADJUNTOS_MAX, ADJUNTOS_TOTAL, archivosDelPlan, rutasDelPlan, leerMensajeRevision, mensajeParaLider, parsearRevision, promptRevisor, revisarPlan, revisoresPermitidos, respuestaDeAgy, type DepsRevision } from "../electron/revision-plan.ts";
@@ -288,4 +290,77 @@ test("esfuerzosDeRevisor: con la tabla de modelos de la ventana (Claude y Gemini
   assert.deepEqual(esfuerzosDeRevisor("claude-opus-5-5", { opus: ["low", "xhigh"] }), { niveles: ["low", "xhigh"], defecto: "xhigh" });
   assert.deepEqual(esfuerzosDeRevisor("gemini-4-argon", null), { niveles: ["low", "medium", "high"], defecto: "high" });
   assert.deepEqual(esfuerzosDeRevisor("gemini-4-argon", { argon: ["low", "medium"] }), { niveles: ["low", "medium"], defecto: "medium" });
+});
+
+// --- ChatGPT (codex) de revisor, con scripts/codex-falso.mjs ---------------------------------------------------------------
+const FALSO_CODEX = path.join(import.meta.dirname, "..", "scripts", "codex-falso.mjs");
+const noWin = { skip: process.platform === "win32" ? "el codex falso es un script de Node con shebang" : false };
+
+test("revisoresPermitidos: ChatGPT sólo entra con codex listo y si Ajustes no lo desactivó", () => {
+  const ids = ["claude-opus-5-5", "codex:gpt-6.1-sol", "codex:gpt-6.1-luna"];
+  assert.deepEqual(revisoresPermitidos(ids, []), ["claude-opus-5-5"]);
+  assert.deepEqual(revisoresPermitidos(ids, [], true), ids);
+  assert.deepEqual(revisoresPermitidos(ids, ["codex"], true), ["claude-opus-5-5"]);
+  assert.deepEqual(revisoresPermitidos(ids, ["codex:gpt-6.1-sol"], true), ["claude-opus-5-5", "codex:gpt-6.1-luna"]);
+});
+
+test("codexListo: instalado y con sesión; sin sesión (o sin codex) no", noWin, async () => {
+  const env = { ...process.env, HILOS_CODEX: FALSO_CODEX };
+  assert.equal(await codexListo({ ...env, TRAMA_FALSO_CODEX_LOGIN: "1" }, os.homedir()), true);
+  assert.equal(await codexListo({ ...env, TRAMA_FALSO_CODEX_LOGIN: "0" }, os.homedir()), false);
+  assert.equal(await codexListo({ ...env, HILOS_CODEX: path.join(os.tmpdir(), "no-existe-codex") }, os.homedir()), false);
+});
+
+test("el lector del stream de codex: comandos y búsquedas son pasos, el mensaje es el texto vivo y el final; un turno fallido deja su motivo", () => {
+  const l = new LectorCodex();
+  assert.equal(l.linea('{"type":"thread.started","thread_id":"t"}'), null);
+  assert.deepEqual(l.linea('{"type":"item.started","item":{"id":"i0","type":"command_execution","command":"bash -lc \'rg mandar\'"}}'), { paso: { k: "otro", v: "rg mandar" } });
+  assert.deepEqual(l.linea('{"type":"item.started","item":{"type":"web_search","query":"node test"}}'), { paso: { k: "buscar", v: "node test" } });
+  assert.deepEqual(l.linea('{"type":"item.completed","item":{"id":"i1","type":"agent_message","text":"Hola"}}'), { texto: "Hola" });
+  assert.equal(l.final, "Hola");
+  l.linea('{"type":"turn.failed","error":{"message":"Not logged in"}}');
+  assert.equal(l.falla, "Not logged in");
+  assert.match(falloDeRevisor("codex", "Not logged in").message, /i18n:main\.revisorSinSesion.*ChatGPT.*codex login/s);
+});
+
+test("correrRevisor con ChatGPT: codex exec en sólo lectura, sin claves de OpenAI en el entorno del hijo, y la revisión llega al líder con su marca", noWin, async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "revisor-codex-"));
+  const log = path.join(tmp, "codex.log");
+  const antes = { ...process.env };
+  Object.assign(process.env, { HILOS_CODEX: FALSO_CODEX, HILOS_STATE: tmp, TRAMA_FALSO_LOG: log, TRAMA_FALSO_MS: "5", OPENAI_API_KEY: "sk-no", CODEX_API_KEY: "sk-no" });
+  try {
+    const avances: string[] = [];
+    const { d, hecho } = deps("");
+    d.correr = (m, e, p, o) => correrRevisor(m, e, p, tmp, { ...o, avance: (a) => avances.push(a.texto ?? a.paso?.v ?? "") });
+    d.nombre = () => "ChatGPT Sol";
+    const v = await revisarPlan({ modelo: "codex:gpt-6.1-sol", effort: "high", plan: "# Plan\n1. X" }, d);
+    assert.equal(hecho.negado.length, 1);
+    assert.ok(hecho.mandado[0]!.startsWith('[[revision-de-plan modelo="codex:gpt-6.1-sol"'), hecho.mandado[0]!.slice(0, 80));
+    assert.equal(v.modelo, "codex:gpt-6.1-sol");
+    assert.ok(avances.some((t) => t.includes("eco:")), "el texto vivo llega por avance");
+    const l = JSON.parse(readFileSync(log, "utf8").trim().split("\n").at(-1)!);
+    assert.equal(l.args[0], "exec");
+    assert.equal(l.args[l.args.indexOf("--sandbox") + 1], "read-only");
+    assert.equal(l.args[l.args.indexOf("-m") + 1], "gpt-6.1-sol");
+    assert.ok(l.args.includes('model_reasoning_effort="high"'));
+    assert.deepEqual(l.env.filter((k: string) => /^(OPENAI|CODEX_API)/.test(k)), [], "sin claves de la API en el hijo");
+    assert.ok(l.prompt.includes("# Plan"), "el prompt va por stdin");
+  } finally {
+    for (const k of ["HILOS_CODEX", "HILOS_STATE", "TRAMA_FALSO_LOG", "TRAMA_FALSO_MS", "OPENAI_API_KEY", "CODEX_API_KEY"]) {
+      if (antes[k] === undefined) delete process.env[k];
+      else process.env[k] = antes[k];
+    }
+  }
+});
+
+test("correrRevisor con ChatGPT: si codex sale con error sin respuesta, el fallo se dice en palabras simples", noWin, async () => {
+  const antes = process.env.HILOS_CODEX;
+  process.env.HILOS_CODEX = FALSO_CODEX;
+  try {
+    // «morite» en el pedido hace que el codex falso escriba en stderr y salga con 1 sin responder.
+    await assert.rejects(correrRevisor("codex:gpt-6.1-sol", "low", "morite", os.tmpdir()), /i18n:main\.revisorFalloDetalle.*ChatGPT/s);
+  } finally {
+    if (antes === undefined) delete process.env.HILOS_CODEX;
+    else process.env.HILOS_CODEX = antes;
+  }
 });

@@ -114,3 +114,40 @@ export class LectorAgy {
     return null;
   }
 }
+
+/**
+ * Lector del stream de `codex exec --json`: los comandos y las búsquedas son pasos; codex entrega cada mensaje entero (no por
+ * pedazos), así que el texto vivo es el último mensaje que dijo. La respuesta final es el último `agent_message` y, si el turno
+ * falló, `falla` dice por qué.
+ */
+export class LectorCodex {
+  private texto = "";
+  final: string | null = null;
+  falla: string | null = null;
+  linea(linea: string): Avance | null {
+    if (!linea.startsWith("{")) return null;
+    let o: any;
+    try {
+      o = JSON.parse(linea);
+    } catch {
+      return null;
+    }
+    if (o?.type === "turn.failed") {
+      const m = o.error?.message;
+      this.falla = typeof m === "string" && m ? m : "el turno falló";
+      return null;
+    }
+    const i = o?.item;
+    if (o?.type === "item.started" && i?.type === "command_execution") {
+      const c = typeof i.command === "string" ? i.command : "";
+      return { paso: { k: "otro", v: recorte(c.replace(/^(?:\/\S*\/)?(?:ba|z)?sh -lc\s+/, "").replace(/^'(.*)'$/s, "$1") || "bash") } };
+    }
+    if (o?.type === "item.started" && i?.type === "web_search") return { paso: { k: "buscar", v: recorte(typeof i.query === "string" ? i.query : "") } };
+    if (o?.type === "item.completed" && i?.type === "agent_message" && typeof i.text === "string" && i.text.trim()) {
+      this.final = i.text;
+      this.texto = cola(i.text);
+      return { texto: this.texto };
+    }
+    return null;
+  }
+}
