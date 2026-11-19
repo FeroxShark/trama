@@ -251,3 +251,32 @@ test("el cupo de otra suscripción o de otra cuenta no toca la tarjeta", () => {
   c.alVolvio(entrada({ cuenta: "otra" }), []);
   assert.equal(c.de("a")?.fase, "cerrando");
 });
+
+test("con el cupo ya vuelto, escribir en el chat saca la tarjeta", () => {
+  const { e, c } = armar();
+  c.alCierre(entrada());
+  e.ahora = VUELVE + 1;
+  assert.equal(c.de("a")?.fase, "volvio");
+  c.duenoEscribio("a");
+  assert.equal(c.de("a"), null);
+  assert.deepEqual(e.vistas.at(-1), []);
+});
+
+test("al abrir Trama se va la tarjeta de un chat donde la persona ya siguió y el cupo volvió", () => {
+  const a = armar();
+  a.c.alCierre(entrada());
+  a.c.duenoEscribio("a");
+  const b = armar({ disco: a.e.disco });
+  b.e.ahora = VUELVE + 1;
+  b.c.arrancar();
+  assert.equal(b.c.de("a"), null);
+});
+
+test("sin que la persona haya escrito, la tarjeta «Volvió el cupo» sigue al abrir Trama", () => {
+  const a = armar();
+  a.c.alCierre(entrada());
+  const b = armar({ disco: a.e.disco });
+  b.e.ahora = VUELVE + 1;
+  b.c.arrancar();
+  assert.equal(b.c.de("a")?.fase, "volvio");
+});

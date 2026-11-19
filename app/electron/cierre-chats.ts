@@ -226,10 +226,17 @@ export function crearCierreChats(d: Deps) {
     if (cambio) guardar();
   }
 
-  /** La persona escribió en este chat: si cerró por cupo, ya no se retoma solo. */
+  /** La persona escribió en este chat: si cerró por cupo, ya no se retoma solo; si el cupo ya volvió, la tarjeta no tiene más nada que decir y se va. */
   function duenoEscribio(sid: string): void {
     const r = registros.get(sid);
-    if (!r || r.duenoEscribio || r.retomado) return;
+    if (!r) return;
+    if (r.retomado || (r.vuelve !== null && r.vuelve <= d.ahora())) {
+      soltarReloj(sid);
+      registros.delete(sid);
+      guardar();
+      return;
+    }
+    if (r.duenoEscribio) return;
     registros.set(sid, { ...r, duenoEscribio: true });
     soltarReloj(sid);
     guardar();
@@ -255,7 +262,9 @@ export function crearCierreChats(d: Deps) {
         cambio = true;
       }
       const ref = registros.get(sid)!;
-      if (ref.vuelve !== null && ahora > ref.vuelve + LIMPIAR_DESPUES_S && (ref.retomado || !ref.retomar || ref.duenoEscribio)) {
+      // El cupo volvió y la persona ya había seguido en ese chat: no queda nada que avisar.
+      const yaSiguio = ref.duenoEscribio && ref.vuelve !== null && ref.vuelve <= ahora;
+      if (yaSiguio || (ref.vuelve !== null && ahora > ref.vuelve + LIMPIAR_DESPUES_S && (ref.retomado || !ref.retomar || ref.duenoEscribio))) {
         registros.delete(sid);
         cambio = true;
       }
