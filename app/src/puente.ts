@@ -143,6 +143,11 @@ type Main = {
   claudeCode: {
     listar(): Promise<unknown>;
   };
+  /** El historial de chats archivados o cerrados (electron/historial-chats.ts), sin validar. */
+  historialChats: {
+    listar(): Promise<unknown>;
+    borrar(sid: string): Promise<unknown>;
+  };
   /** Una imagen local que nombra un líder en su texto (electron/imagen-local.ts): `{ tipo, datos }`, o `null` si no está. */
   imagen: {
     leer(ruta: string): Promise<unknown>;

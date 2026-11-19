@@ -139,6 +139,11 @@ contextBridge.exposeInMainWorld("hilos", {
   claudeCode: {
     listar: (): Promise<unknown> => invocar("claudeCode:listar"),
   },
+  /** El historial de chats archivados o cerrados (electron/historial-chats.ts): lista y borrar del todo (el transcript, a la papelera). */
+  historialChats: {
+    listar: (): Promise<unknown> => invocar("historialChats:listar"),
+    borrar: (sid: string): Promise<unknown> => invocar("historialChats:borrar", sid),
+  },
   /** Una imagen local que nombra un líder (electron/imagen-local.ts): `{ tipo, datos }` en base64, o `null` si no está. */
   imagen: { leer: (ruta: string): Promise<unknown> => invocar("imagen:leer", ruta) },
   /** Un archivo que nombra la actividad de un worker (electron/archivo-ver.ts), sin validar; `null` si ya no está. */

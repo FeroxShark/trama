@@ -35,6 +35,7 @@ import { crearArranque } from "./arranque.ts";
 import { resolverClaude } from "./binario.ts";
 import { crearHistorial } from "./historial.ts";
 import { crearIndiceClaudeCode, sidsDePa, vistaConvs } from "./claude-code.ts";
+import { armarHistorial, borrarDelHistorial, crearRegistroCierres, papeleraArchivoReal, rutaDeHistorial } from "./historial-chats.ts";
 import { cuentasClaude } from "./uso-cuentas.ts";
 import { leerUmbrales } from "./contexto.js";
 import { iconosDe } from "./iconos.js";
@@ -154,7 +155,7 @@ const manejadores = new Map<string, Manejador>();
  * Actualizar Trama (`trama:*`) sí se puede por la tailnet: baja el release del tag de GitHub y corre el instalador del checkout,
  * igual que desde la PC (el dueño lo pidió para actualizar la máquina de otro sin estar sentado ahí).
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "planDia:fijar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "proyectos:papelera", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "planDia:fijar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "proyectos:papelera", "historialChats:borrar", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -326,11 +327,20 @@ const pasos = crearPasos({
  * como mucho una vez por hora. Con fixtures, bench o captura no corre (`HILOS_HISTORIAL=0` lo apaga).
  */
 const historial = crearHistorial({ proyectos: TRANSCRIPTS, paState: PA_STATE, carpeta: path.join(ESTADO, "historial") });
+/** Las carpetas `projects` de Claude (la de Trama, la de siempre y las de otras cuentas): donde viven los transcripts. */
+const raicesTranscripts = () => [TRANSCRIPTS, path.join(os.homedir(), ".claude", "projects"), ...cuentasClaude().map((c) => path.join(c.dir, "projects"))];
 /** Las conversaciones de Claude Code que no son de Trama (claude-code.ts): índice cacheado por mtime en `$HILOS_STATE/claude-code.json`. */
 const claudeCode = crearIndiceClaudeCode({
-  raices: () => [TRANSCRIPTS, path.join(os.homedir(), ".claude", "projects"), ...cuentasClaude().map((c) => path.join(c.dir, "projects"))],
+  raices: raicesTranscripts,
   propia: () => TRANSCRIPTS,
   cache: path.join(ESTADO, "claude-code.json"),
+});
+/** Cómo y cuándo salió de la barra cada chat archivado o cerrado (historial-chats.ts): `historial-chats.json`. */
+const ARCHIVO_CIERRES = path.join(ESTADO, "historial-chats.json");
+const cierres = crearRegistroCierres({
+  leer: () => readFile(ARCHIVO_CIERRES, "utf8").catch(() => null),
+  guardar: (json) => escribirAtomico(ARCHIVO_CIERRES, json),
+  ahora: () => Date.now(),
 });
 /** "Medir exacto" el peso de arrancar (arranque.ts): a pedido, con el mismo `claude` y entorno que los líderes. */
 const arranque = crearArranque({ claude: resolverClaude(process.env, os.homedir()), cwd: os.homedir(), env: entornoLider(process.env, os.homedir()), estado: ESTADO });
@@ -1156,6 +1166,38 @@ export function armarNucleo() {
       worktrees: [path.join(PA_STATE, "worktrees")],
     });
   });
+  // El historial de chats (historial-chats.ts): lo que Trama lanzó y ya no está en la barra. Borrar manda a la papelera sólo el transcript de ese chat.
+  const vistasHistorial = async () => {
+    const { convs } = await claudeCode.listar();
+    const [apps, pa, reg, hechos] = await Promise.all([lider.lideresApp(), sidsDePa(PA_STATE), registro(), cierres.leer()]);
+    const vistas = await vistaConvs(convs, {
+      excluidas: new Set([...apps.map((l) => l.sid), ...pa]),
+      rutas: rutasDeBarra(reg),
+      casa: await real(os.homedir()),
+      real,
+      existe: (p) => statArchivo(p).then((s) => s.isDirectory(), () => false),
+      worktrees: [path.join(PA_STATE, "worktrees")],
+      de: "trama",
+      conocidas: new Set(hechos.keys()),
+    });
+    return { convs, vistas, hechos };
+  };
+  manejar("historialChats:listar", async () => {
+    const { vistas, hechos } = await vistasHistorial();
+    return armarHistorial(vistas, hechos);
+  });
+  manejar("historialChats:borrar", (_e, sid: unknown) =>
+    borrarDelHistorial(sid, {
+      rutaDe: async (s) => {
+        const { convs, vistas } = await vistasHistorial();
+        return rutaDeHistorial(s, vistas, convs);
+      },
+      raices: raicesTranscripts,
+      estado: async (s) => (lider.respondiendoSids().includes(s) ? "enCurso" : (await lider.lideresApp()).some((g) => g.sid === s) ? "abierto" : "libre"),
+      papelera: papeleraArchivoReal,
+      quitar: (s) => cierres.quitar(s),
+    }),
+  );
   manejar("historial:consultar", (_e, dias: unknown, rol: unknown) => historial.ultimos(dias, rol));
   manejar("historial:arranque", () => arranque.leer());
   manejar("historial:medir", () => arranque.medir());
@@ -1604,9 +1646,11 @@ export function armarNucleo() {
   // Lo escrito sin mandar, en disco (borradores.ts): la ventana lo pide al abrir y manda la foto con cada cambio.
   manejar("borradores:leer", () => borradores.leer());
   manejar("borradores:guardar", (_e, foto: unknown) => borradores.guardar(foto).catch(silencio("borradores")));
-  manejar("lider:cerrar", (_e, sid: string, motivo?: unknown) => {
+  manejar("lider:cerrar", async (_e, sid: string, motivo?: unknown) => {
     cola.vaciar(String(sid));
-    return lider.cerrar(String(sid), motivo);
+    await lider.cerrar(String(sid), motivo);
+    // Queda anotado cómo salió (archivado o cerrado) para el historial de chats; un fallo del registro no frena el cierre.
+    await cierres.anotar(String(sid), motivo).catch(silencio("historial-chats"));
   });
   manejar("lider:retomar", (_e, x: { sid: string; modelo: string; effort: string; nombre?: string }) => lider.retomar(x));
   manejar("lider:conversacion", (_e, x: { sid: string; antes?: number | null }) =>

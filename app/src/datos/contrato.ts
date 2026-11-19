@@ -282,6 +282,36 @@ export function convsClaudeCodeDe(x: unknown): ConvClaudeCode[] {
   return r;
 }
 
+/** Cómo salió un chat de la barra: «Archivar» lo archiva; Cerrar, Borrar y Quitar lo cierran (electron/historial-chats.ts). */
+export type ComoSalio = "archivado" | "cerrado";
+
+/** Un chat del historial: una conversación que Trama lanzó y ya no está en la barra. `cuando`: cuándo salió (epoch ms); `ms` sigue siendo su última actividad. */
+export type ChatHistorial = ConvClaudeCode & { como: ComoSalio; cuando: number };
+
+/** La lista del historial del main, validada: lo que no tiene forma se descarta. */
+export function chatsHistorialDe(x: unknown): ChatHistorial[] {
+  const r: ChatHistorial[] = [];
+  const base = convsClaudeCodeDe(x);
+  const crudos = Array.isArray(x) ? (x as Record<string, unknown>[]) : [];
+  for (const c of base) {
+    const o = crudos.find((y) => y?.sid === c.sid);
+    r.push({ ...c, como: o?.como === "archivado" ? "archivado" : "cerrado", cuando: typeof o?.cuando === "number" ? o.cuando : c.ms });
+  }
+  return r;
+}
+
+/** Por qué no se pudo borrar un chat del historial: tiene un turno en curso, volvió a la barra, ya no está, no hay papelera o ésta falló. */
+export type MotivoNoBorrado = "enCurso" | "abierto" | "noEsta" | "sinPapelera" | "fallo";
+export type ResultadoBorrarChat = { ok: true } | { ok: false; motivo: MotivoNoBorrado };
+const NO_BORRADO: readonly string[] = ["enCurso", "abierto", "noEsta", "sinPapelera", "fallo"];
+
+/** Lo que contesta borrar un chat del historial, validado (lo raro es un fallo). */
+export function borradoChatDe(x: unknown): ResultadoBorrarChat {
+  const o = x as { ok?: unknown; motivo?: unknown } | null;
+  if (o?.ok === true) return { ok: true };
+  return { ok: false, motivo: typeof o?.motivo === "string" && NO_BORRADO.includes(o.motivo) ? (o.motivo as MotivoNoBorrado) : "fallo" };
+}
+
 /** Lo que contesta retomar un líder: listo para escribirle, o por qué no se pudo. */
 export type Retomado = { ok: true } | { ok: false; motivo: MotivoRetomar };
 /** Está abierto en otro proceso (terminal, otra trama), su conversación ya no está en disco, o su carpeta no existe. */

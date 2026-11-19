@@ -118,6 +118,10 @@ export function armarHistorial(vistas: readonly VistaConv[], cierres: ReadonlyMa
     .sort((a, b) => b.cuando - a.cuando || a.sid.localeCompare(b.sid));
 }
 
+/** El transcript de un chat del historial: sólo si figura en la lista (`vistas`); uno de Claude Code que no es de Trama no se puede borrar por acá. */
+export const rutaDeHistorial = (sid: string, vistas: readonly { sid: string }[], convs: readonly { sid: string; ruta?: string }[]): string | null =>
+  vistas.some((v) => v.sid === sid) ? (convs.find((c) => c.sid === sid)?.ruta ?? null) : null;
+
 // --- Borrar -------------------------------------------------------------------------------------------------------------
 
 export type ResultadoPapelera = "ok" | "sin" | "fallo";

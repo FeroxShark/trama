@@ -85,6 +85,8 @@ export const CANALES = [
   ["vram:leer", "invoke"],
   ["vram:liberar", "invoke"],
   ["claudeCode:listar", "invoke"],
+  ["historialChats:listar", "invoke"],
+  ["historialChats:borrar", "invoke"],
   ["imagen:leer", "invoke"],
   ["archivo:ver", "invoke"],
   ["archivo:existen", "invoke"],

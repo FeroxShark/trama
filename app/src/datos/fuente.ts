@@ -22,7 +22,7 @@ import { main, mensaje, type Lectura } from "../puente";
 import { aplicarDif, esDif } from "./hilos-dif";
 import { MODO } from "../modo";
 import { idioma, t, textoMain } from "../i18n";
-import { comoSettle, convsClaudeCodeDe, GENERAL, type AvisoWorker, type ConvClaudeCode, type ComandoClaude, type Estilos, type EventoLider, type EventoPa, type Hilo, type Leidos, type Mensaje, type Nombres, type Orden, type PuntoControl, puntosValidos, type RespuestaHilo, type RespuestaHilos, type RespuestaLideres, type Retomado, retomadoDe, type Statusline, type Traido, traidoDe, type Tokens, type Uso } from "./contrato";
+import { borradoChatDe, chatsHistorialDe, comoSettle, convsClaudeCodeDe, GENERAL, type AvisoWorker, type ChatHistorial, type ConvClaudeCode, type ResultadoBorrarChat, type ComandoClaude, type Estilos, type EventoLider, type EventoPa, type Hilo, type Leidos, type Mensaje, type Nombres, type Orden, type PuntoControl, puntosValidos, type RespuestaHilo, type RespuestaHilos, type RespuestaLideres, type Retomado, retomadoDe, type Statusline, type Traido, traidoDe, type Tokens, type Uso } from "./contrato";
 import { hiloDePa } from "./paHilo";
 import { listaValida, resultadoValido, type ListaCuentas, type PerfilCuenta, type PlanCuentaClaude, type PlanCuentaOc, type ProveedorCuenta, type ResultadoCuenta } from "./cuentas";
 import { ordenDe } from "../barra/orden";
@@ -208,6 +208,10 @@ export interface Fuente {
   liderCerrar(sid: string, motivo?: string): Promise<void>;
   /** Las conversaciones de Claude Code que no son de Trama (de solo lectura), de la más reciente a la más vieja. */
   claudeCodeListar(): Promise<ConvClaudeCode[]>;
+  /** El historial: los chats que Trama lanzó y ya no están en la barra (archivados o cerrados), lo más reciente primero. */
+  historialChats(): Promise<ChatHistorial[]>;
+  /** Borrar del todo un chat del historial: su transcript va a la papelera del sistema (sólo ése). Nunca rechaza: dice por qué no. */
+  historialBorrar(sid: string): Promise<ResultadoBorrarChat>;
   /** Una imagen local que nombra un líder en su texto (ruta absoluta); `null` si no está o no es una imagen. */
   imagenLocal(ruta: string): Promise<Imagen | null>;
   /** Un archivo que leyó, escribió o editó un worker, un subagente o un líder (ruta absoluta), para el visor; `null` si ya no está o no se puede mostrar. */
@@ -1581,6 +1585,36 @@ const claudeCodeFijas = (): ConvClaudeCode[] => {
   ];
 };
 
+/** Los chats borrados del historial en esta sesión de muestra (las fixtures no tocan nada de verdad). */
+const borradosFijos = new Set<string>();
+
+/** El historial de muestra: los mismos chats que la maqueta (atlas, cauce, brote), con archivados y cerrados, de varias semanas. */
+const historialFijo = (): ChatHistorial[] => {
+  const ahora = Date.now();
+  const dia = 86_400_000;
+  const h = (n: number, titulo: string, d: number, modelo: string, como: "archivado" | "cerrado", proyecto: string): ChatHistorial => ({
+    sid: `00000000-0000-4000-8000-${`h${n}`.padStart(12, "0")}`,
+    titulo,
+    ms: ahora - d * dia,
+    cuando: ahora - d * dia,
+    modelo,
+    cwd: `/home/ana/${proyecto}`,
+    proyecto,
+    existe: true,
+    ajena: false,
+    como,
+  });
+  return [
+    h(1, "ana-a3", 3, "claude-opus-5-5", "archivado", "atlas"),
+    h(2, "ana-b1", 5, "claude-sonnet-5-5", "cerrado", "atlas"),
+    h(3, "ana-9f", 7, "claude-opus-5-5", "cerrado", "atlas"),
+    h(4, "cauce-e2", 7, "claude-sonnet-5-5", "archivado", "cauce"),
+    h(5, "cauce-d7", 13, "claude-fable-5-2", "cerrado", "cauce"),
+    h(6, "brote-a1", 22, "claude-haiku-5-5", "cerrado", "brote"),
+    h(7, "brote-9c", 36, "claude-sonnet-5-5", "archivado", "brote"),
+  ];
+};
+
 /** Los slash commands de una sesión inventada (con fixtures). */
 const COMANDOS_FIJOS: ComandoClaude[] = [
   { nombre: "review", descripcion: "Review a pull request", args: null },
@@ -2134,6 +2168,14 @@ const fija: Fuente = {
   async liderCerrar() {},
   async claudeCodeListar() {
     return claudeCodeFijas();
+  },
+  async historialChats() {
+    return historialFijo().filter((c) => !borradosFijos.has(c.sid));
+  },
+  async historialBorrar(sid) {
+    if (/en-curso/.test(sid)) return { ok: false, motivo: "enCurso" };
+    borradosFijos.add(sid);
+    return { ok: true };
   },
   // Muestras: toda ruta existe menos las que dicen "falta" (para ver el "Imagen no disponible").
   async imagenLocal(ruta) {
@@ -3039,6 +3081,12 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async claudeCodeListar() {
     return convsClaudeCodeDe(await m.claudeCode.listar().catch(() => []));
+  },
+  async historialChats() {
+    return chatsHistorialDe(await m.historialChats.listar().catch(() => []));
+  },
+  async historialBorrar(sid) {
+    return borradoChatDe(await m.historialChats.borrar(sid).catch(() => null));
   },
   async imagenLocal(ruta) {
     return imagenDe(await m.imagen.leer(ruta).catch(() => null));
