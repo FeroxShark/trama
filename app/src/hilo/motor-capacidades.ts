@@ -3,7 +3,7 @@
 // de esta máquina (agy, dsh, opencode, claude).
 import type { Empresa } from "./modelos.ts";
 
-export type Motor = "claude" | "agy" | "dsh" | "opencode" | "local";
+export type Motor = "claude" | "agy" | "dsh" | "opencode" | "codex" | "local";
 export type Capacidad = "skills" | "mcp" | "subagentes" | "imagenes";
 
 /** En el orden en que la línea las muestra. */
@@ -21,6 +21,9 @@ export const MOTORES: Readonly<Record<Motor, Readonly<Record<Capacidad, boolean>
   // OpenCode (su programa, por el mismo puente ACP que dsh): skills nativas en su config; MCP según ACP;
   // subagentes nativos (Explore, fork en ACP); imágenes nativas (promptCapabilities.image: true en ACP).
   opencode: { skills: true, mcp: true, subagentes: true, imagenes: true },
+  // codex (ChatGPT, electron/codex-puente.ts): el puente sólo confirma las imágenes (se guardan y van con `-i`); skills, MCP de Trama y
+  // subagentes no los expone, así que no se prometen.
+  codex: { skills: false, mcp: false, subagentes: false, imagenes: true },
   // Lo local (llama-server y Ollama) corre con Claude Code contra otro destino: las mismas herramientas, pero la imagen depende de cada modelo.
   local: { skills: true, mcp: true, subagentes: true, imagenes: false },
 };
@@ -29,6 +32,7 @@ export const MOTORES: Readonly<Record<Motor, Readonly<Record<Capacidad, boolean>
 export const MOTOR_DE_EMPRESA: Readonly<Record<Empresa, Motor>> = {
   anthropic: "claude",
   google: "agy",
+  openai: "codex",
   dsh: "dsh",
   opencode: "opencode",
   local: "local",

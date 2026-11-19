@@ -45,6 +45,13 @@ const LOGOS: Record<Empresa, () => React.ReactElement> = {
       <path {...TRAZO} d="m7.8 9.5 3 2.5-3 2.5M13 14.8h3.4" />
     </svg>
   ),
+  // OpenAI: un nudo de tres lazos entrelazados (hexágono con trazos cruzados), una marca genérica y no la de la empresa.
+  openai: () => (
+    <svg {...A}>
+      <path {...TRAZO} d="M12 2.8 19 6.9v8.2l-7 4.1-7-4.1V6.9Z" />
+      <path {...TRAZO} d="M12 2.8v8.4m0 0 7 4.1M12 11.2 5 15.3" />
+    </svg>
+  ),
   // OpenCode: un cuadrado con un corchete de terminal (`>_` abierto), una marca genérica y no la de la empresa.
   opencode: () => (
     <svg {...A}>
@@ -71,6 +78,7 @@ export function LogoSuscripcion({ id, nombre }: { id: string; nombre: string }) 
   if (id === "claude") return <Logo empresa="anthropic" />;
   if (id === "google") return <Logo empresa="google" />;
   if (id === "opencode") return <Logo empresa="opencode" />;
+  if (id === "chatgpt") return <Logo empresa="openai" />;
   return (
     <svg {...A}>
       <circle {...TRAZO} cx="12" cy="12" r="9.5" />

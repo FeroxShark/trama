@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { CAPACIDADES, capacidadesDe, MOTORES, MOTOR_DE_EMPRESA, motorDeEmpresa, type Motor } from "../src/hilo/motor-capacidades.ts";
 
-const MOTORES_CONOCIDOS: Motor[] = ["claude", "agy", "dsh", "opencode", "local"];
+const MOTORES_CONOCIDOS: Motor[] = ["claude", "agy", "dsh", "opencode", "codex", "local"];
 
 test("cada motor tiene un sí o un no para cada una de las cuatro capacidades", () => {
   assert.deepEqual(CAPACIDADES, ["skills", "mcp", "subagentes", "imagenes"]);
