@@ -10,14 +10,15 @@
   outline: none;
 }
 
+/* La barra de vidrio, pegada al borde de arriba: a la izquierda el archivo (nombre, medida, «N de M»), al centro el zoom y a la derecha las acciones. */
 .visor-img-barra {
   flex: 0 0 auto;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: var(--esp-3);
   min-height: 3.25rem;
-  padding: calc(var(--esp-2) + env(safe-area-inset-top, 0px)) calc(var(--esp-4) + env(safe-area-inset-right, 0px)) var(--esp-2) calc(var(--esp-4) + env(safe-area-inset-left, 0px));
+  padding: calc(var(--esp-1) + env(safe-area-inset-top, 0px)) calc(var(--esp-4) + env(safe-area-inset-right, 0px)) var(--esp-1) calc(var(--esp-4) + env(safe-area-inset-left, 0px));
   background: var(--vidrio);
   border-bottom: 1px solid var(--capa-div);
   z-index: 2;
@@ -28,7 +29,6 @@
   align-items: center;
   gap: var(--esp-2);
   min-width: 0;
-  flex: 1 1 auto;
 }
 
 .visor-img-icono {
@@ -54,7 +54,7 @@
   color: var(--texto);
 }
 
-.visor-img-medida {
+.visor-img-chip {
   flex: 0 0 auto;
   padding: var(--esp-0-5) var(--esp-2);
   border-radius: var(--r-cap);
@@ -66,41 +66,40 @@
   white-space: nowrap;
 }
 
-.visor-img-zoom {
-  flex: 0 0 auto;
-  padding: var(--esp-0-5) var(--esp-2);
-  border-radius: var(--r-cap);
-  background: var(--acento-tinte);
-  border: 1px solid color-mix(in srgb, var(--acento) 38%, transparent);
-  color: var(--texto);
-  font: inherit;
-  font-size: var(--letra-3);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  cursor: pointer;
+.visor-img-grupo {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
-.visor-img-zoom:focus-visible {
-  outline: 2px solid var(--acento);
-  outline-offset: 2px;
+.visor-img-info {
+  grid-column: 1;
 }
 
 .visor-img-acciones {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: var(--esp-2);
+  grid-column: 3;
+  justify-content: flex-end;
 }
 
-.visor-img-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--esp-1-5);
-  min-height: 2rem;
-  padding: var(--esp-1) var(--esp-3);
-  border-radius: var(--r-cap);
-  border: 1px solid var(--borde-3);
-  background: var(--capa-card);
+.visor-img-sep {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 1.25rem;
+  margin: 0 var(--esp-1-5);
+  background: var(--capa-div);
+}
+
+/* Botón de ícono: 2 rem, sin borde hasta que se lo toca; «marcado» (aria-pressed) con el tinte del acento. */
+.visor-img-ib {
+  display: grid;
+  place-items: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: none;
   color: var(--apagado);
   font: inherit;
   font-size: var(--letra-4);
@@ -110,42 +109,40 @@
   transition: background var(--t-snappy), border-color var(--t-snappy), color var(--t-snappy);
 }
 
-.visor-img-btn:hover {
+.visor-img-ib:hover {
   background: var(--capa-tile);
-  border-color: var(--borde-5);
   color: var(--texto);
 }
 
-.visor-img-btn[data-fallo] {
+.visor-img-ib[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--acento) 45%, transparent);
+  background: var(--acento-tinte);
+  color: var(--texto);
+}
+
+.visor-img-ib[data-fallo] {
   border-color: var(--fallo-borde);
   background: var(--fallo-fondo);
   color: var(--fallo-texto);
 }
 
-.visor-img-btn:focus-visible,
-.visor-img-cerrar:focus-visible {
+.visor-img-ib-txt {
+  padding: 0 var(--esp-2-5);
+}
+
+.visor-img-ib:focus-visible,
+.visor-img-nav:focus-visible {
   outline: 2px solid var(--acento);
   outline-offset: 2px;
 }
 
-.visor-img-cerrar {
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
-  border-radius: 50%;
-  border: 1px solid var(--borde-3);
-  background: var(--capa-card);
-  color: var(--apagado);
-  cursor: pointer;
-  transition: background var(--t-snappy), border-color var(--t-snappy), color var(--t-snappy);
-}
-
-.visor-img-cerrar:hover {
-  background: var(--capa-tile);
-  border-color: var(--borde-5);
+.visor-img-pct {
+  min-width: 3rem;
+  text-align: center;
   color: var(--texto);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .visor-img-escena {
@@ -181,47 +178,76 @@
   opacity: 0;
 }
 
-@media (max-width: 44rem) {
+/* Anterior y siguiente, a los costados de la imagen (sólo si el chat tiene varias). */
+.visor-img-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 1px solid var(--borde-3);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--vidrio) 80%, transparent);
+  color: var(--apagado);
+  cursor: pointer;
+  transition: background var(--t-snappy), border-color var(--t-snappy), color var(--t-snappy);
+}
+
+.visor-img-nav[data-lado="anterior"] {
+  left: var(--esp-4);
+}
+
+.visor-img-nav[data-lado="siguiente"] {
+  right: var(--esp-4);
+}
+
+.visor-img-nav:hover {
+  background: var(--capa-tile);
+  border-color: var(--borde-5);
+  color: var(--texto);
+}
+
+/* Angosto: el nombre arriba, entero; el zoom y las acciones debajo. */
+@media (max-width: 52rem) {
   .visor-img-barra {
-    flex-wrap: wrap;
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: var(--esp-1);
+  }
+  .visor-img-info {
+    grid-column: 1 / -1;
+  }
+  .visor-img-grupo {
+    grid-column: 1;
   }
   .visor-img-acciones {
-    margin-left: auto;
+    grid-column: 2;
+  }
+}
+
+/* Con el dedo, los botones llegan a 44 px. */
+@media (pointer: coarse) {
+  .visor-img-ib {
+    min-width: 2.75rem;
+    height: 2.75rem;
+  }
+  .visor-img-nav {
+    width: 2.75rem;
+    height: 2.75rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .visor-img-btn,
-  .visor-img-cerrar,
+  .visor-img-ib,
+  .visor-img-nav,
   .visor-img-foto[data-animar] {
     transition: none;
   }
 }
 
-/* Zoom en la barra: Ajustar, 100 %, − porcentaje +. */
-.visor-img-zoombar {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: var(--esp-1-5);
-}
-.visor-img-btn[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--acento) 45%, transparent);
-  background: var(--acento-tinte);
-  color: var(--texto);
-}
-.visor-img-btn-ico {
-  padding: var(--esp-1);
-  min-width: 2rem;
-  justify-content: center;
-}
-.visor-img-pct {
-  min-width: 3.5rem;
-  text-align: center;
-  color: var(--texto-2);
-  font-size: var(--letra-3);
-  font-variant-numeric: tabular-nums;
-}
 /* El menú del clic derecho va encima del visor. */
 .cmenu.visor-img-menu {
   z-index: 101;

@@ -1796,8 +1796,10 @@ const fija: Fuente = {
     }
     if ((MODO.captura === "chat-archivos" || MODO.captura?.startsWith("visor-imagen")) && resp.mensajes.length > 0) {
       const ult = resp.mensajes.length - 1;
-      const textoArchivos =
-        "La tarjeta ya tiene al nene en el centro, en `~/Imágenes/invitacion-juan-manuel-7.jpg` (para WhatsApp) y `~/Imágenes/invitacion-juan-manuel-7.png`. El recorte solo está en `~/Imágenes/juan-manuel-recorte.png`.";
+      // El visor se mira con cinco imágenes en el chat (el «N de M» y las flechas); `chat-archivos`, con las tres de siempre.
+      const textoArchivos = MODO.captura?.startsWith("visor-imagen")
+        ? "La tarjeta ya tiene al nene en el centro, en `~/Imágenes/invitacion-juan-manuel-7.jpg` (para WhatsApp) y `~/Imágenes/invitacion-juan-manuel.png`. El recorte solo está en `~/Imágenes/juan-manuel-recorte.png`; probé el fondo en `~/Imágenes/luna-ciudad.png` y la letra en `~/Imágenes/letra-prueba.png`."
+        : "La tarjeta ya tiene al nene en el centro, en `~/Imágenes/invitacion-juan-manuel-7.jpg` (para WhatsApp) y `~/Imágenes/invitacion-juan-manuel-7.png`. El recorte solo está en `~/Imágenes/juan-manuel-recorte.png`.";
       return { ...resp, mensajes: resp.mensajes.map((m, i) => (i === ult && m.rol === "assistant" ? { ...m, texto: textoArchivos } : m)) };
     }
     return resp;

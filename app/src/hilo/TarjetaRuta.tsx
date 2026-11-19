@@ -30,9 +30,11 @@ import {
   useVisible,
 } from "./VerArchivo";
 
+// Las capturas del visor abren la segunda imagen del chat (así se ven «2 de 5» y las dos flechas).
+let imagenesDeCaptura = 0;
 let visorCapturaAbierto = false;
 const abrirVisorCaptura = (esImg: boolean) =>
-  MODO.captura?.startsWith("visor-imagen") && esImg && !visorCapturaAbierto
+  MODO.captura?.startsWith("visor-imagen") && esImg && !visorCapturaAbierto && imagenesDeCaptura++ === 1
     ? (visorCapturaAbierto = true)
     : false;
 
@@ -332,6 +334,7 @@ function TarjetaImagen({ item }: { item: RutaMencionada }) {
       <button
         type="button"
         className="tarjeta-img-btn"
+        data-imagen-ruta={item.ruta}
         aria-label={t("archivo.ver", { nombre })}
         title={item.ruta}
         onClick={() => setVer(true)}

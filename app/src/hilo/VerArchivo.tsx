@@ -3,7 +3,7 @@
 // "Archivo ya no disponible". Los bytes los lee el main por `archivo:ver` (electron/archivo-ver.ts), nunca `file://`.
 import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Eye, FileAudio, FileText, FileVideo, FolderOpen, ImageIcon, Maximize, Minus, Plus, SquareArrowOutUpRight, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, Download, Eye, FileAudio, FileText, FileVideo, FolderOpen, ImageIcon, Link2, Maximize, RotateCcw, RotateCw, SquareArrowOutUpRight, X, ZoomIn, ZoomOut } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { abribleConSistema, archivoDeRuta, extensionDe, type ArchivoDeHerramienta, type ArchivoVisto } from "../../electron/archivo-ruta";
 import { nombreDe } from "../../electron/imagen-ruta";
@@ -22,7 +22,10 @@ import {
   cursorDeVisor,
   escalaAjuste,
   esMismaEscala,
+  galeriaDe,
+  girar,
   limitarPan,
+  medidaGirada,
   panConRueda,
   PASO_BOTON,
   PASO_RUEDA,
@@ -30,7 +33,9 @@ import {
   porcentajeZoom,
   puedeArrastrar,
   siguienteEscalaAlClic,
+  vecino,
   zoomHaciaPunto,
+  type Giro,
   type Punto,
   type Tamano,
 } from "./visor-zoom";
@@ -59,17 +64,18 @@ function pedir(ruta: string): Promise<ArchivoVisto | null> {
 
 /* El archivo de `ruta` (`undefined` mientras se lee; `null` si ya no está), sólo cuando `activo`. */
 export function useArchivoVisto(ruta: string, activo: boolean): ArchivoVisto | null | undefined {
-  const [v, setV] = useState<ArchivoVisto | null | undefined>(() => (activo ? leidos.get(ruta) : undefined));
+  // Guarda de qué ruta es lo leído: al pasar a otra imagen no se ve, ni un cuadro, la anterior.
+  const [s, setS] = useState<{ ruta: string; v: ArchivoVisto | null | undefined }>(() => ({ ruta, v: activo ? leidos.get(ruta) : undefined }));
   useEffect(() => {
     if (!activo) return;
     let vigente = true;
-    setV(leidos.get(ruta));
-    void pedir(ruta).then((x) => vigente && setV(x));
+    setS({ ruta, v: leidos.get(ruta) });
+    void pedir(ruta).then((x) => vigente && setS({ ruta, v: x }));
     return () => {
       vigente = false;
     };
   }, [ruta, activo]);
-  return v;
+  return s.ruta === ruta ? s.v : activo ? leidos.get(ruta) : undefined;
 }
 
 /* Verdadero cuando el elemento entra en pantalla (la miniatura no se pide antes). Sin IntersectionObserver, de entrada. */
@@ -106,10 +112,24 @@ let abiertoEnCaptura = false;
 const abrirEnCaptura = (tipo: string) => (ABRIR_EN_CAPTURA === tipo && !abiertoEnCaptura ? (abiertoEnCaptura = true) : false);
 
 const ICONO = { imagen: ImageIcon, pdf: FileText, markdown: FileText, texto: FileText, audio: FileAudio, video: FileVideo, otro: SquareArrowOutUpRight } as const;
-/* Visor propio de imágenes: fondo oscuro y barra con datos, zoom y acciones. Abre con la imagen ENTERA (ajustada al área, sin agrandar las
-   chicas); clic o doble clic alterna entre Ajustar y 100 %, la rueda acerca hacia el puntero (con Shift desplaza), se arrastra siempre que
-   no entre, y el clic derecho trae Copiar imagen, Copiar ruta, Mostrar en la carpeta y Abrir con la app del sistema. La cuenta: visor-zoom.ts. */
-function VisorImagen({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVisto | null | undefined; alCerrar: () => void }) {
+/** Las rutas de las imágenes que el chat de `ruta` tiene a la vista, en el orden en que aparecen (cada botón que abre una lleva `data-imagen-ruta`). */
+function rutasDeImagenes(ruta: string): string[] {
+  if (typeof document === "undefined") return [ruta];
+  const todos = [...document.querySelectorAll<HTMLElement>("[data-imagen-ruta]")];
+  const propio = todos.find((e) => e.getAttribute("data-imagen-ruta") === ruta);
+  const chat = propio?.closest(".conv") ?? null;
+  return todos.filter((e) => !chat || chat.contains(e)).map((e) => e.getAttribute("data-imagen-ruta") ?? "");
+}
+
+/** Pasar a otra imagen del chat: el lugar ("N de M") y qué hacer con anterior y siguiente (`null` en el extremo). */
+type Galeria = { n: number; total: number; anterior: (() => void) | null; siguiente: (() => void) | null };
+
+/* Visor propio de imágenes: una barra de vidrio arriba (nombre, medida y «N de M» · zoom · girar, copiar, guardar, carpeta, sistema, cerrar) y la
+   imagen debajo. Abre con la imagen ENTERA (ajustada al área, sin agrandar las chicas); clic o doble clic alterna entre Ajustar y 100 %, la rueda
+   acerca hacia el puntero (con Shift desplaza), se arrastra siempre que no entre, y el clic derecho trae el mismo menú de copiar y abrir. Si el
+   chat tiene varias imágenes, flechas a los costados (y ← →) pasan de una a otra. Girar sólo cambia cómo se ve: copiar y guardar usan el original.
+   La cuenta: visor-zoom.ts. */
+function VisorImagen({ a, v, alCerrar, galeria }: { a: ArchivoDeHerramienta; v: ArchivoVisto | null | undefined; alCerrar: () => void; galeria: Galeria | null }) {
   const quieto = useReducedMotion();
   useIdioma();
   const caja = useRef<HTMLDivElement>(null);
@@ -126,21 +146,36 @@ function VisorImagen({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVi
   // `null` = Ajustar (sigue al área si la ventana cambia); un número = escala fija (1 = 100 %).
   const [zoom, setZoom] = useState<number | null>(null);
   const [pan, setPan] = useState<Punto>({ x: 0, y: 0 });
+  // `giro` (0/90/180/270) decide la medida que ocupa; `angulo` suma las vueltas para que la animación gire siempre por el lado corto.
+  const [vista, setVista] = useState<{ giro: Giro; angulo: number }>({ giro: 0, angulo: 0 });
   const [arrastrando, setArrastrando] = useState(false);
   const [animar, setAnimar] = useState(false);
   const [falloSistema, setFalloSistema] = useState(false);
   const [falloCarpeta, setFalloCarpeta] = useState(false);
+  const [guardado, setGuardado] = useState<"ok" | "fallo" | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const arrastre = useRef<{ id: number; sx: number; sy: number; px: number; py: number; movio: boolean } | null>(null);
   const suprimirClic = useRef(false);
 
-  useEffect(() => {
+  // Al pasar a otra imagen: sin zoom, sin giro y sin lo medido de la anterior (antes de que la nueva avise su medida).
+  useLayoutEffect(() => {
     setMedida(null);
     setImgFallo(false);
     setZoom(null);
     setPan({ x: 0, y: 0 });
+    setVista({ giro: 0, angulo: 0 });
     setAnimar(false);
+    setFalloSistema(false);
+    setFalloCarpeta(false);
+    setGuardado(null);
   }, [a.ruta]);
+
+  // El aviso de «Guardada» (o de que falló) se apaga solo.
+  useEffect(() => {
+    if (!guardado) return;
+    const id = window.setTimeout(() => setGuardado(null), 2200);
+    return () => window.clearTimeout(id);
+  }, [guardado]);
 
   // El área útil: la escena menos su margen. Con ResizeObserver, Ajustar sigue a la ventana.
   useLayoutEffect(() => {
@@ -171,7 +206,9 @@ function VisorImagen({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVi
     }
   }, [src]);
 
-  const img: Tamano = medida ?? { ancho: 0, alto: 0 };
+  // `natural` es la medida del archivo; `img`, la que ocupa en pantalla (girada de lado, ancho y alto cambian de lugar).
+  const natural: Tamano = medida ?? { ancho: 0, alto: 0 };
+  const img = medidaGirada(natural, vista.giro);
   const ajuste = medida ? escalaAjuste(img.ancho, img.alto, area.ancho, area.alto) : 1;
   const escala = zoom ?? ajuste;
   const movible = medida ? puedeArrastrar(img.ancho, img.alto, escala, area.ancho, area.alto) : false;
@@ -201,6 +238,12 @@ function VisorImagen({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVi
     setPan(limitarPan({ x: panVisto.x + dx, y: panVisto.y + dy }, img.ancho, img.alto, escala, area.ancho, area.alto));
     setAnimar(false);
   };
+  const girarVista = (sentido: 1 | -1) => {
+    if (!usable) return;
+    setVista((x) => ({ giro: girar(x.giro, sentido), angulo: x.angulo + 90 * sentido }));
+    setPan({ x: 0, y: 0 });
+    setAnimar(true);
+  };
 
   const mostrarCarpeta = () => {
     setFalloCarpeta(false);
@@ -216,9 +259,19 @@ function VisorImagen({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVi
       () => setFalloSistema(true),
     );
   };
+  const guardarComo = () => {
+    void fuente.archivoGuardarComo(a.ruta).then(
+      (r) => setGuardado(r === "guardado" ? "ok" : r === "fallo" ? "fallo" : null),
+      () => setGuardado("fallo"),
+    );
+  };
+  const copiarLaImagen = () => {
+    if (v?.tipo === "imagen") void copiarImagen({ mime: v.mime, datos: v.datos }, foto.current);
+  };
   const items: ItemMenu[] = [
-    ...(v?.tipo === "imagen" ? [{ clave: "copiar", texto: t("visor.copiarImagen"), alElegir: () => (setMenu(null), void copiarImagen({ mime: v.mime, datos: v.datos }, foto.current)) }] : []),
+    ...(v?.tipo === "imagen" ? [{ clave: "copiar", texto: t("visor.copiarImagen"), alElegir: () => (setMenu(null), copiarLaImagen()) }] : []),
     { clave: "ruta", texto: t("visor.copiarRuta"), alElegir: () => (setMenu(null), void copiarConAviso(a.ruta)) },
+    ...(puedeVentana && usable ? [{ clave: "guardar", texto: t("visor.guardarComo"), alElegir: () => (setMenu(null), guardarComo()) }] : []),
     ...(puedeVentana ? [{ clave: "carpeta", texto: t("visor.mostrarCarpeta"), alElegir: () => (setMenu(null), mostrarCarpeta()) }] : []),
     ...(sistema ? [{ clave: "sistema", texto: t("archivo.sistema"), alElegir: () => (setMenu(null), abrirSistema()) }] : []),
   ];
@@ -233,6 +286,9 @@ function VisorImagen({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVi
   const cargando = v === undefined;
   const falta = v === null || (src !== null && imgFallo);
   const cursor = cursorDeVisor({ arrastrando, puedeArrastrar: movible, escala, ajuste });
+  const ajustada = zoom === null;
+  const alAnterior = galeria?.anterior ?? null;
+  const alSiguiente = galeria?.siguiente ?? null;
 
   return createPortal(
     <motion.div
@@ -248,8 +304,15 @@ function VisorImagen({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVi
       animate={{ opacity: 1 }}
       transition={{ duration: quieto ? 0 : 0.14 }}
       onKeyDown={(e) => {
-        if (!usable || menu) return;
+        if (menu) return;
         const k = e.key;
+        // Con varias imágenes, ← → pasan de una a otra (Shift desplaza de costado); sin galería, las flechas desplazan.
+        if (galeria && (k === "ArrowLeft" || k === "ArrowRight") && !e.shiftKey) {
+          (k === "ArrowLeft" ? alAnterior : alSiguiente)?.();
+          e.preventDefault();
+          return;
+        }
+        if (!usable) return;
         if (k === "+" || k === "=") irA(escala * PASO_BOTON);
         else if (k === "-" || k === "_") irA(escala / PASO_BOTON);
         else if (k === "0") ajustar();
@@ -267,60 +330,101 @@ function VisorImagen({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVi
           <span className="visor-img-icono" aria-hidden="true">
             <ImageIcon size={15} strokeWidth={1.8} />
           </span>
-          <span className="visor-img-nombre" data-tip={a.ruta} title={a.ruta}>
+          <span className="visor-img-nombre" data-tip={a.ruta} data-tip-abajo="" title={a.ruta}>
             {nombre}
           </span>
-          {medida ? <span className="visor-img-medida">{t("visor.medida", { ancho: medida.ancho, alto: medida.alto })}</span> : null}
+          {medida ? <span className="visor-img-chip">{t("visor.medida", { ancho: medida.ancho, alto: medida.alto })}</span> : null}
+          {galeria ? <span className="visor-img-chip">{t("visor.posicion", { n: galeria.n, total: galeria.total })}</span> : null}
         </div>
         {usable ? (
-          <div className="visor-img-zoombar" role="group" aria-label={t("visor.porcentaje", { n: porcentajeZoom(escala) })}>
-            <button type="button" className="visor-img-btn" aria-pressed={zoom === null} data-tip={t("visor.ajustarTip")} onClick={() => ajustar()}>
-              <Maximize size={14} strokeWidth={1.9} aria-hidden="true" />
-              <span>{t("visor.ajustar")}</span>
+          <div className="visor-img-grupo" role="group" aria-label={t("visor.zoomGrupo")}>
+            <button type="button" className="visor-img-ib" aria-label={t("visor.alejar")} data-tip={t("visor.alejar")} data-tip-abajo="" onClick={() => irA(escala / PASO_BOTON)}>
+              <ZoomOut size={16} strokeWidth={2} aria-hidden="true" />
             </button>
-            <button type="button" className="visor-img-btn" aria-pressed={zoom !== null && esMismaEscala(zoom, 1)} data-tip={t("visor.cienTip")} onClick={() => irA(1)}>
-              {t("visor.cien")}
-            </button>
-            <button type="button" className="visor-img-btn visor-img-btn-ico" aria-label={t("visor.alejar")} data-tip={t("visor.alejar")} onClick={() => irA(escala / PASO_BOTON)}>
-              <Minus size={14} strokeWidth={2} aria-hidden="true" />
-            </button>
-            <span className="visor-img-pct" aria-live="polite">
+            <span className="visor-img-pct" role="status" aria-label={t("visor.zoomActual", { n: porcentajeZoom(escala) })}>
               {t("visor.porcentaje", { n: porcentajeZoom(escala) })}
             </span>
-            <button type="button" className="visor-img-btn visor-img-btn-ico" aria-label={t("visor.acercar")} data-tip={t("visor.acercar")} onClick={() => irA(escala * PASO_BOTON)}>
-              <Plus size={14} strokeWidth={2} aria-hidden="true" />
+            <button type="button" className="visor-img-ib" aria-label={t("visor.acercar")} data-tip={t("visor.acercar")} data-tip-abajo="" onClick={() => irA(escala * PASO_BOTON)}>
+              <ZoomIn size={16} strokeWidth={2} aria-hidden="true" />
+            </button>
+            <span className="visor-img-sep" aria-hidden="true" />
+            <button type="button" className="visor-img-ib" aria-pressed={ajustada} aria-label={t("visor.ajustarTip")} data-tip={t("visor.ajustarTip")} data-tip-abajo="" onClick={() => ajustar()}>
+              <Maximize size={16} strokeWidth={2} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="visor-img-ib visor-img-ib-txt"
+              aria-pressed={zoom !== null && esMismaEscala(zoom, 1)}
+              aria-label={t("visor.cienTip")}
+              data-tip={t("visor.cienTip")}
+              data-tip-abajo=""
+              onClick={() => irA(1)}
+            >
+              {t("visor.cien")}
             </button>
           </div>
         ) : null}
-        <div className="visor-img-acciones">
+        <div className="visor-img-grupo visor-img-acciones" role="group" aria-label={t("visor.accionesGrupo")}>
+          {usable ? (
+            <>
+              <button type="button" className="visor-img-ib" aria-label={t("visor.girarIzq")} data-tip={t("visor.girarIzq")} data-tip-abajo="" onClick={() => girarVista(-1)}>
+                <RotateCcw size={16} strokeWidth={2} aria-hidden="true" />
+              </button>
+              <button type="button" className="visor-img-ib" aria-label={t("visor.girarDer")} data-tip={t("visor.girarDer")} data-tip-abajo="" onClick={() => girarVista(1)}>
+                <RotateCw size={16} strokeWidth={2} aria-hidden="true" />
+              </button>
+              <span className="visor-img-sep" aria-hidden="true" />
+              <button type="button" className="visor-img-ib" aria-label={t("visor.copiarImagen")} data-tip={t("visor.copiarImagen")} data-tip-abajo="" onClick={copiarLaImagen}>
+                <Copy size={16} strokeWidth={2} aria-hidden="true" />
+              </button>
+              <button type="button" className="visor-img-ib" aria-label={t("visor.copiarRuta")} data-tip={t("visor.copiarRuta")} data-tip-abajo="" onClick={() => void copiarConAviso(a.ruta)}>
+                <Link2 size={16} strokeWidth={2} aria-hidden="true" />
+              </button>
+              {puedeVentana ? (
+                <button
+                  type="button"
+                  className="visor-img-ib"
+                  data-fallo={guardado === "fallo" ? "" : undefined}
+                  aria-label={t("visor.guardarComoAria", { nombre })}
+                  data-tip={guardado === "fallo" ? t("visor.noGuardo") : guardado === "ok" ? t("visor.guardada") : t("visor.guardarComo")}
+                  data-tip-abajo=""
+                  onClick={guardarComo}
+                >
+                  {guardado === "ok" ? <Check size={16} strokeWidth={2.2} aria-hidden="true" /> : <Download size={16} strokeWidth={2} aria-hidden="true" />}
+                </button>
+              ) : null}
+            </>
+          ) : null}
+          {puedeVentana || sistema ? <span className="visor-img-sep" aria-hidden="true" /> : null}
           {puedeVentana ? (
             <button
               type="button"
-              className="visor-img-btn"
+              className="visor-img-ib"
               data-fallo={falloCarpeta ? "" : undefined}
               aria-label={t("visor.mostrarCarpetaAria", { nombre })}
-              data-tip={falloCarpeta ? t("visor.noAbrioCarpeta") : a.ruta}
+              data-tip={falloCarpeta ? t("visor.noAbrioCarpeta") : t("visor.mostrarCarpeta")}
+              data-tip-abajo=""
               onClick={mostrarCarpeta}
             >
-              <FolderOpen size={14} strokeWidth={1.9} aria-hidden="true" />
-              <span>{falloCarpeta ? t("visor.noAbrioCarpeta") : t("visor.mostrarCarpeta")}</span>
+              <FolderOpen size={16} strokeWidth={2} aria-hidden="true" />
             </button>
           ) : null}
           {sistema ? (
             <button
               type="button"
-              className="visor-img-btn"
+              className="visor-img-ib"
               data-fallo={falloSistema ? "" : undefined}
               aria-label={t("archivo.abrirSistema", { nombre })}
               data-tip={falloSistema ? t("archivo.noAbrio") : t("archivo.sistema")}
+              data-tip-abajo=""
               onClick={abrirSistema}
             >
-              <SquareArrowOutUpRight size={14} strokeWidth={1.9} aria-hidden="true" />
-              <span>{falloSistema ? t("archivo.noAbrio") : t("archivo.sistema")}</span>
+              <SquareArrowOutUpRight size={16} strokeWidth={2} aria-hidden="true" />
             </button>
           ) : null}
-          <button type="button" className="visor-img-cerrar" data-cerrar-visor aria-label={t("adjunto.cerrar")} data-tip={t("adjunto.cerrar")} onClick={alCerrar}>
-            <X size={16} strokeWidth={2.2} />
+          <span className="visor-img-sep" aria-hidden="true" />
+          <button type="button" className="visor-img-ib" data-cerrar-visor aria-label={t("adjunto.cerrar")} data-tip={t("adjunto.cerrar")} data-tip-abajo="" onClick={alCerrar}>
+            <X size={16} strokeWidth={2.2} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -365,7 +469,12 @@ function VisorImagen({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVi
             data-animar={animar && !quieto ? "" : undefined}
             style={
               medida
-                ? { width: img.ancho * escala, height: img.alto * escala, cursor, transform: `translate(-50%, -50%) translate3d(${panVisto.x}px, ${panVisto.y}px, 0)` }
+                ? {
+                    width: natural.ancho * escala,
+                    height: natural.alto * escala,
+                    cursor,
+                    transform: `translate(-50%, -50%) translate3d(${panVisto.x}px, ${panVisto.y}px, 0) rotate(${vista.angulo}deg)`,
+                  }
                 : undefined
             }
             onLoad={(e) => {
@@ -422,6 +531,16 @@ function VisorImagen({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVi
               else irA(prox, focoDe(e.clientX, e.clientY));
             }}
           />
+        ) : null}
+        {alAnterior ? (
+          <button type="button" className="visor-img-nav" data-lado="anterior" aria-label={t("visor.anterior")} data-tip={t("visor.anterior")} onClick={alAnterior}>
+            <ChevronLeft size={20} strokeWidth={2} aria-hidden="true" />
+          </button>
+        ) : null}
+        {alSiguiente ? (
+          <button type="button" className="visor-img-nav" data-lado="siguiente" aria-label={t("visor.siguiente")} data-tip={t("visor.siguiente")} onClick={alSiguiente}>
+            <ChevronRight size={20} strokeWidth={2} aria-hidden="true" />
+          </button>
         ) : null}
       </div>
       {menu ? <Menu x={menu.x} y={menu.y} items={items} nivel="visor" alCerrar={() => setMenu(null)} className="visor-img-menu" tema="grafito" ariaLabel={t("visor.menuAria")} /> : null}
@@ -526,11 +645,23 @@ function Hoja({ a, v, linea, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVi
   );
 }
 
-/* El archivo abierto: una imagen, en el visor propio; lo demás, en la hoja. */
+/* El archivo abierto: una imagen, en el visor propio (con las otras imágenes del chat, para pasar de una a otra); lo demás, en la hoja. */
 export function VerArchivo({ a, linea, alCerrar }: { a: ArchivoDeHerramienta; linea?: number | null; alCerrar: () => void }) {
-  const v = useArchivoVisto(a.ruta, true);
-  if (a.tipo === "imagen" || v?.tipo === "imagen") return <VisorImagen a={a} v={v} alCerrar={alCerrar} />
-  return <Hoja a={a} v={v} linea={linea} alCerrar={alCerrar} />
+  const [ruta, setRuta] = useState(a.ruta);
+  // Las del chat se juntan al abrir: lo que llegue después no mueve el lugar de la que se está mirando.
+  const [rutas] = useState(() => (a.tipo === "imagen" ? galeriaDe(rutasDeImagenes(a.ruta), a.ruta).rutas : [a.ruta]));
+  const actual = ruta === a.ruta ? a : (archivoDeRuta(ruta, "leer") ?? a);
+  const v = useArchivoVisto(actual.ruta, true);
+  if (actual.tipo === "imagen" || v?.tipo === "imagen") {
+    const i = rutas.indexOf(actual.ruta);
+    const salto = (sentido: 1 | -1) => {
+      const j = vecino(i, rutas.length, sentido);
+      return j === null ? null : () => setRuta(rutas[j]);
+    };
+    const galeria = rutas.length > 1 && i >= 0 ? { n: i + 1, total: rutas.length, anterior: salto(-1), siguiente: salto(1) } : null;
+    return <VisorImagen a={actual} v={v} alCerrar={alCerrar} galeria={galeria} />;
+  }
+  return <Hoja a={a} v={v} linea={linea} alCerrar={alCerrar} />;
 }
 
 /*
@@ -587,6 +718,7 @@ export const EnlaceArchivo = memo(function EnlaceArchivo({ a, miniatura = true, 
       <button
         type="button"
         className="arch-v"
+        data-imagen-ruta={a.tipo === "imagen" ? a.ruta : undefined}
         data-fallo={fallo ? "" : undefined}
         aria-label={dice}
         data-tip={dice}
@@ -607,7 +739,7 @@ export const FotoArchivo = memo(function FotoArchivo({ a }: { a: ArchivoDeHerram
   if (!a.absoluta) return null;
   return (
     <>
-      <button type="button" className="arch-v arch-foto" aria-label={t("archivo.ver", { nombre: nombreDe(a.ruta) })} data-tip={t("archivo.ver", { nombre: nombreDe(a.ruta) })} onClick={() => setAbierto(true)}>
+      <button type="button" className="arch-v arch-foto" data-imagen-ruta={a.ruta} aria-label={t("archivo.ver", { nombre: nombreDe(a.ruta) })} data-tip={t("archivo.ver", { nombre: nombreDe(a.ruta) })} onClick={() => setAbierto(true)}>
         <Miniatura ruta={a.ruta} lado="grande" />
       </button>
       {abierto ? <VerArchivo a={a} alCerrar={() => setAbierto(false)} /> : null}

@@ -30,8 +30,10 @@ export function mostrarTip(el: Element) {
   const r = el.getBoundingClientRect();
   const x = Math.max(4, Math.min(r.left + r.width / 2 - t.offsetWidth / 2, innerWidth - t.offsetWidth - 4));
   const arriba = r.top - t.offsetHeight - 6;
+  // `data-tip-abajo`: siempre debajo (una barra pegada al borde de arriba, como la del visor de imágenes).
+  const abajo = el.hasAttribute("data-tip-abajo") || arriba < 4;
   t.style.setProperty("--x", `${Math.round(x)}px`);
-  t.style.setProperty("--y", `${Math.round(arriba < 4 ? r.bottom + 6 : arriba)}px`);
+  t.style.setProperty("--y", `${Math.round(abajo ? r.bottom + 6 : arriba)}px`);
   t.dataset.visible = "";
 }
 
