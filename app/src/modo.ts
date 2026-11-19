@@ -292,6 +292,8 @@ const CAPTURAS = [
   "guia-tablero",
   // «Borrar proyecto…» abierto para atlas (`HILOS_VARIANTE=vivos`: se niega por trabajo en marcha; `papelera`: con la papelera tildada, la ruta y el aviso de git).
   "borrar-proyecto",
+  // «Historial de chats»: la ventana con los archivados y cerrados de atlas, cauce y brote (`HILOS_VARIANTE=borrar`: con la burbuja de borrar pegada a la papelera del primero).
+  "historial",
   // «Reportar un bug» (el bicho del pie de la barra): el diálogo abierto; `HILOS_VARIANTE=reporte-falla` con el error al armarlo.
   "reporte",
   // Las barras lisas de cupo (src/ui/BarraCupo.tsx) solas: 20 %, 85 %, 100 % y sin dato, en las variantes normal y compacta (`HILOS_TEMA=claro`, en claro).

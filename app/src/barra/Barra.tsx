@@ -116,6 +116,7 @@ import { usePrioridad } from "./usePrioridad";
 import { useTitulos } from "./titulos";
 import { BorrarProyecto } from "./BorrarProyecto";
 import { Limpiar } from "./Limpiar";
+import { Historial } from "./Historial";
 import { Reporte } from "./Reporte";
 import { entradasLimpiar } from "./limpiar-logica";
 import { accionesCarpeta, accionesLider, accionesWorker, type LugarMenu, type Opcion } from "./menu-logica";
@@ -403,6 +404,8 @@ export function Barra() {
   const [menuOrden, setMenuOrden] = useState<{ x: number; y: number; origen: HTMLElement } | null>(null);
   // «Limpiar chats»: el diálogo abierto, de toda la barra o de una carpeta (`proyecto`).
   const [limpiando, setLimpiando] = useState<{ proyecto?: string; origen: HTMLElement | null } | null>(null);
+  // «Historial de chats»: la ventana abierta (Ctrl+H o el menú de orden). En la captura `historial` nace abierta.
+  const [historial, setHistorial] = useState<{ origen: HTMLElement | null } | null>(MODO.captura === "historial" ? { origen: null } : null);
   // «Borrar proyecto…»: el diálogo abierto para un proyecto (slug). En la captura `borrar-proyecto` nace abierto.
   const [borrando, setBorrando] = useState<{ slug: string; origen: HTMLElement | null } | null>(MODO.captura === "borrar-proyecto" ? { slug: "atlas", origen: null } : null);
   const [filtroProy, setFiltroProy] = useState<string | null>(null);
@@ -1296,6 +1299,13 @@ export function Barra() {
             campo.current?.select();
           });
         }
+        return;
+      }
+      if (es("historial", e)) {
+        e.preventDefault();
+        setMenu(null);
+        setMenuOrden(null);
+        setHistorial({ origen: (document.activeElement as HTMLElement | null) ?? null });
         return;
       }
       // Ctrl+N (y Ctrl+Shift+N, el de antes): Nueva tarea es siempre un líder; los workers los lanza él.
@@ -2453,6 +2463,7 @@ export function Barra() {
             items={[
               ...MODOS.map(([m, etq]) => ({ clave: m, fijo: true, texto: tr(etq), marcado: !hayOrdenManual(nombres.orden) && modoOrden(nombres.orden) === m, alElegir: () => { ponerModo(m); setMenuOrden(null); } })),
               { clave: "limpiar", fijo: true, texto: tr("limpiar.menu"), alElegir: () => { setLimpiando({ origen: menuOrden.origen }); setMenuOrden(null); } },
+              { clave: "historial", fijo: true, texto: tr("historial.menu"), alElegir: () => { setHistorial({ origen: menuOrden.origen }); setMenuOrden(null); } },
             ]}
           />
         ) : null}
@@ -2465,6 +2476,18 @@ export function Barra() {
             alCerrar={() => {
               limpiando.origen?.focus();
               setLimpiando(null);
+            }}
+          />
+        ) : null}
+        {historial ? (
+          <Historial
+            nombreCarpeta={(p) => nombreCarpeta(p, MODO.usuario, tr("barra.home"), titulosReg[p])}
+            tituloDe={(c) => nombres.titulos[c.sid] ?? ""}
+            alAbrir={abrirClaude}
+            {...(MODO.captura === "historial" && MODO.variante === "borrar" ? { confirmarInicial: "00000000-0000-4000-8000-0000000000h1" } : {})}
+            alCerrar={() => {
+              historial.origen?.focus();
+              setHistorial(null);
             }}
           />
         ) : null}

@@ -24,6 +24,7 @@ const letra = (k: string) => (e: Tecla) => sola(e) && e.key === k;
 export const ATAJOS = {
   buscar: { grupo: "global", teclas: [["Ctrl", "K"]], desc: "atajos.buscar", coincide: ctrlLetra("k") },
   nuevo: { grupo: "global", teclas: [["Ctrl", "N"]], desc: "atajos.nuevo", coincide: ctrlLetra("n") },
+  historial: { grupo: "global", teclas: [["Ctrl", "H"]], desc: "atajos.historial", coincide: ctrlLetra("h") },
   salir: { grupo: "global", teclas: [["Ctrl", "Q"]], desc: "atajos.salir", coincide: ctrlLetra("q") },
   letraMas: { grupo: "global", teclas: [["Ctrl", "+"]], desc: "atajos.letraMas", coincide: (e) => atajoLetra(e) === 1 },
   letraMenos: { grupo: "global", teclas: [["Ctrl", "−"]], desc: "atajos.letraMenos", coincide: (e) => atajoLetra(e) === -1 },
