@@ -1,7 +1,9 @@
 // Ajustes > Plan y cupos > «Tu plan en cada suscripción»: el plan de Claude, Google y ChatGPT con el que Modelos calcula el costo de cada
 // esfuerzo (× la parte del precio de API que paga ese plan, datos de Priors). Automático: Claude detectado del credentials, Google AI Pro con
 // `agy`. Se guarda en `planes` de modelos.json con el resto del borrador (botón Guardar de Modelos).
+import { useEffect, useRef } from "react";
 import { t } from "../i18n";
+import { MODO } from "../modo";
 import { Selector } from "../hilo/Selector";
 import { GrupoAjustes, FilaAjuste } from "./AjustesPiezas";
 import { elegirPlan, type Borrador } from "./modelos-borrador";
@@ -18,8 +20,13 @@ function autoDe(proveedor: string, planes: VistaPlanes | null): string {
 
 export function PlanesSuscripcion({ b, cambiar, planes }: { b: Borrador; cambiar: (b: Borrador) => void; planes: VistaPlanes | null }) {
   const datos = planes?.datos ?? null;
+  const sec = useRef<HTMLElement>(null);
+  // Captura `cupos-planes`: el bloque a la vista (se recentra cuando llegan los datos, que empujan lo de arriba).
+  useEffect(() => {
+    if (MODO.variante === "cupos-planes") sec.current?.scrollIntoView({ block: "center" });
+  }, [datos]);
   return (
-    <section className="pn-sec pn-edita" data-planes>
+    <section ref={sec} className="pn-sec pn-edita" data-planes>
       <GrupoAjustes titulo={t("cu.planes")} subtitulo={t("cu.planesSub")}>
         {PROVEEDORES_PLAN.map((p) => {
           const lista = planesDe(datos, p);
