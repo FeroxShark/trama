@@ -209,6 +209,7 @@ export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable, 
           onChange={(e) => setFiltro(e.target.value)}
         />
       ) : null}
+      {pie ? <div className="cmenu-pie">{pie}</div> : null}
       {visibles.map((it, k) => (
         <Fragment key={it.clave}>
           <button
@@ -232,7 +233,6 @@ export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable, 
         </Fragment>
       ))}
       {conBuscador && visibles.every((it) => it.fijo) ? <div className="cmenu-vacio">{tr("menu.sinResultados")}</div> : null}
-      {pie ? <div className="cmenu-pie">{pie}</div> : null}
     </motion.div>,
     document.body,
   );
