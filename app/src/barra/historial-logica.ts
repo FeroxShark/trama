@@ -1,6 +1,6 @@
 // «Historial de chats» (Historial.tsx): lista, filtros, búsqueda y agrupación. Puro, lo prueba tests/historial-logica.test.ts.
 // Los chats los arma el main (electron/historial-chats.ts): los que Trama lanzó y ya no están en la barra, archivados o cerrados.
-import type { ChatHistorial, type ComoSalio, type MotivoNoBorrado } from "../datos/contrato.ts";
+import type { ChatHistorial, ComoSalio, MotivoNoBorrado } from "../datos/contrato.ts";
 import { OTRAS } from "./claude-code.ts";
 
 export type FiltroHistorial = "todos" | ComoSalio;
