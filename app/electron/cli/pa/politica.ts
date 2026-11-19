@@ -349,8 +349,10 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     l.esfuerzo = e;
     env.PA_EFFORT = e;
   };
+  // También el pedido: el hijo de --async lo recibe como --effort, y un modelo que lo lleva en el nombre (agy, codex) lo rechaza.
   const sacarEffort = () => {
     l.esfuerzo = "";
+    l.esfuerzoPedido = "";
     delete env.PA_EFFORT;
   };
   const politica = () => (l.politica = modelos.politica());
