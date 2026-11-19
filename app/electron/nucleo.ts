@@ -1331,6 +1331,15 @@ export function armarNucleo() {
     alRefrescar: () => enviar("reparto:tablaNueva", null),
   });
   manejar("reparto:tabla", () => tablaReparto());
+  // Siempre al día sin abrir Ajustes: al arrancar y cada hora, si la caché de Artificial Analysis venció (VIGENCIA_AA_MS) se baja de fondo
+  // y Ajustes, si está abierto, se repinta. Sin key no se llama a nadie.
+  const alDiaAA = async () => {
+    if (aislado()) return;
+    const r = await refrescarAA(await claveAA(), { baseUrl: process.env.AA_URL });
+    if (r.ok && !r.vigente) enviar("reparto:tablaNueva", null);
+  };
+  void alDiaAA().catch(silencio("aa"));
+  setInterval(() => void alDiaAA().catch(silencio("aa")), 3_600_000).unref();
   manejar("opencode:estado", () => vistaOpencode());
   manejar("opencode:actualizar", () => actualizarOpencode());
   // OpenCode Go (plan pago, apagado por defecto): el plan y los topes por modelo; elegir el plan es sólo de la PC (`SOLO_PC_TAILNET`).

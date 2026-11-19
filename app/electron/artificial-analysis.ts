@@ -1,5 +1,5 @@
 // Artificial Analysis (https://artificialanalysis.ai): de ahí sale la inteligencia medida de los modelos para `reparto` cuando el dueño
-// pegó su API key (Ajustes > Modelos > «Modelos para workers»). Acá: bajar la lista (a lo sumo una vez cada 24 h, o a pedido), guardarla
+// pegó su API key (Ajustes > Modelos > «Modelos para workers»). Acá: bajar la lista (a lo sumo una vez cada 6 h, o a pedido), guardarla
 // en la caché que lee `reparto` (<estado de pa>/reparto/aa-modelos.json) y contar qué pasó (key mala, límite diario, sin red, forma rara).
 // El emparejamiento de nombres vive en motor/bin/reparto, que es quien conoce los ids; los índices se guardan crudos (sin calibrar), junto con costo, tokens y tiempo por tarea cuando AA los trae.
 // Node puro con fetch y reloj inyectables: lo prueban tests/artificial-analysis.test.ts y un servidor falso. La key nunca se loguea ni
@@ -11,8 +11,8 @@ import { estadoPa } from "./rutas.ts";
 export const URL_AA = "https://artificialanalysis.ai";
 /** El endpoint del plan gratis y, si ése no existe (404), el que usa código de terceros. */
 export const RUTAS_AA = ["/api/v2/language/models/free", "/api/v2/data/llms/models"] as const;
-/** Cada cuánto se vuelve a bajar sola la lista. */
-export const VIGENCIA_AA_MS = 24 * 3_600_000;
+/** Cada cuánto se vuelve a bajar sola la lista (el motor la mira cada hora, sin que nadie abra Ajustes). */
+export const VIGENCIA_AA_MS = 6 * 3_600_000;
 /** Tras un fallo que no es el límite diario, no se reintenta sola antes de esto. */
 export const ESPERA_FALLO_MS = 10 * 60_000;
 

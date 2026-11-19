@@ -1,5 +1,5 @@
 // Artificial Analysis (electron/artificial-analysis.ts): leer las formas de respuesta que puede tener la API, 401 / 429 con Retry-After,
-// la caché de 24 h con reloj inyectado, el servidor falso por HTTP de verdad (header x-api-key, segunda ruta si la primera da 404) y que la
+// la caché de 6 h con reloj inyectado, el servidor falso por HTTP de verdad (header x-api-key, segunda ruta si la primera da 404) y que la
 // key no aparezca en ningún mensaje ni en la caché. Sin red real: la API no se puede alcanzar desde los tests.
 import { test, after } from "node:test";
 import { soloPosix } from "./plataforma.ts";
@@ -70,7 +70,7 @@ test("bajarLista: 401 = key mala, 429 = límite con Retry-After, 404 pasa a la o
   assert.equal((await bajarLista(KEY, { fetch: por(() => resp(200, "ROTO")) })).ok, false);
 });
 
-test("refrescarAA: baja y guarda; con la caché de menos de 24 h no llama; pasadas las 24 h, sí; forzar ignora la vigencia", async () => {
+test("refrescarAA: baja y guarda; con la caché de menos de 6 h no llama; pasadas las 6 h, sí; forzar ignora la vigencia", async () => {
   const r = ruta();
   let llamadas = 0;
   let ahora = Date.parse("2026-10-25T08:00:00Z");
@@ -83,10 +83,10 @@ test("refrescarAA: baja y guarda; con la caché de menos de 24 h no llama; pasad
   assert.ok(!readFileSync(r, "utf8").includes(KEY), "la caché no lleva la key");
   ahora += VIGENCIA_AA_MS - 1000;
   const b = await refrescarAA(KEY, deps);
-  assert.deepEqual([b.ok && b.vigente, llamadas], [true, 1], "de hace menos de 24 h: no llama");
+  assert.deepEqual([b.ok && b.vigente, llamadas], [true, 1], "de hace menos de 6 h: no llama");
   ahora += 2000;
   const d = await refrescarAA(KEY, deps);
-  assert.deepEqual([d.ok && d.vigente, llamadas], [false, 2], "pasadas 24 h: baja de nuevo");
+  assert.deepEqual([d.ok && d.vigente, llamadas], [false, 2], "pasadas 6 h: baja de nuevo");
   await refrescarAA(KEY, { ...deps, forzar: true });
   assert.equal(llamadas, 3, "forzar ignora la vigencia");
   assert.deepEqual(await refrescarAA(undefined, deps), { ok: false, tipo: "sin-clave" });
