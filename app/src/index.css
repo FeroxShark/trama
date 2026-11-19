@@ -2863,6 +2863,33 @@ html[data-titulo-nativo] #root::after {
   flex: none;
   align-self: center;
 }
+/* La ruta y su botón de copiar van juntos; el anillo de foco pegado a la ruta, sin taparle el texto de al lado. */
+.ruta-carpeta:focus-visible,
+.ruta-copiar:focus-visible {
+  outline-offset: 0;
+}
+.ruta-copiar {
+  display: inline-flex;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-left: var(--esp-0-5);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: none;
+  color: var(--apagado);
+  vertical-align: middle;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.ruta-copiar:hover {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+.ruta-copiar[data-hecho] {
+  color: var(--verde);
+}
 /* Rutas que se pueden tocar (carpeta o dentro de botón/enlace): mismo azul de enlace y subrayado siempre. */
 :is(.yo, .el, .pregunta) :is(button, a) code[data-ruta],
 :is(button, a) code[data-ruta],

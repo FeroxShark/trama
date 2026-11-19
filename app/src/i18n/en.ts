@@ -1888,6 +1888,8 @@ export const en = {
   "ruta.abrirCarpeta": "Open folder {nombre}",
   "ruta.reiniciar": "Restart Trama to open this path.",
   "ruta.ver": "View",
+  "ruta.copiar": "Copy path",
+  "ruta.copiada": "Path copied",
   "visor.mostrarCarpeta": "Show in folder",
   "visor.mostrarCarpetaAria": "Show {nombre} in folder",
   "visor.noAbrioCarpeta": "Couldn't show in folder",

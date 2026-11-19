@@ -2,27 +2,61 @@
 // parseo es de markdown.ts (párrafos, listas, bloques ```, títulos, citas, tablas
 // y lo de adentro de un renglón) y el resaltado de los bloques, de resaltar.ts;
 // los saltos de línea se respetan por CSS.
-import { createContext, Fragment, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  Fragment,
+  memo,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Check, Copy, FolderOpen, FolderX } from "lucide-react";
 import { copiarConAviso } from "../copiar";
 import { fuente } from "../datos/fuente";
-import { resultadoCarpeta, type ResultadoCarpeta } from "../datos/carpeta-abrir";
+import {
+  resultadoCarpeta,
+  type ResultadoCarpeta,
+} from "../datos/carpeta-abrir";
 import { detalleDe, reportar } from "../errores";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { esVentana } from "../puente";
 import { esComodin, rutaImagen } from "../../electron/imagen-ruta";
 import { ImagenInsertada, ImagenLocal, VerImagenLocal } from "./Imagenes";
-import { ArchivoEnLinea, TarjetasRuta, plataformaActual } from "./TarjetaRuta";
+import {
+  ArchivoEnLinea,
+  TarjetasRuta,
+  plataformaActual,
+  CopiarRuta,
+} from "./TarjetaRuta";
 import { partirProsa, rutaDeCodigo } from "./rutas-mencionadas";
-import { bloques, carpetaRelativa, esRuta, rutaCarpeta, sueltas, trozos, type Bloque, type Lista, type Trozo } from "./markdown";
+import {
+  bloques,
+  carpetaRelativa,
+  esRuta,
+  rutaCarpeta,
+  sueltas,
+  trozos,
+  type Bloque,
+  type Lista,
+  type Trozo,
+} from "./markdown";
 import { rutaEnCwd } from "./worker-datos";
 import { resaltar } from "./resaltar";
 
 // Un enlace sale de la app: en la ventana lo abre el navegador del sistema (el main, que sólo
 // deja pasar http(s) y mailto: `electron/enlace.ts`); en el celular, una pestaña nueva. Mientras
 // llega (`url` vacía) ya se ve como enlace, sin destino.
-function Enlace({ x, children }: { x: Extract<Trozo, { tipo: "link" }>; children: ReactNode }) {
+function Enlace({
+  x,
+  children,
+}: {
+  x: Extract<Trozo, { tipo: "link" }>;
+  children: ReactNode;
+}) {
   return x.url ? (
     <a href={x.url} target="_blank" rel="noopener noreferrer" data-tip={x.url}>
       {children}
@@ -33,16 +67,21 @@ function Enlace({ x, children }: { x: Extract<Trozo, { tipo: "link" }>; children
 }
 
 /** `![alt](src)`: un data: de imagen trae los bytes; una URL de la red no se baja (sale como enlace); lo demás es un archivo de esta máquina. */
-const DATA_IMAGEN = /^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/]+={0,2})$/;
+const DATA_IMAGEN =
+  /^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/]+={0,2})$/;
 function Imagen({ x }: { x: Extract<Trozo, { tipo: "img" }> }) {
   const d = DATA_IMAGEN.exec(x.url);
-  if (d) return <ImagenInsertada img={{ tipo: d[1], datos: d[2] }} alt={x.texto} />;
+  if (d)
+    return <ImagenInsertada img={{ tipo: d[1], datos: d[2] }} alt={x.texto} />;
   if (/^https?:\/\//i.test(x.url))
     return (
-      <Enlace x={{ tipo: "link", texto: x.texto || x.url, url: x.url }}>{x.texto || x.url}</Enlace>
+      <Enlace x={{ tipo: "link", texto: x.texto || x.url, url: x.url }}>
+        {x.texto || x.url}
+      </Enlace>
     );
   // Lo que no apunta a una imagen (`vec![0](x)`) o es un patrón (`ciclo_*.png`) es texto, como antes: sin aviso de "no disponible".
-  if (esComodin(x.url) || !/\.(?:png|jpe?g|gif|webp|bmp)$/i.test(x.url)) return <>{`![${x.texto}](${x.url})`}</>;
+  if (esComodin(x.url) || !/\.(?:png|jpe?g|gif|webp|bmp)$/i.test(x.url))
+    return <>{`![${x.texto}](${x.url})`}</>;
   return <ImagenLocal ruta={x.url} alt={x.texto} />;
 }
 
@@ -61,38 +100,68 @@ function Carpeta({ texto }: { texto: string }) {
   const ruta = absoluta ?? (rel ? rutaEnCwd(rel, base) : null);
   const [res, setRes] = useState<ResultadoCarpeta | null>(null);
   const fallo = res !== null && res !== "abierta";
-  const clave = res === "app" ? "archivo.carpetaReiniciar" : res === "no-carpeta" ? "archivo.carpetaNoAbrio" : "archivo.carpetaAbrir";
+  const clave =
+    res === "app"
+      ? "archivo.carpetaReiniciar"
+      : res === "no-carpeta"
+        ? "archivo.carpetaNoAbrio"
+        : "archivo.carpetaAbrir";
   const dice = t(clave, { ruta: ruta ?? texto });
   const Ico = fallo ? FolderX : FolderOpen;
   if (!ruta) return <code data-ruta="">{texto}</code>;
   return (
-    <button
-      type="button"
-      className="ruta-carpeta"
-      data-fallo={fallo ? "" : undefined}
-      aria-label={dice}
-      data-tip={dice}
-      onClick={() => void resultadoCarpeta(() => fuente.carpetaAbrir(ruta), (e) => reportar("carpeta", detalleDe(e))).then(setRes)}
-    >
-      <code data-ruta="">{absoluta ?? texto}</code>
-      <Ico size={12} strokeWidth={2} aria-hidden="true" />
-    </button>
+    <span className="ruta-linea">
+      <button
+        type="button"
+        className="ruta-carpeta"
+        data-fallo={fallo ? "" : undefined}
+        aria-label={dice}
+        data-tip={dice}
+        onClick={() =>
+          void resultadoCarpeta(
+            () => fuente.carpetaAbrir(ruta),
+            (e) => reportar("carpeta", detalleDe(e)),
+          ).then(setRes)
+        }
+      >
+        <code data-ruta="">{absoluta ?? texto}</code>
+        <Ico size={12} strokeWidth={2} aria-hidden="true" />
+      </button>
+      <CopiarRuta ruta={ruta} />
+    </span>
   );
 }
 
 /** Un `.html` o un archivo mostrable (no imagen: esas tienen su botón de ver) nombrado en código en línea. */
 function archivoDeCodigo(texto: string) {
   const r = rutaDeCodigo(texto, plataformaActual());
-  return r && r.tipo !== "carpeta" && !(r.tipo === "archivo" && rutaImagen(texto)) ? r : null;
+  return r &&
+    r.tipo !== "carpeta" &&
+    !(r.tipo === "archivo" && rutaImagen(texto))
+    ? r
+    : null;
 }
 
-function enLinea(texto: string, op: { vivo?: boolean; enlaces?: boolean } = {}): ReactNode[] {
+function enLinea(
+  texto: string,
+  op: { vivo?: boolean; enlaces?: boolean } = {},
+): ReactNode[] {
   const adentro = (s: string) => enLinea(s, { enlaces: op.enlaces });
   return trozos(texto, op).map((x, i) =>
-    x.tipo === "code" && op.enlaces !== false && esVentana() && (rutaCarpeta(x.texto) || carpetaRelativa(x.texto)) ? (
+    x.tipo === "code" &&
+    op.enlaces !== false &&
+    esVentana() &&
+    (rutaCarpeta(x.texto) || carpetaRelativa(x.texto)) ? (
       <Carpeta key={i} texto={x.texto} />
-    ) : x.tipo === "code" && op.enlaces !== false && esVentana() && archivoDeCodigo(x.texto) ? (
-      <ArchivoEnLinea key={i} item={archivoDeCodigo(x.texto)!} texto={x.texto} />
+    ) : x.tipo === "code" &&
+      op.enlaces !== false &&
+      esVentana() &&
+      archivoDeCodigo(x.texto) ? (
+      <ArchivoEnLinea
+        key={i}
+        item={archivoDeCodigo(x.texto)!}
+        texto={x.texto}
+      />
     ) : x.tipo === "code" ? (
       <Fragment key={i}>
         <code data-ruta={esRuta(x.texto) ? "" : undefined}>{x.texto}</code>
@@ -146,14 +215,31 @@ function Copiar({ texto }: { texto: string }) {
     });
   const dice = t(hecho ? "codigo.copiado" : "codigo.copiar");
   return (
-    <button type="button" className="codigo-c" data-hecho={hecho ? "" : undefined} aria-label={dice} data-tip={dice} onClick={alCopiar}>
-      {hecho ? <Check size={12} strokeWidth={2.2} /> : <Copy size={12} strokeWidth={2} />}
+    <button
+      type="button"
+      className="codigo-c"
+      data-hecho={hecho ? "" : undefined}
+      aria-label={dice}
+      data-tip={dice}
+      onClick={alCopiar}
+    >
+      {hecho ? (
+        <Check size={12} strokeWidth={2.2} />
+      ) : (
+        <Copy size={12} strokeWidth={2} />
+      )}
     </button>
   );
 }
 
 /** Un bloque ```: resaltado según su lenguaje, con scroll de costado propio y su botón de copiar. */
-const Codigo = memo(function Codigo({ texto, lang }: { texto: string; lang: string }) {
+const Codigo = memo(function Codigo({
+  texto,
+  lang,
+}: {
+  texto: string;
+  lang: string;
+}) {
   const toks = useMemo(() => resaltar(texto, lang), [texto, lang]);
   return (
     <div className="codigo">
@@ -183,10 +269,19 @@ function Items({ l, vivo }: { l: Lista; vivo: boolean }) {
       {l.items.map((x, k) => {
         const ultimo = vivo && k === l.items.length - 1;
         return (
-          <li key={k} data-casilla={x.hecho === undefined ? undefined : x.hecho ? "x" : ""}>
+          <li
+            key={k}
+            data-casilla={
+              x.hecho === undefined ? undefined : x.hecho ? "x" : ""
+            }
+          >
             {enLinea(x.texto, { vivo: ultimo && !x.sub && !x.bloques })}
             {x.bloques?.map((b, j) => (
-              <Pieza key={j} b={b} vivo={ultimo && !x.sub && j === x.bloques!.length - 1} />
+              <Pieza
+                key={j}
+                b={b}
+                vivo={ultimo && !x.sub && j === x.bloques!.length - 1}
+              />
             ))}
             {x.sub ? <Items l={x.sub} vivo={ultimo} /> : null}
           </li>
@@ -202,12 +297,16 @@ type PropsBloque = { b: Bloque; vivo: boolean };
  * `bloques()` arma objetos nuevos en cada pasada (con el stream, una cada 50 ms): se compara lo
  * que se pinta, así mientras llega el texto sólo se repinta el último bloque.
  */
-const igual = (a: PropsBloque, b: PropsBloque) => a.vivo === b.vivo && a.b.tipo === b.b.tipo && JSON.stringify(a.b) === JSON.stringify(b.b);
+const igual = (a: PropsBloque, b: PropsBloque) =>
+  a.vivo === b.vivo &&
+  a.b.tipo === b.b.tipo &&
+  JSON.stringify(a.b) === JSON.stringify(b.b);
 
 const Pieza = memo(function Pieza({ b, vivo }: PropsBloque) {
   if (b.tipo === "p") return <p>{enLinea(b.texto, { vivo })}</p>;
   if (b.tipo === "pre") return <Codigo texto={b.texto} lang={b.lang} />;
-  if (b.tipo === "h") return <h4 data-n={Math.min(b.nivel, 4)}>{enLinea(b.texto, { vivo })}</h4>;
+  if (b.tipo === "h")
+    return <h4 data-n={Math.min(b.nivel, 4)}>{enLinea(b.texto, { vivo })}</h4>;
   if (b.tipo === "hr") return <hr />;
   if (b.tipo === "cita")
     return (
@@ -252,7 +351,9 @@ const Pieza = memo(function Pieza({ b, vivo }: PropsBloque) {
             <tr>
               {b.cabeza.map((c, k) => (
                 <th key={k} data-al={al(k)}>
-                  {enLinea(c, { vivo: vivo && !b.filas.length && k === b.cabeza.length - 1 })}
+                  {enLinea(c, {
+                    vivo: vivo && !b.filas.length && k === b.cabeza.length - 1,
+                  })}
                 </th>
               ))}
             </tr>
@@ -289,8 +390,15 @@ export function EnLinea({ texto }: { texto: string }) {
   return <>{enLinea(texto)}</>;
 }
 
-export const Texto = memo(function Texto({ texto, vivo = false, propio = false }: Props) {
-  const bs = useMemo(() => bloques(texto, { vivo, terminal: propio }), [texto, vivo, propio]);
+export const Texto = memo(function Texto({
+  texto,
+  vivo = false,
+  propio = false,
+}: Props) {
+  const bs = useMemo(
+    () => bloques(texto, { vivo, terminal: propio }),
+    [texto, vivo, propio],
+  );
   return (
     <>
       {bs.map((b, i) => (
