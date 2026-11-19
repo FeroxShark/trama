@@ -4,7 +4,7 @@
 // cruza con otra espera.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -76,10 +76,12 @@ test("lanzarAsync: --leer en cola (sin .jefe) y uno que muere antes de tomar pue
   const dir2 = path.join(pa.state, "otro");
   mkdirSync(dir2, { recursive: true });
   await assert.rejects(
-    lanzarAsync(pa, { proyecto: "otro", slug: "otro", dir: dir2, leer: false, hijoArgs: [], comando: hijoFalso("process.exit(3)") }),
+    lanzarAsync(pa, { proyecto: "otro", slug: "otro", dir: dir2, leer: false, hijoArgs: [], comando: hijoFalso('process.stderr.write("pa: --effort no va con x");process.exit(3)') }),
     (e: unknown) => e instanceof Salida && e.codigo === 1,
   );
-  assert.match(err(), /murió antes de tomar el lock de un puesto\. Mirá el log: /);
+  // Lo que dijo el hijo sale acá mismo y la corrida no deja archivos (si no, Trama muestra un worker fantasma «Sin tarea / Murió»).
+  assert.match(err(), /murió antes de tomar el lock de un puesto\.\npa: --effort no va con x/);
+  assert.deepEqual(readdirSync(dir2), []);
 });
 
 test("verificacion: la sección, con tilde, ** y hasta el próximo encabezado; «ninguna» no cuenta", () => {

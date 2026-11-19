@@ -9,7 +9,7 @@
 //
 // Corre suelto (`node async.ts --estado`, `--esperar …`, `--esperar-todos …`, `--parar <id>`, `<proyecto> --parar <id>`,
 // `<proyecto> --matar [--leer] [--id ID]`) hasta que el despachador de `pa` en TS llame a estas funciones.
-import { existsSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { probar } from "../base/lock.ts";
 import { lanzarSuelto } from "../base/proc.ts";
@@ -610,7 +610,18 @@ export async function lanzarAsync(pa: Pa, p: PedidoAsync): Promise<string> {
   // kill0 solo no alcanza: uno que tomó puesto, corrió y salió en <0,1 s se ve igual que uno que nunca llegó. El .listo lo
   // deja la salida del hijo SÓLO después de tomar puesto: su ausencia distingue «murió antes de arrancar».
   if (murio && !existsSync(x("listo"))) {
-    io.err(p.leer ? `pa: '${p.slug}' (id: ${ts}) murió antes de arrancar. Mirá el log: ${log}\n` : `pa: '${p.slug}' (id: ${ts}) murió antes de tomar el lock de un puesto. Mirá el log: ${log}\n`);
+    // Casi siempre es un pedido rechazado (argumentos que no van): lo que dijo el hijo va acá mismo y la corrida no deja archivos,
+    // así Trama no muestra un worker fantasma «Sin tarea / Murió».
+    const dijo = (() => {
+      try {
+        return readFileSync(log, "utf8").trim().slice(-2000);
+      } catch {
+        return "";
+      }
+    })();
+    for (const e of ["log", "jefe", "pid", "leer"]) rmSync(x(e), { force: true });
+    const que = p.leer ? "murió antes de arrancar" : "murió antes de tomar el lock de un puesto";
+    io.err(`pa: '${p.slug}' (id: ${ts}) ${que}.${dijo ? `\n${dijo}` : ""}\n`);
     salir(1);
   }
   const enCola = () => `pa: '${p.slug}' lanzado en background, EN COLA: ${leerTexto(x("cola"))} (id: ${ts}, log: ${log}). Arranca solo cuando se libere.\n`;
