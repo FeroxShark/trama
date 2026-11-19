@@ -139,7 +139,9 @@ function leerLado(): { acp_session: string | null; contexto: number | null } {
 
 function guardarLado(acp: string | null, contexto: number | null = leerLado().contexto) {
   try {
-    writeFileSync(LADO, JSON.stringify({ version: 1, sid, acp_session: acp, modelo, ...(contexto ? { contexto } : {}) }) + "\n");
+    const tmp = `${LADO}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify({ version: 1, sid, acp_session: acp, modelo, ...(contexto ? { contexto } : {}) }) + "\n");
+    renameSync(tmp, LADO);
   } catch {
     /* se pierde la continuidad por dsh: la próxima vez se repite lo hablado */
   }
@@ -759,8 +761,8 @@ async function turno(m: Mensaje) {
   actual = null;
   const ultimo = tr;
   for (const o of ultimo.cerrarAbiertas(interrumpido ? "Interrumpido." : (error ?? "El turno terminó antes de que esta herramienta contestara."))) salida(o);
-  for (const o of ultimo.fin(error, Date.now() - t0)) salir(o);
   if (ultimo.usado) guardarLado(acpSid ?? leerLado().acp_session, ultimo.usado);
+  for (const o of ultimo.fin(error, Date.now() - t0)) salir(o);
   // Los gratis y los de Go tienen cupo: se cuentan los pedidos de este turno (sin `usage_update`, uno si el modelo contestó algo).
   if (oc && cuentaPedidos(oc.valor)) anotarPedidos(oc.valor, ultimo.pasos || (ultimo.hablo ? 1 : 0));
   cerrarTurno();

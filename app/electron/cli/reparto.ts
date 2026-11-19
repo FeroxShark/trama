@@ -12,6 +12,7 @@ import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readd
 import os from "node:os";
 import path from "node:path";
 import { envSinNavegador, hallarAgy, hallarCodex, resolverClaude } from "../binario.ts";
+import { hijoEnGrupo, matarArbol } from "../procesos.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
 import { cierreDe, cierresVigentes, suscripcionDeProveedor, textoSinCupo } from "./cierre-cupo-lectura.ts";
@@ -321,18 +322,15 @@ function correrAsync(cmd: string, args: string[], o: { timeoutS: number; cwd?: s
     };
     let h: ReturnType<typeof spawn>;
     try {
-      h = spawn(ejecutable, argv, { cwd: o.cwd, env: entornoDe(cmd, o.env), stdio: ["ignore", "pipe", "pipe"], windowsHide: true, ...extra });
+      // Su propio grupo en POSIX: al vencer se mata también lo que lanzó (ej. los hijos de agy o un envoltorio de shell).
+      h = spawn(ejecutable, argv, { cwd: o.cwd, env: entornoDe(cmd, o.env), stdio: ["ignore", "pipe", "pipe"], detached: hijoEnGrupo(), windowsHide: true, ...extra });
     } catch (e) {
       fin({ error: e as Error });
       return;
     }
     const reloj = setTimeout(() => {
-      // Venció: se mata y se sueltan los caños (un nieto que siga vivo no tiene que trabar la salida de reparto).
-      try {
-        h.kill("SIGKILL");
-      } catch {
-        /* ya no estaba */
-      }
+      // Venció: se mata el árbol entero (grupo en POSIX, taskkill /T /F en Windows) y se sueltan los caños.
+      matarArbol(h.pid, "SIGKILL");
       h.stdout?.destroy();
       h.stderr?.destroy();
       h.unref();

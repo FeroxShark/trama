@@ -14,6 +14,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
 import path from "node:path";
 import { paraLanzar } from "./binario.ts";
+import { hijoEnGrupo, matarArbol } from "./procesos.ts";
 
 type Obj = Record<string, any>;
 
@@ -161,6 +162,7 @@ export class ClienteAcp {
       cwd: this.o.cwd,
       env: this.o.env as NodeJS.ProcessEnv | undefined,
       stdio: ["pipe", "pipe", "pipe"],
+      detached: hijoEnGrupo(),
       windowsHide: true,
       windowsVerbatimArguments: l.verbatim,
     });
@@ -231,14 +233,14 @@ export class ClienteAcp {
     } catch {
       /* ya cerrado */
     }
-    const t = setTimeout(() => p.kill("SIGKILL"), espera);
+    const t = setTimeout(() => matarArbol(p.pid, "SIGKILL"), espera);
     await fin;
     clearTimeout(t);
   }
 
-  /** Mata al agente ya (SIGKILL al proceso). */
+  /** Mata al agente y su árbol ya (grupo en POSIX, taskkill /T /F en Windows). */
   matar(): void {
-    this.hijo?.kill("SIGKILL");
+    matarArbol(this.hijo?.pid, "SIGKILL");
   }
 
   // --- JSON-RPC -------------------------------------------------------------------------------------------------

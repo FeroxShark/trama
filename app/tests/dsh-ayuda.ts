@@ -49,7 +49,21 @@ export async function arrancarFalso(dir: string, extra: Record<string, string> =
     baseURL,
     log,
     // Sólo los pedidos de chat del agente (los que llevan herramientas); el del título de sesión no.
-    pedidos: () => (existsSync(log) ? readFileSync(log, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []).filter((r) => Array.isArray(r.body?.tools) && r.body.tools.length),
+    // Al sondear mientras el servidor falso escribe una línea larga (herramientas + prompt), ignorar una línea todavía a medias.
+    pedidos: () => {
+      if (!existsSync(log)) return [];
+      const res: any[] = [];
+      for (const l of readFileSync(log, "utf8").split("\n")) {
+        if (!l.trim()) continue;
+        try {
+          const r = JSON.parse(l);
+          if (Array.isArray(r.body?.tools) && r.body.tools.length) res.push(r);
+        } catch {
+          /* escritura en curso */
+        }
+      }
+      return res;
+    },
     cerrar: () => p.kill("SIGKILL"),
   };
 }

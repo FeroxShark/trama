@@ -1,7 +1,7 @@
 // Un líder de dsh de punta a punta: el puente (electron/dsh-puente.ts) con un `dsh --profile acp` de verdad y el servidor OpenAI falso
 // (scripts/openai-falso.mjs). Habla como `claude -p` por stdin/stdout: lo que sale lo entiende parsearLinea (lider-arma.ts). Sin `dsh`
 // (TRAMA_DSH_BIN, app/node_modules/.bin, PATH…) se saltea. HOME, DSH_HOME y HILOS_STATE en un tmp.
-import { after } from "node:test";
+import { describe } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -9,16 +9,9 @@ import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "no
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { parsearLinea } from "../electron/lider-arma.ts";
-import { DSH, SIN_DSH, arrancarFalso, entornoTmp, espera, hasta, pngValido, usuarios } from "./dsh-ayuda.ts";
+import { DSH, SIN_DSH, arrancarFalso, entornoTmp, hasta, pngValido, usuarios, type Falso } from "./dsh-ayuda.ts";
 
-const { tmp, home, trabajo, dshHome } = entornoTmp("dsh-puente");
-const estado = path.join(tmp, "estado");
-const sesiones = path.join(tmp, "sesiones");
-const puentes: Puente[] = [];
-after(() => {
-  for (const p of puentes) p.matar();
-  rmSync(tmp, { recursive: true, force: true });
-});
+type Entorno = { tmp: string; home: string; trabajo: string; dshHome: string; estado: string; sesiones: string };
 
 /** El puente como lo lanza lider.ts: stdin/stdout de stream-json. */
 class Puente {
@@ -27,10 +20,10 @@ class Puente {
   stderr = "";
   private hijo: ChildProcess;
   readonly sid: string;
-  constructor(sid: string, baseURL: string, extra: Record<string, string> = {}) {
+  constructor(ent: Entorno, puentes: Puente[], sid: string, baseURL: string, extra: Record<string, string> = {}) {
     this.sid = sid;
-    this.hijo = spawn(process.execPath, [path.join(import.meta.dirname, "..", "electron", "dsh-puente.ts"), "--sid", sid, "--nombre", "trama-test", "--modelo", extra.MODELO_PRUEBA ?? "dsh:ollama/fake-model", "--cwd", trabajo], {
-      env: { ...process.env, HOME: home, DSH_HOME: dshHome, HILOS_DSH: DSH!, HILOS_STATE: estado, HILOS_SESIONES: sesiones, TRAMA_DUENO: "Ana", TRAMA_DSH_URL: baseURL, TRAMA_DSH_PREFACIO: "PREFACIO-DE-PRUEBA", OPENCODE_API_KEY: "", ...extra },
+    this.hijo = spawn(process.execPath, [path.join(import.meta.dirname, "..", "electron", "dsh-puente.ts"), "--sid", sid, "--nombre", "trama-test", "--modelo", extra.MODELO_PRUEBA ?? "dsh:ollama/fake-model", "--cwd", ent.trabajo], {
+      env: { ...process.env, HOME: ent.home, DSH_HOME: ent.dshHome, HILOS_DSH: DSH!, HILOS_STATE: ent.estado, HILOS_SESIONES: ent.sesiones, TRAMA_DUENO: "Ana", TRAMA_DSH_URL: baseURL, TRAMA_DSH_PREFACIO: "PREFACIO-DE-PRUEBA", OPENCODE_API_KEY: "", ...extra },
       stdio: ["pipe", "pipe", "pipe"],
     });
     createInterface({ input: this.hijo.stdout! }).on("line", (l) => {
@@ -70,20 +63,46 @@ class Puente {
   }
 }
 
-const base = async (extra: Record<string, string> = {}) => {
-  const falso = await arrancarFalso(tmp, extra);
-  after(() => falso.cerrar());
-  return falso;
+type Caja = Entorno & {
+  puente: (sid: string, baseURL: string, extra?: Record<string, string>) => Puente;
+  base: (extra?: Record<string, string>) => Promise<Falso>;
 };
+
+/** Cada prueba corre en su propia casa temporal (sin pisarse sesiones, archivos ni servidores falsos) y limpia al terminar. */
+async function conCaja(cuerpo: (c: Caja) => Promise<void>) {
+  const { tmp, home, trabajo, dshHome } = entornoTmp("dsh-puente");
+  const ent: Entorno = { tmp, home, trabajo, dshHome, estado: path.join(tmp, "estado"), sesiones: path.join(tmp, "sesiones") };
+  const puentes: Puente[] = [];
+  const falsos: Falso[] = [];
+  const caja: Caja = {
+    ...ent,
+    puente: (sid, baseURL, extra) => new Puente(ent, puentes, sid, baseURL, extra),
+    base: async (extra = {}) => {
+      const f = await arrancarFalso(tmp, extra);
+      falsos.push(f);
+      return f;
+    },
+  };
+  try {
+    await cuerpo(caja);
+  } finally {
+    for (const p of puentes) p.matar();
+    for (const f of falsos) f.cerrar();
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 const texto = (l: any) => (l.message.content as any[]).filter((b) => b.type === "text").map((b) => b.text).join("");
 
-test("un turno con razonamiento + herramienta + texto: los mensajes de Claude, el result, el transcript y el archivo de sesión", { skip: SIN_DSH, timeout: 120_000 }, async () => {
+describe("dsh-puente", { concurrency: 3 }, () => {
+test("un turno con razonamiento + herramienta + texto: los mensajes de Claude, el result, el transcript y el archivo de sesión", { skip: SIN_DSH, timeout: 120_000 }, () => conCaja(async ({ base, puente, estado, sesiones }) => {
   const falso = await base();
-  const p = new Puente("11111111-aaaa-4aaa-8aaa-000000000001", falso.baseURL);
+  const p = puente("11111111-aaaa-4aaa-8aaa-000000000001", falso.baseURL);
   p.mandar("RAZONA HERRAMIENTA hacelo");
-  // Mientras trabaja, el puente anota su sesión (la barra y `pa` la buscan ahí).
-  await hasta(() => existsSync(sesiones) && readdirSync(sesiones).length > 0, 20_000);
-  const ses = JSON.parse(readFileSync(path.join(sesiones, readdirSync(sesiones)[0]!), "utf8"));
+  // Mientras trabaja, el puente anota su sesión (la barra y `pa` la buscan ahí). Ignorar el .tmp atómico en vuelo.
+  const archivoSesion = () => (existsSync(sesiones) ? readdirSync(sesiones).find((f) => f.endsWith(".json")) : undefined);
+  await hasta(() => !!archivoSesion(), 20_000);
+  const ses = JSON.parse(readFileSync(path.join(sesiones, archivoSesion()!), "utf8"));
   assert.equal(ses.sessionId, p.sid);
   await p.turnos(1);
 
@@ -135,13 +154,13 @@ test("un turno con razonamiento + herramienta + texto: los mensajes de Claude, e
   await p.cerrar();
   assert.equal(p.salio, 0);
   assert.deepEqual(readdirSync(sesiones), []);
-});
+}));
 
-test("el segundo turno sigue la misma sesión de ACP; otro puente la retoma con session/resume y, si se perdió, empieza una con lo hablado", { skip: SIN_DSH, timeout: 180_000 }, async () => {
+test("el segundo turno sigue la misma sesión de ACP; otro puente la retoma con session/resume y, si se perdió, empieza una con lo hablado", { skip: SIN_DSH, timeout: 180_000 }, () => conCaja(async ({ base, puente, estado }) => {
   const falso = await base();
   const sid = "11111111-aaaa-4aaa-8aaa-000000000002";
   const ladoArchivo = path.join(estado, "dsh", `${sid}.json`);
-  const p = new Puente(sid, falso.baseURL);
+  const p = puente(sid, falso.baseURL);
   p.mandar("uno");
   await p.turnos(1);
   const acp = JSON.parse(readFileSync(ladoArchivo, "utf8")).acp_session as string;
@@ -153,7 +172,7 @@ test("el segundo turno sigue la misma sesión de ACP; otro puente la retoma con 
   await p.cerrar();
 
   // Cerrar del todo y volver: otro puente, otro dsh, la misma sesión (session/resume): el modelo ve lo de antes y no se repite el prefacio.
-  const q = new Puente(sid, falso.baseURL);
+  const q = puente(sid, falso.baseURL);
   q.mandar("tres");
   await q.turnos(1);
   const us = usuarios(falso.pedidos().at(-1)!);
@@ -164,7 +183,7 @@ test("el segundo turno sigue la misma sesión de ACP; otro puente la retoma con 
 
   // Si dsh ya no tiene la sesión: una nueva, con lo hablado (del transcript del puente) por delante.
   writeFileSync(ladoArchivo, JSON.stringify({ version: 1, sid, acp_session: "sesion-que-no-existe" }) + "\n");
-  const r = new Puente(sid, falso.baseURL);
+  const r = puente(sid, falso.baseURL);
   r.mandar("cuatro");
   await r.turnos(1);
   assert.deepEqual(r.eventos.filter((e: any) => e.tipo === "fin").map((e: any) => e.error), [null]);
@@ -176,17 +195,16 @@ test("el segundo turno sigue la misma sesión de ACP; otro puente la retoma con 
   assert.match(ultimo[0]!, /^PREFACIO-DE-PRUEBA/);
   assert.match(ultimo[0]!, /Lo que ya hablaron[^]*Ana: uno[^]*Vos: eco: [^]*Ana: dos[^]*Vos: eco: dos[^]*Ana: tres[^]*Vos: eco: tres[^]*Mensaje de Ana:\ncuatro$/);
   await r.cerrar();
-});
+}));
 
-test("«Mandar ya»: corta el turno con session/cancel y sigue con el mensaje en la misma sesión; un solo result y el eco que lider.ts espera", { skip: SIN_DSH, timeout: 120_000 }, async () => {
-  const falso = await base({ OPENAI_FALSO_MS_LENTO: "350" });
-  const p = new Puente("11111111-aaaa-4aaa-8aaa-000000000003", falso.baseURL);
+test("«Mandar ya»: corta el turno con session/cancel y sigue con el mensaje en la misma sesión; un solo result y el eco que lider.ts espera", { skip: SIN_DSH, timeout: 120_000 }, () => conCaja(async ({ base, puente, estado }) => {
+  // Stream largo (12 x 2,5 s = 30 s) para que bajo carga no termine solo antes de que llegue session/cancel; al cancelar dsh corta el HTTP enseguida.
+  const falso = await base({ OPENAI_FALSO_MS_LENTO: "2500" });
+  const p = puente("11111111-aaaa-4aaa-8aaa-000000000003", falso.baseURL);
   p.mandar("DESPACIO");
   await hasta(() => falso.pedidos().length === 1, 60_000, "el primer pedido al modelo no llegó");
-  await espera(1200); // a mitad del stream lento: dsh ya cerró un paso con lo que llevaba dicho
   p.mandar("YA-QUIERO-ESTO", { directo: true });
   await p.turnos(1);
-  await espera(500);
   assert.equal(p.resultados.length, 1, "para el chat sigue siendo un solo turno");
   assert.equal(p.resultados[0].is_error, false);
   const ecos = p.lineas.filter((l) => l.type === "user" && l.isReplay);
@@ -209,11 +227,13 @@ test("«Mandar ya»: corta el turno con session/cancel y sigue con el mensaje en
   await p.turnos(2);
   assert.deepEqual(p.lineas.filter((l) => l.type === "user" && l.isReplay).map((e) => e.message.content[0].text), ["YA-QUIERO-ESTO", "normal"]);
   await p.cerrar();
-});
+  assert.equal(p.resultados.length, 2, "dos turnos en total: ningún result extra del turno cortado");
+  assert.equal(falso.pedidos().length, 3);
+}));
 
-test("«Mandar ya» que llega mientras arranca dsh (todavía no hay qué cortar) va en el mismo prompt que el mensaje", { skip: SIN_DSH, timeout: 120_000 }, async () => {
+test("«Mandar ya» que llega mientras arranca dsh (todavía no hay qué cortar) va en el mismo prompt que el mensaje", { skip: SIN_DSH, timeout: 120_000 }, () => conCaja(async ({ base, puente }) => {
   const falso = await base();
-  const p = new Puente("11111111-aaaa-4aaa-8aaa-00000000000a", falso.baseURL);
+  const p = puente("11111111-aaaa-4aaa-8aaa-00000000000c", falso.baseURL);
   p.mandar("primero");
   p.mandar("YA-TAMBIEN", { directo: true });
   await p.turnos(1);
@@ -225,11 +245,11 @@ test("«Mandar ya» que llega mientras arranca dsh (todavía no hay qué cortar)
   assert.match(us[0]!, /Mensaje de Ana:\nprimero\n\n\[Mensaje de Ana a mitad del turno[^\n]*\nYA-TAMBIEN$/);
   assert.deepEqual(p.lineas.filter((l) => l.type === "user" && l.isReplay).map((e) => e.message.content[0].text), ["YA-TAMBIEN"]);
   await p.cerrar();
-});
+}));
 
-test("interrumpir (parar) corta el turno sin error y el puente sigue atendiendo en la misma sesión; un mensaje común queda en la cola", { skip: SIN_DSH, timeout: 120_000 }, async () => {
-  const falso = await base({ OPENAI_FALSO_MS_LENTO: "350" });
-  const p = new Puente("11111111-aaaa-4aaa-8aaa-000000000004", falso.baseURL);
+test("interrumpir (parar) corta el turno sin error y el puente sigue atendiendo en la misma sesión; un mensaje común queda en la cola", { skip: SIN_DSH, timeout: 120_000 }, () => conCaja(async ({ base, puente }) => {
+  const falso = await base();
+  const p = puente("11111111-aaaa-4aaa-8aaa-000000000004", falso.baseURL);
   p.mandar("HERRAMIENTA_LENTA");
   await hasta(() => p.lineas.some((l) => l.type === "assistant" && l.message.content?.[0]?.type === "tool_use"), 60_000, "no llegó la herramienta");
   p.mandar("después");
@@ -244,12 +264,12 @@ test("interrumpir (parar) corta el turno sin error y el puente sigue atendiendo 
   await p.turnos(2);
   assert.match(texto(p.lineas.filter((l) => l.type === "assistant").at(-1)), /eco: [^]*después$/);
   await p.cerrar();
-});
+}));
 
-test("una imagen adjunta viaja como bloque image de ACP hasta el modelo; sin soporte en el modelo, un aviso en su lugar", { skip: SIN_DSH, timeout: 120_000 }, async () => {
+test("una imagen adjunta viaja como bloque image de ACP hasta el modelo; sin soporte en el modelo, un aviso en su lugar", { skip: SIN_DSH, timeout: 120_000 }, () => conCaja(async ({ base, puente }) => {
   const falso = await base();
   const png = pngValido().toString("base64");
-  const p = new Puente("11111111-aaaa-4aaa-8aaa-000000000005", falso.baseURL, { TRAMA_DSH_IMAGENES: "1" });
+  const p = puente("11111111-aaaa-4aaa-8aaa-000000000005", falso.baseURL, { TRAMA_DSH_IMAGENES: "1" });
   p.mandar("mirá esto", { imagenes: [{ media_type: "image/png", data: png }] });
   await p.turnos(1);
   assert.equal(p.resultados[0].is_error, false);
@@ -258,18 +278,18 @@ test("una imagen adjunta viaja como bloque image de ACP hasta el modelo; sin sop
   assert.match(texto(p.lineas.filter((l) => l.type === "assistant").at(-1)), /eco: .*mirá esto.*\[imagen\]/s);
   await p.cerrar();
 
-  const sin = new Puente("11111111-aaaa-4aaa-8aaa-000000000006", falso.baseURL);
+  const sin = puente("11111111-aaaa-4aaa-8aaa-000000000006", falso.baseURL);
   sin.mandar("mirá esto", { imagenes: [{ media_type: "image/png", data: png }] });
   await sin.turnos(1);
   assert.equal(sin.resultados[0].is_error, false);
   const u = usuarios(falso.pedidos().at(-1)!)[0]!;
   assert.match(u, /adjuntó 1 imagen\(es\), pero dsh:ollama\/fake-model no acepta imágenes/);
   await sin.cerrar();
-});
+}));
 
-test("si el modelo falla (500) el turno termina con un error que lo dice, y el puente sigue vivo", { skip: SIN_DSH, timeout: 180_000 }, async () => {
+test("si el modelo falla (500) el turno termina con un error que lo dice, y el puente sigue vivo", { skip: SIN_DSH, timeout: 180_000 }, () => conCaja(async ({ base, puente }) => {
   const falso = await base();
-  const p = new Puente("11111111-aaaa-4aaa-8aaa-000000000007", falso.baseURL);
+  const p = puente("11111111-aaaa-4aaa-8aaa-000000000007", falso.baseURL);
   p.mandar("ERROR500");
   await p.turnos(1, 150_000);
   const r = p.resultados[0];
@@ -279,40 +299,48 @@ test("si el modelo falla (500) el turno termina con un error que lo dice, y el p
   await p.turnos(2);
   assert.match(texto(p.lineas.filter((l) => l.type === "assistant").at(-1)), /eco: .*sigo vivo/s);
   await p.cerrar();
-});
+}));
 
-test("OpenCode con 429 (FreeUsageLimitError): un mensaje que dice qué hacer, distinto con clave propia que con la pública", { skip: SIN_DSH, timeout: 180_000 }, async () => {
+test("OpenCode con 429 (FreeUsageLimitError): un mensaje que dice qué hacer, distinto con clave propia que con la pública", { skip: SIN_DSH, timeout: 180_000 }, () => conCaja(async ({ base, puente }) => {
   const falso = await base();
   const modelo = "dsh:opencode/deepseek-v4.1-flash-free";
-  const pub = new Puente("11111111-aaaa-4aaa-8aaa-00000000000a", falso.baseURL, { MODELO_PRUEBA: modelo });
+  const pub = puente("11111111-aaaa-4aaa-8aaa-00000000000a", falso.baseURL, { MODELO_PRUEBA: modelo });
   pub.mandar("CUOTA");
   await pub.turnos(1, 150_000);
   assert.equal(pub.resultados[0].is_error, true);
   assert.match(pub.resultados[0].result, /se terminó el uso gratis de la clave pública.*Ajustes → DeepSeek Harness/);
   await pub.cerrar();
-  const propia = new Puente("11111111-aaaa-4aaa-8aaa-00000000000b", falso.baseURL, { MODELO_PRUEBA: modelo, OPENCODE_API_KEY: "oc-clave-propia-1234" });
+  const propia = puente("11111111-aaaa-4aaa-8aaa-00000000000b", falso.baseURL, { MODELO_PRUEBA: modelo, OPENCODE_API_KEY: "oc-clave-propia-1234" });
   propia.mandar("CUOTA");
   await propia.turnos(1, 150_000);
   assert.match(propia.resultados[0].result, /tu clave llegó al límite/);
   assert.ok(!JSON.stringify(propia.lineas).includes("oc-clave-propia-1234"));
   await propia.cerrar();
-});
+}));
 
-test("sin DEEPSEEK_API_KEY un modelo de deepseek falla de entrada con el motivo (sin lanzar dsh)", { timeout: 30_000 }, async () => {
+test("sin DEEPSEEK_API_KEY un modelo de deepseek falla de entrada con el motivo (sin lanzar dsh)", { timeout: 30_000 }, () => conCaja(async ({ base, puente, home, trabajo, dshHome, estado, sesiones }) => {
   const falso = await base();
-  const p = new Puente("11111111-aaaa-4aaa-8aaa-000000000008", falso.baseURL, { HILOS_DSH: "/no/existe/dsh" });
+  const p = puente("11111111-aaaa-4aaa-8aaa-000000000008", falso.baseURL, { HILOS_DSH: "/no/existe/dsh" });
   // El puente se lanzó con ollama; uno de deepseek necesita otra línea de comandos.
   await p.cerrar();
   const q = spawn(process.execPath, [path.join(import.meta.dirname, "..", "electron", "dsh-puente.ts"), "--sid", "11111111-aaaa-4aaa-8aaa-000000000009", "--modelo", "dsh:deepseek/deepseek-v4-flash", "--cwd", trabajo], {
     env: { ...process.env, HOME: home, DSH_HOME: dshHome, HILOS_DSH: "/no/existe/dsh", HILOS_STATE: estado, HILOS_SESIONES: sesiones, DEEPSEEK_API_KEY: "" },
     stdio: ["pipe", "pipe", "inherit"],
   });
-  const lineas: any[] = [];
-  createInterface({ input: q.stdout! }).on("line", (l) => lineas.push(JSON.parse(l)));
-  q.stdin!.write(JSON.stringify({ type: "user", message: { role: "user", content: "hola" } }) + "\n");
-  await hasta(() => lineas.some((l) => l.type === "result"), 20_000);
-  const r = lineas.find((l) => l.type === "result");
-  assert.equal(r.is_error, true);
-  assert.match(r.result, /falta DEEPSEEK_API_KEY/);
-  q.kill();
+  let salioQ: number | null = null;
+  q.on("exit", (c) => (salioQ = c ?? -1));
+  try {
+    const lineas: any[] = [];
+    createInterface({ input: q.stdout! }).on("line", (l) => lineas.push(JSON.parse(l)));
+    q.stdin!.write(JSON.stringify({ type: "user", message: { role: "user", content: "hola" } }) + "\n");
+    await hasta(() => lineas.some((l) => l.type === "result"), 20_000);
+    const r = lineas.find((l) => l.type === "result");
+    assert.equal(r.is_error, true);
+    assert.match(r.result, /falta DEEPSEEK_API_KEY/);
+    q.stdin!.end();
+    await hasta(() => salioQ !== null, 15_000, "el puente sin DEEPSEEK_API_KEY no salió");
+  } finally {
+    if (salioQ === null) q.kill("SIGKILL");
+  }
+}));
 });
