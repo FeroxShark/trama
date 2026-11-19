@@ -608,7 +608,8 @@ try {
   await clic('[data-fila="20261003-100000-11111"] .wbtn');
   ok(await hasta(() => document.querySelector(".migas .ruta b")?.textContent.includes("Cerrar con rama"), "vista 11111"), "se abre el worker terminado");
   ok(
-    await en(() => !document.querySelector(".caja-zona textarea") && !document.querySelector(".pie-worker [data-parar]") && !!document.querySelector(".pie-worker[data-fin] .estado")),
+    // Espera (no mira una sola vez): la vista del worker terminado puede tardar un render en cambiar el pie.
+    await hasta(() => !document.querySelector(".caja-zona textarea") && !document.querySelector(".pie-worker [data-parar]") && !!document.querySelector(".pie-worker[data-fin] .estado"), "pie de terminado"),
     "terminado: ni caja ni Parar; el pie dice cómo terminó",
   );
 
