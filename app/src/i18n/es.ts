@@ -1011,6 +1011,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "tierno.36": "poniéndole onda",
   // B15: lo terminado se esconde solo ("N terminados").
   "limpiar.menu": "Limpiar chats…",
+  "historial.abrirTip": "Historial de chats (Ctrl+H)",
   "historial.menu": "Historial de chats…",
   "historial.titulo": "Historial de chats",
   "historial.cerrarAria": "Cerrar el historial",

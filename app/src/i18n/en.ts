@@ -1022,6 +1022,7 @@ export const en = {
   "tierno.36": "putting love into it",
   // B15: lo terminado se esconde solo ("N terminados").
   "limpiar.menu": "Clean up chats…",
+  "historial.abrirTip": "Chat history (Ctrl+H)",
   "historial.menu": "Chat history…",
   "historial.titulo": "Chat history",
   "historial.cerrarAria": "Close the history",

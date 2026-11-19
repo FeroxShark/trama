@@ -9,12 +9,14 @@ import { motion, useReducedMotion } from "motion/react";
 import type { ArchivoAdjunto } from "../../electron/adjunto";
 import type { Imagen } from "../../electron/imagenes";
 import { nombreDe, rutaImagen } from "../../electron/imagen-ruta";
+import { archivoDeRuta } from "../../electron/archivo-ruta";
 import { fuente } from "../datos/fuente";
 import { useFoco } from "../foco";
 import { MODO } from "../modo";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { esArchivo, urlDe, type Adjunto } from "./adjuntos";
+import { VerArchivo } from "./VerArchivo";
 
 const ABRIR = { type: "spring", stiffness: 520, damping: 40 } as const;
 
@@ -203,12 +205,24 @@ export function Figura({ img, nombre, ruta, alt }: { img: Imagen | null | undefi
         <span>{t("imagen.noDisponible", { nombre })}</span>
       </span>
     );
+  // Una imagen de esta máquina abre el visor con la barra (zoom, girar, copiar, guardar, carpeta) y pasa a las otras del chat;
+  // una que llegó sólo con sus bytes (sin ruta) abre el visor simple.
+  const a = ruta ? archivoDeRuta(ruta, "leer") : null;
+  const conRuta = a?.absoluta ? a : null;
   return (
     <>
-      <button type="button" className="img-local" data-estado="lista" aria-label={t("adjunto.ver")} data-tip={t("adjunto.ver")} onClick={() => setAbierta(true)}>
+      <button
+        type="button"
+        className="img-local"
+        data-estado="lista"
+        data-imagen-ruta={conRuta ? conRuta.ruta : undefined}
+        aria-label={t("adjunto.ver")}
+        data-tip={t("adjunto.ver")}
+        onClick={() => setAbierta(true)}
+      >
         <img src={urlDe(img)} alt={alt || nombre} loading="lazy" decoding="async" />
       </button>
-      {abierta ? <Visor img={img} alCerrar={() => setAbierta(false)} /> : null}
+      {abierta ? conRuta ? <VerArchivo a={conRuta} alCerrar={() => setAbierta(false)} /> : <Visor img={img} alCerrar={() => setAbierta(false)} /> : null}
     </>
   );
 }

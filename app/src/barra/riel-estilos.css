@@ -826,6 +826,12 @@
   background: var(--capa-hover);
   color: var(--texto);
 }
+.historial-abrir {
+  padding: 0 var(--esp-1);
+}
+.historial-abrir + .orden {
+  margin-left: 0;
+}
 
 /* --- La lista -------------------------------------------------------------- */
 .barra-col .lista {

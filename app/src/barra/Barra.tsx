@@ -21,7 +21,7 @@ import {
   type Ref,
 } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
-import { BarChart3, ChevronDown, Gauge, GitBranch, Layers, MessageSquare, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, Bug, type LucideIcon } from "lucide-react";
+import { BarChart3, ChevronDown, Gauge, GitBranch, History, Layers, MessageSquare, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, Bug, type LucideIcon } from "lucide-react";
 import { cerrable, cerrado, comoSettle, GENERAL, VERSION, type Caido, type ConvClaudeCode, type Estado, type EventoPa, type Hilo, type Leidos, type Lider, type Nombres, type Orden, type RespuestaLideres } from "../datos/contrato";
 import { compactarFijo, escenaFija, fuente } from "../datos/fuente";
 import { ARRANCANDO, EN_COLA, FRENADO, imagenFija } from "../datos/fixtures";
@@ -2164,6 +2164,18 @@ export function Barra() {
     </div>
     <div className="resumen">
       <Pendientes p={pend} ver={verVigente} alVer={alternarVer} />
+      {/* El historial de chats (archivados y cerrados), a la vista y no sólo en el menú de orden o con Ctrl+H. */}
+      <button
+        type="button"
+        className="orden historial-abrir"
+        aria-haspopup="dialog"
+        aria-expanded={historial !== null}
+        aria-label={tr("historial.abrirTip")}
+        data-tip={tr("historial.abrirTip")}
+        onClick={(e) => setHistorial({ origen: e.currentTarget })}
+      >
+        <History size={13} strokeWidth={2} aria-hidden="true" />
+      </button>
       {/* Cómo se acomoda lo que no se movió a mano. */}
       <button
         type="button"
@@ -2811,7 +2823,7 @@ function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLid
           alSettle={alSettleLider}
         />
       ) : null}
-      {r.lider ? <Subagentes sid={r.lider.id} /> : null}
+      {r.lider ? <Subagentes sid={r.lider.id} conTerminados={conTerminados} /> : null}
       <ul className="ramas">
         <Filas items={r.vivas} virtual={virtual} fila={fila} />
         {/* El "N terminados" va antes de lo terminado, no al final: es el mismo botón que lo despliega y el que lo

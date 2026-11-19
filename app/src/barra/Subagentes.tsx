@@ -111,7 +111,8 @@ const Fila = memo(function Fila({ u, vivo, activa, alAbrir }: { u: Subagente; vi
   );
 });
 
-export const Subagentes = memo(function Subagentes({ sid }: { sid: string }) {
+/** `conTerminados`: como los workers (`terminadosVisibles`), los subagentes que terminaron sólo se listan buscando; si no, se ve lo vivo. */
+export const Subagentes = memo(function Subagentes({ sid, conTerminados = true }: { sid: string; conTerminados?: boolean }) {
   useIdioma();
   const lista = useSubagentes(sid);
   const tic = useTicSubagentes(lista);
@@ -125,14 +126,15 @@ export const Subagentes = memo(function Subagentes({ sid }: { sid: string }) {
     return { vivos: v, cerrados: c };
   }, [lista, tic]);
 
-  if (!lista.length) return null;
+  const verCerrados = conTerminados || MODO.captura === "subagentes";
+  if (!vivos.length && !(verCerrados && cerrados.length)) return null;
 
   return (
     <ul className="ramas subs" aria-label={tr("sub.lista")} data-subs={sid}>
       {vivos.map((u) => (
         <Fila key={u.id} u={u} vivo activa={sub?.abierta === claveSub(u.sid, u.id)} alAbrir={alAbrir} />
       ))}
-      {cerrados.length > 0 ? (
+      {cerrados.length > 0 && verCerrados ? (
         <li key="pliegue" className="w pliegue" data-abierto={desplegado ? "" : undefined}>
           <button
             type="button"
@@ -161,7 +163,7 @@ export const Subagentes = memo(function Subagentes({ sid }: { sid: string }) {
           </span>
         </li>
       ) : null}
-      {desplegado
+      {desplegado && verCerrados
         ? cerrados.map((u) => (
           <Fila key={u.id} u={u} vivo={false} activa={sub?.abierta === claveSub(u.sid, u.id)} alAbrir={alAbrir} />
         ))
