@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.3.7
+
+- Los workers ya no eligen Fable para tareas chicas: si alcanza uno más barato con cupo (Neon, Sonnet, Haiku), va ese. Con cupo semanal de sobra, se gasta en el más barato que alcanza.
+- Gemini 4 Argon se usa cuando le sobra cupo semanal, más cerca del reinicio, en vez de quedar sin tocar. En Ajustes > Modelos ya no sale «No conviene» por ser un cupo aparte.
+- Al lado de cada archivo del chat hay un botón para mostrarlo en su carpeta.
+- En «Recientes», usar un líder sube su carpeta, aunque no haya lanzado workers.
+- Un worker que se rechaza al lanzarlo ya no queda en la barra como «Sin tarea / Murió».
+
 ## 0.3.6
 
 - Cuando el plan vuelve corregido después de «Revisar con otro modelo», dice «Plan revisado listo», con ícono y en el color del modo plan.

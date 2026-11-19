@@ -1,5 +1,13 @@
 # Changes
 
+## 0.3.7
+
+- Workers no longer pick Fable for small tasks: if a cheaper model with quota is enough (Neon, Sonnet, Haiku), that one goes. With weekly quota to spare, it's spent on the cheapest one that's enough.
+- Gemini 4 Argon is used when it has weekly quota to spare, more so near the reset, instead of sitting unused. Settings > Models no longer shows «Not worth it» for it just because its quota is separate.
+- Every file in the chat has a button to show it in its folder.
+- In «Recent», using a lead moves its folder up, even if it hasn't launched workers.
+- A worker that is rejected at launch no longer stays in the sidebar as «No task / Died».
+
 ## 0.3.6
 
 - When the plan comes back corrected after «Review with another model», it says «Reviewed plan ready», with an icon and in the plan mode color.
