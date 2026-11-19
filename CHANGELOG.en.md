@@ -1,5 +1,10 @@
 # Changes
 
+## 0.3.4
+
+- «Report a bug» now has «Send anonymously»: only the developer gets the report, without your name, account or IP, and nothing is posted on GitHub. The screenshot is regenerated before it is stored. «Open on GitHub» is still there as a second option.
+- The «Quota is back» card goes away on its own once you have kept writing in that chat.
+
 ## 0.3.3
 
 - Gemini 4 Neon is now in the model selector and available to workers: it goes first for frontend, multi-part code, design and debugging when it has quota. It is also the default reviewer for «Review with another model».

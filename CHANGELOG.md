@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.3.4
+
+- «Reportar un bug» tiene «Enviar anónimo»: el reporte le llega sólo al desarrollador, sin tu nombre, tu cuenta ni tu IP, y no se publica en GitHub. La captura se vuelve a generar antes de guardarla. «Abrir en GitHub» sigue como segunda opción.
+- La tarjeta «Volvió el cupo» se va sola si ya seguiste escribiendo en ese chat.
+
 ## 0.3.3
 
 - Gemini 4 Neon ya está en el selector de modelos y en los workers: va primero en frontend, código de varias partes, diseño y depuración cuando tiene cupo. También es el revisor por defecto de «Revisar con otro modelo».
