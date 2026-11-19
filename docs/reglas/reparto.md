@@ -22,6 +22,10 @@ Con `ahorro` o `agresivo`, `pa` avisa por stderr al lanzar (`avisoPerfilAhorro` 
 - **Opus no arranca de cero en `frontend` ni `codigo-multi`** (`TIPOS_SIN_OPUS`; medido: US$ 5,7 por corrida y 12-26 % ok): se descarta como candidato en cualquier perfil. Sólo entra por `-m` o `--seguir`, que no pasan por `reparto --tipo`.
 - El python de `reparto` está congelado y NO sigue esta política: los casos de paridad afectados llevan `divergenciaSalida` (`tests/paridad/casos-reparto.ts`) y `tests/reparto-agresivo.test.ts` corre sólo el TS en diseno/frontend/codigo-multi y en ahorro.
 
+## Gemini 4 Neon (2026-11-18, sólo en el TS)
+
+- **Neon va primero donde pesa la calidad:** `PREFERIDO_POR_TIPO` lo pone en `frontend`, `codigo-multi`, `diseno` y `debug` (`gemini-4-neon-high`, cupo del grupo `gemini`, el mismo de Hydrogen). Si no está en `agy models`, está excluido o no tiene cupo, la banda se suelta y decide el puntaje de siempre. Tampoco manda cuando Claude va por debajo del ritmo (`ritmo_pts > 0`): ese cupo se perdería. Argon sigue lanzable con `-m`, con `solo_final`. Puntajes de Artificial Analysis en `motor/datos/aa-suplemento.json`. Lo cubre `tests/reparto-neon.test.ts`.
+
 ## Perfil de reparto en el riel
 
 - **Perfil de reparto en el riel (`app/src/barra/PerfilRiel.tsx`, datos en `src/datos/perfil-reparto.ts`):** el ícono bajo los anillos de cupos (`data-guia="perfil-riel"`, un ícono por perfil, nunca sólo color) abre un menú con los cuatro perfiles; elegir uno

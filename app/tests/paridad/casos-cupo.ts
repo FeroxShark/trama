@@ -75,7 +75,7 @@ const conLimiteConocido = (c: Contexto) => writeFileSync(path.join(c.estado, "li
 
 const caso = (
   nombre: string,
-  o: { respuestas: object[]; guion: Respuesta[]; modelos?: object; env?: Record<string, string>; pasos: Paso[]; antes?: (c: Contexto) => void },
+  o: { respuestas: object[]; guion: Respuesta[]; modelos?: object; env?: Record<string, string>; pasos: Paso[]; antes?: (c: Contexto) => void; divergenciaSalida?: string },
 ): Caso => ({
   herramienta: "pa-cli",
   nombre: `pa-cli: cupo: ${nombre}`,
@@ -85,6 +85,7 @@ const caso = (
   },
   env: entorno(o.env),
   pasos: o.pasos,
+  ...(o.divergenciaSalida ? { divergenciaSalida: o.divergenciaSalida } : {}),
   divergencia: "el argv de claude del TS difiere del bash congelado a propósito (MCP apagado, sin comandos de slash, sin subagentes, system prompt estable)",
 });
 
@@ -211,6 +212,7 @@ export const casosCupo: Caso[] = [
     pasos: [{ args: ["demo", "--sin-jefe", "-m", "agy:claude-sonnet-4-6-thinking", BRIEF], rc: 0 }],
   }),
   caso("agy de otra cuenta: un -m que esa cuenta no ofrece sale 2 con la lista", {
+    divergenciaSalida: "Gemini 4 Neon sólo en el TS (pa de bash congelado): la lista del error lo nombra",
     respuestas: [SONNET],
     guion: [ok(BLOQUE)],
     antes: conAgySinClaude55,

@@ -16,6 +16,10 @@ export const EFFORTS_CONFIG = ["low", "medium", "high", "xhigh", "max"] as const
 
 /** Los Gemini que `pa` sabe lanzar (agy). */
 export const GEMINI = [
+  "gemini-4-neon-low",
+  "gemini-4-neon-medium",
+  "gemini-4-neon-high",
+  "gemini-4-neon-xhigh",
   "gemini-4-argon-low",
   "gemini-4-argon-medium",
   "gemini-4-argon-high",
@@ -57,7 +61,7 @@ export const sinCupoDe = (v: SinClaude): SinCupo => (v === "claude" ? "otro" : v
 /** Cuánto del cupo de Claude no tocan los workers cuando el archivo no dice nada (`RESERVA` de `reparto`: 15 % libre = tope de 85 %). */
 export const TOPE_CLAUDE_DEFECTO = 85;
 /** Familias de modelo que `reparto` conoce por nombre (`excluir` las acepta además de ids y patrones con `*`). */
-export const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "argon", "hydrogen", "gpt-oss"] as const;
+export const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "neon", "argon", "hydrogen", "gpt-oss"] as const;
 /** Más entradas en `excluir` que esto no es una lista que alguien arme a mano. */
 export const EXCLUIR_MAX = 50;
 /** Una entrada de `excluir`: una familia, un id o un prefijo con `*` al final; sin espacios ni comillas. */
@@ -617,9 +621,9 @@ export const DEFAULTS_CLAUDE: Record<Tipo, Eleccion> = {
   diseno: { modelo: OPUS, effort: "xhigh" },
 };
 
-/** Lo mismo cuando sólo hay Gemini (sin `claude`): Argon para todo lo que pesa y Hydrogen sólo para lo mecánico. */
+/** Lo mismo cuando sólo hay Gemini (sin `claude`): Neon para todo lo que pesa y Hydrogen sólo para lo mecánico. */
 export const DEFAULTS_GEMINI: Record<Tipo, Eleccion> = Object.fromEntries(
-  TIPOS.map((t) => [t, { modelo: t === "mecanico" ? "gemini-4-hydrogen-medium" : "gemini-4-argon-high" }]),
+  TIPOS.map((t) => [t, { modelo: t === "mecanico" ? "gemini-4-hydrogen-medium" : "gemini-4-neon-high" }]),
 ) as Record<Tipo, Eleccion>;
 
 /** Los defaults de la máquina: los de Gemini si no hay Claude, los de Claude si no. */

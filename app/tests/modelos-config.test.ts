@@ -207,11 +207,11 @@ test("defaults por tipo de tarea: Haiku para leer y lo mecánico, Sonnet para el
   assert.deepEqual(efectivoDe(c, "lectura"), { modelo: "claude-opus-5-5", effort: "low" });
 });
 
-test("sin Claude (sólo Gemini): Argon para todo lo que pesa y Hydrogen sólo para lo mecánico", () => {
+test("sin Claude (sólo Gemini): Neon para todo lo que pesa y Hydrogen sólo para lo mecánico", () => {
   const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   for (const t of TIPOS) {
     const m = efectivoDe(vacia, t, true).modelo;
-    assert.equal(m, t === "mecanico" ? "gemini-4-hydrogen-medium" : "gemini-4-argon-high", t);
+    assert.equal(m, t === "mecanico" ? "gemini-4-hydrogen-medium" : "gemini-4-neon-high", t);
     assert.ok((GEMINI as readonly string[]).includes(m), `${m} lo sabe lanzar pa`);
   }
   assert.equal(defaultsDe(true), DEFAULTS_GEMINI);

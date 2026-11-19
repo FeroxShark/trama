@@ -23,10 +23,13 @@ const archivo = (rel: string, texto: string) => (c: Contexto) => {
   writeFileSync(f, texto);
 };
 
+/** Gemini 4 Neon (2026-11-18) es sólo del TS: el `pa` de bash está congelado y no lo nombra en la ayuda ni en sus errores. */
+const DIVERGE_NEON = "Gemini 4 Neon sólo en el TS (pa de bash congelado)";
+
 export const casosPaCli: Caso[] = [
   // --- subcomandos chicos ---
-  cli("ayuda", ["--ayuda"], 0),
-  cli("ayuda con -h", ["-h"], 0),
+  cli("ayuda", ["--ayuda"], 0, { divergenciaSalida: DIVERGE_NEON }),
+  cli("ayuda con -h", ["-h"], 0, { divergenciaSalida: DIVERGE_NEON }),
   cli("versión", ["--version"], 0),
   cli("plantilla del brief", ["--brief"], 0),
   cli("plan vigente", ["--plan"], 0),
@@ -131,7 +134,7 @@ export const casosPaCli: Caso[] = [
   cli("modelos.json: el default", ["demo", "--sin-jefe", "--tipo", "debug"], 2, { env: conModelos({ version: 1, workers: { default: { modelo: "claude-haiku-5-5" } } }) }),
 
   // --- otros motores: lo que se valida sin mirar afuera ---
-  cli("agy: modelo que no existe", ["demo", "-m", "gemini-9-ultra", "x"], 2),
+  cli("agy: modelo que no existe", ["demo", "-m", "gemini-9-ultra", "x"], 2, { divergenciaSalida: DIVERGE_NEON }),
   cli("agy: --effort aparte", ["demo", "-m", "gemini-4-argon-high", "--effort", "high", "x"], 2),
   cli("agy: --seguir", ["demo", "-m", "gemini-4-argon-high", "--seguir", "x"], 2),
   cli("agy: --max-budget-usd", ["demo", "-m", "agy:gpt-oss-120b-medium", "--max-budget-usd", "1", "x"], 2),

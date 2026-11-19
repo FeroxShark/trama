@@ -141,6 +141,10 @@ const leerRecortado = (f: string) => {
 /** `gemini_equivalente`: el modelo y effort del Claude oficial que reemplaza a uno de agy. */
 export function geminiEquivalente(m: string): [string, string] {
   const fijo: Record<string, [string, string]> = {
+    "gemini-4-neon-xhigh": ["claude-opus-5-5", "high"],
+    "gemini-4-neon-high": ["claude-opus-5-5", "medium"],
+    "gemini-4-neon-medium": ["claude-sonnet-5-5", "high"],
+    "gemini-4-neon-low": ["claude-sonnet-5-5", "medium"],
     "gemini-4-argon-high": ["claude-opus-5-5", "medium"],
     "gemini-4-argon-medium": ["claude-sonnet-5-5", "high"],
     "gemini-4-argon-low": ["claude-sonnet-5-5", "medium"],
@@ -587,7 +591,7 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
         corta(
           pa,
           2,
-          `pa: modelo '${l.modelo}' no va. Modelos de agy en pa: gemini-4-argon-{low,medium,high}, gemini-4-hydrogen-{low,medium,high,xhigh}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium${ofrecidos.length ? `, y los que ofrece el agy de esta cuenta: ${ofrecidos.join(" ")}` : ""}.`,
+          `pa: modelo '${l.modelo}' no va. Modelos de agy en pa: gemini-4-neon-{low,medium,high,xhigh}, gemini-4-argon-{low,medium,high}, gemini-4-hydrogen-{low,medium,high,xhigh}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium${ofrecidos.length ? `, y los que ofrece el agy de esta cuenta: ${ofrecidos.join(" ")}` : ""}.`,
         );
       }
     }

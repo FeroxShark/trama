@@ -15,7 +15,7 @@
 // `thinking` del paso): al cerrar un paso `agent_response`, `Opciones.pensamiento` lo lee y sale como un bloque
 // `thinking` (stream y mensaje), el mismo que ya pinta la app para un modelo local.
 
-/** La ventana de contexto de Gemini 4 Argon / Hydrogen (1M tokens): lo que dice el medidor del chat. */
+/** La ventana de contexto de Gemini 4 Neon / Argon / Hydrogen (1M tokens): lo que dice el medidor del chat. */
 export const VENTANA_GEMINI = 1_000_000;
 
 type Obj = Record<string, any>;

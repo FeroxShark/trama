@@ -79,17 +79,19 @@ const cand = (s: Sal, m: string) => s.candidatos.find((c) => c.modelo === m)!;
 test("por encima del ritmo semanal: Google gana a Claude en codigo-multi, y el motivo lo dice", () => {
   // 3 de 7 días pasados (esperado 43 %) y 50 % usado = 1,2× el ritmo. Sin ritmo Claude gana por poco (urgencia de su semanal).
   const f = cupos({ c7: 0.5, vuelve7: 96, google: true, g5: 0.7, g7: 0.4 });
-  const sin = tipo("codigo-multi", f, modelos({ peso_ritmo: 0, peso_bono_ritmo: 0 }));
+  // Sin Neon: acá se mide Claude contra el Claude de Google (Neon tiene su test en reparto-neon.test.ts).
+  const sinNeon = { excluir: ["neon"] };
+  const sin = tipo("codigo-multi", f, modelos({ ...sinNeon, peso_ritmo: 0, peso_bono_ritmo: 0 }));
   assert.ok(esClaude(sin.modelo), `sin ritmo gana Claude: ${sin.modelo}`);
   assert.doesNotMatch(sin.motivo, /ritmo/);
-  const con = tipo("codigo-multi", f, modelos());
+  const con = tipo("codigo-multi", f, modelos(sinNeon));
   assert.ok(con.modelo.startsWith("agy:"), con.modelo);
   const rt = con.ritmo.find((r) => r.ventana === "7d" && r.nivel === "encima");
   assert.ok(rt && Math.abs(rt.ratio - 1.17) < 0.03, JSON.stringify(con.ritmo));
   assert.match(con.motivo, /Claude va 1,2× por encima del ritmo semanal: uso .* en lugar de Claude Sonnet 5\.5\./);
   assert.ok(cand(con, "claude-sonnet-5-5").ritmo_pts! < 0);
   // Más arriba todavía, más puntos menos.
-  const mas = tipo("codigo-multi", cupos({ c7: 0.62, vuelve7: 96, google: true, g5: 0.7, g7: 0.4 }), modelos());
+  const mas = tipo("codigo-multi", cupos({ c7: 0.62, vuelve7: 96, google: true, g5: 0.7, g7: 0.4 }), modelos(sinNeon));
   assert.ok(cand(mas, "claude-sonnet-5-5").ritmo_pts! < cand(con, "claude-sonnet-5-5").ritmo_pts!);
 });
 

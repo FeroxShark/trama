@@ -183,7 +183,7 @@ test("modelos.json agrega Gemini y Ollama (cada empresa contigua), mueve el defa
     assert.match(defDe("agy:gpt-oss-120b")?.nombre ?? "", /por Google/);
     assert.equal(effortPara("agy:gpt-oss-120b", {}), "medium");
     ponerConfig({ gemini: true, locales: [], llama: LLAMA, lider: null });
-    assert.equal(TABLA.length, 11 + ANTERIORES.length);
+    assert.equal(TABLA.length, 12 + ANTERIORES.length);
     assert.equal(TABLA.find((m) => m.rec)?.id, "claude-opus-5-5");
   } finally {
     ponerConfig(CON);

@@ -15,6 +15,7 @@ export const FAMILIAS = [
   { id: "opus", nombre: "Opus", empresa: "anthropic", sugerida: false },
   { id: "sonnet", nombre: "Sonnet", empresa: "anthropic", sugerida: false },
   { id: "haiku", nombre: "Haiku", empresa: "anthropic", sugerida: false },
+  { id: "neon", nombre: "Gemini Neon", empresa: "google", sugerida: false },
   { id: "argon", nombre: "Gemini Argon", empresa: "google", sugerida: false },
   { id: "hydrogen", nombre: "Gemini Hydrogen", empresa: "google", sugerida: false },
 ] as const;

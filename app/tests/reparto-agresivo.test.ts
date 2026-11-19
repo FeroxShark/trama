@@ -83,10 +83,10 @@ function correr(motor: "ts" | "py", t: string, fijos: string, mod: string, med: 
  * Corre en TS y en python, exige la misma salida y devuelve una. La política de modelos de 2026-11-10 vive sólo en el TS (el python está
  * congelado): diseno con piso sonnet, sin Opus en frontend/codigo-multi y, con `ahorro`, historial exigido a lo que no gasta cupo (y `historial` en cada candidato). Ahí corre sólo el TS.
  */
-/** La salida sin los candidatos de Gemini 4 Hydrogen (familia sólo del TS, 2026-11-12): lo que el python congelado puede igualar. */
+/** La salida sin los candidatos de Gemini 4 Hydrogen y Neon (familias sólo del TS): lo que el python congelado puede igualar. */
 const sinHydrogen = (crudo: string) => {
   const j = JSON.parse(crudo) as Sal;
-  return JSON.stringify({ ...j, candidatos: j.candidatos.filter((c) => !c.modelo.startsWith("gemini-4-hydrogen")) });
+  return JSON.stringify({ ...j, candidatos: j.candidatos.filter((c) => !/^gemini-4-(?:hydrogen|neon)/.test(c.modelo)) });
 };
 /** La salida sin Gemini 3.8 Flash (sacada del TS; el python congelado todavía la tiene). */
 const sinFlash = (crudo: string) => {
@@ -101,7 +101,7 @@ function tipo(t: string, fijos: string, mod: string, med = SIN_HISTORIAL) {
   const py = correr("py", t, fijos, mod, med);
   // Gemini 4 Hydrogen (2026-11-12) es una familia sólo del TS: si el motivo lo nombra, el python no puede decir lo mismo; si no, se
   // compara sin sus candidatos.
-  if (/Hydrogen/.test(ts.sal.motivo)) return { ...ts, py: ts };
+  if (/Hydrogen|Neon/.test(ts.sal.motivo)) return { ...ts, py: ts };
   assert.equal(sinHydrogen(ts.crudo), sinFlash(py.crudo), `ts y python difieren en ${t}`);
   return { ...ts, py };
 }

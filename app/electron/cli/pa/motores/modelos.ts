@@ -7,7 +7,7 @@
 export type Motor = "claude" | "agy" | "codex" | "dsh" | "ollama";
 export type Proveedor = "claude" | "google" | "chatgpt" | "opencode" | "";
 
-export const GEMINI_MODELOS = "gemini-4-argon-(low|medium|high)|gemini-4-hydrogen-(low|medium|high|xhigh)|agy:(claude-(opus|sonnet)-5-5-(low|medium|high)|gpt-oss-120b-medium)";
+export const GEMINI_MODELOS = "gemini-4-neon-(low|medium|high|xhigh)|gemini-4-argon-(low|medium|high)|gemini-4-hydrogen-(low|medium|high|xhigh)|agy:(claude-(opus|sonnet)-5-5-(low|medium|high)|gpt-oss-120b-medium)";
 export const CODEX_MODELOS = "codex:(gpt-6\\.1-sol|gpt-6-sol|gpt-6-luna|gpt-6-astra)-(low|medium|high)";
 /** `[^[:space:]]` del bash: sin blancos ASCII. */
 const NO_BLANCO = "[^ \\t\\n\\v\\f\\r]";
@@ -88,6 +88,10 @@ export const proveedorCuentaDe = (m: string): Proveedor => (esOpencode(m) ? "ope
 /** `"modelo effort"` del Claude oficial al que cae un modelo de agy (vacío si no hay). */
 export function geminiEquivalente(m: string): string {
   const fijos: Record<string, string> = {
+    "gemini-4-neon-xhigh": "claude-opus-5-5 high",
+    "gemini-4-neon-high": "claude-opus-5-5 medium",
+    "gemini-4-neon-medium": "claude-sonnet-5-5 high",
+    "gemini-4-neon-low": "claude-sonnet-5-5 medium",
     "gemini-4-argon-high": "claude-opus-5-5 medium",
     "gemini-4-argon-medium": "claude-sonnet-5-5 high",
     "gemini-4-argon-low": "claude-sonnet-5-5 medium",
@@ -139,7 +143,7 @@ export function validarOtroMotor(modelo: string, f: FlagsLanzar = {}): Validacio
   const err = (error: string): Validacion => ({ ok: false, error });
   if (esGemini(modelo)) {
     if (!calza(GEMINI_MODELOS, min(modelo)))
-      return err(`pa: modelo '${modelo}' no va. Modelos de agy en pa: gemini-4-argon-{low,medium,high}, gemini-4-hydrogen-{low,medium,high,xhigh}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium.`);
+      return err(`pa: modelo '${modelo}' no va. Modelos de agy en pa: gemini-4-neon-{low,medium,high,xhigh}, gemini-4-argon-{low,medium,high}, gemini-4-hydrogen-{low,medium,high,xhigh}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium.`);
     const m = min(modelo);
     if (f.esfuerzoFlag) return err(`pa: --effort no va con '${m}': en agy el effort es parte del nombre (…-low, …-medium, …-high).`);
     if (f.seguir) return err(noVa(m, "--seguir (agy no retoma una sesión de pa)"));

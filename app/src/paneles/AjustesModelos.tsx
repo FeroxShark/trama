@@ -109,6 +109,7 @@ const sinMarca = (o: Opcion): Opcion => ({ ...o, rec: false });
 
 /** La descripción de un modelo, en el idioma de ahora. */
 function descDe(m: Modelo): string {
+  if (m.desc === "neon") return t("mdl.desc.neon");
   if (m.desc === "argon") return t("mdl.desc.argon");
   if (m.desc === "hydrogen") return t("mdl.desc.hydrogen");
   if (m.desc === "agy") return t("mdl.desc.agy");

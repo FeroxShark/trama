@@ -131,6 +131,7 @@ export function claudeDeCuenta(base: readonly ModeloDef[], cat: readonly ModeloC
  * si el archivo lo habilita, cada modelo de Ollama que anota en `locales` es una fila más y cada uno de `locales.json` (llama-server, en la GPU) también. Se arma una vez, antes de pintar.
  */
 const GEMINI: ModeloDef[] = [
+  { id: "gemini-4-neon", clave: "gemini-4-neon", empresa: "google", nombre: "Gemini 4 Neon · por Google", desc: "modelo.neon", soloLider: true, efforts: EFFORTS_HYDROGEN, effortDefecto: "high" },
   { id: "gemini-4-argon", clave: "gemini-4-argon", empresa: "google", nombre: "Gemini 4 Argon · por Google", desc: "modelo.gemini4", soloLider: true, efforts: EFFORTS_GEMINI, effortDefecto: "high" },
   { id: "gemini-4-hydrogen", clave: "gemini-4-hydrogen", empresa: "google", nombre: "Gemini 4 Hydrogen · por Google", desc: "modelo.hydrogen", soloLider: true, efforts: EFFORTS_HYDROGEN, effortDefecto: "high" },
   { id: "agy:claude-opus-5-5", clave: "agy:claude-opus-5-5", empresa: "google", nombre: "Claude Opus 5.5 · por Google", desc: "modelo.agyOpus", soloLider: true, efforts: EFFORTS_GEMINI, effortDefecto: "high" },

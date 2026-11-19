@@ -212,10 +212,10 @@ export const familiaDeModelo = (modelo: string): "claude" | "gemini" | "dsh" | "
 };
 
 export const EFFORTS_GEMINI = ["low", "medium", "high"] as const;
-/** Los niveles que agy acepta en el nombre: Hydrogen suma `xhigh`. */
+/** Los niveles que agy acepta en el nombre: Neon e Hydrogen suman `xhigh`. */
 const NIVEL_AGY = /-(low|medium|high|xhigh)$/;
-/** Los esfuerzos que vale ese modelo: `xhigh` sólo en Hydrogen. */
-const nivelesDe = (modelo: string): readonly string[] => (modelo.includes("hydrogen") ? [...EFFORTS_GEMINI, "xhigh"] : EFFORTS_GEMINI);
+/** Los esfuerzos que vale ese modelo: `xhigh` sólo en Neon e Hydrogen. */
+const nivelesDe = (modelo: string): readonly string[] => (modelo.includes("hydrogen") || modelo.includes("neon") ? [...EFFORTS_GEMINI, "xhigh"] : EFFORTS_GEMINI);
 export const EFFORT_GEMINI_DEFECTO = "high";
 
 /**
