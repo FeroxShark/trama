@@ -977,9 +977,19 @@ img.logo {
   position: relative;
   margin-bottom: var(--esp-0-5);
 }
+/* El líder es de una sola línea: los botones van centrados en la fila (abajo se salían y quedaban encima de «N terminados»)
+   y lo que hay a la derecha del nombre (modelo, hora, chips) se esconde mientras se ven, así no se pisan. */
 .lw > .acc {
-  bottom: var(--esp-2);
+  top: 0;
+  bottom: 0;
   left: 1.875rem;
+  height: auto;
+}
+.lw:has(> .acc):hover > .lider > .txt ~ *,
+.lw:has(> .acc:focus-within) > .lider > .txt ~ *,
+.lw:has(> .acc .settle-conf) > .lider > .txt ~ *,
+.lider[data-cursor]:has(~ .acc) > .txt ~ * {
+  visibility: hidden;
 }
 .lw:has(> .acc):hover .txt > :last-child,
 .lw:has(> .acc:focus-within) .txt > :last-child,
