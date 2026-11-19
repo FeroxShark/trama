@@ -144,6 +144,9 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "contexto:umbral": "local",
   "medicion:leer": "local",
   "claudeCode:listar": "local",
+  // El historial de chats (archivados y cerrados) y su borrado: del disco de esta máquina.
+  "historialChats:listar": "local",
+  "historialChats:borrar": "local",
   // Una imagen local de un mensaje: se lee de esta máquina (el líder de otra se ve sin ella: "Imagen no disponible").
   "imagen:leer": "local",
   // Un archivo de la actividad de un worker (archivo-ver.ts): también se lee de esta máquina.
