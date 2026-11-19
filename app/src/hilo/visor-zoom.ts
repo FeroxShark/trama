@@ -130,3 +130,29 @@ export function panConRueda(
   }
   return limitarPan({ x: pan.x - dx, y: pan.y - dy }, img.ancho, img.alto, escala, area.ancho, area.alto);
 }
+
+/** Giro de la imagen en grados horarios; sólo múltiplos de 90. */
+export type Giro = 0 | 90 | 180 | 270;
+
+/** El giro después de un cuarto de vuelta: `1` a la derecha (horario), `-1` a la izquierda. */
+export function girar(giro: Giro, sentido: 1 | -1): Giro {
+  return ((((giro + 90 * sentido) % 360) + 360) % 360) as Giro;
+}
+
+/** La medida que ocupa la imagen en pantalla: con un cuarto de vuelta se intercambian ancho y alto. */
+export function medidaGirada(img: Tamano, giro: Giro): Tamano {
+  return giro === 90 || giro === 270 ? { ancho: img.alto, alto: img.ancho } : img;
+}
+
+/** Las imágenes del chat para pasar de una a otra: sin repetidas y en el orden en que aparecen; la abierta siempre está. */
+export function galeriaDe(rutas: readonly string[], actual: string): { rutas: string[]; indice: number } {
+  const unicas = [...new Set(rutas)];
+  const i = unicas.indexOf(actual);
+  return i >= 0 ? { rutas: unicas, indice: i } : { rutas: [actual], indice: 0 };
+}
+
+/** El lugar de la imagen vecina (`-1` anterior, `1` siguiente), o `null` en el extremo (no da la vuelta). */
+export function vecino(indice: number, total: number, sentido: 1 | -1): number | null {
+  const j = indice + sentido;
+  return j >= 0 && j < total ? j : null;
+}
