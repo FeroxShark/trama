@@ -1,5 +1,11 @@
 # Changes
 
+## 0.3.6
+
+- When the plan comes back corrected after «Review with another model», it says «Reviewed plan ready», with an icon and in the plan mode color.
+- The «Review delivered» notice takes a single row and goes away on its own when the new plan arrives. The plan box is shorter and lets you see the chat.
+- If `claude` is slow to answer, the selector no longer marks Claude «Not connected».
+
 ## 0.3.5
 
 - «Review with another model» no longer breaks the chat with «Something went wrong» when you open it.

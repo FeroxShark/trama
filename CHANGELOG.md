@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.3.6
+
+- Cuando el plan vuelve corregido después de «Revisar con otro modelo», dice «Plan revisado listo», con ícono y en el color del modo plan.
+- El aviso «Revisión entregada» ocupa una sola fila y se va solo cuando llega el plan nuevo. La caja del plan es más baja y deja ver el chat.
+- Si `claude` tarda en contestar, el selector ya no marca a Claude «Sin conectar».
+
 ## 0.3.5
 
 - «Revisar con otro modelo» ya no rompe el chat con «Something went wrong» al abrirlo.
