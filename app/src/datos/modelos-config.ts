@@ -60,6 +60,8 @@ export async function pedirModelos(tope = 1500): Promise<ConfigModelos | null> {
       locales: MODO.variante === "dsh-menu" || MODO.captura === "lider-cambio-motor" || todas ? [{ id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", modelo: "qwen3-coder:30b" }] : [],
       llama: LLAMA_FIJOS,
       lider: null,
+      // `modelo`: todos los proveedores a la vista, con OpenAI sin conectar para ver «Sin conectar» y «Conectar».
+      ...(MODO.captura === "modelo" ? { conexion: { anthropic: true, google: true, openai: false, opencode: true, dsh: true, local: true } } : {}),
     };
   }
   const m = main?.modelos;
