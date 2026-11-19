@@ -2717,7 +2717,7 @@ function Carpeta({
                   alAbrirLider={alAbrirLider}
                   alCerrarLider={alCerrarLider}
                   alSettleLider={alSettleLider}
-                  plegada={!desplegada(r.clave)}
+                  plegada={!conTerminados && !desplegada(r.clave)}
                   alPlegar={alPlegar}
                   fila={fila}
                   virtual={virtual}
