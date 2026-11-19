@@ -428,7 +428,7 @@ contextBridge.exposeInMainWorld("hilos", {
   /** El selector nativo de carpetas (el campo "Carpeta" de un líder nuevo); sólo la ventana de la PC. */
   carpeta: { elegir: (): Promise<string | null> => invocar("carpeta:elegir") },
   /** El selector nativo de una imagen para el logo de un proyecto: la imagen ya achicada a 64 px (data URL) o `null` si se canceló; sólo la ventana de la PC. */
-  archivo: { elegirLogo: (): Promise<string | null> => invocar("archivo:elegirLogo"), abrir: (ruta: string): Promise<boolean> => invocar("archivo:abrir", ruta), abrirCarpeta: (ruta: string): Promise<boolean> => invocar("archivo:abrirCarpeta", ruta) },
+  archivo: { elegirLogo: (): Promise<string | null> => invocar("archivo:elegirLogo"), abrir: (ruta: string): Promise<boolean> => invocar("archivo:abrir", ruta), abrirCarpeta: (ruta: string): Promise<boolean> => invocar("archivo:abrirCarpeta", ruta), guardarComo: (ruta: string): Promise<"guardado" | "cancelado" | "fallo"> => invocar("archivo:guardarComo", ruta) },
   /** La captura de esta ventana (PNG en base64) para «Reportar un bug»; sólo la ventana de la PC. */
   captura: (): Promise<string | null> => invocar("ventana:captura"),
   /** «Reportar un bug»: la carpeta en Descargas con la captura y el log, y la URL del issue (electron/reporte.ts). */

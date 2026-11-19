@@ -8,6 +8,7 @@ import path from "node:path";
 import { CHANGELOG } from "./actualizacion.js";
 import { homedir } from "node:os";
 import { abrirArchivo, abrirCarpeta } from "./archivo-abrir.js";
+import { guardarComo } from "./archivo-guardar.js";
 import { errorT } from "./errores.js";
 import { pedidoDeSalida } from "./cierre.js";
 import { iconosDe, LADO_MAX, logoDeBytes } from "./iconos.js";
@@ -156,6 +157,17 @@ export function armarCanalesVentana(salir: (x: { modo: "seguir" | "parar"; forza
   ipcMain.handle("archivo:abrir", (_e, ruta: unknown) => abrirArchivo(typeof ruta === "string" ? ruta.trim().replace(/^~(?=$|[\\\/])/, homedir()) : ruta, (r) => shell.openPath(r)));
   // Una carpeta que nombra un mensaje, en el explorador de archivos del sistema.
   ipcMain.handle("archivo:abrirCarpeta", (_e, ruta: unknown) => abrirCarpeta(ruta, (r) => shell.openPath(r), homedir(), process.platform, (r) => shell.showItemInFolder(r)));
+  // «Guardar como…» una imagen del visor (archivo-guardar.ts): diálogo del sistema y copia del original.
+  ipcMain.handle("archivo:guardarComo", (e, ruta: unknown) =>
+    guardarComo(ruta, {
+      elegir: async (nombre, carpeta) => {
+        const ventana = BrowserWindow.fromWebContents(e.sender);
+        const opciones = { defaultPath: carpeta ? path.join(carpeta, nombre) : nombre };
+        const r = ventana ? await dialog.showSaveDialog(ventana, opciones) : await dialog.showSaveDialog(opciones);
+        return r.canceled ? null : (r.filePath ?? null);
+      },
+    }),
+  );
   ipcMain.handle("app:salir", (_e, x: unknown) => salir(pedidoDeSalida(x)));
   ipcMain.handle("bandeja:textos", (_e, x: unknown) => {
     const t = textosValidos(x);

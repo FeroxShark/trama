@@ -551,7 +551,7 @@ type Main = {
   /** El selector nativo de carpetas (campo "Carpeta" de un líder nuevo): la ruta o `null` si se canceló. El objeto existe también en el navegador, pero ahí el canal se rechaza: mostralo sólo si `esVentana()`. */
   carpeta?: { elegir(): Promise<string | null> };
   /** El selector nativo de una imagen para el logo de un proyecto: la imagen achicada a 64 px (data URL) o `null` si se canceló. Como `carpeta`: sólo con `esVentana()`. */
-  archivo?: { elegirLogo(): Promise<string | null>; /** Abre el archivo con la app del sistema; `false` si no se pudo. */ abrir(ruta: string): Promise<boolean>; /** Abre la carpeta en el explorador de archivos; `false` si no se pudo. */ abrirCarpeta(ruta: string): Promise<boolean> };
+  archivo?: { elegirLogo(): Promise<string | null>; /** Abre el archivo con la app del sistema; `false` si no se pudo. */ abrir(ruta: string): Promise<boolean>; /** Abre la carpeta en el explorador de archivos; `false` si no se pudo. */ abrirCarpeta(ruta: string): Promise<boolean>; /** Guarda una copia de la imagen donde elija la persona (diálogo del sistema). */ guardarComo(ruta: string): Promise<"guardado" | "cancelado" | "fallo"> };
   /** La captura de esta ventana (PNG en base64, o `null`) para «Reportar un bug». Como `carpeta`: sólo con `esVentana()`. */
   captura?(): Promise<string | null>;
   /** «Reportar un bug»: escribe la carpeta en Descargas (captura y log limpio) y devuelve `{ ok, carpeta, url }` o `{ ok: false, error }`, sin validar. */

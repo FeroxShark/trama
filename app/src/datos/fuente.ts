@@ -218,6 +218,8 @@ export interface Fuente {
   tareaSalida(ruta: string): Promise<SalidaTarea | null>;
   /** Lo abre con la app del sistema (sólo la ventana de la PC); `false` si no se pudo. */
   archivoAbrir(ruta: string): Promise<boolean>;
+  /** «Guardar como…» una imagen: el diálogo del sistema y una copia del original (sólo la ventana de la PC). `cancelado` si cerró el diálogo. */
+  archivoGuardarComo(ruta: string): Promise<"guardado" | "cancelado" | "fallo">;
   /** Abre una carpeta en el explorador de archivos (sólo la ventana de la PC); `false` si no es una carpeta. Rechaza si el pedido no llegó (datos/carpeta-abrir.ts). */
   carpetaAbrir(ruta: string): Promise<boolean>;
   /** La captura de la ventana como se ve ahora (PNG en base64), o `null` (fuera de la ventana de la PC, o si falló). */
@@ -2162,6 +2164,9 @@ const fija: Fuente = {
   async archivoAbrir() {
     return true;
   },
+  async archivoGuardarComo() {
+    return "guardado";
+  },
   async carpetaAbrir(ruta) {
     return !ruta.includes("no-esta");
   },
@@ -3048,6 +3053,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async archivoAbrir(ruta) {
     return (await m.archivo?.abrir(ruta).catch(() => false)) === true;
+  },
+  async archivoGuardarComo(ruta) {
+    return (await m.archivo?.guardarComo(ruta).catch(() => "fallo" as const)) ?? "fallo";
   },
   async capturaVentana() {
     const c = await m.captura?.().catch(() => null);

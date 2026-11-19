@@ -81,6 +81,17 @@ function rutaAbrible(x) {
   return ext && ABRIBLES.has(ext) ? s : null;
 }
 
+const IMAGENES = new Set("png jpg jpeg gif webp bmp svg avif ico".split(" "));
+
+/** La ruta de Windows de una imagen que vale para guardar una copia: absoluta, sin `..`, sin nulos ni saltos de línea; `null` si no. */
+function rutaImagen(x) {
+  if (typeof x !== "string") return null;
+  const s = x.trim();
+  if (!s || s.length > 1024 || /[\u0000-\u001f]/.test(s) || !/^[A-Za-z]:[\\/]/.test(s) || s.split(/[\\/]/).includes("..")) return null;
+  const ext = /\.([A-Za-z0-9]+)$/.exec(s)?.[1].toLowerCase();
+  return ext && IMAGENES.has(ext) ? s : null;
+}
+
 /**
  * Un manejador por canal: `(evento, ...args) => valor`. `o`:
  *  - electron: { app, BrowserWindow, dialog, clipboard, shell, Notification, nativeImage }
@@ -181,6 +192,22 @@ function crearCanalesVentana(o) {
         return (await shell.openPath(s)) === "";
       } catch {
         return false;
+      }
+    },
+    // «Guardar como…» una imagen del visor (app/electron/archivo-guardar.ts): sólo una imagen que existe; el destino lo elige la persona.
+    "archivo:guardarComo": async (e, ruta) => {
+      const r = rutaImagen(ruta);
+      if (!r) return "fallo";
+      try {
+        if (!(await fs.stat(r)).isFile()) return "fallo";
+        const ventana = ventanaDe(e);
+        const opciones = { defaultPath: r };
+        const d = ventana ? await dialog.showSaveDialog(ventana, opciones) : await dialog.showSaveDialog(opciones);
+        if (d.canceled || !d.filePath) return "cancelado";
+        if (path.resolve(d.filePath) !== path.resolve(r)) await fs.copyFile(r, d.filePath);
+        return "guardado";
+      } catch {
+        return "fallo";
       }
     },
     // «Reportar un bug»: la ventana tal como se ve, en PNG base64.
