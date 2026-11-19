@@ -808,6 +808,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "plan.titulo": "Plan listo",
   "plan.aprobar": "Aprobar",
   "plan.seguir": "Seguir planeando",
+  "plan.volver": "Volver",
   "plan.notaPh": "¿Qué cambiarías del plan?",
   "plan.mandarNota": "Mandar",
   "plan.revisar": "Revisar con otro modelo",

@@ -5165,6 +5165,8 @@ summary.sis-div-t:hover,
   inset: 0;
   z-index: 100;
   display: grid;
+  /* Filas y columnas con tope: sin esto el `max-height` de la imagen no tiene contra qué medirse y una captura alta se corta. */
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   padding: var(--esp-8);
   background: var(--velo);

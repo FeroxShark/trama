@@ -819,6 +819,7 @@ export const en = {
   "plan.titulo": "Plan ready",
   "plan.aprobar": "Approve",
   "plan.seguir": "Keep planning",
+  "plan.volver": "Back",
   "plan.notaPh": "What should change in the plan?",
   "plan.mandarNota": "Send",
   "plan.revisar": "Review with another model",

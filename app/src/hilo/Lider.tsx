@@ -1930,6 +1930,16 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
             <ArrowUp size={14} strokeWidth={2.4} />
           </button>
         </div>
+      ) : null}
+      {planear ? (
+        <div className="pide-b">
+          <button type="button" className="btn2" disabled={mandando} onClick={() => setPlanear(false)}>
+            {tr("plan.volver")}
+          </button>
+          <button type="button" className="prim" data-texto="" disabled={mandando} onClick={() => contestar(true)}>
+            {tr("plan.aprobar")}
+          </button>
+        </div>
       ) : (
         <div className="pide-b">
           <button type="button" className="prim" data-texto="" disabled={mandando} onClick={() => contestar(true)}>
