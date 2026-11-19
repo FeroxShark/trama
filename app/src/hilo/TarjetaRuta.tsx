@@ -2,7 +2,7 @@
 // lugar del texto (`ArchivoEnLinea`; las carpetas, `Carpeta` de Texto.tsx) y las imágenes grandes al pie.
 // Una carpeta se abre en el explorador; un `.html`, en el navegador; las imágenes y otros archivos mostrables, en el visor propio.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Eye } from "lucide-react";
+import { Check, Copy, Eye, FolderOpen } from "lucide-react";
 import { copiar } from "../copiar";
 import {
   tipoDeArchivo,
@@ -193,6 +193,25 @@ export function TarjetaRuta({ item }: { item: RutaMencionada }) {
 }
 
 /** El botoncito de copiar la ruta, al lado de una ruta tocable del texto (archivo o carpeta): dice «Ruta copiada» con una tilde un rato. */
+/** Abre la carpeta del archivo con el archivo marcado (explorador del sistema): para ver dónde está, sin abrirlo. */
+export function EnCarpeta({ ruta }: { ruta: string }) {
+  useIdioma();
+  const [fallo, setFallo] = useState(false);
+  const dice = t(fallo ? "ruta.enCarpetaNo" : "ruta.enCarpeta");
+  return (
+    <button
+      type="button"
+      className="ruta-copiar"
+      data-fallo={fallo ? "" : undefined}
+      aria-label={dice}
+      data-tip={dice}
+      onClick={() => void fuente.carpetaAbrir(ruta).then((ok) => setFallo(!ok), () => setFallo(true))}
+    >
+      <FolderOpen size={12} strokeWidth={2} aria-hidden="true" />
+    </button>
+  );
+}
+
 export function CopiarRuta({ ruta }: { ruta: string }) {
   useIdioma();
   const [hecho, setHecho] = useState(false);
@@ -270,6 +289,7 @@ export function ArchivoEnLinea({
         <code data-ruta="">{texto}</code>
         <Ico size={12} strokeWidth={2} aria-hidden="true" />
       </button>
+      <EnCarpeta ruta={item.ruta} />
       <CopiarRuta ruta={item.ruta} />
       {ver && info ? (
         <VerArchivo

@@ -1893,6 +1893,8 @@ export const en = {
   "ruta.reiniciar": "Restart Trama to open this path.",
   "ruta.ver": "View",
   "ruta.copiar": "Copy path",
+  "ruta.enCarpeta": "Show in folder",
+  "ruta.enCarpetaNo": "Couldn't open the folder",
   "ruta.copiada": "Path copied",
   "visor.mostrarCarpeta": "Show in folder",
   "visor.mostrarCarpetaAria": "Show {nombre} in folder",

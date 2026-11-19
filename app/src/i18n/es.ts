@@ -1881,6 +1881,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "ruta.reiniciar": "Reiniciá Trama para abrir esta ruta.",
   "ruta.ver": "Ver",
   "ruta.copiar": "Copiar la ruta",
+  "ruta.enCarpeta": "Mostrar en la carpeta",
+  "ruta.enCarpetaNo": "No se pudo abrir la carpeta",
   "ruta.copiada": "Ruta copiada",
   "visor.mostrarCarpeta": "Mostrar en la carpeta",
   "visor.mostrarCarpetaAria": "Mostrar {nombre} en la carpeta",
