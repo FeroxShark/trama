@@ -1,5 +1,15 @@
 # Cambios
 
+## 0.3.3
+
+- Gemini 4 Neon ya está en el selector de modelos y en los workers: va primero en frontend, código de varias partes, diseño y depuración cuando tiene cupo. También es el revisor por defecto de «Revisar con otro modelo».
+- Cupo bajo: si el cupo vuelve antes de hora (por ejemplo con un reset), el aviso se va en segundos y se pueden lanzar workers otra vez, sin esperar la hora original.
+- Plan: al tocar «Seguir planeando» siguen a mano «Aprobar» y «Volver», así no quedás sin salida.
+- Las capturas altas se ven enteras al abrirlas, sin cortes.
+- Debate: la tarjeta y el plan ya no se cortan cuando miden más que la ventana.
+- La imagen del chat ya no deja una franja vacía, y en el celular se puede elegir el esfuerzo con un turno en curso.
+- Cambiar de idioma ya no mueve las cajas de la interfaz.
+
 ## 0.3.2
 
 - «Revisar con otro modelo»: ahora se elige también el esfuerzo del revisor, sólo entre los que ese modelo admite y tenés prendidos en Ajustes > Modelos.

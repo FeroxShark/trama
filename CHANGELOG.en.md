@@ -1,5 +1,15 @@
 # Changes
 
+## 0.3.3
+
+- Gemini 4 Neon is now in the model selector and available to workers: it goes first for frontend, multi-part code, design and debugging when it has quota. It is also the default reviewer for «Review with another model».
+- Low quota: if your quota comes back early (for example after a reset), the notice clears in seconds and workers can launch again, without waiting for the original time.
+- Plan: after tapping «Keep planning», «Approve» and «Back» stay within reach, so you never get stuck.
+- Tall screenshots now show in full when you open them, with nothing cut off.
+- Debate: the card and the plan no longer get cut off when they are taller than the window.
+- Chat images no longer leave an empty strip, and on the phone you can pick the effort while a turn is running.
+- Switching languages no longer shifts the interface boxes.
+
 ## 0.3.2
 
 - «Review with another model»: you can now also pick the reviewer's effort, only among the ones that model supports and you have enabled in Settings > Models.
