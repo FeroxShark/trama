@@ -266,9 +266,9 @@ export function alPedirAjustes(f: () => void) {
     if (alAbrir === f) alAbrir = null;
   };
 }
-/** Abre Ajustes en una categoría. */
-export function abrirAjustes(cat: CatId) {
-  irA(cat);
+/** Abre Ajustes en una categoría y, con `opc`, en esa fila. */
+export function abrirAjustes(cat: CatId, opc?: string) {
+  irA(cat, opc);
   alAbrir?.();
 }
 

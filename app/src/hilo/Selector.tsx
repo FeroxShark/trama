@@ -46,6 +46,13 @@ export type Opcion = {
   colMarca?: ReactNode;
   /** En columnas: el lugar de la columna (menor, antes); sin esto, el orden en que aparecen. */
   colOrden?: number;
+  /**
+   * Su proveedor no está conectado (sin sesión o sin instalar): la fila se ve atenuada y lleva la palabra «Sin conectar». Elegirla NO cambia el
+   * valor: el menú ofrece «Conectar» (`conectar`: abre Ajustes en ese proveedor). Nunca sólo color.
+   */
+  sinConectar?: boolean;
+  /** Lo que hace «Conectar» de una opción `sinConectar`. */
+  conectar?: () => void;
   /** Un logo a la izquierda de la fila entera (nombre y descripción quedan a su derecha): el selector de carpeta. */
   logo?: ReactNode;
   /** Con `buscar`: se ve siempre, aunque la búsqueda no la deje (la salida "Otra carpeta…"). */
@@ -166,6 +173,8 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   // Con `buscar`: la fila resaltada por las flechas, como índice en lo que queda con la búsqueda.
   const [resaltada, setResaltada] = useState(0);
   const [tab, setTab] = useState<string | null>(null);
+  // La opción de un proveedor sin conectar que se tocó: el valor no cambia; el menú ofrece «Conectar».
+  const [conectando, setConectando] = useState<string | null>(null);
   useEffect(() => {
     if (!senalAbrir || disabled) return;
     setTab(pestana);
@@ -265,7 +274,17 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     setAbierto(false);
     setBusqueda("");
     setTab(null);
+    setConectando(null);
     if (conFoco) boton.current?.focus();
+  };
+
+  /** Un clic en una opción: sin conectar sólo ofrece «Conectar»; con otro motor pide confirmar; si no, elige. */
+  const tocar = (o: Opcion) => {
+    if (o.sinConectar) return setConectando(o.id);
+    const datos = confirmar?.(o.id);
+    // Otro motor: el menú sigue abierto y el chip como estaba hasta que se confirme.
+    if (datos) return setPend({ id: o.id, datos });
+    alElegirOpcion(o.id);
   };
 
   // Con el esfuerzo al pie del menú, elegir un modelo lo deja abierto: el esfuerzo se elige ahí.
@@ -445,13 +464,9 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
       aria-selected={o.id === actual.id}
       data-resaltada={i !== undefined && i === res ? "" : undefined}
       onMouseEnter={i === undefined ? undefined : () => setResaltada(i)}
+      data-sin-conectar={o.sinConectar ? "" : undefined}
       title={enColumnas ? `${o.nombre}${o.desc ? ` · ${o.desc}` : ""}` : undefined}
-      onClick={() => {
-        const datos = confirmar?.(o.id);
-        // Otro motor: el menú sigue abierto y el chip como estaba hasta que se confirme.
-        if (datos) return setPend({ id: o.id, datos });
-        alElegirOpcion(o.id);
-      }}
+      onClick={() => tocar(o)}
     >
       {o.logo ? <span className="op-logo">{o.logo}</span> : null}
       <span className="on1">
@@ -459,6 +474,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         {o.fuente ? <span style={{ fontFamily: o.fuente }}>{o.nombre}</span> : <span className="on-n">{o.nombre}</span>}
         {o.local ? <ChipLocal /> : null}
         {o.rec ? <span className="rec">{t("selector.default")}</span> : null}
+        {o.sinConectar ? <span className="oc-tag" data-tag="sin-conectar">{t("selector.sinConectar")}</span> : null}
       </span>
       <span className="md">{o.desc}</span>
       <Check className="ok" size={14} strokeWidth={2.2} />
@@ -478,13 +494,9 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         disabled={o.deshabilitada}
         aria-selected={o.id === actual.id}
         data-agotada={cupos?.get(o.id)?.sin ? "" : undefined}
-        title={`${o.nombre}${o.desc ? ` · ${o.desc}` : ""}${cupos?.get(o.id)?.sin ? ` · ${textoSinCupo(cupos.get(o.id)!)}` : ""}`}
-        onClick={() => {
-          const datos = confirmar?.(o.id);
-          // Otro motor: el menú sigue abierto y el chip como estaba hasta que se confirme.
-          if (datos) return setPend({ id: o.id, datos });
-          alElegirOpcion(o.id);
-        }}
+        data-sin-conectar={o.sinConectar ? "" : undefined}
+        title={`${o.nombre}${o.desc ? ` · ${o.desc}` : ""}${o.sinConectar ? ` · ${t("selector.sinConectar")}` : ""}${cupos?.get(o.id)?.sin ? ` · ${textoSinCupo(cupos.get(o.id)!)}` : ""}`}
+        onClick={() => tocar(o)}
       >
         <span className="on1">
           {o.marca ? <span className="on-ico" aria-hidden="true">{o.marca}</span> : null}
@@ -492,6 +504,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
           {o.local ? <ChipLocal /> : null}
         </span>
         <span className="oc-meta">
+          {o.sinConectar ? <span className="oc-tag" data-tag="sin-conectar">{t("selector.sinConectar")}</span> : null}
           {o.gratis ? <span className="oc-tag" data-tag="gratis">{t("selector.gratis")}</span> : null}
           {o.go ? <span className="oc-tag" data-tag="go">{t("selector.planGo")}</span> : null}
           {cupos?.get(o.id)?.sin ? (
@@ -512,6 +525,25 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
       </button>
     );
   };
+
+  /** Lo que sale al tocar un modelo sin conectar: dice por qué no se eligió y ofrece «Conectar» (cierra el menú y abre Ajustes en ese proveedor). */
+  const porConectar = conectando ? opciones.find((o) => o.id === conectando && o.sinConectar) : undefined;
+  const avisoConectar = porConectar ? (
+    <div className="mc-conectar" role="status">
+      <span className="mc-conectar-t">{t("selector.conectarAviso", { proveedor: porConectar.colNombre ?? porConectar.grupo ?? porConectar.nombre, modelo: porConectar.nombre })}</span>
+      <button
+        type="button"
+        className="mc-conectar-btn"
+        onClick={() => {
+          const ir = porConectar.conectar;
+          cerrar(false);
+          ir?.();
+        }}
+      >
+        {t("selector.conectar")}
+      </button>
+    </div>
+  ) : null;
 
   // La fila del esfuerzo al pie del menú del modelo: un nivel por botón, el elegido con tilde y en negrita (no sólo con el color).
   const filaEsfuerzo = esfuerzo ? (
@@ -645,11 +677,16 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                             aria-selected={!buscando && c.clave === tabActiva}
                             data-vacia={buscando && cuenta(c.clave) === 0 ? "" : undefined}
                             data-agotada={cuposColumnas?.get(c.clave)?.sin ? "" : undefined}
+                            data-sin-conectar={c.ops.every((o) => o.sinConectar) ? "" : undefined}
                             onClick={() => hojear(c.clave)}
                           >
                             {c.ops[0]?.colMarca ?? c.ops[0]?.marca}
                             <span className="mc-tn">{c.nombre}</span>
-                            <span className="mc-cnt">{buscando ? cuenta(c.clave) : c.ops.length}</span>
+                            {c.ops.every((o) => o.sinConectar) ? (
+                              <span className="mc-sc">{t("selector.sinConectar")}</span>
+                            ) : (
+                              <span className="mc-cnt">{buscando ? cuenta(c.clave) : c.ops.length}</span>
+                            )}
                             {marcaCupo(cuposColumnas?.get(c.clave))}
                           </button>
                         ))}
@@ -677,6 +714,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                         {!visibles.length ? <div className="mc-nada">{t("selector.nada")}</div> : null}
                       </div>
                     </div>
+                    {avisoConectar}
                     {pie ? <div className="mc-pie">{pie(tabActiva)}</div> : null}
                     {filaEsfuerzo}
                   </>
@@ -729,6 +767,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                         {opcion(o)}
                       </Fragment>
                     ))}
+                    {avisoConectar}
                     {filaEsfuerzo}
                   </>
                 )}

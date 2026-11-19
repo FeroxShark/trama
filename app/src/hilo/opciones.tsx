@@ -8,14 +8,15 @@ import type { Opcion } from "./Selector";
 import { GENERAL, type Lider } from "../datos/contrato";
 import { defDe, effortDeModelo, effortsDe, EMPRESAS, type Empresa, partirGeminiId, ponerConfig, porClave, TABLA, type ConfigModelos, type ModeloDef } from "./modelos";
 import { Logo } from "./Logos";
+import { conectarEmpresa } from "./conectar";
 
 // La descripción se dice al leerla: cambia con el idioma sin rearmar las listas.
 // (Un spread `{ ...o }` copia el texto del momento: hacerlo al pintar.)
 const desc = <T extends object>(o: T, clave: ClaveSola) =>
   Object.defineProperty(o, "desc", { get: () => t(clave), enumerable: true }) as T & { desc: string };
 
-/** El orden de las columnas del menú en columnas: Anthropic, Google, DeepSeek Harness y, al final, lo que corre en esta máquina. */
-const ORDEN_COL: Record<Empresa, number> = { anthropic: 0, google: 1, dsh: 2, opencode: 2, local: 3, ollama: 3 };
+/** El orden de las columnas del menú en columnas: Anthropic, Google, OpenAI, OpenCode, DeepSeek Harness y, al final, lo que corre en esta máquina. */
+const ORDEN_COL: Record<Empresa, number> = { anthropic: 0, google: 1, openai: 2, opencode: 3, dsh: 4, local: 5, ollama: 5 };
 
 /** La columna de un modelo en el menú en columnas: una por empresa, salvo los locales (llama-server y Ollama), que van juntos en "Local". */
 const columnaDe = (m: ModeloDef) => {
@@ -38,6 +39,8 @@ const opcionDe = (m: ModeloDef) =>
       ...(m.local ? { local: true } : {}),
       ...(m.gratis ? { gratis: true } : {}),
       ...(m.go ? { go: true } : {}),
+      // Su proveedor no está conectado: atenuado, con «Sin conectar», y elegirlo ofrece «Conectar» (abre Ajustes en ese proveedor) en vez de cambiar el modelo.
+      ...(m.sinConectar ? { sinConectar: true, conectar: () => conectarEmpresa(m.empresa) } : {}),
       // DeepSeek Harness con la API de DeepSeek: tu clave, se paga por uso (los de Ollama de dsh corren acá y no cuestan).
       ...(m.id.startsWith("dsh:deepseek/") ? { pago: true } : {}),
     },
@@ -45,13 +48,16 @@ const opcionDe = (m: ModeloDef) =>
   );
 /** Las generaciones anteriores llevan el divisor «Anteriores» (se dice al leerlo, por el idioma): sólo en el menú, el modelo sigue siendo de su empresa (`col`). */
 const conDivisor = (o: ReturnType<typeof opcionDe>, m: ModeloDef) => (m.anterior ? Object.defineProperty(o, "grupo", { get: () => t("modelo.anteriores"), enumerable: true }) : o);
-export const MODELOS: (Opcion & { clave: string })[] = TABLA.map((m) => conDivisor(opcionDe(m), m));
+/** Una fila de relleno (Local sin ningún modelo) dice su nombre en el idioma de ahora. */
+const conNombre = (o: ReturnType<typeof opcionDe>, m: ModeloDef) => (m.relleno ? Object.defineProperty(o, "nombre", { get: () => t(m.relleno!), enumerable: true }) : o);
+const filaDe = (m: ModeloDef) => conNombre(conDivisor(opcionDe(m), m), m);
+export const MODELOS: (Opcion & { clave: string })[] = TABLA.map(filaDe);
 
 /** Los modelos de un worker de `pa` (`-m`): los mismos, sin los que sólo corren en un líder (los locales, Gemini, Ollama). */
-export const MODELOS_WORKER: (Opcion & { clave: string })[] = MODELOS.filter((m) => !defDe(m.id)?.local && !defDe(m.id)?.soloLider);
+export const MODELOS_WORKER: (Opcion & { clave: string })[] = MODELOS.filter((m) => !defDe(m.id)?.local && !defDe(m.id)?.soloLider && !defDe(m.id)?.relleno);
 
 /** Lo que identifica a la tabla de hoy (ids, nombres, niveles, cuál es el default): si no cambia, un refresco no repinta nada. */
-const firmaTabla = () => JSON.stringify([MODELO_DEFAULT, TABLA.map((m) => [m.id, m.nombre, m.rec === true, m.anterior === true, m.efforts, m.effortDefecto])]);
+const firmaTabla = () => JSON.stringify([MODELO_DEFAULT, TABLA.map((m) => [m.id, m.nombre, m.rec === true, m.anterior === true, m.efforts, m.effortDefecto, m.sinConectar === true])]);
 let firma = "";
 let version = 0;
 const oyentes = new Set<() => void>();
@@ -74,8 +80,8 @@ export const useModelosVivos = (): number => useSyncExternalStore(alCambiarModel
  */
 export function aplicarModelos(c: ConfigModelos | null) {
   const lider = ponerConfig(c);
-  MODELOS.splice(0, MODELOS.length, ...TABLA.map((m) => conDivisor(opcionDe(m), m)));
-  MODELOS_WORKER.splice(0, MODELOS_WORKER.length, ...MODELOS.filter((m) => !defDe(m.id)?.local && !defDe(m.id)?.soloLider));
+  MODELOS.splice(0, MODELOS.length, ...TABLA.map(filaDe));
+  MODELOS_WORKER.splice(0, MODELOS_WORKER.length, ...MODELOS.filter((m) => !defDe(m.id)?.local && !defDe(m.id)?.soloLider && !defDe(m.id)?.relleno));
   MODELO_DEFAULT = lider?.modelo ?? "claude-opus-5-5";
   const nueva = firmaTabla();
   if (nueva === firma) return;
@@ -134,12 +140,12 @@ export let MODELO_DEFAULT = "claude-opus-5-5";
 export const modeloDe = (m: string | null | undefined) => {
   if (!m) return null;
   const base = partirGeminiId(m)[0];
-  const prefijo = /^(?:ollama|agy|dsh):/.exec(m)?.[0];
+  const prefijo = /^(?:ollama|agy|dsh|codex):/.exec(m)?.[0];
   return (
     (
       MODELOS.find((x) => x.id === m || x.id === base) ??
       porClave(
-        MODELOS.filter((x) => (prefijo ? x.id.startsWith(prefijo) : !/^(?:ollama|agy|dsh):/.test(x.id))),
+        MODELOS.filter((x) => (prefijo ? x.id.startsWith(prefijo) : !/^(?:ollama|agy|dsh|codex):/.test(x.id))),
         m,
       )
     )?.id ?? null

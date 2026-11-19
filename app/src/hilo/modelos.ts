@@ -15,12 +15,14 @@ export const EFFORTS_LOCAL = ["off", "low", "medium", "xhigh"] as const;
 export const EFFORTS_CLAUDE_46 = ["low", "medium", "high", "max"] as const;
 
 /** Quién hace el modelo: el menú los agrupa por empresa, con su nombre como divisor y su logo (`src/hilo/Logos.tsx`) junto a cada uno. */
-export type Empresa = "anthropic" | "google" | "local" | "ollama" | "dsh" | "opencode";
+export type Empresa = "anthropic" | "google" | "openai" | "local" | "ollama" | "dsh" | "opencode";
 /** El nombre de cada empresa, tal cual se escribe (un nombre propio: no se traduce). `local`: lo pone cada modelo (`empresaNombre`). */
-export const EMPRESAS: Record<Empresa, string> = { anthropic: "Anthropic", google: "Google", local: "Local", ollama: "Ollama", dsh: "DeepSeek Harness", opencode: "OpenCode" };
+export const EMPRESAS: Record<Empresa, string> = { anthropic: "Anthropic", google: "Google", openai: "OpenAI", local: "Local", ollama: "Ollama", dsh: "DeepSeek Harness", opencode: "OpenCode" };
 
 /** Los de Gemini (`agy`): tres niveles de razonamiento, el máximo por defecto. */
 export const EFFORTS_GEMINI = ["low", "medium", "high"] as const;
+/** Los de codex (ChatGPT): el nivel va en el nombre del modelo de `pa` (`codex:gpt-6.1-sol-high`). */
+export const EFFORTS_CODEX = ["low", "medium", "high"] as const;
 export const EFFORTS_HYDROGEN = ["low", "medium", "high", "xhigh"] as const;
 
 export type ModeloDef = {
@@ -50,6 +52,10 @@ export type ModeloDef = {
   anterior?: boolean;
   /** Sólo se ofrece si el catálogo de la cuenta de Claude lo lista (Fable 5.2); sin catálogo no aparece. */
   soloCuenta?: boolean;
+  /** Su proveedor no está conectado (sin sesión, sin instalar): se ve atenuado con «Sin conectar» y elegirlo no cambia el modelo, ofrece «Conectar». Lo pone `ponerConfig`. */
+  sinConectar?: boolean;
+  /** Una fila de relleno para un proveedor que todavía no tiene ningún modelo (Local sin llama-server ni Ollama): nunca es un modelo de verdad. Su nombre sale de esta clave de i18n. */
+  relleno?: ClaveSola;
   /** Los niveles de esfuerzo que tiene, del más bajo al más alto. */
   efforts: readonly string[];
   /** Con el que arranca si el usuario no eligió otro para este modelo (ante la duda entre dos, el más alto en Claude). */
@@ -139,6 +145,17 @@ const GEMINI: ModeloDef[] = [
   { id: "agy:gpt-oss-120b", clave: "agy:gpt-oss-120b", empresa: "google", nombre: "GPT-OSS 120B · por Google", desc: "modelo.agyGpt", soloLider: true, efforts: EFFORTS_GEMINI, effortDefecto: "medium" },
 ];
 /**
+ * ChatGPT (`codex`, por la suscripción): los de `pa` (`CODEX_MODELOS` de electron/cli/pa/motores/modelos.ts). El id es `codex:<modelo>` sin el nivel
+ * (como Gemini: el esfuerzo viaja aparte); un líder y un worker los corren igual. Siempre en la tabla: sin sesión de ChatGPT van «Sin conectar».
+ */
+const codex = (id: string, nombre: string, desc: ModeloDef["desc"]): ModeloDef => ({ id: `codex:${id}`, clave: `codex:${id}`, empresa: "openai", nombre, desc, efforts: EFFORTS_CODEX, effortDefecto: "medium" });
+const OPENAI: ModeloDef[] = [
+  codex("gpt-6.1-sol", "GPT-6.1 Sol · OpenAI", "modelo.gpt61sol"),
+  codex("gpt-6-sol", "GPT-6 Sol · OpenAI", "modelo.gpt6sol"),
+  codex("gpt-6-luna", "GPT-6 Luna · OpenAI", "modelo.gpt6luna"),
+  codex("gpt-6-astra", "GPT-6 Astra · OpenAI", "modelo.gpt6astra"),
+];
+/**
  * DeepSeek Harness (`dsh`): el de la API de DeepSeek, siempre (los gratis de OpenCode ya no están: sólo andan por el programa `opencode`, abajo); los de Ollama salen de `locales`
  * (`dsh:ollama/<modelo>`, el mismo modelo que ya agregó el usuario). Un líder de dsh sí delega con `pa` (no hay `sinWorkers`); sin
  * esfuerzo (el modelo no lo expone) y sólo de líder, igual que Gemini y Ollama.
@@ -204,6 +221,12 @@ export type ConfigModelos = {
   llama?: { id: string; nombre: string; empresa: string }[];
   /** El líder por defecto (`lider` del archivo), o `null`: el de siempre. */
   lider: { modelo: string; effort: string | null } | null;
+  /**
+   * Qué proveedores tienen su motor listo en esta máquina (sesión iniciada, programa instalado). Con esto el selector muestra SIEMPRE a todos
+   * (Anthropic, Google, OpenAI, OpenCode, DeepSeek Harness y Local) y los que no están listos van «Sin conectar». Sin la clave (un main viejo, los tests)
+   * la tabla es la de antes: sólo lo que está disponible.
+   */
+  conexion?: Partial<Record<Empresa, boolean>>;
 };
 
 /** `gemini-4-argon-high` → `["gemini-4-argon", "high"]`; cualquier otro, tal cual y sin nivel. */
@@ -281,8 +304,16 @@ export function ponerConfig(c: ConfigModelos | null): { modelo: string; effort: 
   const ordenOc = (v: string) => (esGratisOpencode(v) ? 0 : planGo && esGoOpencode(v) ? 1 : 2);
   const opencodeTodos = [...valores].sort((a, b) => ordenOc(a) - ordenOc(b)).map((v) => opencode(v, c?.opencodeEfforts?.[v] ?? [], planGo));
   const base = c?.claudeModelos?.length ? claudeDeCuenta(BASE, c.claudeModelos) : BASE.filter((m) => !m.soloCuenta).map((m) => ({ ...m }));
+  const con = c?.conexion;
+  // Con `conexion`, todos los proveedores están siempre: lo que falta se rellena con una fila conocida (Google, OpenAI, DeepSeek Harness, OpenCode) o una de relleno (Local).
+  const google = c?.gemini ? (c.agyModelos?.length ? agyDeCuenta(c.agyModelos) : GEMINI.map((m) => ({ ...m }))) : con ? GEMINI.map((m) => ({ ...m })) : [];
+  const openai = con ? OPENAI.map((m) => ({ ...m })) : [];
+  const opencodeFilas = opencodeTodos.length || !con ? opencodeTodos : [opencode("opencode/big-pickle")];
+  const dshFilas = dshTodos.length || !con ? dshTodos : DSH.map((m) => ({ ...m }));
+  const localesFilas: ModeloDef[] = con && !llama.length && !ollama.length ? [{ id: "local:sin-modelos", clave: "local:sin-modelos", empresa: "local", nombre: "", relleno: "modelo.sinLocalesNombre", desc: "modelo.sinLocales", efforts: [], effortDefecto: "medium" }] : [];
   tabla.length = 0;
-  tabla.push(...base, ...llama, ...(c?.gemini ? (c.agyModelos?.length ? agyDeCuenta(c.agyModelos) : GEMINI.map((m) => ({ ...m }))) : []), ...ollama, ...dshTodos, ...opencodeTodos);
+  tabla.push(...base, ...llama, ...google, ...openai, ...ollama, ...localesFilas, ...dshFilas, ...opencodeFilas);
+  if (con) for (const m of tabla) if (con[m.empresa === "ollama" ? "local" : m.empresa] === false) m.sinConectar = true;
   const lider = c?.lider ?? null;
   if (!lider) return null;
   const [id, nivel] = partirGeminiId(lider.modelo);
@@ -299,11 +330,11 @@ export function ponerConfig(c: ConfigModelos | null): { modelo: string; effort: 
 export const defDe = (modelo: string | null | undefined): ModeloDef | undefined => {
   if (!modelo) return undefined;
   const base = partirGeminiId(modelo)[0];
-  const prefijo = /^(?:ollama|agy|dsh|opencode):/.exec(modelo)?.[0];
+  const prefijo = /^(?:ollama|agy|dsh|opencode|codex):/.exec(modelo)?.[0];
   return (
     TABLA.find((m) => m.id === modelo || m.id === base) ??
     porClave(
-      TABLA.filter((m) => (prefijo ? m.id.startsWith(prefijo) : !/^(?:ollama|agy|dsh|opencode):/.test(m.id))),
+      TABLA.filter((m) => (prefijo ? m.id.startsWith(prefijo) : !/^(?:ollama|agy|dsh|opencode|codex):/.test(m.id))),
       modelo,
     )
   );
@@ -333,18 +364,21 @@ export const esDsh = (modelo: string | null | undefined): boolean => /^dsh:/.tes
 /** ¿Un líder con este modelo corre por el programa `opencode` (`opencode:<proveedor>/<modelo>`)? */
 export const esOpencode = (modelo: string | null | undefined): boolean => /^opencode:/.test(modelo ?? "");
 
+/** ¿Un líder con este modelo corre por `codex` (ChatGPT, `codex:<modelo>`)? */
+export const esCodex = (modelo: string | null | undefined): boolean => /^codex:/.test(modelo ?? "");
+
 /**
  * El motor de un líder: un líder no cambia de uno a otro en la misma sesión (otro proceso, otro transcript); dentro del mismo sí.
  * Claude y Ollama son el mismo `claude`.
  */
-export const familiaDe = (modelo: string | null | undefined): "claude" | "agy" | "dsh" | "opencode" => (esOpencode(modelo) ? "opencode" : esDsh(modelo) ? "dsh" : esAgy(modelo) ? "agy" : "claude");
+export const familiaDe = (modelo: string | null | undefined): "claude" | "agy" | "dsh" | "opencode" | "codex" => (esCodex(modelo) ? "codex" : esOpencode(modelo) ? "opencode" : esDsh(modelo) ? "dsh" : esAgy(modelo) ? "agy" : "claude");
 
 /**
  * El motor que corre un modelo, para decirlo en la caja ("arranca una sesión nueva de Gemini (agy)"). Nombres propios: no se traducen.
  * Un modelo de Ollama corre por su endpoint (el mismo `claude` contra otro destino), pero es lo que la persona reconoce.
  */
 export const motorNombre = (modelo: string | null | undefined): string =>
-  esOpencode(modelo) ? "OpenCode" : esDsh(modelo) ? "DeepSeek Harness" : esAgy(modelo) ? "Gemini (agy)" : /^ollama:/.test(modelo ?? "") ? "Ollama" : "Claude Code";
+  esCodex(modelo) ? "ChatGPT (codex)" : esOpencode(modelo) ? "OpenCode" : esDsh(modelo) ? "DeepSeek Harness" : esAgy(modelo) ? "Gemini (agy)" : /^ollama:/.test(modelo ?? "") ? "Ollama" : "Claude Code";
 
 /** ¿Un líder con este modelo no puede delegar con `pa`? Los locales de GPU y Ollama. */
 export const sinWorkers = (modelo: string | null | undefined) => {
@@ -354,7 +388,7 @@ export const sinWorkers = (modelo: string | null | undefined) => {
 
 /** Los niveles de un modelo; uno que la tabla no conoce tiene los de Claude (salvo uno de OpenCode o dsh: no los inventa, no tiene). */
 export const effortsDe = (modelo: string | null | undefined): readonly string[] =>
-  defDe(modelo)?.efforts ?? (esOpencode(modelo) || esDsh(modelo) ? [] : esAgy(modelo) ? EFFORTS_GEMINI : EFFORTS_CLAUDE);
+  defDe(modelo)?.efforts ?? (esOpencode(modelo) || esDsh(modelo) ? [] : esCodex(modelo) ? EFFORTS_CODEX : esAgy(modelo) ? EFFORTS_GEMINI : EFFORTS_CLAUDE);
 
 /** El esfuerzo de ese modelo si existe en su lista, si no `null`. */
 export const effortDeModelo = (modelo: string | null | undefined, e: string | null | undefined): string | null =>
