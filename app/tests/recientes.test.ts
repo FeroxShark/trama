@@ -146,6 +146,12 @@ test("fotoRecientes: lo más reciente de cada líder y de cada carpeta; igualRec
   assert.ok(!igualRecientes(f, fotoRecientes(ls, [], [])));
 });
 
+test("fotoRecientes: un líder usado hace poco sube su carpeta aunque no tenga workers recientes", () => {
+  const f = fotoRecientes([L("c", "canto", 14 * 60)], [worker("d", "dotfiles", 2 * 86400)], []);
+  assert.equal(f.carpetas.get("canto"), AHORA - 14 * 60);
+  assert.ok(f.carpetas.get("canto")! > f.carpetas.get("dotfiles")!);
+});
+
 test("el modo se guarda: lo desconocido se descarta", () => {
   assert.equal(ordenDe({ carpetas: [], lideres: {}, modo: "az" }).modo, "az");
   assert.equal(limpiarOrden({ modo: "az" }).modo, "az");

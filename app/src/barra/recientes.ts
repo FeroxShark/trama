@@ -12,13 +12,17 @@ export type Recientes = { lideres: ReadonlyMap<string, number>; carpetas: Readon
 const deWorker = (h: Pick<Hilo, "inicio" | "duracion_s" | "murio_en">) => h.murio_en ?? h.inicio + (h.duracion_s ?? 0);
 
 /** La foto de la actividad: líderes y workers por su proyecto, y las conversaciones de Claude Code por la carpeta que les toca. */
-export function fotoRecientes(lideres: readonly Pick<Lider, "id" | "actividad">[], hilos: readonly Hilo[], convs: readonly ConvClaudeCode[]): Recientes {
+export function fotoRecientes(lideres: readonly Pick<Lider, "id" | "actividad" | "proyecto">[], hilos: readonly Hilo[], convs: readonly ConvClaudeCode[]): Recientes {
   const porLider = new Map<string, number>();
-  for (const l of lideres) porLider.set(l.id, l.actividad);
   const porCarpeta = new Map<string, number>();
   const sube = (m: Map<string, number>, k: string, v: number) => {
     if (v > (m.get(k) ?? -Infinity)) m.set(k, v);
   };
+  // El líder también mueve su carpeta: un chat usado hace un rato la sube aunque no haya lanzado workers.
+  for (const l of lideres) {
+    porLider.set(l.id, l.actividad);
+    if (l.proyecto) sube(porCarpeta, l.proyecto, l.actividad);
+  }
   for (const h of hilos) {
     const v = deWorker(h);
     if (h.jefe_id) sube(porLider, h.jefe_id, v);
