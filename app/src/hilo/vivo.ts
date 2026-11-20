@@ -257,7 +257,8 @@ function cambiarPor(sid: string, ev: EventoLider) {
         return e.modo === ev.modo ? e : { ...e, modo: ev.modo };
       case "permiso": {
         const { tipo: _, ...p } = ev;
-        return { ...e, pide: [...e.pide.filter((x) => x.id !== p.id), p] };
+        // Un pedido repetido (vista recargada, el main lo reenvía) se queda en su lugar: si pasara al final, la tanda de arriba cambiaría sola.
+        return { ...e, pide: e.pide.some((x) => x.id === p.id) ? e.pide.map((x) => (x.id === p.id ? p : x)) : [...e.pide, p] };
       }
       case "permisoFuera":
         return e.pide.some((x) => x.id === ev.id) ? { ...e, pide: e.pide.filter((x) => x.id !== ev.id) } : e;

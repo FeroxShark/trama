@@ -228,6 +228,20 @@ test("dos tandas de preguntas a la vez: de a una, la más vieja primero; contest
   assert.deepEqual(enCurso(sid).pide.map((p) => p.id), ["bash"]);
 });
 
+test("una tanda reenviada (vista recargada, el main la repite) conserva su lugar: la primera sigue arriba", () => {
+  const sid = "tanda-repetida";
+  suscribir(sid, () => {});
+  const qs = (n: string) => [{ question: `¿${n}?`, header: n, multiSelect: false, options: [{ label: "Sí", description: "" }] }];
+  const pide = (id: string, n: string): EventoLider => ({ tipo: "permiso", id, herramienta: "AskUserQuestion", detalle: null, plan: null, preguntas: qs(n), tool_use_id: `t-${id}` });
+  emitir({ sid, e: pide("a", "A") });
+  emitir({ sid, e: pide("b", "B") });
+  emitir({ sid, e: pide("a", "A") });
+  assert.deepEqual(tandasPendientes(enCurso(sid).pide).map((p) => p.id), ["a", "b"]);
+  // Contestada una que ya no está (el eco llega tarde): no toca la otra.
+  contestado(sid, "zzz");
+  assert.deepEqual(tandasPendientes(enCurso(sid).pide).map((p) => p.id), ["a", "b"]);
+});
+
 // El razonamiento (`thinking`): llega por deltas, se acumula en vivo y al terminar queda en el turno (plegado en la vista).
 const STREAM_PENSANDO = readFileSync(path.join(import.meta.dirname, "fixtures", "stream-pensando.jsonl"), "utf8").split("\n").filter(Boolean);
 const RAZON = "Ana quiere saber qué falló en el índice. Primero miro el log, después decido.";
