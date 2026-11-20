@@ -32,5 +32,5 @@ test("main.js: todo lo que la página pide por el preload (invocar) tiene su han
 
 test("lo que el contrato reserva a la ventana y la carcasa no atiende es sólo lo que el motor de la carcasa ya sabe hacer (consumo y borradores)", () => {
   const faltan = json.soloVentana.filter((c) => !json.ventana.includes(c)).sort();
-  assert.deepEqual(faltan, ["borradores:guardar", "borradores:leer", "consumo:mirar", "consumo:soltar"]);
+  assert.deepEqual(faltan, ["borradores:guardar", "borradores:imagen", "borradores:leer", "consumo:mirar", "consumo:soltar"]);
 });
