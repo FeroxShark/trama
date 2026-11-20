@@ -116,42 +116,176 @@
   background: var(--cupo-agotado-fondo);
   color: var(--cupo-agotado-texto);
 }
-.dbt-chips {
+/* Los chips de ronda: cuál se mira en las columnas. */
+.dbt-rondas {
   display: flex;
   flex-wrap: wrap;
   gap: var(--esp-1-5);
+}
+.dbt-ronda-chip {
+  display: inline-flex;
+  align-items: center;
+  height: var(--alto-chip);
+  padding: 0 var(--esp-2-5);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--apagado);
+  font: inherit;
+  font-size: var(--letra-4);
+  cursor: pointer;
+}
+.dbt-ronda-chip:hover {
+  background: var(--capa-div);
+  color: var(--texto);
+}
+.dbt-ronda-chip[aria-pressed="true"] {
+  background: var(--acento-tinte);
+  box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
+  color: var(--texto);
+  font-weight: 600;
+}
+.dbt-ronda-chip:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+/* La mesa: una columna por modelo; con poco ancho se apilan. */
+.dbt-mesa {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.5rem), 1fr));
+  gap: var(--esp-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.dbt-p {
-  display: inline-flex;
+.dbt-col {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: auto auto minmax(6rem, 1fr) auto;
+  gap: var(--esp-2);
+  padding: var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-tile);
+  box-shadow: inset 0 0.1875rem 0 var(--tono);
+}
+.dbt-col[data-estado="salio"],
+.dbt-col[data-estado="sinTurno"] {
+  opacity: 0.75;
+}
+.dbt-col-cab {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.dbt-av {
+  display: grid;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border-radius: var(--r-cap);
+  background: var(--tono);
+  color: var(--acento-texto);
+  font-size: var(--letra-4);
+  font-weight: 700;
+}
+.dbt-col .dbt-nombre {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dbt-p-e {
+  flex: none;
+  color: var(--inactivo);
+  font-size: var(--letra-4);
+}
+.dbt-postura {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.dbt-col[data-estado="acuerdo"] .dbt-postura {
+  color: var(--ok);
+}
+.dbt-col[data-estado="cambio"] .dbt-postura {
+  color: var(--decision-texto);
+}
+.dbt-col[data-estado="pregunta"] .dbt-postura,
+.dbt-col[data-estado="escribiendo"] .dbt-postura {
+  color: var(--acento);
+}
+.dbt-col-texto {
+  max-height: min(16rem, 34vh);
+  min-height: 0;
+  overflow: hidden auto;
+  color: var(--texto);
+  font-size: var(--letra-5);
+  line-height: 1.5;
+  scrollbar-width: thin;
+}
+.dbt-col-texto:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+.dbt-vivo,
+.dbt-vacio {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.dbt-vacio {
+  color: var(--inactivo);
+}
+.dbt-cursor {
+  display: inline-block;
+  width: 0.4em;
+  height: 1em;
+  margin-left: 0.15em;
+  vertical-align: text-bottom;
+  background: var(--acento);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dbt-cursor {
+    animation: dbt-parpadeo 1.1s steps(1) infinite;
+  }
+  @keyframes dbt-parpadeo {
+    50% {
+      opacity: 0;
+    }
+  }
+}
+.dbt-pie {
+  display: grid;
+  gap: var(--esp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--inactivo);
+  font-size: var(--letra-4);
+}
+.dbt-pie li {
+  display: flex;
   min-width: 0;
   align-items: center;
   gap: var(--esp-1-5);
-  height: var(--alto-chip);
-  padding: 0 var(--esp-2-5);
-  border-radius: var(--r-cap);
-  background: var(--capa-tile);
-  color: var(--apagado);
-  font-size: var(--letra-4);
+}
+.dbt-pie svg {
+  flex: none;
+}
+.dbt-pie span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dbt-p[data-habla] {
-  background: var(--acento-tinte);
-  box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
-  color: var(--texto);
-}
-.dbt-p:not([data-activo]) {
-  opacity: 0.7;
-  text-decoration: line-through;
-}
-.dbt-p-n {
-  overflow: hidden;
-  color: var(--texto);
-  font-weight: 600;
-  text-overflow: ellipsis;
-}
+
 .dbt-lista {
   display: flex;
   max-height: min(22rem, 30vh);
@@ -298,4 +432,80 @@
 /* En el debate la fila resaltada con el teclado se ve aunque no esté elegida. */
 .seg-op[data-foco] {
   box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
+}
+
+/* «Qué se acordó»: junto al plan, antes de ejecutarlo (QueSeAcordo.tsx). */
+.dbt-acordo {
+  display: grid;
+  gap: var(--esp-3);
+  padding: var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+}
+.dbt-acordo-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--esp-1) var(--esp-3);
+}
+.dbt-acordo-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--esp-2);
+}
+.dbt-acordo-bloque {
+  display: grid;
+  align-content: start;
+  gap: var(--esp-2);
+  padding: var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-tile);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  line-height: 1.5;
+}
+.dbt-acordo-h {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.dbt-acordo-bloque[data-k="acordado"] .dbt-acordo-h {
+  color: var(--ok);
+}
+.dbt-acordo-bloque[data-k="sin"] .dbt-acordo-h {
+  color: var(--decision-texto);
+}
+.dbt-acordo-bloque ul {
+  margin: 0;
+  padding-left: var(--esp-4);
+}
+.dbt-acordo-bloque dl {
+  display: grid;
+  gap: var(--esp-2);
+  margin: 0;
+}
+.dbt-acordo-bloque dt {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  font-weight: 600;
+}
+.dbt-acordo-bloque dd {
+  margin: 0;
+  color: var(--apagado);
+}
+.dbt-acordo-nada {
+  margin: 0;
+  color: var(--inactivo);
+}
+.dbt-acordo-b {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--esp-2);
 }

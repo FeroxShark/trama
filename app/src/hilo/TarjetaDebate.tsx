@@ -2,16 +2,17 @@
 // dijo cada modelo, la pregunta con un botón por opción, «Cortar y concluir» y «Cancelar») y la conclusión que llegó al líder como
 // mensaje (`TarjetaConclusionDebate`, con la clase `rv` de la tarjeta del revisor: «Ver la tarjeta» la encuentra igual). Cada postura y
 // cada fase se dicen con ícono y palabra. La lógica: debate-logica.ts; el estado viene del main: debate-vivo.ts. Estilos: debate.css.
-import { memo, useEffect, useRef, useState, type RefObject } from "react";
-import { Check, CircleAlert, Hand, Info, Loader, MessagesSquare, MessageSquareQuote, TriangleAlert, X } from "lucide-react";
+import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { Check, CircleAlert, Eye, Hand, Hourglass, Info, Loader, LogOut, MessagesSquare, MessageSquareQuote, Minus, PencilLine, Sparkles, TriangleAlert, X } from "lucide-react";
 import { fuente } from "../datos/fuente";
-import type { LineaDebate, Postura } from "../../electron/debate-texto";
+import type { LineaDebate } from "../../electron/debate-texto";
+import type { PasoRevision } from "../../electron/revision-plan-texto";
 import type { leerMensajeDebate } from "../../electron/debate-texto";
 import { t, textoMain } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { Boton } from "../ui/componentes";
 import { Texto } from "./Texto";
-import { accionesDebate, claveMotivo, debateVivo, duracionDebate, minutosQueFaltan, quienHabla } from "./debate-logica";
+import { accionesDebate, claveMotivo, columnasDebate, debateVivo, duracionDebate, minutosQueFaltan, rondasDebate, rondaVista, type ColumnaDebate, type EstadoColumna } from "./debate-logica";
 import { limpiarDebate, useDebate } from "./debate-vivo";
 import { irA } from "./RevisionVista";
 import { tiempoCorrido } from "./revision-logica";
@@ -31,10 +32,15 @@ function useAhora(activo: boolean): number {
   return ahora;
 }
 
-const POSTURA: Record<Postura, { ico: typeof Check; clave: string }> = {
+/** Cada estado de una columna con su ícono y su palabra: el color sólo acompaña. */
+const POSTURA: Record<EstadoColumna, { ico: typeof Check; clave: string }> = {
   acuerdo: { ico: Check, clave: "debate.postura.acuerdo" },
   cambio: { ico: TriangleAlert, clave: "debate.postura.cambio" },
   pregunta: { ico: Hand, clave: "debate.postura.pregunta" },
+  escribiendo: { ico: PencilLine, clave: "debate.postura.escribiendo" },
+  espera: { ico: Hourglass, clave: "debate.postura.espera" },
+  salio: { ico: LogOut, clave: "debate.postura.salio" },
+  sinTurno: { ico: Minus, clave: "debate.postura.sinTurno" },
 };
 
 /** Una línea del debate: lo que dijo un modelo, lo que contestó el dueño, un modelo que salió, una nota o la conclusión. */
@@ -90,6 +96,80 @@ const Linea = memo(function Linea({ l }: { l: LineaDebate }) {
   );
 });
 
+/** Lo que un modelo leyó o está leyendo, en palabras: el más nuevo primero, con el nombre entero en el `title`. */
+const Paso = ({ p, vivo }: { p: PasoRevision; vivo: boolean }) => (
+  <li title={p.v}>
+    <Eye size={12} strokeWidth={2} aria-hidden="true" />
+    <span>{(t as (k: string, v?: Record<string, string | number>) => string)(`debate.${vivo ? "leyendo" : "leyo"}.${p.k === "otro" ? "leer" : p.k}`, { v: p.v })}</span>
+  </li>
+);
+
+/** La columna de un modelo en la mesa: su postura en palabras e ícono, lo que dijo (o va diciendo), y abajo lo que leyó y usó. */
+const Columna = memo(function Columna({ c, tono }: { c: ColumnaDebate; tono: string }) {
+  useIdioma();
+  const p = POSTURA[c.estado];
+  const Ico = p.ico;
+  const texto = useRef<HTMLDivElement>(null);
+  // El texto baja solo mientras llega (si la persona no subió a releer).
+  useEffect(() => {
+    const el = texto.current;
+    if (el && c.estado === "escribiendo" && el.scrollHeight - el.scrollTop - el.clientHeight < 60) el.scrollTop = el.scrollHeight;
+  }, [c.texto, c.estado]);
+  const escribiendo = c.estado === "escribiendo";
+  const pasos = [...(c.leyendo ? [{ p: c.leyendo, vivo: true }] : []), ...c.leyo.filter((x) => x !== c.leyendo).map((x) => ({ p: x, vivo: false }))].slice(0, 3);
+  return (
+    <li className="dbt-col" data-estado={c.estado} style={{ "--tono": tono } as CSSProperties}>
+      <header className="dbt-col-cab">
+        <span className="dbt-av" aria-hidden="true">
+          {c.inicial}
+        </span>
+        <span className="dbt-nombre">{c.nombre}</span>
+        {c.effort ? <span className="dbt-p-e">{c.effort}</span> : null}
+      </header>
+      <p className="dbt-postura">
+        <Ico size={13} strokeWidth={2.2} aria-hidden="true" />
+        {t(p.clave as never)}
+      </p>
+      <div className="dbt-col-texto el" ref={texto} tabIndex={0} aria-label={t("debate.columna", { modelo: c.nombre })}>
+        {escribiendo ? (
+          c.texto ? (
+            <p className="dbt-vivo">
+              {c.texto}
+              <span className="dbt-cursor" aria-hidden="true" />
+            </p>
+          ) : (
+            <p className="dbt-vacio">{t("debate.leyendoPlan")}</p>
+          )
+        ) : c.texto ? (
+          <Texto texto={c.texto} />
+        ) : null}
+        {c.plan ? (
+          <details className="rv-plan dbt-plan">
+            <summary>{t("debate.planPropuesto")}</summary>
+            <Texto texto={c.plan} />
+          </details>
+        ) : null}
+      </div>
+      {pasos.length || c.uso.length ? (
+        <ul className="dbt-pie">
+          {pasos.map((x) => (
+            <Paso key={`${x.p.k}:${x.p.v}`} p={x.p} vivo={x.vivo} />
+          ))}
+          {c.uso.slice(0, 2).map((u) => (
+            <li key={u} title={u}>
+              <Sparkles size={12} strokeWidth={2} aria-hidden="true" />
+              <span>{t("debate.uso", { v: u })}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+});
+
+/** El color de cada columna, en el orden en que hablan: sólo identifica al modelo (la postura se dice con ícono y palabra). */
+const TONOS = ["var(--probar)", "var(--acento)", "var(--carpeta)"];
+
 /**
  * El debate de un líder, en vivo: va encima de la caja (como el progreso de la revisión simple) hasta que se lo cierra. `zona` es el
  * chat (`.conv-zona`): ahí llega la conclusión como mensaje del líder y ahí lleva «Ver la tarjeta».
@@ -104,7 +184,8 @@ export function TarjetaDebate({ sid, zona }: { sid: string; zona: RefObject<HTML
   // Cuántas tarjetas había en el chat cuando empezó el debate: la que llega es la que sobra después (revision-ver.ts).
   const base = useRef<{ id: string; n: number } | null>(null);
   const [espera, setEspera] = useState<string | null>(null);
-  const nLineas = e?.lineas.length ?? 0;
+  const [elegida, setElegida] = useState<number | null>(null);
+  const nLineas = e?.lineas.filter((l) => l.tipo !== "turno").length ?? 0;
   useEffect(() => {
     const z = zona.current;
     if (!e || !z || base.current?.id === e.id || !debateVivo(e)) return;
@@ -115,6 +196,8 @@ export function TarjetaDebate({ sid, zona }: { sid: string; zona: RefObject<HTML
     const el = lista.current;
     if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 80) el.scrollTop = el.scrollHeight;
   }, [nLineas]);
+  // Un debate nuevo vuelve a seguir la ronda en curso.
+  useEffect(() => setElegida(null), [e?.id]);
   const alVer = () => {
     const z = zona.current;
     const n = e && base.current?.id === e.id ? base.current.n : null;
@@ -140,7 +223,11 @@ export function TarjetaDebate({ sid, zona }: { sid: string; zona: RefObject<HTML
   if (!e) return null;
 
   const ac = accionesDebate(e.fase);
-  const habla = quienHabla(e);
+  // La ronda que se mira: la que corre (o la última), salvo que la persona haya elegido otra con los chips.
+  const ronda = elegida !== null && elegida <= rondaVista(e) ? elegida : rondaVista(e);
+  const columnas = columnasDebate(e, ronda);
+  // Lo que no es el turno de un modelo (la respuesta del dueño, notas, salidas y la conclusión) va aparte, debajo de la mesa.
+  const aparte = e.lineas.filter((l) => l.tipo !== "turno");
   const nombres = e.participantes.map((p) => p.nombre).join(", ");
   const titulo = e.fase === "hecho" ? t(e.motivo === "simple" ? "debate.hechaSimple" : "debate.hecha") : e.fase === "cancelado" ? t("debate.cancelada") : e.fase === "fallo" ? t("debate.fallo") : e.fase === "entregando" ? t("debate.entregando") : e.fase === "concluyendo" ? t("debate.concluyendo") : t("debate.corriendo", { modelos: nombres });
   const subtitulo = [e.ronda > 0 && debateVivo(e) ? t("debate.rondaDe", { n: e.ronda, total: e.rondas }) : null, tiempoCorrido(duracionDebate(e, ahora))].filter(Boolean).join(" · ");
@@ -165,28 +252,36 @@ export function TarjetaDebate({ sid, zona }: { sid: string; zona: RefObject<HTML
         </div>
       </header>
 
-      <ul className="dbt-chips" aria-label={t("debate.participantes")}>
-        {e.participantes.map((p) => (
-          <li key={p.modelo} className="dbt-p" data-activo={p.activo ? "" : undefined} data-habla={habla?.modelo === p.modelo ? "" : undefined}>
-            <span className="dbt-p-n">{p.nombre}</span>
-            {p.effort ? <span className="dbt-p-e">{p.effort}</span> : null}
-            <span className="dbt-p-t">{p.activo ? t("debate.turnos", { n: p.turnos }) : t("debate.salioChip")}</span>
-          </li>
-        ))}
-      </ul>
+      {e.ronda > 0 ? (
+        <div className="dbt-rondas" role="group" aria-label={t("debate.rondasElegir")}>
+          {rondasDebate(e).map((n) => (
+            <button key={n} type="button" className="dbt-ronda-chip" aria-pressed={n === ronda} onClick={() => setElegida(n === rondaVista(e) ? null : n)}>
+              {t("debate.ronda", { n })}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
-      {e.lineas.length ? (
-        <ol className="dbt-lista el" ref={lista} tabIndex={0} aria-label={t("debate.lista")}>
-          {e.lineas.map((l) => (
+      {columnas.length && e.ronda > 0 ? (
+        <ol className="dbt-mesa" aria-label={t("debate.lista")} data-n={columnas.length}>
+          {columnas.map((c, i) => (
+            <Columna key={c.modelo} c={c} tono={TONOS[i % TONOS.length]!} />
+          ))}
+        </ol>
+      ) : null}
+
+      {aparte.length ? (
+        <ol className="dbt-lista el" ref={lista} tabIndex={0} aria-label={t("debate.aparte")}>
+          {aparte.map((l) => (
             <Linea key={l.n} l={l} />
           ))}
         </ol>
       ) : null}
 
-      {e.fase === "corriendo" || e.fase === "concluyendo" ? (
+      {e.fase === "concluyendo" || (e.fase === "corriendo" && e.ronda < 1) ? (
         <p className="dbt-espera" role="status">
           <Loader size={12} strokeWidth={2.2} aria-hidden="true" />
-          {e.fase === "concluyendo" ? t("debate.escribiendoConclusion") : habla ? t("debate.habla", { modelo: habla.nombre }) : t("debate.pensando")}
+          {e.fase === "concluyendo" ? t("debate.escribiendoConclusion") : t("debate.pensando")}
         </p>
       ) : null}
 

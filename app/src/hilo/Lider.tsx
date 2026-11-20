@@ -72,8 +72,9 @@ import { modalRevision, useRevision } from "./revision-vivo";
 import { revisionViva } from "./revision-logica";
 import { TarjetaRevision } from "./TarjetaRevision";
 import { TarjetaConclusionDebate, TarjetaDebate } from "./TarjetaDebate";
-import { debateVivo } from "./debate-logica";
-import { ponerDebate, useDebate } from "./debate-vivo";
+import { debateVivo, resumenDebate } from "./debate-logica";
+import { QueSeAcordo } from "./QueSeAcordo";
+import { limpiarDebate, ponerDebate, useDebate } from "./debate-vivo";
 import { leerMensajeRevision, REVISOR_DEFECTO } from "../../electron/revision-plan-texto";
 import { leerMensajeDebate } from "../../electron/debate-texto";
 import { CarpetaDelChat, Texto } from "./Texto";
@@ -1880,6 +1881,8 @@ function PedidoPermiso({ sid, p, revisado = false }: { sid: string; p: Pedido; r
   const revision = useRevision(sid);
   const debate = useDebate(sid);
   const enRevision = revisionViva(revision.estado) || debateVivo(debate);
+  // Si un debate acaba de terminar con conclusión, el plan nuevo llega con «Qué se acordó» y sus dos salidas (frena la aprobación hasta que se lea).
+  const acuerdo = plan && debate ? resumenDebate(debate) : null;
   useEffect(() => {
     if (!revisando) return;
     let vivo = true;
@@ -1897,6 +1900,7 @@ function PedidoPermiso({ sid, p, revisado = false }: { sid: string; p: Pedido; r
       .liderPermiso(sid, p.id, ok, msj)
       .then(() => {
         if (ok && plan) ponerModo(sid, MODO_DEFAULT);
+        if (acuerdo) limpiarDebate(sid);
         contestado(sid, p.id);
       })
       .catch((e) => {
@@ -1928,6 +1932,7 @@ function PedidoPermiso({ sid, p, revisado = false }: { sid: string; p: Pedido; r
       ) : p.detalle ? (
         <pre className="pide-detalle">{p.detalle}</pre>
       ) : null}
+      {acuerdo ? <QueSeAcordo r={acuerdo} ocupado={mandando || planear} alSeguir={() => setPlanear(true)} alAprobar={() => contestar(true)} /> : null}
       {planear ? (
         <div className="pide-nota">
           <textarea
@@ -1954,7 +1959,7 @@ function PedidoPermiso({ sid, p, revisado = false }: { sid: string; p: Pedido; r
             {tr("plan.aprobar")}
           </button>
         </div>
-      ) : (
+      ) : acuerdo ? null : (
         <div className="pide-b">
           <button type="button" className="prim" data-texto="" disabled={mandando} onClick={() => contestar(true)}>
             {plan ? tr("plan.aprobar") : tr("permiso.permitir")}

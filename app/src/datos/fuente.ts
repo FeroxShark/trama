@@ -15,7 +15,7 @@ import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electr
 import type { PrefCache } from "../../electron/cache-pregunta";
 import { aplicarOpGuias, GUIAS_VACIO, normalizarGuias, type EstadoGuias, type OpGuias } from "../../electron/guias-estado";
 import type { RevisionEstado } from "../../electron/revision-plan-texto";
-import type { EstadoDebate, EventoDebate } from "../../electron/debate-texto";
+import type { EstadoDebate, EventoDebate, LineaDebate } from "../../electron/debate-texto";
 import { versionNormal } from "../../electron/novedades-cambios";
 import { topeSano, type TopeConf, type TopeEntorno } from "../../electron/autocompact-tope.ts";
 import { main, mensaje, type Lectura } from "../puente";
@@ -855,6 +855,30 @@ function revisionFija(sid: string, planId: string, modelo: string, nombre: strin
     error: null,
     reintentable: false,
   };
+}
+/** El debate de un plan con fixtures (capturas `lider-debate`, en vivo; y `lider-debate-acuerdo`, terminado con «Qué se acordó»). */
+function debateFijo(sid: string): EstadoDebate | null {
+  const vivo = MODO.captura === "lider-debate";
+  if (!vivo && MODO.captura !== "lider-debate-acuerdo") return null;
+  const tres = MODO.variante === "tres";
+  const turno = (n: number, modelo: string, nombre: string, ronda: number, postura: "acuerdo" | "cambio", argumento: string, pasos: { k: "leer" | "otro"; v: string }[] = []): LineaDebate => ({ n, tipo: "turno", modelo, nombre, ronda, postura, argumento, plan: null, pregunta: null, error: null, pasos });
+  const lineas: LineaDebate[] = [
+    turno(1, "claude-fable-5-2", "Fable 5.2", 1, "acuerdo", "El plan cubre lo pedido. Sólo revisaría el orden de los pasos.", [{ k: "leer", v: "plan-visitas.md" }]),
+    turno(2, "gemini-4-hydrogen", "Gemini 4 Hydrogen", 1, "cambio", "Falta confirmar la página sin el panel antes de prometer la copia al cliente.", [{ k: "leer", v: "cavalier-barbershop.html" }]),
+    ...(tres ? [turno(3, "claude-opus-5-5", "Opus 5.5", 1, "acuerdo", "Coincido con el plan; la cuota ajustable es razonable.", [{ k: "leer", v: "cuota.md" }])] : []),
+    turno(4, "claude-fable-5-2", "Fable 5.2", 2, "cambio", "El mensaje 5 dice «mañana tipo 12» y choca con la ruta del jueves: VC Imagen es a las 11:40 en Paraná 457. Propongo fijar la visita después de las 13.", [{ k: "leer", v: "plan-visitas.md" }, { k: "otro", v: "negotiation" }]),
+  ];
+  const participantes: EstadoDebate["participantes"] = [
+    { modelo: "claude-fable-5-2", nombre: "Fable 5.2", effort: "high", turnos: 2, activo: true },
+    { modelo: "gemini-4-hydrogen", nombre: "Gemini 4 Hydrogen", effort: "high", turnos: vivo ? 1 : 2, activo: true, ...(vivo ? { vivo: { texto: "## Postura\ncambio\n\n## Argumento\nCoincido con mover la visita. Falta comprobar que la página funcione sin el panel antes de prometer la cop", pasos: [{ k: "leer" as const, v: "cavalier-barbershop.html" }] } } : {}) },
+    ...(tres ? [{ modelo: "claude-opus-5-5", nombre: "Opus 5.5", effort: "high", turnos: 1, activo: true, ...(vivo ? { vivo: { texto: "", pasos: [{ k: "leer" as const, v: "ruta-jueves.md" }] } } : {}) }] : []),
+  ];
+  if (!vivo) {
+    lineas.push(turno(5, "gemini-4-hydrogen", "Gemini 4 Hydrogen", 2, "cambio", "Coincido con mover la visita. Falta comprobar que la página funcione sin el panel antes de prometer la copia."));
+    if (tres) lineas.push(turno(6, "claude-opus-5-5", "Opus 5.5", 2, "acuerdo", "De acuerdo con mover la visita después de las 13."));
+    lineas.push({ n: 9, tipo: "conclusion", modelo: "claude-fable-5-2", nombre: "Fable 5.2", ronda: 2, postura: null, argumento: "- La visita pasa a después de las 13.\n- La cuota se ajusta cada 3 meses, nunca más que la inflación.", plan: "1. Mover la visita.\n2. Probar la página sin el panel.", pregunta: null, error: null, desacuerdos: "- Quién firma: el rol de Gabriel sigue sin confirmar." });
+  }
+  return { id: "f-debate", sid, rondas: 2, ronda: 2, fase: vivo ? "corriendo" : "hecho", participantes, lineas, pregunta: null, motivo: vivo ? null : "tope", error: null, inicio: Date.now() - 101_000, fin: vivo ? null : Date.now() };
 }
 const emitir = (sid: string, e: EventoLider) => {
   if (e.tipo === "estado") {
@@ -2059,8 +2083,8 @@ const fija: Fuente = {
   async liderDebatirPlan() {
     throw new Error("sin debate en las fixtures");
   },
-  async debateDe() {
-    return null;
+  async debateDe(sid) {
+    return debateFijo(sid);
   },
   async debateResponder() {
     return false;

@@ -133,6 +133,9 @@ const CAPTURAS = [
   "lider-revision-vivo",
   "lider-revision-sin-sesion",
   "lider-revision-chat",
+  // El debate entre modelos con la mesa de columnas: en vivo, ronda 2 de 2 (`lider-debate`; `HILOS_VARIANTE=tres` con tres modelos) y «Qué se acordó» junto al plan al terminar (`lider-debate-acuerdo`).
+  "lider-debate",
+  "lider-debate-acuerdo",
   // El punto de control de un turno del líder (HILOS_VARIANTE=abierto: la lista con el primer diff; =confirmar: el diálogo de volver atrás).
   "lider-puntos",
   // La tarjeta «Cupo bajo» del cierre por cupo en el chat de un líder (HILOS_VARIANTE: `cerrando` = el turno sigue; `cerrada` = ya cerró, con «Retomar solo» prendido; `apagado` = cerrada con el interruptor apagado). `ajustes-cierre`: Ajustes > Plan y cupos con el bloque «Cierre ordenado» a la vista.

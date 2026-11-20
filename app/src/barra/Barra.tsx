@@ -1389,7 +1389,7 @@ export function Barra() {
     const proyectos = grupos.map((g) => g.proyecto);
     // La caja (modelo, esfuerzo, aviso de cambiar de modelo), el indicador y los avisos: en el líder de la app.
     const app = lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? lideres[0]?.id ?? "";
-    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-revision", "lider-revision-vivo", "lider-revision-sin-sesion", "lider-revision-chat", "lider-cierre", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-mcp", "lider-dictado", "programar", "lider-valores", "lider-sistema", "lider-tablero-dejado", "lider-cambio-motor", "cuenta-lider", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-cache", "lider-editar", "lider-puntos", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-intermedios", "lider-cola", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja"].includes(c) || c.startsWith("contexto") || c.startsWith("acople-angosto");
+    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-revision", "lider-revision-vivo", "lider-revision-sin-sesion", "lider-revision-chat", "lider-debate", "lider-debate-acuerdo", "lider-cierre", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-mcp", "lider-dictado", "programar", "lider-valores", "lider-sistema", "lider-tablero-dejado", "lider-cambio-motor", "cuenta-lider", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-cache", "lider-editar", "lider-puntos", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-intermedios", "lider-cola", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja"].includes(c) || c.startsWith("contexto") || c.startsWith("acople-angosto");
     // Las guías del chat y de su caja piden el líder de la app abierto.
     const guiaLider = c === "guia-lider" || c === "guia-caja" || c === "guia-modelo";
     if (enApp || guiaLider) setActiva(LIDER + app);
@@ -1414,7 +1414,7 @@ export function Barra() {
       enviado(app, "Mirá por qué falla el índice de cauce y arreglalo.", 6);
       escenaFija(app, "gemini");
     }
-    if (c === "lider-plan" || c.startsWith("lider-revision-")) escenaFija(app, "plan");
+    if (c === "lider-plan" || c.startsWith("lider-revision-") || c.startsWith("lider-debate")) escenaFija(app, "plan");
     if (c === "lider-permiso") escenaFija(app, "permiso");
     if (c === "lider-preguntas") escenaFija(app, "preguntas");
     if (c === "lider-preguntas-dos") escenaFija(app, "preguntas-dos");
