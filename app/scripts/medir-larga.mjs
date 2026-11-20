@@ -128,6 +128,21 @@ async function medir(variante, ultimo) {
       await espera(800);
     }
     const nodos = await a.en(() => document.querySelectorAll("*").length);
+    // Animación de entrada (movimiento-estilos.css): el historial no la lleva; un mensaje que se agrega con el chat abierto, sí, y se le
+    // va al terminar. «0/1/0» es lo esperado: marcados del historial / el nuevo marcado y animándose / marcados al terminar.
+    const entra = await a.en(async () => {
+      const c = document.querySelector(".conv");
+      const historial = c.querySelectorAll(":scope > [data-entra]").length;
+      const nuevo = c.lastElementChild.cloneNode(true);
+      nuevo.removeAttribute("data-entra");
+      c.append(nuevo);
+      await new Promise((r) => setTimeout(r, 30));
+      const anima = nuevo.hasAttribute("data-entra") && nuevo.getAnimations().length > 0 ? 1 : 0;
+      await new Promise((r) => setTimeout(r, 600));
+      const quedan = c.querySelectorAll(":scope > [data-entra]").length;
+      nuevo.remove();
+      return `${historial}/${anima}/${quedan}`;
+    });
     const alto = await a.en(() => document.querySelector(".conv-zona")?.scrollHeight ?? 0);
 
     // Tipear: cada tecla hasta el cuadro siguiente.
@@ -195,6 +210,7 @@ async function medir(variante, ultimo) {
       cuadrosLentos: cuadros.filter((x) => x > 24).length + "/" + cuadros.length,
       cuadroMax: Math.round(Math.max(...cuadros)),
       nodos,
+      entra,
       alto,
       alFondoTrasRueda: arriba,
     };
