@@ -109,7 +109,7 @@ import { PedidoPreguntas } from "./Preguntas";
 import { aparecioTanda, contarPendientes, tandasPendientes } from "./preguntas-logica";
 import { ARCHIVO_MAX, BORRADOR_IMAGENES_BASE64, BORRADOR_IMAGENES_MAX, IMAGENES_MAX, type Imagen } from "../../electron/imagenes";
 import { separarAdjuntos } from "../../electron/adjunto";
-import { useAsentado } from "../movimiento";
+import { useAsentado, useEntradas } from "../movimiento";
 
 /** El esfuerzo en pocas letras para el chip fusionado ("medium" → "med"). */
 const abreviar = (e: string) => (e === "medium" ? "med" : e);
@@ -663,6 +663,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   }, [todos, volver]);
   // Los mensajes que llegan con la conversación ya abierta entran con un deslizamiento (movimiento-estilos.css); el historial al abrir, no.
   const asentado = useAsentado(clave, items.length > 0 || !sid || pag?.total === 0);
+  const conv = useRef<HTMLDivElement>(null);
+  useEntradas(conv, asentado);
   const respuesta = useMemo(() => {
     for (let i = mensajes.length - 1; i >= 0; i--) if (mensajes[i].rol === "assistant" && mensajes[i].texto) return mensajes[i].texto;
     return "";
@@ -1299,7 +1301,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         }}
         {...soltable}
       >
-        <div className="conv" data-desliza data-asentado={asentado ? "" : undefined} onPointerOver={sobreMensaje} onPointerLeave={sobreMensaje}>
+        <div className="conv" ref={conv} data-desliza onPointerOver={sobreMensaje} onPointerLeave={sobreMensaje}>
           {pag && pag.desde > 0 ? <div className="conv-mas">{tr("vista.anteriores")}</div> : null}
           {sid && !pag && !error && !items.length ? <Leyendo /> : null}
           <GastoSubagentesCtx.Provider value={ctxGasto}>

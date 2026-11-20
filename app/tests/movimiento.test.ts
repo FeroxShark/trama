@@ -67,7 +67,7 @@ test("sólo opacity, translate y scale: nada de width/height ni duraciones suelt
 
 test("el CSS que apaga animaciones en reduced-motion deja pasar lo de movimiento-estilos.css", () => {
   const regla = indice.match(/\.app \*:not\(:is\(([^]*?)\)\),\n\s*\.app \*::before/)![1];
-  for (const s of [".seg", ".at-caja", ".vuelo", ".avc-g", ".cmenu", ".seg-fondo", ".at", ".conv[data-asentado] > *", ".mov-lista > *"]) {
+  for (const s of [".seg", ".at-caja", ".vuelo", ".avc-g", ".cmenu", ".seg-fondo", ".at", ".conv > [data-entra]", ".mov-lista > *"]) {
     assert.ok(regla.includes(s), `falta ${s} en la excepción de reduced-motion`);
     assert.ok(css.includes(s), `${s} no está en movimiento-estilos.css`);
   }

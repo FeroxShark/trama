@@ -80,10 +80,11 @@
   animation: mov-panel-sale var(--mov-sale) ease-in both;
 }
 
-/* 2. Mensajes nuevos del chat: suben unos píxeles con fundido. Sólo cuando la conversación ya se asentó (useAsentado): el historial no se anima,
-   y un mensaje que crece con el texto en vivo no vuelve a entrar (la animación corre una sola vez, al montarse el elemento). */
-.conv[data-asentado] > * {
-  animation: mov-mensaje-entra var(--mov-entra) var(--mov-resorte) both;
+/* 2. Mensajes nuevos del chat: suben unos píxeles con fundido. Sólo los que llegan con la conversación ya asentada (`useEntradas` les pone
+   `data-entra` al montarse y se lo saca al terminar): el historial no se anima. `backwards` y no `both`: terminada, no queda ninguna
+   animación viva en cada mensaje (con miles, cada tecla recalculaba todas). */
+.conv > [data-entra] {
+  animation: mov-mensaje-entra var(--mov-entra) var(--mov-resorte) backwards;
 }
 
 /* 4. Listas que aparecen: escalonadas hasta 8; del 8 en adelante entran juntos. `--i` lo da la posición. */

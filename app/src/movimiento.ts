@@ -2,7 +2,7 @@
 // mensajes nuevos, botones, listas) sale de acá; nada de duraciones sueltas nuevas. `movimiento-estilos.css` espeja estos valores para lo que
 // se anima en CSS (`tests/movimiento.test.ts` comprueba que coinciden). Sólo `transform` y `opacity`: nunca width/height.
 // Con `prefers-reduced-motion` no hay desplazamiento ni escala: sólo fundidos (`reducido`, y en CSS las variables `--mov-desp`/`--mov-pulsa`).
-import { useEffect, useState } from "react";
+import { useEffect, useState, type RefObject } from "react";
 
 /** Resorte de las filas de la barra (el de siempre): rápido y seco. */
 export const RESORTE = { type: "spring", stiffness: 520, damping: 42, mass: 1 } as const;
@@ -82,7 +82,8 @@ export const ASIENTA_MS = 700;
 
 /**
  * Verdadero cuando la conversación `clave` ya terminó de abrirse: pasan `ASIENTA_MS` desde que tiene contenido. Los mensajes que
- * llegan después entran con `movimiento-estilos.css`; lo que se cargó al abrir (el historial) aparece quieto. Cambia `clave`, vuelve a empezar.
+ * llegan después entran con `movimiento-estilos.css` (los marca `useEntradas`); lo que se cargó al abrir (el historial) aparece quieto.
+ * Cambia `clave`, vuelve a empezar.
  */
 export function useAsentado(clave: string | null | undefined, hayContenido: boolean): boolean {
   const [listo, setListo] = useState<string | null>(null);
@@ -107,4 +108,30 @@ export function useSalida(alCerrar: () => void): readonly [() => void, boolean] 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saliendo]);
   return [() => setSaliendo(true), saliendo] as const;
+}
+
+/**
+ * Mientras `activo`, los hijos que se agregan a `ref` llevan `data-entra` (lo anima `movimiento-estilos.css`) hasta que su animación termina.
+ * Sólo los nuevos: marcar el contenedor entero animaba de golpe todo lo que ya estaba y dejaba una animación viva en cada mensaje.
+ */
+export function useEntradas(ref: RefObject<HTMLElement | null>, activo: boolean) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!activo || !el || typeof MutationObserver !== "function") return;
+    const obs = new MutationObserver((cambios) => {
+      for (const c of cambios) for (const n of c.addedNodes) if (n instanceof HTMLElement) n.setAttribute("data-entra", "");
+    });
+    obs.observe(el, { childList: true });
+    const fin = (e: Event) => {
+      const t = e.target;
+      if (t instanceof HTMLElement && t.parentElement === el) t.removeAttribute("data-entra");
+    };
+    el.addEventListener("animationend", fin);
+    el.addEventListener("animationcancel", fin);
+    return () => {
+      obs.disconnect();
+      el.removeEventListener("animationend", fin);
+      el.removeEventListener("animationcancel", fin);
+    };
+  }, [ref, activo]);
 }
