@@ -250,6 +250,7 @@ test("vista: pensando no muestra la salida de una herramienta como si fuera lo q
   assert.match(JSON.stringify(conPaso.detalle), /Antes: /);
   const piensa = vistaDe({ act, hace, pasos: [], pensando: "Reviso el parser. Si llega por archivo, lo leo al cerrar el turno." });
   assert.deepEqual(piensa.detalle, { tipo: "texto", texto: "Si llega por archivo, lo leo al cerrar el turno." });
+  assert.equal(piensa.sub, null, "con lo que piensa a la vista no dice «contenido oculto»");
 });
 
 test("vista: escribiendo dice «Escribiendo la respuesta»", () => {

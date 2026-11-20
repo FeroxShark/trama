@@ -364,8 +364,8 @@ export function vistaDe({ act, hace, pasos, salida = null, pensando = "", fallo 
     return { verbo, sub, detalle: crudo ? { tipo: "mono", texto: crudo } : { tipo: "vacio" }, n: null };
   }
   const verbo = fallo ? t("hz.f.noTerminoSolo") : act.tipo === "escribiendo" ? t("hz.c.respuesta") : tx(act.verbo);
-  // Pensando: «contenido oculto» / «esperando al modelo»; escribiendo ya lo dice el verbo.
-  const sub = act.tipo === "pensando" && act.detalleClave ? tx(act.detalleClave) : null;
+  // Pensando: «contenido oculto» / «esperando al modelo»; escribiendo ya lo dice el verbo. Con lo que piensa a la vista, no es «oculto».
   const frase = pensando.trim() ? ultimaFrasePensada(pensando) : "";
+  const sub = act.tipo === "pensando" && act.detalleClave && !(frase && act.detalleClave === "hz.d.oculto") ? tx(act.detalleClave) : null;
   return { verbo, sub, detalle: frase ? { tipo: "texto", texto: frase } : deAntes, n: null };
 }
