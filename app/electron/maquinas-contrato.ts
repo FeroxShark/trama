@@ -268,6 +268,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "reinicio:cancelar": "local",
   "borradores:leer": "local",
   "borradores:guardar": "local",
+  "borradores:imagen": "local",
   "pendientes:leer": "local",
   "pendientes:guardar": "local",
   "claude:version": "local",

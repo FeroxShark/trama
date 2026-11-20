@@ -24,6 +24,7 @@ registerHooks({
     return next(spec, ctx);
   },
 });
+const { crearImagenesGuardadas } = await import("../src/hilo/imagenes-guardadas.ts");
 const { agregarAdjuntos, archivosDe, fotoImagenes, imagenesDe, imagenesSinGuardar, leerAdjuntos, quitarAdjunto, vaciarAdjuntos, prepararAdjunto, textoConArchivos } = await import("../src/hilo/adjuntos.ts");
 
 const clave = (f: () => unknown) => {
@@ -142,4 +143,44 @@ test("imágenes pegadas: la foto de guardado las acota, avisa las que sobran y m
   assert.equal(imagenesSinGuardar(leerAdjuntos("g")), 1);
   vaciarAdjuntos("g"); // al mandar
   assert.equal(fotoImagenes().g, undefined);
+});
+
+test("imágenes guardadas: cada imagen se sube una sola vez, las fotos llevan sólo la referencia y lo que sale de la caja se olvida", async () => {
+  const subidas: string[] = [];
+  let avisos = 0;
+  const g = crearImagenesGuardadas(async (_t, d) => (subidas.push(d), `h${subidas.length}`), () => void avisos++);
+  const a = { tipo: "image/png", datos: "QUJD".repeat(10) };
+  const b = { tipo: "image/jpeg", datos: "QUJE".repeat(10) };
+  assert.deepEqual(g.refs({ x: [a, b] }), {}, "todavía no subieron: esta foto no las lleva");
+  g.refs({ x: [a, b] }); // otro cambio mientras suben: no se suben de nuevo
+  await new Promise((r) => setImmediate(r));
+  assert.equal(subidas.length, 2);
+  assert.equal(avisos, 2);
+  assert.deepEqual(g.refs({ x: [a, b], y: [a] }), {
+    x: [{ tipo: "image/png", hash: "h1", largo: 40 }, { tipo: "image/jpeg", hash: "h2", largo: 40 }],
+    y: [{ tipo: "image/png", hash: "h1", largo: 40 }],
+  });
+  for (let i = 0; i < 5; i++) g.refs({ x: [a, b] }); // teclear: ninguna subida más
+  assert.equal(subidas.length, 2);
+  g.conocida("QUJF".repeat(3), "hz"); // lo que dejó el main al abrir
+  assert.deepEqual(g.refs({ z: [{ tipo: "image/png", datos: "QUJF".repeat(3) }] }), { z: [{ tipo: "image/png", hash: "hz", largo: 12 }] });
+  assert.equal(subidas.length, 2, "una restaurada no se vuelve a subir");
+  g.refs({}); // mandó el mensaje: se olvidan
+  g.refs({ x: [a] }); // un envío que falló la devuelve a la caja: el main ya la borró, se sube otra vez
+  await new Promise((r) => setImmediate(r));
+  assert.equal(subidas.length, 3);
+});
+
+test("imágenes guardadas: si subir falla no se rompe y se reintenta con el próximo cambio", async () => {
+  let falla = true;
+  let n = 0;
+  const g = crearImagenesGuardadas(async () => (n++, falla ? Promise.reject(new Error("x")) : "h"), () => {});
+  const a = { tipo: "image/png", datos: "QUJD" };
+  g.refs({ x: [a] });
+  await new Promise((r) => setImmediate(r));
+  falla = false;
+  assert.deepEqual(g.refs({ x: [a] }), {});
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(g.refs({ x: [a] }), { x: [{ tipo: "image/png", hash: "h", largo: 4 }] });
+  assert.equal(n, 2);
 });

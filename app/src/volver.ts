@@ -8,7 +8,8 @@
 //   ella misma en `sessionStorage` al irse o esconderse, así que también vale para una recarga a mano.
 import { agregarAdjuntos, esArchivo, esImagen, fotoArchivos, fotoImagenes, leerAdjuntos } from "./hilo/adjuntos";
 import { fotoBorradores, ponerBorrador, restaurarBorrador } from "./hilo/borradores";
-import { alHaberCambios } from "./hilo/cambios";
+import { alHaberCambios, huboCambio } from "./hilo/cambios";
+import { crearImagenesGuardadas, type ImagenRef } from "./hilo/imagenes-guardadas";
 import { fotoScrolls, ponerScrolls } from "./hilo/scrollGuardado";
 import { MODO } from "./modo";
 import { esVentana } from "./puente";
@@ -67,29 +68,33 @@ function aplicar(x: unknown) {
 
 // --- La ventana: a disco ---------------------------------------------------------------
 
-type Guardado = { texto: string; extra?: Record<string, string>; archivos?: { nombre: string; ruta: string }[]; imagenes?: { tipo: string; datos: string }[] };
+type Guardado = { texto: string; extra?: Record<string, string>; archivos?: { nombre: string; ruta: string }[]; imagenes?: ImagenRef[] };
+type Leida = { tipo: string; hash: string; datos: string };
 
 /** Lo escrito sin mandar en todas las cajas, y los archivos adjuntos (por ruta) de cada una. */
-function fotoDisco(): Record<string, Guardado> {
+function fotoDisco(imagenes: ReturnType<typeof crearImagenesGuardadas>): Record<string, Guardado> {
   const r: Record<string, Guardado> = {};
   for (const [clave, b] of fotoBorradores()) r[clave] = { ...b };
   for (const [clave, archivos] of Object.entries(fotoArchivos())) r[clave] = { ...(r[clave] ?? { texto: "" }), archivos };
-  for (const [clave, imagenes] of Object.entries(fotoImagenes())) r[clave] = { ...(r[clave] ?? { texto: "" }), imagenes };
+  for (const [clave, refs] of Object.entries(imagenes.refs(fotoImagenes()))) r[clave] = { ...(r[clave] ?? { texto: "" }), imagenes: refs };
   return r;
 }
 
 /** Lo que dejó el main de la vez anterior: borradores con sus adjuntos que todavía existen (el main ya filtró los perdidos). */
-function aplicarBorradores(x: unknown) {
-  const b = (x as { borradores?: Record<string, Guardado & { archivos?: unknown; imagenes?: unknown }> } | null)?.borradores;
+function aplicarBorradores(x: unknown, imagenes: ReturnType<typeof crearImagenesGuardadas>) {
+  const b = (x as { borradores?: Record<string, Omit<Guardado, "imagenes"> & { archivos?: unknown; imagenes?: unknown }> } | null)?.borradores;
   if (!b || typeof b !== "object") return;
   for (const [clave, g] of Object.entries(b)) {
     if (!g || typeof g.texto !== "string") continue;
     const extra = g.extra && typeof g.extra === "object" ? Object.fromEntries(Object.entries(g.extra).filter((e): e is [string, string] => cadena(e[1]))) : undefined;
     if (g.texto || (extra && Object.keys(extra).length)) restaurarBorrador(clave, g.texto, extra && Object.keys(extra).length ? extra : undefined);
     const archivos = Array.isArray(g.archivos) ? g.archivos.filter((a): a is { nombre: string; ruta: string } => !!a && cadena(a.nombre) && cadena(a.ruta)) : [];
-    const imagenes = Array.isArray(g.imagenes) ? g.imagenes.filter((i): i is { tipo: string; datos: string } => !!i && cadena(i.tipo) && cadena(i.datos) && esImagen(i.tipo)) : [];
+    const leidas = Array.isArray(g.imagenes) ? g.imagenes.filter((i): i is Leida => !!i && cadena(i.tipo) && cadena(i.hash) && cadena(i.datos) && esImagen(i.tipo)) : [];
     // Llegó tarde y la caja ya tiene imágenes (pegó otra mientras tanto): no se duplican.
-    if (imagenes.length && !leerAdjuntos(clave).some((a) => !esArchivo(a))) agregarAdjuntos(clave, imagenes);
+    if (leidas.length && !leerAdjuntos(clave).some((a) => !esArchivo(a))) {
+      for (const i of leidas) imagenes.conocida(i.datos, i.hash); // ya están en su archivo: no se vuelven a subir
+      agregarAdjuntos(clave, leidas.map((i) => ({ tipo: i.tipo, datos: i.datos })));
+    }
     if (archivos.length) agregarAdjuntos(clave, archivos);
   }
 }
@@ -123,11 +128,12 @@ export function traerVuelta(): Promise<void> | null {
   // Lo escrito sin mandar vuelve en cualquier arranque. Si el main tarda más que la espera del primer render, igual se
   // aplica cuando llega (a la caja que siga vacía); hasta entonces no se guarda nada.
   let cargado = false;
+  const imagenes = crearImagenesGuardadas((tipo, datos) => m.borradores.imagen(tipo, datos), huboCambio);
   let ultimoBorradores = "";
   let ultimaVista = "";
   const guardar = () => {
     if (!cargado) return;
-    const b = JSON.stringify(fotoDisco());
+    const b = JSON.stringify(fotoDisco(imagenes));
     if (b !== ultimoBorradores) {
       ultimoBorradores = b;
       void m.borradores.guardar(JSON.parse(b)).catch(() => {});
@@ -153,9 +159,9 @@ export function traerVuelta(): Promise<void> | null {
   document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && ya());
   const lectura = m.borradores.leer().then(
     (x) => {
-      aplicarBorradores(x);
+      aplicarBorradores(x, imagenes);
       cargado = true;
-      ultimoBorradores = JSON.stringify(fotoDisco());
+      ultimoBorradores = JSON.stringify(fotoDisco(imagenes));
     },
     () => {
       cargado = true;

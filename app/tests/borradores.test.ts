@@ -2,8 +2,11 @@
 // adjuntos cuyo archivo ya no está. Con el disco de mentira (una variable) y nunca el estado de Ana.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { almacenBorradores, armar, BORRADOR_MAX, BORRADORES_MAX, IMAGENES_TOTAL_MAX, leerFoto, recortar } from "../electron/borradores.ts";
-import { acotarImagenes, BORRADOR_IMAGENES_BASE64, BORRADOR_IMAGENES_MAX } from "../electron/imagenes.ts";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { almacenBorradores, armar, BORRADOR_MAX, BORRADORES_MAX, discoImagenesFs, GRACIA_IMAGEN_MS, type ImagenRef, leerFoto, recortar } from "../electron/borradores.ts";
+import { acotarImagenes, BASE64_MAX, BORRADOR_IMAGENES_BASE64, BORRADOR_IMAGENES_MAX } from "../electron/imagenes.ts";
 
 /** Un disco de mentira y una forma de "abrir la app de nuevo" sobre él. */
 function disco(existe: (ruta: string) => boolean = () => true) {
@@ -131,52 +134,183 @@ test("armar: claves absurdas y entradas que no son un objeto no rompen", () => {
   assert.deepEqual(armar({ ["k".repeat(300)]: { texto: "a" } }, {}, 1).borradores, {});
 });
 
-// --- Imágenes pegadas (tablero 2117) ---
+// --- Imágenes pegadas (tablero 2117): cada una en su archivo por hash, el JSON sólo guarda la referencia ---
 
-const PNG = (n: number) => ({ tipo: "image/png", datos: "QUJD".repeat(n) }); // base64 válido, 4 caracteres por unidad
+/** Una carpeta de imágenes de mentira (nombre → bytes) que cuenta las escrituras. */
+function carpeta() {
+  const archivos = new Map<string, Buffer>();
+  const c = {
+    archivos,
+    escrituras: 0,
+    escribir: async (n: string, b: Buffer) => void (c.escrituras++, archivos.set(n, b)),
+    leer: async (n: string) => archivos.get(n) ?? null,
+    listar: async () => [...archivos.keys()],
+    borrar: async (n: string) => void archivos.delete(n),
+  };
+  return c;
+}
+function discoImg() {
+  const img = carpeta();
+  const d = { json: null as string | null, escrituras: 0, t: 1000 };
+  const abrir = () =>
+    almacenBorradores(
+      async () => d.json,
+      async (j) => void ((d.json = j), d.escrituras++),
+      { ahora: () => d.t, imagenes: img },
+    );
+  return { img, d, abrir };
+}
+const datosDe = (n: number, relleno = "QUJD") => relleno.repeat(n); // base64 válido, 4 caracteres por unidad
+/** Sube una imagen como lo hace la ventana y arma su referencia. */
+async function subir(a: ReturnType<typeof almacenBorradores>, tipo: string, datos: string): Promise<ImagenRef> {
+  return { tipo, hash: await a.guardarImagen(tipo, datos), largo: datos.length };
+}
 
-test("las imágenes pegadas sobreviven a un reinicio y mandar el mensaje (caja vacía) las borra", async () => {
-  const { abrir } = disco();
+test("las imágenes pegadas sobreviven a un reinicio (cada una en su archivo) y mandar el mensaje las borra", async () => {
+  const { img, d, abrir } = discoImg();
   const a = abrir();
-  const dos = [PNG(10), { tipo: "image/jpeg", datos: "QUJDRA==" }];
-  await a.guardar({ "lider:s1": { texto: "", imagenes: dos } });
-  const b = abrir();
-  assert.deepEqual((await b.leer()).borradores["lider:s1"].imagenes, dos); // "relanzar": otra trama, mismo disco
-  await b.guardar({}); // lo mandó (o las sacó con ×): la ventana ya no las manda
+  const r1 = await subir(a, "image/png", datosDe(10));
+  const r2 = await subir(a, "image/jpeg", "QUJDRA==");
+  assert.match(r1.hash, /^[0-9a-f]{64}$/);
+  assert.deepEqual([...img.archivos.keys()].sort(), [`${r1.hash}.png`, `${r2.hash}.jpg`].sort());
+  await a.guardar({ "lider:s1": { texto: "", imagenes: [r1, r2] } });
+  assert.ok(!d.json!.includes("QUJD"), "el JSON no lleva los datos de la imagen");
+  const b = (await abrir().leer()).borradores["lider:s1"]; // "relanzar": otra trama, mismo disco
+  assert.deepEqual(b.imagenes?.map((i) => [i.tipo, i.datos]), [["image/png", datosDe(10)], ["image/jpeg", "QUJDRA=="]]);
+  await a.guardar({ "lider:s1": { texto: "", imagenes: [r2] } }); // sacó una con ×: su archivo se va
+  assert.deepEqual([...img.archivos.keys()], [`${r2.hash}.jpg`]);
+  await a.guardar({}); // lo mandó: se va el otro
+  assert.equal(img.archivos.size, 0);
   assert.deepEqual((await abrir().leer()).borradores, {});
-  await b.guardar({ "lider:s1": { texto: "hola", imagenes: [dos[1]] } }); // sacó una con ×
-  assert.deepEqual((await abrir().leer()).borradores["lider:s1"].imagenes, [dos[1]]);
+});
+
+test("escribir texto no reescribe las imágenes: sólo el JSON de referencias", async () => {
+  const { img, d, abrir } = discoImg();
+  const a = abrir();
+  const r = await subir(a, "image/png", datosDe(200_000)); // ~800 KB de base64
+  assert.equal(img.escrituras, 1);
+  await a.guardar({ x: { texto: "h", imagenes: [r] } });
+  const tam = d.json!.length;
+  for (const t of ["ho", "hol", "hola", "hola mundo"]) await a.guardar({ x: { texto: t, imagenes: [r] } });
+  assert.equal(img.escrituras, 1, "las imágenes no se escribieron de nuevo");
+  assert.ok(tam < 1000 && d.json!.length < 1000, "el JSON queda chico");
+  await a.guardarImagen("image/png", datosDe(200_000)); // la misma imagen otra vez: mismo archivo, sin escribir
+  assert.equal(img.escrituras, 1);
+  assert.equal(img.archivos.size, 1);
+});
+
+test("una referencia a un archivo que falta se descarta sin romper (y el texto queda)", async () => {
+  const { img, abrir } = discoImg();
+  const a = abrir();
+  const r1 = await subir(a, "image/png", datosDe(5));
+  const r2 = await subir(a, "image/png", datosDe(6));
+  await a.guardar({ x: { texto: "t", imagenes: [r1, r2] }, y: { texto: "", imagenes: [r1] } });
+  img.archivos.delete(`${r1.hash}.png`); // se borró a mano
+  const f = await abrir().leer();
+  assert.deepEqual(f.borradores.x.imagenes?.map((i) => i.hash), [r2.hash]);
+  assert.equal(f.borradores.x.texto, "t");
+  assert.equal(f.borradores.y, undefined, "una caja que sólo tenía esa imagen ya no tiene nada");
+  // referencias basura: hash malo, tipo raro, no-arreglo
+  await a.guardar({ z: { texto: "t", imagenes: [{ tipo: "image/png", hash: "../../etc/passwd", largo: 4 }, { tipo: "text/html", hash: r2.hash, largo: 4 }, null, 3] }, w: { texto: "t", imagenes: "x" } });
+  const g = (await abrir().leer()).borradores;
+  assert.equal(g.z.imagenes, undefined);
+  assert.equal(g.w.imagenes, undefined);
+});
+
+test("la limpieza no se lleva una imagen recién subida; pasada la gracia, sí", async () => {
+  const { img, d, abrir } = discoImg();
+  const a = abrir();
+  const r = await subir(a, "image/png", datosDe(5));
+  await a.guardar({ x: { texto: "escribiendo" } }); // la foto todavía no la lleva (subió justo antes)
+  assert.equal(img.archivos.size, 1);
+  d.t += GRACIA_IMAGEN_MS + 1;
+  await a.guardar({ x: { texto: "escribiendo más" } });
+  assert.equal(img.archivos.size, 0, `huérfana: ${r.hash}`);
+});
+
+test("al abrir se borran los archivos sueltos que ningún borrador referencia; lo que no es de las imágenes no se toca", async () => {
+  const { img, abrir } = discoImg();
+  const a = abrir();
+  const r = await subir(a, "image/png", datosDe(5));
+  await a.guardar({ x: { texto: "t", imagenes: [r] } });
+  img.archivos.set("f".repeat(64) + ".png", Buffer.from("resto"));
+  img.archivos.set("notas.txt", Buffer.from("mía"));
+  await abrir().leer();
+  assert.deepEqual([...img.archivos.keys()].sort(), ["notas.txt", `${r.hash}.png`].sort());
+});
+
+test("una imagen compartida por dos cajas sigue mientras una la use", async () => {
+  const { img, abrir } = discoImg();
+  const a = abrir();
+  const r = await subir(a, "image/png", datosDe(5));
+  await a.guardar({ a: { texto: "", imagenes: [r] }, b: { texto: "", imagenes: [r] } });
+  await a.guardar({ b: { texto: "", imagenes: [r] } });
+  assert.equal(img.archivos.size, 1);
+  await a.guardar({});
+  assert.equal(img.archivos.size, 0);
 });
 
 test("tope de imágenes por borrador: 4 y 8 MB; lo que pasa no se guarda y no rompe nada", async () => {
   assert.equal(BORRADOR_IMAGENES_MAX, 4);
-  const { abrir } = disco();
+  const { img, abrir } = discoImg();
   const a = abrir();
-  await a.guardar({ x: { texto: "t", imagenes: Array.from({ length: 6 }, () => PNG(10)) } });
+  const rs: ImagenRef[] = [];
+  for (let i = 0; i < 6; i++) rs.push(await subir(a, "image/png", datosDe(10, "QUJD".replace("D", String.fromCharCode(65 + i)))));
+  await a.guardar({ x: { texto: "t", imagenes: rs } });
   assert.equal((await abrir().leer()).borradores.x.imagenes?.length, 4);
-  const grande = PNG(BORRADOR_IMAGENES_BASE64 / 4 - 10); // casi todo el tope
-  await a.guardar({ y: { texto: "t", imagenes: [grande, grande, PNG(1)] } });
+  assert.equal(img.archivos.size, 4, "las dos que pasaron el tope ya no ocupan disco");
+  const grande = await subir(a, "image/png", datosDe(BASE64_MAX / 4 - 10, "QUJE")); // ~5 MB: con la siguiente pasa los 8 MB
+  const grande2 = await subir(a, "image/png", datosDe(BASE64_MAX / 4 - 10, "QUJF"));
+  const chica = await subir(a, "image/png", "QUJG");
+  await a.guardar({ y: { texto: "t", imagenes: [grande, grande2, chica] } });
   const y = (await abrir().leer()).borradores.y;
-  assert.deepEqual(y.imagenes?.map((i) => i.datos.length), [grande.datos.length, 4]); // la segunda no cabe; la chica sí
-  assert.deepEqual(acotarImagenes([grande, grande]).sobran, 1);
-  // basura: tipo raro, base64 roto, no-arreglo
-  await a.guardar({ z: { texto: "t", imagenes: [{ tipo: "text/html", datos: "QUJD" }, { tipo: "image/png", datos: "no es base64!" }, null, 3] }, w: { texto: "t", imagenes: "x" } });
-  const r = (await abrir().leer()).borradores;
-  assert.equal(r.z.imagenes, undefined);
-  assert.equal(r.w.imagenes, undefined);
+  assert.deepEqual(y.imagenes?.map((i) => i.hash), [grande.hash, chica.hash]); // la segunda no cabe; la chica sí
+  assert.equal(acotarImagenes([{ datos: "x".repeat(BORRADOR_IMAGENES_BASE64) }, { datos: "x".repeat(BORRADOR_IMAGENES_BASE64) }]).sobran, 1);
 });
 
-test("tope total de imágenes: pasado, los borradores más viejos las pierden y conservan su texto", async () => {
-  const { abrir, d } = disco();
+test("tope total de imágenes: pasado, los borradores más viejos las pierden (y sus archivos) y conservan su texto", async () => {
+  const { img, d, abrir } = discoImg();
   const a = abrir();
-  const una = PNG(BORRADOR_IMAGENES_BASE64 / 4 - 10);
   const entrada: Record<string, unknown> = {};
-  for (let i = 0; i < 5; i++) entrada[`c${i}`] = { texto: `t${i}`, imagenes: [una] }; // 5 × ~8 MB > 24 MB
-  await a.guardar(entrada);
+  for (let i = 0; i < 7; i++) {
+    d.t++;
+    const r = await subir(a, "image/png", datosDe(1024 * 1024 - 10, "QUJ" + String.fromCharCode(65 + i))); // 7 × ~4 MB > 24 MB
+    entrada[`c${i}`] = { texto: `t${i}`, imagenes: [r] };
+    await a.guardar({ ...entrada });
+  }
   const r = (await abrir().leer()).borradores;
-  assert.equal(Object.values(r).filter((b) => b.imagenes).length, 3);
-  assert.equal(Object.keys(r).length, 5, "ninguno pierde su texto");
-  assert.ok(d.json!.length <= IMAGENES_TOTAL_MAX + 4096);
+  assert.equal(Object.values(r).filter((b) => b.imagenes).length, 6);
+  assert.equal(Object.keys(r).length, 7, "ninguno pierde su texto");
+  assert.equal(img.archivos.size, 6);
+  assert.equal(r.c0.imagenes, undefined, "el más viejo es el que la pierde");
+});
+
+test("guardarImagen rechaza lo que no es una imagen en base64", async () => {
+  const { abrir, img } = discoImg();
+  const a = abrir();
+  await assert.rejects(a.guardarImagen("text/html", "QUJD"));
+  await assert.rejects(a.guardarImagen("image/png", "no es base64!"));
+  await assert.rejects(a.guardarImagen("image/png", ""));
+  await assert.rejects(a.guardarImagen(3, null));
+  assert.equal(img.archivos.size, 0);
+});
+
+test("la carpeta de verdad: escribe, lista, lee y borra sólo sus archivos", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "borr-img-"));
+  try {
+    const a = almacenBorradores(async () => null, async () => {}, { imagenes: discoImagenesFs(path.join(dir, "borradores-img")) });
+    const r = await subir(a, "image/png", datosDe(5));
+    const nombre = `${r.hash}.png`;
+    assert.deepEqual(await readdir(path.join(dir, "borradores-img")), [nombre]);
+    assert.equal((await readFile(path.join(dir, "borradores-img", nombre))).toString("base64"), datosDe(5));
+    await a.guardar({}); // sin referencia, pero recién subida: se protege
+    assert.equal((await readdir(path.join(dir, "borradores-img"))).length, 1);
+    const b = almacenBorradores(async () => null, async () => {}, { imagenes: discoImagenesFs(path.join(dir, "borradores-img")) });
+    await b.leer(); // una trama nueva: lo suelto se limpia
+    assert.deepEqual(await readdir(path.join(dir, "borradores-img")), []);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("una foto sin imágenes guardada por una versión anterior se lee igual", () => {

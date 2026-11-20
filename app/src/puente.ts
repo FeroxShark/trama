@@ -584,7 +584,7 @@ type Main = {
   /** Volver como estaba tras ese reinicio (sólo la ventana): lo que tenía abierto y escrito (src/volver.ts). */
   volver: { leer(): Promise<unknown>; guardar(vista: unknown): Promise<void>; alPedir(fn: () => void): Soltar; anotar(vista: unknown): Promise<void> };
   /** Lo escrito sin mandar, en disco (sólo la ventana; electron/borradores.ts). */
-  borradores: { leer(): Promise<unknown>; guardar(foto: unknown): Promise<void> };
+  borradores: { leer(): Promise<unknown>; guardar(foto: unknown): Promise<void>; imagen(tipo: string, datos: string): Promise<string> };
 };
 
 declare global {

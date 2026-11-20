@@ -20,7 +20,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, stat as statArchivo } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { almacenBorradores } from "./borradores.js";
+import { almacenBorradores, discoImagenesFs } from "./borradores.js";
 import { crearProgramados } from "./programados.js";
 import { alCambiarAuto, barrer, cambioPrendido, estadoAuto, integracionDe } from "./autointegrar.js";
 import { alCambiarSalud, barrerSalud, cortarChequeos, estadoSalud, integrando, integrandoDesde, mientrasIntegra } from "./salud.js";
@@ -580,6 +580,7 @@ export function avisarReinicio() {
 const borradores = almacenBorradores(
   () => readFile(path.join(ESTADO, "borradores.json"), "utf8").catch(() => null),
   (json) => escribirAtomico(path.join(ESTADO, "borradores.json"), json),
+  { imagenes: discoImagenesFs(path.join(ESTADO, "borradores-img")) },
 );
 // Mensajes programados y conversaciones pospuestas (programados.ts): un timer en este proceso, guardado en `programados.json`.
 // Al llegar la hora el mensaje entra por la cola del líder (sale cuando el líder pueda recibirlo, o lo retoma si no tiene proceso).
@@ -1646,6 +1647,8 @@ export function armarNucleo() {
   // Lo escrito sin mandar, en disco (borradores.ts): la ventana lo pide al abrir y manda la foto con cada cambio.
   manejar("borradores:leer", () => borradores.leer());
   manejar("borradores:guardar", (_e, foto: unknown) => borradores.guardar(foto).catch(silencio("borradores")));
+  // Una imagen pegada, a su archivo por hash (una vez por imagen): devuelve el hash y la foto guarda sólo la referencia.
+  manejar("borradores:imagen", (_e, tipo: unknown, datos: unknown) => borradores.guardarImagen(tipo, datos));
   manejar("lider:cerrar", async (_e, sid: string, motivo?: unknown) => {
     cola.vaciar(String(sid));
     await lider.cerrar(String(sid), motivo);

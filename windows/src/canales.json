@@ -1,7 +1,7 @@
 {
   "_": "Generado por app/scripts/generar-canales.mjs desde app/electron/canales/contrato.ts. No se edita a mano.",
   "ventana": ["lider:ir", "lider:ubicable", "claude:changelog", "trama:reiniciarVentana", "trama:notas", "trama:anterior", "trama:volverAnterior", "trama:avisoVuelta", "cuentas:login", "cuentas:limiteReset", "app:salir", "app:recargar", "app:pararTodo", "bandeja:textos", "espera:estado", "espera:notificar", "portapapeles:texto", "carpeta:elegir", "archivo:elegirLogo", "archivo:abrir", "archivo:abrirCarpeta", "archivo:guardarComo", "ventana:captura", "reinicio:marca", "volver:leer", "volver:guardar", "volver:anotar"],
-  "soloVentana": ["consumo:mirar", "consumo:soltar", "lider:ir", "lider:ubicable", "claude:changelog", "trama:reiniciarVentana", "trama:notas", "trama:anterior", "trama:volverAnterior", "trama:avisoVuelta", "cuentas:login", "cuentas:limiteReset", "app:salir", "app:recargar", "app:pararTodo", "bandeja:textos", "espera:estado", "espera:notificar", "portapapeles:texto", "carpeta:elegir", "archivo:elegirLogo", "archivo:abrir", "archivo:abrirCarpeta", "archivo:guardarComo", "ventana:captura", "reinicio:marca", "volver:leer", "volver:guardar", "volver:anotar", "borradores:leer", "borradores:guardar"],
+  "soloVentana": ["consumo:mirar", "consumo:soltar", "lider:ir", "lider:ubicable", "claude:changelog", "trama:reiniciarVentana", "trama:notas", "trama:anterior", "trama:volverAnterior", "trama:avisoVuelta", "cuentas:login", "cuentas:limiteReset", "app:salir", "app:recargar", "app:pararTodo", "bandeja:textos", "espera:estado", "espera:notificar", "portapapeles:texto", "carpeta:elegir", "archivo:elegirLogo", "archivo:abrir", "archivo:abrirCarpeta", "archivo:guardarComo", "ventana:captura", "reinicio:marca", "volver:leer", "volver:guardar", "volver:anotar", "borradores:leer", "borradores:guardar", "borradores:imagen"],
   "avisosVentana": ["espera:abrir"],
   "canales": [
     ["bench:modo","invoke"],
@@ -322,6 +322,7 @@
     ["volver:anotar","invoke","ventana"],
     ["volver:pedir","on"],
     ["borradores:leer","invoke","ventana-menos-local"],
-    ["borradores:guardar","invoke","ventana-menos-local"]
+    ["borradores:guardar","invoke","ventana-menos-local"],
+    ["borradores:imagen","invoke","ventana-menos-local"]
   ]
 }

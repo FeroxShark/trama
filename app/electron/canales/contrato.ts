@@ -333,6 +333,7 @@ export const CANALES = [
   ["volver:pedir", "on"],
   ["borradores:leer", "invoke", "ventana-menos-local"],
   ["borradores:guardar", "invoke", "ventana-menos-local"],
+  ["borradores:imagen", "invoke", "ventana-menos-local"],
 ] as const;
 
 type Entrada = (typeof CANALES)[number];

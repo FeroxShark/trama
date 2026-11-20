@@ -24,13 +24,16 @@ export const BORRADOR_IMAGENES_BASE64 = 8 * 1024 * 1024;
  * Las imágenes de un borrador que entran en el guardado (en orden: las primeras; una que no cabe se salta y las
  * que le siguen pueden entrar si caben) y cuántas se quedan afuera.
  */
-export function acotarImagenes<T extends { datos: string }>(l: readonly T[]): { entran: T[]; sobran: number } {
+export const acotarImagenes = <T extends { datos: string }>(l: readonly T[]) => acotarPorPeso(l, (i) => i.datos.length);
+
+/** Lo mismo con el peso (caracteres de base64) que diga `peso`: una referencia a una imagen guardada pesa su `largo`. */
+export function acotarPorPeso<T>(l: readonly T[], peso: (i: T) => number): { entran: T[]; sobran: number } {
   const entran: T[] = [];
   let resta = BORRADOR_IMAGENES_BASE64;
   for (const i of l) {
-    if (entran.length >= BORRADOR_IMAGENES_MAX || i.datos.length > resta) continue;
+    if (entran.length >= BORRADOR_IMAGENES_MAX || peso(i) > resta) continue;
     entran.push(i);
-    resta -= i.datos.length;
+    resta -= peso(i);
   }
   return { entran, sobran: l.length - entran.length };
 }

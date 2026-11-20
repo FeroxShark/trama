@@ -478,5 +478,6 @@ contextBridge.exposeInMainWorld("hilos", {
   borradores: {
     leer: (): Promise<unknown> => invocar("borradores:leer"),
     guardar: (foto: unknown): Promise<void> => invocar("borradores:guardar", foto),
+    imagen: (tipo: string, datos: string): Promise<string> => invocar("borradores:imagen", tipo, datos),
   },
 });
