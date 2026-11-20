@@ -3,7 +3,7 @@
 // (src/hilo/usePasos.ts); lo que se saca de ellos (frases, grupos, tramos, cambios, rutas) es de worker-datos.ts. A un worker no se le
 // escribe: acá sólo se mira, y se lo para. Maqueta: maquetas/rediseno-0.4/worker-vista-b-*.png.
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
-import { ArrowRightLeft, Bot, Brain, Check, ChevronRight, Copy, FilePlus, FileText, GitCommitHorizontal, Info, LoaderCircle, MessageCircleQuestion, MessageSquare, Pencil, Search, Square, Terminal, Timer, TriangleAlert, Wrench, X, type LucideIcon } from "lucide-react";
+import { ArrowRightLeft, Brain, Check, ChevronRight, Copy, FileText, GitCommitHorizontal, Info, LoaderCircle, MessageCircleQuestion, MessageSquare, Square, Timer, TriangleAlert, X, type LucideIcon } from "lucide-react";
 import { comoSettle, type Estado, type Hilo } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import type { Detalle, Paso, TipoPaso, VistaPasos } from "../datos/pasos";
@@ -30,6 +30,7 @@ import { MODELOS_WORKER, modeloDe } from "./opciones";
 import { SeguirCon } from "./SeguirCon";
 import { Compactando } from "./Posta";
 import { Texto } from "./Texto";
+import { iconoAccion, TIPO_DE_CLAVE } from "./accion-tipo";
 import { useCompactando } from "./compactando";
 import { partirDecision } from "./turnos";
 import { useSeguir } from "./useSeguir";
@@ -74,17 +75,9 @@ import {
   type Tramo,
 } from "./worker-datos";
 
-const ICONO: Record<TipoPaso, LucideIcon> = {
-  pensar: Brain,
-  leer: FileText,
-  buscar: Search,
-  editar: Pencil,
-  escribir: FilePlus,
-  correr: Terminal,
-  delegar: Bot,
-  texto: MessageSquare,
-  otro: Wrench,
-};
+/** El dibujo de cada tipo de paso: pensar y texto son propios; las herramientas salen del mapa único de ./accion-tipo.ts. */
+const PROPIOS: Record<string, LucideIcon> = { pensar: Brain, texto: MessageSquare };
+const ICONO = (t: TipoPaso): LucideIcon => (TIPO_DE_CLAVE[t] ? iconoAccion(TIPO_DE_CLAVE[t]) : (PROPIOS[t] ?? iconoAccion("otra")));
 
 const compacto = (n: number) => new Intl.NumberFormat(locale(), { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
@@ -379,7 +372,7 @@ function cuerpoDe(p: Paso, cwd: string | null, vive: boolean, colgado: boolean, 
           {d.pasos.length ? (
             <ul className="wk-sub">
               {d.pasos.map((s) => {
-                const S = ICONO[s.tipo];
+                const S = ICONO(s.tipo);
                 return (
                   <li key={s.id}>
                     <S size={13} strokeWidth={1.8} />
@@ -683,7 +676,7 @@ function Nodo({ p, vive, colgado }: { p: Paso; vive: boolean; colgado: boolean }
       </span>
     );
   if (p.tipo === "editar" || p.tipo === "escribir") {
-    const I = ICONO[p.tipo];
+    const I = ICONO(p.tipo);
     return (
       <span className="wk-nodo" data-marca="cambio">
         <I size={13} strokeWidth={2.2} aria-hidden="true" />
@@ -696,7 +689,7 @@ function Nodo({ p, vive, colgado }: { p: Paso; vive: boolean; colgado: boolean }
         <i />
       </span>
     );
-  const I = ICONO[p.tipo];
+  const I = ICONO(p.tipo);
   return (
     <span className="wk-nodo" data-marca="icono">
       <I size={15} strokeWidth={1.8} aria-hidden="true" />

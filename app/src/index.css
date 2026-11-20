@@ -3738,7 +3738,6 @@ html[data-titulo-nativo] #root::after {
 }
 .tv-ic {
   flex: none;
-  color: var(--c);
 }
 .tv-pasos {
   display: flex;
@@ -3767,9 +3766,6 @@ html[data-titulo-nativo] #root::after {
 .tv-det > .tv-ic,
 .tv-pasos .tv-ic {
   margin-top: var(--esp-0-5);
-}
-.tv-pasos .tv-ic {
-  color: var(--texto-5);
 }
 .tv-mas {
   display: inline-flex;
@@ -3818,7 +3814,6 @@ html[data-titulo-nativo] #root::after {
 }
 .tv-li > .tv-ic {
   margin-top: var(--esp-0-5);
-  color: var(--texto-5);
 }
 .tv-ln {
   flex: none;

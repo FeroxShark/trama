@@ -349,16 +349,32 @@
   transform: none;
 }
 
-/* Los íconos de acción de la pastilla (src/hilo/accion-tipo.ts): neutros y chicos, hasta tres; el estado lo dice la marca de la derecha. */
+/* Los íconos de acción de la pastilla (src/hilo/accion-tipo.ts): lineales, chicos, hasta tres, cada uno en el color suave de su clase
+   (--tipo-*: leer azul, escribir ámbar, comandos verde, web violeta, el resto gris); el estado lo dice la marca de la derecha con su palabra. */
 .acc-g {
   display: inline-flex;
   flex: none;
   align-items: center;
   gap: var(--esp-1);
 }
-.acc-i {
+.acc-i,
+.tv-ic {
   flex: none;
-  color: var(--texto-5);
+}
+:is(.acc-i, .tv-ic)[data-clase="neutro"] {
+  color: var(--tipo-neutro);
+}
+:is(.acc-i, .tv-ic)[data-clase="leer"] {
+  color: var(--tipo-leer);
+}
+:is(.acc-i, .tv-ic)[data-clase="escribir"] {
+  color: var(--tipo-escribir);
+}
+:is(.acc-i, .tv-ic)[data-clase="comando"] {
+  color: var(--tipo-comando);
+}
+:is(.acc-i, .tv-ic)[data-clase="web"] {
+  color: var(--tipo-web);
 }
 .trabajo summary .acc-i,
 .trabajo[open] summary .acc-i {
@@ -371,14 +387,7 @@
   width: 1.25rem;
   height: 1.25rem;
 }
-.trabajo[data-fin] > summary:hover .acc-i {
-  color: var(--texto-3);
-}
 /* La fila de una llamada: su ícono va entre la flecha y el nombre. */
-.ll .acc-i {
-  color: var(--texto-6);
-}
-
 /* Parar vive sólo en la caja: siempre a la vista. Sin novedades pide atención ahí, como la tarjeta. */
 .caja-parar[data-quieto] {
   background: var(--decision-relleno);

@@ -36,6 +36,14 @@
   --familia-haiku: var(--fam-haiku);
   --familia-fable: var(--probar);
   --familia-otro: var(--inactivo);
+  /* El color suave de cada clase de herramienta en el chat (src/hilo/accion-tipo.ts): leer azul, escribir ámbar, comandos verde, web violeta,
+     el resto gris. Salen de los colores de cada tema mezclados con el texto apagado, así cada tema (oscuro o claro) los hereda y ninguno grita.
+     Nunca solos: el ícono y el nombre de la fila dicen lo mismo con palabras. */
+  --tipo-leer: color-mix(in srgb, var(--acento) 72%, var(--texto-5));
+  --tipo-escribir: color-mix(in srgb, var(--aviso) 72%, var(--texto-5));
+  --tipo-comando: color-mix(in srgb, var(--fam-sonnet) 72%, var(--texto-5));
+  --tipo-web: color-mix(in srgb, var(--probar) 72%, var(--texto-5));
+  --tipo-neutro: var(--texto-5);
 
   /* Capas blancas translúcidas: los fondos de control no son colores sólidos, así el vidrio y el acento se leen. */
   --capa-card: #1f1f23;

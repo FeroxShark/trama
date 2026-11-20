@@ -2,7 +2,7 @@
 // de un worker (src/hilo/Worker.tsx), en vivo mientras corre y con su informe al terminar. Los arma el main de su
 // transcript con el id `sub:<sesión>:<agentId>` (electron/pasos-worker.ts). Sólo se mira: a un subagente no se le escribe.
 import { useMemo } from "react";
-import { Bot } from "lucide-react";
+import { Users } from "lucide-react";
 import type { Subagente } from "../../electron/subagentes";
 import type { Lider } from "../datos/contrato";
 import type { VistaPasos } from "../datos/pasos";
@@ -38,7 +38,7 @@ export function SubagenteMigas({ u, lider, vista, vive }: { u: Subagente | null;
   return (
     <>
       <span className="subv-marca" data-tip={lider ? t("subv.deTip", { lider: lider.nombre }) : undefined}>
-        <Bot size={14} strokeWidth={1.8} aria-hidden />
+        <Users size={14} strokeWidth={1.8} aria-hidden />
         {modelo ? t("subv.marcaModelo", { modelo }) : t("subv.marca")}
       </span>
       {pinta ? (

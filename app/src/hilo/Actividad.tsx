@@ -2,7 +2,7 @@
 // hace, la salida en una línea, "Ver todo" con el comando entero, los pasos y el progreso, y el pie con modelo y esfuerzo.
 // Qué evento da cada tipo y qué dice cada línea: src/hilo/actividad-logica.ts. El movimiento: src/barra/latido-escenas.ts.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Bot, Brain, ChevronDown, ChevronRight, FilePlus, FileText, Globe, Hand, MessageSquare, Pause, Pencil, Search, Terminal, Wrench, X, type LucideIcon } from "lucide-react";
+import { Brain, ChevronDown, ChevronRight, Hand, MessageSquare, Pause, X, type LucideIcon } from "lucide-react";
 import type { HaceLider } from "../datos/contrato";
 import { latir } from "../barra/latido";
 import { Reloj } from "../barra/piezas";
@@ -14,20 +14,10 @@ import type { LineaTiempo } from "./linea-tiempo";
 import { Escena } from "./Escenas";
 import { Tierno } from "./Tierno";
 import { EnlaceArchivo } from "./VerArchivo";
+import { IconoClave } from "./IconoAccion";
 
-const ICONO: Record<Icono, LucideIcon> = {
-  pensar: Brain,
-  leer: FileText,
-  buscar: Search,
-  editar: Pencil,
-  escribir: FilePlus,
-  correr: Terminal,
-  web: Globe,
-  delegar: Bot,
-  texto: MessageSquare,
-  permiso: Hand,
-  otro: Wrench,
-};
+/** Los dibujos que no son una herramienta; los de las herramientas salen del mapa único (./accion-tipo.ts) con su color suave. */
+const PROPIOS: Record<string, LucideIcon> = { pensar: Brain, texto: MessageSquare, permiso: Hand };
 
 /** Un texto entero: lo muy largo se pliega (con fundido abajo) y "Ver todo" lo despliega. Nunca se corta con "…". */
 function Entero({ texto, className }: { texto: string; className: string }) {
@@ -165,10 +155,9 @@ function Progreso({ lineas, pensando }: { lineas: LineaTiempo[]; pensando: strin
               <Pensamiento texto={x.texto} />
             </li>
           );
-        const I = ICONO[x.icono];
         return (
           <li key={x.key} className="tv-li" data-k="herramienta">
-            <I className="tv-ic" size={12} strokeWidth={1.9} aria-hidden="true" />
+            <IconoClave clave={x.icono} propios={PROPIOS} className="tv-ic" />
             <span className="tv-ln">{x.nombre}</span>
             <Entero texto={x.detalle} className="tv-pt" />
             {x.archivo ? <EnlaceArchivo a={x.archivo} /> : null}
@@ -250,7 +239,6 @@ export function Actividad({ act, hace, pasos, pasosN, desde, tokens, tierno, raz
   const hayProgreso = conRazon && (razon.lineas.length > 0 || !!razon.pensando.trim());
   const hayCuerpo = !!entero || lineas.length > 0 || hayProgreso;
   const cuenta = [tokens, pasosN ? cuentaPasos(pasosN) : null].filter(Boolean).join(" · ");
-  const Det = ICONO[act.icono];
   // Abierta, el comando ya se lee entero abajo: no va dos veces (la salida sí, que es otra cosa).
   const linea = abierto && frase.mono && !salida?.linea ? "" : frase.linea;
   return (
@@ -320,17 +308,16 @@ export function Actividad({ act, hace, pasos, pasosN, desde, tokens, tierno, raz
               <div className="tv-cuerpo" inert={!abierto}>
                 {entero ? (
                   <div className="tv-det" data-fija={act.tipo === "permiso" ? "" : undefined}>
-                    {act.tipo === "permiso" ? null : <Det className="tv-ic" size={13} strokeWidth={1.9} aria-hidden="true" />}
+                    {act.tipo === "permiso" ? null : <IconoClave clave={act.icono} propios={PROPIOS} className="tv-ic" size={13} />}
                     <span className="tv-dt">{entero}</span>
                   </div>
                 ) : null}
                 {vis.length ? (
                   <ul className="tv-pasos">
                     {vis.map((p, i) => {
-                      const I = ICONO[p.i];
                       return (
                         <li key={i}>
-                          <I className="tv-ic" size={12} strokeWidth={1.9} aria-hidden="true" />
+                          <IconoClave clave={p.i} propios={PROPIOS} className="tv-ic" />
                           <Entero texto={p.l} className="tv-pt" />
                         </li>
                       );
