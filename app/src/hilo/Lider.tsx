@@ -85,7 +85,6 @@ import { Marca } from "./Marca";
 import { Sistema, type IntegrarAviso } from "./Sistema";
 import { EVENTO_CAMBIAR_MODELO, proveedorLibre } from "./agotados";
 import { estadosCupoModelos, estadosCupoProveedores } from "./cupo-modelos.ts";
-import { MotorCapacidades } from "./MotorCapacidades";
 import { Compactando, Pasando, relevoEn, Sigue } from "./Posta";
 import { juntar, turnos, type Item, type Punto } from "./turnos";
 import { AccionesMensaje, cerrarSobreFuera, EditorMensaje, sobreMensaje, type Acciones } from "./AccionesMensaje";
@@ -1542,7 +1541,6 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
                 pestana={proveedorLibre(MODELOS, cupos)}
                 cupos={cupos}
                 cuposColumnas={cuposColumnas}
-                pie={(clave) => <MotorCapacidades empresa={clave} />}
                 valor={modelo}
                 alElegir={elegirModelo}
                 confirmar={datosCambio}

@@ -5,7 +5,7 @@
 // Inicio/Fin, Enter o Espacio para elegir; Esc, Tab o clic afuera lo cierran.
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Ban, Check, ChevronUp, Clock, Search } from "lucide-react";
+import { Ban, Check, ChevronRight, ChevronUp, Clock, Search } from "lucide-react";
 import { t } from "../i18n";
 import { Reserva } from "../i18n/Fijo";
 import { cuandoFuturo } from "../tiempo";
@@ -193,6 +193,9 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const buscador = useRef<HTMLInputElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  // El submenú del esfuerzo, al costado del menú (fuera de él: el menú recorta lo que se sale).
+  const fly = useRef<HTMLDivElement>(null);
+  const [flyPos, setFlyPos] = useState<{ top: number; left: number } | null>(null);
   const id = useId();
   // Sin opciones (los proyectos todavía no llegaron) el botón dice "…".
   const actual = opciones.find((o) => o.id === valor) ?? opciones[0] ?? { id: "", nombre: "…", desc: "" };
@@ -230,6 +233,30 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const idOpcion = (i: number) => `${id}-${i}`;
   const visibles = useMemo(() => (enColumnas ? filtrar(opciones, busqueda) : opciones), [enColumnas, opciones, busqueda]);
   const reparto = useMemo(() => repartir(visibles), [visibles]);
+  // El submenú del esfuerzo: sólo en la lista compacta, con el modelo elegido a la vista y abierto (mouse, clic o →).
+  const conFly = abierto && enColumnas && !!esf && esf.opciones.length > 0 && esfAbierta && visibles.some((o) => o.id === actual.id);
+  // Al costado del renglón elegido: a la derecha del menú si entra en la ventana; si no, a la izquierda.
+  const ubicarFly = () => {
+    const ancla = menu.current?.querySelector<HTMLElement>(".op-fila[data-esf-ancla]");
+    const m = menu.current?.getBoundingClientRect();
+    const f = fly.current;
+    if (!ancla || !m || !f) return setFlyPos(null);
+    const r = ancla.getBoundingClientRect();
+    const lista = menu.current?.querySelector<HTMLElement>(".mc-lista")?.getBoundingClientRect();
+    // El renglón se fue de la vista al desplazar la lista: el submenú se esconde hasta que vuelva.
+    if (lista && (r.bottom < lista.top || r.top > lista.bottom)) return setFlyPos(null);
+    const sep = 4;
+    const left = m.right + sep + f.offsetWidth <= window.innerWidth - 8 ? m.right + sep : Math.max(8, m.left - sep - f.offsetWidth);
+    const top = Math.max(8, Math.min(r.top - 5, window.innerHeight - f.offsetHeight - 8));
+    setFlyPos((p) => (p && p.top === top && p.left === left ? p : { top, left }));
+  };
+  useLayoutEffect(() => {
+    if (!conFly) return setFlyPos(null);
+    ubicarFly();
+    // El menú se ubica (y lleva la lista al elegido) en su propio efecto: se vuelve a medir en el cuadro siguiente.
+    const k = requestAnimationFrame(ubicarFly);
+    return () => cancelAnimationFrame(k);
+  }, [conFly, valor, esf?.valor]); // eslint-disable-line react-hooks/exhaustive-deps
   const buscando = busqueda.trim() !== "";
   const claveDe = (o: Opcion) => o.col ?? o.grupo;
   // El proveedor «activo» (el de la pestaña pedida o, si no, el del modelo elegido): a él lleva la lista al abrir y de él es el pie.
@@ -322,7 +349,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   /** Las opciones de la lista (de todos los proveedores, o de los que coinciden con la búsqueda). */
   const filas = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-lista [role="option"]:not(:disabled)') ?? [])];
   /** Los niveles de la fila de esfuerzo (al pie del menú). */
-  const niveles = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-esf [role="radio"]') ?? [])];
+  const niveles = () => [menu.current, fly.current].flatMap((r) => [...(r?.querySelectorAll<HTMLElement>('.mc-esf [role="radio"]') ?? [])]);
   /** Los niveles ya desplegados, el elegido (o el primero) con foco. `false` si no hay fila. */
   const irAEsfuerzo = () => {
     const r = niveles();
@@ -345,6 +372,17 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
     const r = niveles();
+    // En el submenú del costado: arriba y abajo recorren, izquierda vuelve al renglón del modelo y lo cierra.
+    if (fly.current?.contains(document.activeElement)) {
+      const i = r.indexOf(document.activeElement as HTMLElement);
+      if (e.key === "ArrowLeft") {
+        setEsfAbierta(false);
+        return volverALista();
+      }
+      if (e.key === "ArrowRight") return;
+      const k = e.key === "Home" ? 0 : e.key === "End" ? r.length - 1 : Math.max(0, Math.min(r.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)));
+      return r[k]?.focus();
+    }
     const k = moverEsfuerzo(r.length, r.indexOf(document.activeElement as HTMLElement), e.key as Flecha);
     if (k === null) return volverALista();
     r[k]?.focus();
@@ -385,17 +423,17 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
       e.preventDefault();
       if (i < 0) return op[0]?.focus();
-      if (e.key === "ArrowDown" && esfAbierta && fila?.getAttribute("aria-selected") === "true" && irAEsfuerzo()) return;
       if (e.key === "ArrowUp" && i === 0) return buscador.current?.focus();
       op[e.key === "Home" ? 0 : e.key === "End" ? op.length - 1 : Math.max(0, Math.min(op.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))]?.focus();
       return;
     }
     if (e.key === "ArrowRight" && !enPildora) {
-      // De la elegida pasa a su esfuerzo (si lo trae).
+      // De la elegida abre su esfuerzo al costado (si lo trae) y pasa ahí.
       const p = fila?.parentElement?.querySelector<HTMLElement>(".mc-esf-pill");
       if (p) {
         e.preventDefault();
-        p.focus();
+        setEsfAbierta(true);
+        requestAnimationFrame(() => irAEsfuerzo());
       }
       return;
     }
@@ -533,15 +571,15 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   };
 
   /**
-   * Un renglón de la lista compacta. El elegido, si hay esfuerzo, lleva al lado su píldora (el nivel de hoy) que despliega los niveles debajo;
-   * la píldora es un botón aparte (no puede ir adentro del renglón, que ya es un botón).
+   * Un renglón de la lista compacta. El elegido, si hay esfuerzo, lleva al lado el nivel de hoy («high ›»): pasar el mouse por el renglón,
+   * tocarlo o → abre los niveles en un submenú al costado. Es un botón aparte (no puede ir adentro del renglón, que ya es un botón).
    */
   const renglon = (o: Opcion, colNombre: string) => {
     const nivel = esf && o.id === actual.id && esf.opciones.length ? esf.opciones.find((x) => x.id === esf.valor) : undefined;
     // Todos los renglones van en el mismo envoltorio: así elegir otro modelo no remonta el botón (y no le saca el foco, que con Esc cerraría la vista).
     return (
       <Fragment key={o.id}>
-        <div className="op-fila">
+        <div className="op-fila" data-esf-ancla={nivel !== undefined ? "" : undefined} onMouseEnter={esf ? () => setEsfAbierta(nivel !== undefined) : undefined}>
           {opcionCompacta(o, colNombre)}
           {esf && nivel !== undefined ? (
             <button
@@ -553,13 +591,11 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
               title={esf.etiqueta}
               onClick={() => setEsfAbierta((a) => !a)}
             >
-              {nivel.marca}
               <span>{nivel.nombre}</span>
-              <ChevronUp className="mc-esf-chev" size={11} strokeWidth={2} aria-hidden="true" />
+              <ChevronRight className="mc-esf-chev" size={12} strokeWidth={2} aria-hidden="true" />
             </button>
           ) : null}
         </div>
-        {esf && nivel !== undefined && esfAbierta ? filaEsfuerzo : null}
       </Fragment>
     );
   };
@@ -705,7 +741,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                         </label>
                       ) : null}
                     </div>
-                    <div className="mc-lista" role="listbox" id={id} aria-label={etiqueta}>
+                    <div className="mc-lista" role="listbox" id={id} aria-label={etiqueta} onScroll={conFly ? ubicarFly : undefined}>
                       {!buscando && reparto.arriba.length ? <div className="mc-arriba">{reparto.arriba.map((o) => renglon(o, ""))}</div> : null}
                       {reparto.columnas.map((c) => {
                         const sinConectar = c.ops.every((o) => o.sinConectar);
@@ -785,6 +821,16 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                   </>
                 )}
               </div>
+              {conFly ? (
+                <div
+                  ref={fly}
+                  className="mc-fly"
+                  style={flyPos ? { top: flyPos.top, left: flyPos.left } : { visibility: "hidden" }}
+                  onKeyDown={teclaMenu}
+                >
+                  {filaEsfuerzo}
+                </div>
+              ) : null}
             </>,
             document.body,
           )

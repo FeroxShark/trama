@@ -6372,11 +6372,11 @@ summary.sis-div-t:hover,
   flex: none;
   align-items: center;
   gap: var(--esp-1);
-  padding: 0 var(--esp-2);
-  border: 1px solid var(--borde-3);
+  padding: 0 var(--esp-1) 0 var(--esp-2);
+  border: 0;
   border-radius: var(--radio-pastilla);
   background: transparent;
-  color: var(--texto-2);
+  color: var(--texto-3);
   font: inherit;
   font-size: var(--letra-3);
   cursor: pointer;
@@ -6388,8 +6388,43 @@ summary.sis-div-t:hover,
 .mc-esf-pill:focus-visible {
   outline-offset: -2px;
 }
-.mc-esf-pill[aria-expanded="true"] .mc-esf-chev {
-  transform: rotate(180deg);
+.mc-esf-pill[aria-expanded="true"] {
+  color: var(--texto-1);
+}
+/* El submenú del esfuerzo, al costado del menú del modelo, a la altura del renglón elegido: una columna de niveles como renglones. */
+.mc-fly {
+  position: fixed;
+  z-index: 501;
+  display: flex;
+  min-width: 8.5rem;
+  flex-direction: column;
+  padding: var(--esp-1);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-4);
+  background: var(--sup-1);
+  box-shadow: 0 1rem 2.5rem var(--sombra);
+}
+.mc-fly .mc-esf {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  border-top: 0;
+}
+.mc-fly .mc-esf-t {
+  padding: var(--esp-1) var(--esp-2) var(--esp-1);
+}
+.mc-fly .mc-esf-op {
+  border-color: transparent;
+}
+.mc-fly .mc-esf-op[aria-checked="true"] {
+  border-color: transparent;
+  background: var(--sup-2);
+}
+.mc-fly .mc-esf-op svg:last-child:not(:first-child) {
+  margin-left: auto;
 }
 .mc-sub {
   padding: var(--esp-2) var(--esp-2-5) var(--esp-1);
