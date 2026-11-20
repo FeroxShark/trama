@@ -77,9 +77,9 @@ type Props = {
    */
   reserva?: readonly string[];
   /**
-   * Un menú compacto (ancho tope ~46rem, alto tope 60vh): a la izquierda un riel con una pestaña por grupo (`Opcion.grupo`: el proveedor del
-   * modelo, con su logo y cuántos tiene) y a la derecha una sola lista, la del proveedor elegido, de un renglón por modelo. La búsqueda de arriba
-   * mira todos los proveedores. En un celular el riel pasa arriba, en horizontal. Con un solo grupo es el menú de siempre.
+   * Un menú compacto: una columna angosta (~17,5rem, alto tope 70vh) con todos los modelos, cada proveedor (`Opcion.grupo`) como un encabezado chico
+   * en mayúsculas con su logo y debajo un renglón por modelo (lo largo va en el tooltip). La búsqueda de arriba filtra todos los proveedores; abrir
+   * con `pestana` lleva a ese proveedor. Con un solo grupo es el menú de siempre.
    */
   columnas?: boolean;
   /** Si elegir esta opción pide confirmación (otro motor): los datos del diálogo, que se abre sobre el menú abierto; el valor no cambia hasta confirmar. */
@@ -110,6 +110,11 @@ type Props = {
    * elegir un modelo no cierra el menú (el esfuerzo se elige en él); se cierra al elegir el esfuerzo, al tocar afuera o con Esc o Tab.
    */
   esfuerzo?: { etiqueta: string; opciones: Opcion[]; valor: string; alElegir: (id: string) => void };
+  /**
+   * Lo mismo pero con el esfuerzo en su propio botón de la barra: en la lista compacta el renglón elegido lleva igual su esfuerzo al lado (una píldora
+   * que despliega los niveles debajo), pero elegir un modelo cierra el menú como siempre.
+   */
+  esfuerzoAlLado?: { etiqueta: string; opciones: Opcion[]; valor: string; alElegir: (id: string) => void };
   /**
    * Con esto el menú de una sola lista trae un buscador arriba: el texto es su placeholder y su nombre accesible. Filtra por nombre y
    * descripción (sin mayúsculas ni tildes); las flechas mueven la resaltada, Enter elige y Esc cierra. No aplica en columnas.
@@ -164,7 +169,7 @@ function colocar(boton: HTMLElement, menu: HTMLElement) {
 /** Desde cuántas opciones el menú en columnas trae la búsqueda. */
 const CON_BUSQUEDA = 8;
 
-export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, cupos, cuposColumnas, pie, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto, enteras = false, esfuerzo, buscar, busquedaInicial, "data-guia": dataGuia }: Props) {
+export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, cupos, cuposColumnas, pie, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto, enteras = false, esfuerzo, esfuerzoAlLado, buscar, busquedaInicial, "data-guia": dataGuia }: Props) {
   const [abierto, setAbierto] = useState(deEntrada || !!confirmando);
   const [pend, setPend] = useState<{ id: string; datos: DatosCambio } | null>(() => {
     const d = confirmando && confirmar ? confirmar(confirmando) : null;
@@ -173,7 +178,11 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const [busqueda, setBusqueda] = useState(busquedaInicial ?? "");
   // Con `buscar`: la fila resaltada por las flechas, como índice en lo que queda con la búsqueda.
   const [resaltada, setResaltada] = useState(0);
+  // El proveedor al que se lleva la lista al abrir (el «Cambiar de modelo» de un error); sin esto, el del modelo elegido.
   const [tab, setTab] = useState<string | null>(null);
+  // Los niveles de esfuerzo desplegados debajo del renglón elegido (con el esfuerzo fusionado en el chip nacen abiertos).
+  const [esfAbierta, setEsfAbierta] = useState(!!esfuerzo);
+  const esf = esfuerzo ?? esfuerzoAlLado;
   // La opción de un proveedor sin conectar que se tocó: el valor no cambia; el menú ofrece «Conectar».
   const [conectando, setConectando] = useState<string | null>(null);
   useEffect(() => {
@@ -221,12 +230,10 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const idOpcion = (i: number) => `${id}-${i}`;
   const visibles = useMemo(() => (enColumnas ? filtrar(opciones, busqueda) : opciones), [enColumnas, opciones, busqueda]);
   const reparto = useMemo(() => repartir(visibles), [visibles]);
-  // El riel: una pestaña por proveedor (todos, aunque la búsqueda deje a alguno sin coincidencias; entonces va con un 0).
-  const riel = useMemo(() => (enColumnas ? repartir(opciones).columnas : []), [enColumnas, opciones]);
   const buscando = busqueda.trim() !== "";
   const claveDe = (o: Opcion) => o.col ?? o.grupo;
-  const tabActiva = (tab && riel.some((c) => c.clave === tab) ? tab : null) ?? (claveDe(actual) && riel.some((c) => c.clave === claveDe(actual)) ? claveDe(actual) : null) ?? riel[0]?.clave ?? null;
-  const cuenta = (clave: string) => reparto.columnas.find((c) => c.clave === clave)?.ops.length ?? 0;
+  // El proveedor «activo» (el de la pestaña pedida o, si no, el del modelo elegido): a él lleva la lista al abrir y de él es el pie.
+  const tabActiva = (tab && reparto.columnas.some((c) => c.clave === tab) ? tab : null) ?? (claveDe(actual) && reparto.columnas.some((c) => c.clave === claveDe(actual)) ? claveDe(actual) : null) ?? reparto.columnas[0]?.clave ?? null;
 
   // Fijo a la ventana: sigue al botón si se hace scroll o cambia el tamaño.
   useLayoutEffect(() => {
@@ -263,6 +270,17 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
       return buscador.current?.focus();
     }
     const ops = items();
+    if (enColumnas && tab) {
+      // Abierto en un proveedor pedido: el foco va a su primer modelo (o al elegido, si es de ese proveedor) y la lista lo muestra.
+      const g = menu.current?.querySelector<HTMLElement>(`[data-grupo-clave="${CSS.escape(tab)}"]`);
+      const suyos = g ? [...g.querySelectorAll<HTMLElement>('[role="option"]:not(:disabled)')] : [];
+      const f = suyos.find((o) => o.getAttribute("aria-selected") === "true") ?? suyos[0];
+      if (f) {
+        f.focus();
+        g?.scrollIntoView({ block: "start" });
+        return;
+      }
+    }
     (ops.find((o) => o.getAttribute("aria-selected") === "true") ?? ops[0])?.focus();
   }, [abierto]);
 
@@ -276,6 +294,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     setBusqueda("");
     setTab(null);
     setConectando(null);
+    setEsfAbierta(!!esfuerzo);
     if (conFoco) boton.current?.focus();
   };
 
@@ -300,18 +319,11 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     setAbierto(true);
   };
 
-  /** Las opciones de la lista (de la pestaña, o de todas las que coinciden con la búsqueda). */
+  /** Las opciones de la lista (de todos los proveedores, o de los que coinciden con la búsqueda). */
   const filas = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-lista [role="option"]:not(:disabled)') ?? [])];
-  const pestanas = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-riel [role="tab"]') ?? [])];
-  const hojear = (clave: string) => {
-    if (!buscando) return setTab(clave);
-    // Buscando se ven todos los proveedores: la pestaña lleva al suyo.
-    menu.current?.querySelector<HTMLElement>(`[data-grupo-clave="${CSS.escape(clave)}"]`)?.scrollIntoView({ block: "start" });
-  };
-
   /** Los niveles de la fila de esfuerzo (al pie del menú). */
   const niveles = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-esf [role="radio"]') ?? [])];
-  /** Abajo de la última opción va a la fila de esfuerzo: al nivel elegido (o al primero). `false` si no hay fila. */
+  /** Los niveles ya desplegados, el elegido (o el primero) con foco. `false` si no hay fila. */
   const irAEsfuerzo = () => {
     const r = niveles();
     (r.find((x) => x.getAttribute("aria-checked") === "true") ?? r[0])?.focus();
@@ -352,8 +364,6 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     if (e.key === "Tab") return cerrar();
     const activo = document.activeElement as HTMLElement | null;
     const op = filas();
-    const tabs = pestanas();
-    const enRiel = !!activo && tabs.includes(activo);
     if (enBuscador) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -364,35 +374,29 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
       }
       return;
     }
-    if (enRiel) {
-      const i = tabs.indexOf(activo!);
-      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
-        e.preventDefault();
-        const k = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : Math.max(0, Math.min(tabs.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)));
-        if (k === 0 && e.key === "ArrowUp" && i === 0) return buscador.current?.focus();
-        tabs[k]?.focus();
-        const c = tabs[k]?.dataset.clave;
-        if (c) hojear(c);
-      } else if (e.key === "ArrowRight" || e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        (op.find((o) => o.getAttribute("aria-selected") === "true") ?? op[0])?.focus();
-      }
-      return;
+    // La píldora del esfuerzo vive al lado del renglón elegido: izquierda vuelve a él, y arriba y abajo cuentan desde él.
+    const enPildora = !!activo?.classList.contains("mc-esf-pill");
+    const fila = enPildora ? activo!.parentElement?.querySelector<HTMLElement>('[role="option"]') ?? null : activo;
+    if (enPildora && e.key === "ArrowLeft") {
+      e.preventDefault();
+      return fila?.focus();
     }
-    const i = activo ? op.indexOf(activo) : -1;
+    const i = fila ? op.indexOf(fila) : -1;
     if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
       e.preventDefault();
       if (i < 0) return op[0]?.focus();
-      if (e.key === "ArrowDown" && i === op.length - 1 && irAEsfuerzo()) return;
-      if (e.key === "ArrowUp" && i === 0) return buscador.current?.focus() ?? tabs[0]?.focus();
+      if (e.key === "ArrowDown" && esfAbierta && fila?.getAttribute("aria-selected") === "true" && irAEsfuerzo()) return;
+      if (e.key === "ArrowUp" && i === 0) return buscador.current?.focus();
       op[e.key === "Home" ? 0 : e.key === "End" ? op.length - 1 : Math.max(0, Math.min(op.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))]?.focus();
       return;
     }
-    if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      // De vuelta al riel: a la pestaña del proveedor de la opción en la que está.
-      const g = activo?.closest<HTMLElement>("[data-grupo-clave]")?.dataset.grupoClave ?? tabActiva;
-      (tabs.find((x) => x.dataset.clave === g) ?? tabs[0])?.focus();
+    if (e.key === "ArrowRight" && !enPildora) {
+      // De la elegida pasa a su esfuerzo (si lo trae).
+      const p = fila?.parentElement?.querySelector<HTMLElement>(".mc-esf-pill");
+      if (p) {
+        e.preventDefault();
+        p.focus();
+      }
       return;
     }
     // Escribir estando en una opción lleva a la búsqueda (la letra queda escrita ahí).
@@ -422,7 +426,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   };
 
   const teclaMenu = (e: KeyboardEvent) => {
-    if (esfuerzo && niveles().includes(document.activeElement as HTMLElement)) return teclaEsfuerzo(e);
+    if (esf && niveles().includes(document.activeElement as HTMLElement)) return teclaEsfuerzo(e);
     if (enColumnas) return teclaColumnas(e);
     if (buscable) return teclaBuscar(e);
     const ops = items();
@@ -500,17 +504,19 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         onClick={() => tocar(o)}
       >
         <span className="on1">
-          {o.marca ? <span className="on-ico" aria-hidden="true">{o.marca}</span> : null}
           {o.fuente ? <span style={{ fontFamily: o.fuente }}>{nom}</span> : <span className="on-n">{nom}</span>}
           {o.local ? <ChipLocal /> : null}
         </span>
         <span className="oc-meta">
-          {o.sinConectar ? <span className="oc-tag" data-tag="sin-conectar">{t("selector.sinConectar")}</span> : null}
+          {/* «Sin conectar» lo dice el encabezado del proveedor; la fila lo lleva para el lector. */}
+          {o.sinConectar ? <span className="oculto">{t("selector.sinConectar")}</span> : null}
           {o.gratis ? <span className="oc-tag" data-tag="gratis">{t("selector.gratis")}</span> : null}
           {o.go ? <span className="oc-tag" data-tag="go">{t("selector.planGo")}</span> : null}
           {cupos?.get(o.id)?.sin ? (
-            <span className="oc-tag" data-tag="agotado">
-              <Ban size={11} strokeWidth={2.2} aria-hidden="true" /> {textoSinCupo(cupos.get(o.id)!)}
+            // En la columna angosta la hora de vuelta va en el tooltip (y para el lector): el renglón dice sólo «Sin cupo».
+            <span className="oc-tag" data-tag="agotado" title={textoSinCupo(cupos.get(o.id)!)}>
+              <Ban size={11} strokeWidth={2.2} aria-hidden="true" /> {t("selector.sinCupo")}
+              <span className="oculto">{textoSinCupo(cupos.get(o.id)!)}</span>
             </span>
           ) : null}
           {cupos?.get(o.id)?.poco ? (
@@ -522,8 +528,37 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
           {o.rec ? <span className="rec">{t("selector.default")}</span> : null}
         </span>
         <Check className="ok" size={14} strokeWidth={2.2} />
-        <span className="md">{o.desc}</span>
       </button>
+    );
+  };
+
+  /**
+   * Un renglón de la lista compacta. El elegido, si hay esfuerzo, lleva al lado su píldora (el nivel de hoy) que despliega los niveles debajo;
+   * la píldora es un botón aparte (no puede ir adentro del renglón, que ya es un botón).
+   */
+  const renglon = (o: Opcion, colNombre: string) => {
+    if (!esf || o.id !== actual.id || !esf.opciones.length) return opcionCompacta(o, colNombre);
+    const nivel = esf.opciones.find((x) => x.id === esf.valor);
+    return (
+      <Fragment key={o.id}>
+        <div className="op-fila">
+          {opcionCompacta(o, colNombre)}
+          <button
+            type="button"
+            className="mc-esf-pill"
+            tabIndex={-1}
+            aria-expanded={esfAbierta}
+            aria-label={`${esf.etiqueta}: ${nivel?.nombre ?? ""}`}
+            title={esf.etiqueta}
+            onClick={() => setEsfAbierta((a) => !a)}
+          >
+            {nivel?.marca}
+            <span>{nivel?.nombre}</span>
+            <ChevronUp className="mc-esf-chev" size={11} strokeWidth={2} aria-hidden="true" />
+          </button>
+        </div>
+        {esfAbierta ? filaEsfuerzo : null}
+      </Fragment>
     );
   };
 
@@ -546,14 +581,14 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     </div>
   ) : null;
 
-  // La fila del esfuerzo al pie del menú del modelo: un nivel por botón, el elegido con tilde y en negrita (no sólo con el color).
-  const filaEsfuerzo = esfuerzo ? (
-    <div className="mc-esf" role="radiogroup" aria-label={esfuerzo.etiqueta}>
+  // La fila del esfuerzo (debajo del renglón elegido, o al pie del menú de una sola lista): un nivel por botón, el elegido con tilde y en negrita (no sólo con el color).
+  const filaEsfuerzo = esf ? (
+    <div className="mc-esf" role="radiogroup" aria-label={esf.etiqueta}>
       <span className="mh mc-esf-t" aria-hidden="true">
-        {esfuerzo.etiqueta}
+        {esf.etiqueta}
       </span>
-      {esfuerzo.opciones.map((o) => {
-        const elegida = o.id === esfuerzo.valor;
+      {esf.opciones.map((o) => {
+        const elegida = o.id === esf.valor;
         return (
           <button
             key={o.id}
@@ -564,7 +599,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
             aria-checked={elegida}
             title={o.desc}
             onClick={() => {
-              esfuerzo.alElegir(o.id);
+              esf.alElegir(o.id);
               cerrar();
             }}
           >
@@ -646,9 +681,12 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                 {enColumnas ? (
                   <>
                     <div className="mc-cab">
-                      <span className="mh" aria-hidden="true">
-                        {etiqueta}
-                      </span>
+                      {/* En la columna angosta el buscador ocupa el ancho: el rótulo «Modelo» sólo va cuando no hay buscador. */}
+                      {conBusqueda ? null : (
+                        <span className="mh" aria-hidden="true">
+                          {etiqueta}
+                        </span>
+                      )}
                       {conBusqueda ? (
                         <label className="mc-busca">
                           <Search size={13} strokeWidth={2} aria-hidden="true" />
@@ -665,59 +703,31 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                         </label>
                       ) : null}
                     </div>
-                    <div className="mc-cuerpo">
-                      <div className="mc-riel" role="tablist" aria-orientation="vertical" aria-label={etiqueta}>
-                        {riel.map((c) => (
-                          <button
-                            key={c.clave}
-                            type="button"
-                            role="tab"
-                            className="mc-tab"
-                            tabIndex={-1}
-                            data-clave={c.clave}
-                            aria-selected={!buscando && c.clave === tabActiva}
-                            data-vacia={buscando && cuenta(c.clave) === 0 ? "" : undefined}
-                            data-agotada={cuposColumnas?.get(c.clave)?.sin ? "" : undefined}
-                            data-sin-conectar={c.ops.every((o) => o.sinConectar) ? "" : undefined}
-                            onClick={() => hojear(c.clave)}
-                          >
-                            {c.ops[0]?.colMarca ?? c.ops[0]?.marca}
-                            <span className="mc-tn">{c.nombre}</span>
-                            {c.ops.every((o) => o.sinConectar) ? (
-                              <span className="mc-sc">{t("selector.sinConectar")}</span>
-                            ) : (
-                              <span className="mc-cnt">{buscando ? cuenta(c.clave) : c.ops.length}</span>
-                            )}
-                            {marcaCupo(cuposColumnas?.get(c.clave))}
-                          </button>
-                        ))}
-                      </div>
-                      <div id={id} className="mc-lista" role="listbox" aria-label={etiqueta}>
-                        {!buscando && reparto.arriba.length ? <div className="mc-arriba">{reparto.arriba.map((o) => opcionCompacta(o, ""))}</div> : null}
-                        {reparto.columnas
-                          .filter((c) => buscando || c.clave === tabActiva)
-                          .map((c) => (
-                            <div key={c.clave} className="mc-col" role="group" aria-label={c.nombre} data-grupo-clave={c.clave}>
-                              {buscando ? (
-                                <div className="mc-tit">
-                                  {c.ops[0]?.colMarca ?? c.ops[0]?.marca}
-                                  <span>{c.nombre}</span>
-                                </div>
-                              ) : null}
-                              {c.ops.map((o, i) => (
-                                <Fragment key={o.id}>
-                                  {o.grupo && o.grupo !== c.nombre && o.grupo !== c.ops[i - 1]?.grupo ? <div className="mc-sub">{o.grupo}</div> : null}
-                                  {opcionCompacta(o, c.nombre)}
-                                </Fragment>
-                              ))}
+                    <div className="mc-lista" role="listbox" id={id} aria-label={etiqueta}>
+                      {!buscando && reparto.arriba.length ? <div className="mc-arriba">{reparto.arriba.map((o) => renglon(o, ""))}</div> : null}
+                      {reparto.columnas.map((c) => {
+                        const sinConectar = c.ops.every((o) => o.sinConectar);
+                        return (
+                          <div key={c.clave} className="mc-col" role="group" aria-label={c.nombre} data-grupo-clave={c.clave}>
+                            <div className="mc-prov" data-sin-conectar={sinConectar ? "" : undefined} data-agotada={cuposColumnas?.get(c.clave)?.sin ? "" : undefined} aria-hidden="true">
+                              {c.ops[0]?.colMarca ?? c.ops[0]?.marca}
+                              <span className="mc-tn">{c.nombre}</span>
+                              {sinConectar ? <span className="mc-sc">{t("selector.sinConectar")}</span> : null}
+                              {marcaCupo(cuposColumnas?.get(c.clave))}
                             </div>
-                          ))}
-                        {!visibles.length ? <div className="mc-nada">{t("selector.nada")}</div> : null}
-                      </div>
+                            {c.ops.map((o, i) => (
+                              <Fragment key={o.id}>
+                                {o.grupo && o.grupo !== c.nombre && o.grupo !== c.ops[i - 1]?.grupo ? <div className="mc-sub">{o.grupo}</div> : null}
+                                {renglon(o, c.nombre)}
+                              </Fragment>
+                            ))}
+                          </div>
+                        );
+                      })}
+                      {!visibles.length ? <div className="mc-nada">{t("selector.nada")}</div> : null}
                     </div>
                     {avisoConectar}
                     {pie ? <div className="mc-pie">{pie(tabActiva)}</div> : null}
-                    {filaEsfuerzo}
                   </>
                 ) : buscable ? (
                   <>
@@ -769,7 +779,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                       </Fragment>
                     ))}
                     {avisoConectar}
-                    {filaEsfuerzo}
+                    {esfuerzo ? filaEsfuerzo : null}
                   </>
                 )}
               </div>

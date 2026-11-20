@@ -94,7 +94,7 @@ export const GUIAS: readonly Guia[] = [
   guia("worker", 1, [paso("worker", "fila", ".lista .w .fila", { lado: "derecha" }), paso("worker", "estado", ".lista .w .l2", { lado: "derecha" }), paso("worker", "pie", ".pie-worker", { lado: "arriba" })], ".lista .w .fila"),
   // El selector de modelo abierto.
   guia("modelo", 1, [
-    paso("modelo", "riel", ".menu .mc-riel", { junto: ".menu", lado: "derecha" }),
+    paso("modelo", "riel", ".menu .mc-prov", { junto: ".menu", lado: "derecha" }),
     paso("modelo", "busca", ".menu .mc-busca", { junto: ".menu", lado: "derecha" }),
     paso("modelo", "lista", ".menu .mc-lista", { junto: ".menu", lado: "derecha" }),
   ], ".menu[data-columnas]"),

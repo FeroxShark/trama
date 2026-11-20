@@ -77,11 +77,11 @@ export const tourEn = {
   "tour.worker.pie.b": "Stop it, or pass its work to a lead, from the bar under the conversation.",
 
   "tour.modelo.riel.t": "Providers",
-  "tour.modelo.riel.b": "Each tab is a provider or engine: Anthropic, Google, the ones running on your machine, and so on.",
+  "tour.modelo.riel.b": "Each heading is a provider or engine: Anthropic, Google, the ones running on your machine, and so on. Its models are listed below it.",
   "tour.modelo.busca.t": "Search",
   "tour.modelo.busca.b": "Type part of a name to filter every provider at once.",
   "tour.modelo.lista.t": "Free and paid",
-  "tour.modelo.lista.b": "The Free and Paid tags tell you whether a model costs anything. Under each name, what it's good for: more intelligence decides better but uses more quota.",
+  "tour.modelo.lista.b": "The Free and Paid tags tell you whether a model costs anything. Hover a name to see what it's good for: more intelligence decides better but uses more quota.",
 
   "tour.ajustes.busca.t": "Search settings",
   "tour.ajustes.busca.b": "Type what you want to change (\"theme\", \"quota\", \"ollama\") and jump straight to that row.",
@@ -263,11 +263,11 @@ export const tourEs: Record<keyof typeof tourEn, string> = {
   "tour.worker.pie.b": "Frenalo, o pasale su trabajo a un líder, desde la barra debajo de la conversación.",
 
   "tour.modelo.riel.t": "Proveedores",
-  "tour.modelo.riel.b": "Cada pestaña es un proveedor o motor: Anthropic, Google, los que corren en tu máquina, y así.",
+  "tour.modelo.riel.b": "Cada encabezado es un proveedor o motor: Anthropic, Google, los que corren en tu máquina, y así. Debajo van sus modelos.",
   "tour.modelo.busca.t": "Buscador",
   "tour.modelo.busca.b": "Escribí parte de un nombre para filtrar todos los proveedores a la vez.",
   "tour.modelo.lista.t": "Gratis y de pago",
-  "tour.modelo.lista.b": "Las etiquetas Gratis y De pago te dicen si un modelo cuesta algo. Debajo de cada nombre, para qué sirve: más inteligencia decide mejor pero gasta más cupo.",
+  "tour.modelo.lista.b": "Las etiquetas Gratis y De pago te dicen si un modelo cuesta algo. Pasá el mouse por un nombre para ver para qué sirve: más inteligencia decide mejor pero gasta más cupo.",
 
   "tour.ajustes.busca.t": "Buscar en Ajustes",
   "tour.ajustes.busca.b": "Escribí lo que querés cambiar («tema», «cupo», «ollama») y saltás directo a esa fila.",

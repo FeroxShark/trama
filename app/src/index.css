@@ -6236,11 +6236,11 @@ summary.sis-div-t:hover,
   }
 }
 
-/* --- Selector compacto de modelos: un riel de proveedores a la izquierda y una sola lista a la derecha ----------- */
+/* --- Selector compacto de modelos: una columna angosta, un encabezado por proveedor y un renglón por modelo ----------- */
 .menu[data-columnas] {
-  width: min(46rem, 95vw);
-  max-width: min(46rem, 95vw);
-  max-height: min(60dvh, calc(100dvh - 1rem));
+  width: min(17.5rem, 95vw);
+  max-width: min(17.5rem, 95vw);
+  max-height: min(70dvh, calc(100dvh - 1rem));
   overflow: hidden;
   gap: 0;
   padding: var(--esp-1) var(--esp-1) var(--esp-1-5);
@@ -6258,7 +6258,7 @@ summary.sis-div-t:hover,
 .mc-busca {
   display: flex;
   min-width: 0;
-  flex: 0 1 15rem;
+  flex: 1 1 auto;
   align-items: center;
   gap: var(--esp-1-5);
   padding: 0 var(--esp-2);
@@ -6285,65 +6285,13 @@ summary.sis-div-t:hover,
 .mc-busca input::-webkit-search-cancel-button {
   display: none;
 }
-.mc-cuerpo {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-}
 /* El riel: una pestaña por proveedor (logo, nombre y cuántos modelos). */
-.mc-riel {
-  display: flex;
-  width: 12rem;
-  flex: none;
-  flex-direction: column;
-  gap: 1px;
-  padding: 0 var(--esp-1) 0 0;
-  border-right: 1px solid var(--borde-2);
-  overflow-y: auto;
-}
-.mc-tab {
-  display: flex;
-  align-items: center;
-  gap: var(--esp-2);
-  padding: var(--esp-2) var(--esp-2-5);
-  border: 0;
-  border-radius: var(--radio-2);
-  background: transparent;
-  color: var(--texto-4);
-  font-size: var(--letra-4);
-  text-align: left;
-  white-space: nowrap;
-}
-.mc-tab .logo {
-  flex: none;
-  color: var(--texto-3);
-}
-.mc-tab:hover,
-.mc-tab:focus-visible {
-  background: var(--sup-2);
-  color: var(--texto-2);
-}
 /* La pestaña elegida no es sólo color: fondo, negrita y una barra al borde. */
-.mc-tab[aria-selected="true"] {
-  background: var(--sup-2);
-  box-shadow: inset 0.1875rem 0 0 var(--texto-3);
-  color: var(--texto);
-  font-weight: 600;
-}
-.mc-tab[data-vacia] {
-  opacity: 0.55;
-}
 .mc-tn {
   min-width: 0;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.mc-cnt {
-  flex: none;
-  color: var(--texto-7);
-  font-family: var(--font-mono);
-  font-size: var(--letra-3);
 }
 .mc-lista {
   display: flex;
@@ -6351,7 +6299,7 @@ summary.sis-div-t:hover,
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  padding-left: var(--esp-1);
+  padding-right: var(--esp-0-5);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--borde-3) transparent;
@@ -6368,26 +6316,84 @@ summary.sis-div-t:hover,
   gap: 1px;
 }
 .mc-col + .mc-col {
-  margin-top: var(--esp-2);
+  margin-top: var(--esp-1);
 }
 /* Buscando se ven todos los proveedores, cada uno con su título pegado arriba. */
-.mc-tit {
+/* El encabezado de un proveedor: logo, nombre en mayúsculas chicas y, si no está conectado, la palabra «Sin conectar»; queda pegado arriba al bajar. */
+.mc-prov {
   position: sticky;
   top: 0;
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: var(--esp-2);
-  padding: var(--esp-1-5) var(--esp-2-5);
-  border-bottom: 1px solid var(--borde-2);
+  gap: var(--esp-1-5);
+  padding: var(--esp-2) var(--esp-2-5) var(--esp-1);
   background: var(--sup-1);
   color: var(--texto-4);
-  font-size: var(--letra-4);
+  font-size: var(--letra-2);
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
-.mc-tit .logo {
+.mc-prov .logo {
+  width: 0.875rem;
+  height: 0.875rem;
   flex: none;
   color: var(--texto-3);
+}
+.mc-prov .mc-tn {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc-prov[data-sin-conectar] .mc-tn,
+.mc-prov[data-agotada] .mc-tn {
+  opacity: 0.6;
+}
+.mc-prov .mc-sc {
+  letter-spacing: 0;
+  text-transform: none;
+}
+.mc-prov .oc-punto {
+  align-self: center;
+}
+/* El renglón elegido con su esfuerzo al lado: el renglón ocupa lo que queda y la píldora lleva el nivel de hoy. */
+.op-fila {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.op-fila > .op {
+  min-width: 0;
+  flex: 1;
+}
+.mc-esf-pill {
+  display: inline-flex;
+  height: 1.5rem;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-pastilla);
+  background: transparent;
+  color: var(--texto-2);
+  font: inherit;
+  font-size: var(--letra-3);
+  cursor: pointer;
+}
+.mc-esf-pill:is(:hover, :focus-visible) {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+.mc-esf-pill:focus-visible {
+  outline-offset: -2px;
+}
+.mc-esf-pill[aria-expanded="true"] .mc-esf-chev {
+  transform: rotate(180deg);
 }
 .mc-sub {
   padding: var(--esp-2) var(--esp-2-5) var(--esp-1);
@@ -6443,8 +6449,10 @@ summary.sis-div-t:hover,
 }
 .oc-meta {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: var(--esp-1-5);
+  white-space: nowrap;
 }
 .oc-tag {
   padding: 0 var(--esp-1-5);
@@ -6490,16 +6498,10 @@ summary.sis-div-t:hover,
 .menu[data-columnas] .op-c[data-agotada] .on1 {
   opacity: 0.55;
 }
-.mc-tab[data-agotada] {
-  opacity: 0.6;
-}
 /* Proveedor sin conectar: atenuado y con la palabra «Sin conectar» (nunca sólo el atenuado); se puede tocar para ver «Conectar». */
 .menu[data-columnas] .op-c[data-sin-conectar] .on1,
 .menu .op[data-sin-conectar] .on1 {
   opacity: 0.55;
-}
-.mc-tab[data-sin-conectar] .mc-tn {
-  opacity: 0.6;
 }
 .mc-sc {
   padding: 0 var(--esp-1-5);
@@ -6546,9 +6548,6 @@ summary.sis-div-t:hover,
 }
 .mc-conectar-btn:is(:hover, :focus-visible) {
   background: var(--sup-2);
-}
-.mc-tab .oc-punto {
-  align-self: center;
 }
 /* El chip del modelo elegido sin cupo lleva el prohibido en ámbar; el tooltip dice hasta cuándo. */
 .pbtn-cupo {
@@ -6604,6 +6603,12 @@ summary.sis-div-t:hover,
   padding: var(--esp-1-5) var(--esp-2-5) var(--esp-1);
   border-top: 1px solid var(--borde-2);
 }
+/* Debajo del renglón elegido (lista compacta) los niveles van sin la línea de arriba y con el rótulo al lado. */
+.mc-lista .mc-esf {
+  margin-top: 0;
+  padding: var(--esp-1) var(--esp-2-5) var(--esp-1-5);
+  border-top: 0;
+}
 .mc-esf-t {
   width: 100%;
   padding: 0 0 var(--esp-1);
@@ -6639,34 +6644,11 @@ summary.sis-div-t:hover,
     height: 2.5rem;
   }
 }
-/* Celular: el riel pasa arriba, en horizontal (el nombre se va, queda el logo y la cuenta). */
+/* Celular: la columna ocupa casi todo el ancho. */
 @media (max-width: 37.5rem) {
   .menu[data-columnas] {
     width: 95vw;
     max-width: 95vw;
-  }
-  .mc-cab {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--esp-1-5);
-  }
-  .mc-busca {
-    flex: none;
-  }
-  .mc-cuerpo {
-    flex-direction: column;
-  }
-  .mc-riel {
-    width: auto;
-    flex-direction: row;
-    padding: 0 0 var(--esp-1);
-    border-right: 0;
-    border-bottom: 1px solid var(--borde-2);
-    margin-bottom: var(--esp-1);
-    overflow: auto hidden;
-  }
-  .mc-lista {
-    padding-left: 0;
   }
 }
 /* /mcp: los conectores que ve un líder (PanelMcp.tsx), con el estilo de Ajustes: filas con ícono sobre una capa, estado con punto y palabra,

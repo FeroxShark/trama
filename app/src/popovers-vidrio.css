@@ -47,7 +47,7 @@
   .cmenu,
   .menu-cmd,
   #tip,
-  .mc-tit,
+  .mc-prov,
   .cmenu-buscar {
     background: var(--vidrio-opaco);
     backdrop-filter: none;
@@ -178,7 +178,7 @@
 .menu .op:focus-visible,
 .cmenu .cmenu-op:focus-visible,
 .menu-cmd .cmd:focus-visible,
-.mc-tab:focus-visible,
+.mc-esf-pill:focus-visible,
 .mc-esf-op:focus-visible {
   outline: 2px solid var(--acento);
   outline-offset: -2px;
@@ -225,44 +225,9 @@
   color: var(--apagado);
 }
 
-/* --- El selector de modelo: el riel de proveedores en cápsulas y la lista con su pie --- */
-.menu .mc-riel {
-  gap: var(--esp-0-5);
-  padding-right: var(--esp-2);
-  border-right: 0;
-  box-shadow: 1px 0 0 var(--popover-divisor);
-}
-.menu .mc-tab {
-  border-radius: var(--r-cap);
-  color: var(--apagado);
-  transition:
-    background-color var(--t-snappy),
-    box-shadow var(--t-snappy),
-    color var(--t-snappy);
-}
-.menu .mc-tab .logo {
-  color: var(--apagado);
-}
-.menu .mc-tab:is(:hover, :focus-visible) {
-  background: var(--popover-fila);
-  color: var(--texto);
-}
-/* La pestaña elegida: celeste con borde, negrita y el logo en acento (ya no la barra pegada al borde). */
-.menu .mc-tab[aria-selected="true"] {
-  background: var(--popover-fila-activa);
-  box-shadow: inset 0 0 0 1px var(--popover-fila-activa-borde);
-  color: var(--texto);
-}
-.menu .mc-tab[aria-selected="true"] .logo {
-  color: var(--acento);
-}
-.menu .mc-cnt {
-  color: var(--inactivo);
-  font-family: inherit;
-  font-variant-numeric: tabular-nums;
-}
+/* --- El selector de modelo: la lista con sus encabezados de proveedor y su pie --- */
 .menu .mc-lista {
-  padding-left: var(--esp-2);
+  padding-right: var(--esp-0-5);
 }
 .menu .mc-arriba {
   border-bottom: 0;
@@ -270,16 +235,22 @@
   padding-bottom: var(--esp-1-5);
   margin-bottom: var(--esp-1-5);
 }
-.menu .mc-tit {
-  border-bottom: 0;
-  border-radius: var(--r-md);
+.menu .mc-prov {
   background: var(--popover-fondo-tit);
   backdrop-filter: var(--popover-desenfoque);
-  box-shadow: 0 1px 0 var(--popover-divisor);
+  color: var(--apagado);
+}
+.menu .mc-prov .logo {
+  color: var(--acento);
+}
+.menu .mc-esf-pill {
+  border: 0;
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
   color: var(--texto);
 }
-.menu .mc-tit .logo {
-  color: var(--acento);
+.menu .mc-esf-pill:is(:hover, :focus-visible) {
+  background: var(--popover-fila);
 }
 /* Las etiquetas de una fila (Gratis, Plan Go, De pago…): cápsulas calmas con su palabra. */
 .menu .oc-tag {
@@ -317,10 +288,10 @@
   background: var(--decision-relleno);
   box-shadow: var(--decision-halo);
 }
-.menu .mc-tab .oc-punto {
+.menu .mc-prov .oc-punto {
   box-shadow: none;
 }
-.menu .mc-tab > svg:not(.logo) {
+.menu .mc-prov > svg:not(.logo) {
   color: var(--cupo-agotado-texto);
 }
 /* El nombre de un modelo sin cupo se atenúa, pero se lee y se puede elegir. */

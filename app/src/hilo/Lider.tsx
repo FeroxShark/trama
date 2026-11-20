@@ -1543,6 +1543,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
                 sufijo={effortsDe(modelo).length ? abreviar(effort) : undefined}
                 // Con el modelo y el esfuerzo en un solo chip (nivel 2 o 3 de la barra), el esfuerzo se elige al pie de este menú.
                 esfuerzo={nivel >= 2 && effortsDe(modelo).length ? { etiqueta: tr("comun.esfuerzo"), opciones: effortsOpciones(modelo), valor: effort, alElegir: elegirEffort } : undefined}
+                // Con el esfuerzo en su propio botón, el renglón elegido de la lista lo lleva igual al lado (elegir un modelo cierra el menú).
+                esfuerzoAlLado={effortsDe(modelo).length ? { etiqueta: tr("comun.esfuerzo"), opciones: effortsOpciones(modelo), valor: effort, alElegir: elegirEffort } : undefined}
                 chip={<span className="chip" />}
                 columnas
                 pendiente={pend.modelo ? tr("selector.pendienteTip", { actual: nombreModelo(turnoModelo ?? modelo) }) : undefined}
