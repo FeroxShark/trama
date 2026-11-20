@@ -80,3 +80,16 @@ test("un modelo de la cuenta sin nivel en el nombre se lanza tal cual (no se le 
     recordarAgySinNivel([]);
   }
 });
+
+test("un Gemini que Trama no conoce (Google le cambió el nombre) igual aparece; Flash y Orchestrator no", () => {
+  const filas = agyDeCuenta([
+    { id: "gemini-5-krypton-high", nombre: "Gemini 5 Krypton (High)" },
+    { id: "gemini-5-krypton-low", nombre: "Gemini 5 Krypton (Low)" },
+    { id: "gemini-3.8-flash-high", nombre: "Gemini 3.8 Flash (High)" },
+    { id: "gemini-pro-orchestrator-neon", nombre: "Orchestrator (Neon)" },
+    { id: "agy:gpt-oss-120b-medium", nombre: "GPT-OSS 120B (Medium)" },
+  ]);
+  assert.deepEqual(filas.map((m) => m.id), ["gemini-5-krypton", "agy:gpt-oss-120b"]);
+  assert.match(filas[0]!.nombre, /Gemini 5 Krypton/);
+  assert.deepEqual(filas[0]!.efforts.slice().sort(), ["high", "low"]);
+});

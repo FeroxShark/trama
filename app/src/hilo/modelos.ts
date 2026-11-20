@@ -250,7 +250,9 @@ export function agyDeCuenta(ofrecidos: readonly { id: string; nombre: string }[]
   }
   return [...grupos].flatMap(([id, g]) => {
     const conocido = GEMINI.find((m) => m.id === id);
-    if (!conocido && id.startsWith("gemini-")) return [];
+    // Flash y los «Orchestrator» de agy no se ofrecen. Otro Gemini que no conocemos (Google cambia nombres, y el agy de Windows
+    // puede venir con otra versión) entra con el nombre de agy: descartarlo dejaba a Windows sin ningún Gemini.
+    if (!conocido && /^gemini-(?:[\d.]+-flash|pro-orchestrator)/.test(id)) return [];
     const niveles = (conocido?.efforts ?? EFFORTS_GEMINI).filter((e) => g.niveles.includes(e));
     const effortDefecto = niveles.includes(conocido?.effortDefecto as never) ? conocido!.effortDefecto : niveles.includes("high") ? "high" : (niveles[0] ?? "high");
     return [
