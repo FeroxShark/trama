@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.3.13
+
+- Los modelos de Gemini vuelven a aparecer en el selector cuando agy los ofrece con un nombre que Trama todavía no conoce (pasaba en Windows: sólo salían Claude y GPT-OSS).
+
 ## 0.3.12
 
 - Los chats largos vuelven a abrir y a escribirse rápido: la animación de los mensajes nuevos se aplicaba a toda la conversación y cada tecla se trababa.

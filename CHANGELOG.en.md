@@ -1,5 +1,9 @@
 # Changes
 
+## 0.3.13
+
+- Gemini models show up again in the model picker when agy offers them under a name Trama does not know yet (it happened on Windows: only Claude and GPT-OSS appeared).
+
 ## 0.3.12
 
 - Long chats open and take typing quickly again: the animation for new messages was being applied to the whole conversation and every keystroke stuttered.
