@@ -12,8 +12,8 @@
 import type { ComandoClaude, Estilos, EventoLider, HaceLider, Mensaje } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { sinReintento, sumarAviso, type AvisoVisto } from "./avisos";
-import { avanzar, mismo, sinNovedades, ultimaLinea, type Paso, type Salida } from "./actividad-logica";
-import { lineaDeTiempo, type LineaTiempo } from "./linea-tiempo";
+import { avanzar, mismo, sinNovedades, ultimaLinea, type Paralela, type Paso, type Salida } from "./actividad-logica";
+import { lineaDeTiempo, paralelasDe, type LineaTiempo } from "./linea-tiempo";
 import { crearEspejo, type AvisoCola, type Encolado } from "./cola";
 
 /** El indicador: el mismo objeto mientras no cambie (la fila se suscribe sólo a esto). */
@@ -346,6 +346,18 @@ export function lineasDelTurno(sid: string): LineaTiempo[] {
   if (c && c.tanda === e.tanda && c.turno === e.turno) return c.res;
   const res = lineaDeTiempo(e.tanda.slice(e.turno));
   lineas.set(sid, { tanda: e.tanda, turno: e.turno, res });
+  return res;
+}
+
+const paralelas = new Map<string, { de: LineaTiempo[]; res: Paralela[] }>();
+
+/** Las herramientas del último mensaje del turno y cómo va cada una (`paralelasDe`): el mismo arreglo mientras no cambie la línea de tiempo. */
+export function paralelasDelTurno(sid: string): Paralela[] {
+  const l = lineasDelTurno(sid);
+  const c = paralelas.get(sid);
+  if (c && c.de === l) return c.res;
+  const res = paralelasDe(l);
+  paralelas.set(sid, { de: l, res });
   return res;
 }
 

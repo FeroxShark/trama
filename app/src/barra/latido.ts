@@ -25,6 +25,8 @@ const ondas = de("onda");
 const laten = de("late");
 const halos = de("halo");
 const giran = de("gira");
+/** El arco de la tarjeta de actividad (src/hilo/Actividad.tsx): una vuelta más ligera que `gira`, para que se lea como señal de vida. */
+const arcos = de("gira-arco");
 const brillos = de("brillo");
 /** El resplandor detrás de la corona de un líder que está respondiendo. */
 const fulgores = de("fulgor");
@@ -36,13 +38,14 @@ const postas = de("posta");
 const lanzaderas = de("lanzadera");
 /** El cursor de la salida de un comando que todavía corre (la vista de worker): prende y apaga. */
 const parpadean = de("parpadea");
-const todas = [ondas, laten, halos, giran, brillos, fulgores, pliegan, postas, parpadean, lanzaderas];
+const todas = [ondas, laten, halos, giran, arcos, brillos, fulgores, pliegan, postas, parpadean, lanzaderas];
 
 const quieto = matchMedia("(prefers-reduced-motion: reduce)");
 
 const ONDA_MS = 1800;
 const HALO_MS = 2600;
 const GIRO_MS = 5000;
+const ARCO_MS = 1400;
 const BRILLO_MS = 2400;
 const FULGOR_MS = 2200;
 const PLIEGUE_MS = 1600;
@@ -63,6 +66,7 @@ function limpiar() {
   for (const n of laten) n.style.transform = "";
   for (const n of halos) n.style.cssText = "";
   for (const n of giran) n.style.transform = "";
+  for (const n of arcos) n.style.transform = "";
   for (const n of brillos) n.style.backgroundPosition = "";
   for (const n of fulgores) n.style.cssText = "";
   for (const n of pliegan) n.style.transform = "";
@@ -96,6 +100,8 @@ function tic() {
   }
   const giro = `rotate(${Math.round(fase(t, GIRO_MS) * 360)}deg)`;
   for (const n of giran) n.style.transform = giro;
+  const arco = `rotate(${Math.round(fase(t, ARCO_MS) * 360)}deg)`;
+  for (const n of arcos) n.style.transform = arco;
   const brillo = `${(100 - 100 * fase(t, BRILLO_MS)).toFixed(1)}% 0`;
   for (const n of brillos) n.style.backgroundPosition = brillo;
   // El fulgor respira: va y vuelve, sin saltos (sólo opacity y transform).

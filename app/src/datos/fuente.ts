@@ -1468,6 +1468,19 @@ export function escenaFija(sid: string, escena: "trabajando" | "avisos" | "plan"
   }
   // Los estados de la tarjeta (`lider-trabajando` con `HILOS_VARIANTE=…`): un comando con descripción, sin ella, ya devuelto, callado, y el turno que termina.
   const vt = MODO.captura === "lider-trabajando" ? MODO.variante : undefined;
+  // `paralelo`: tres herramientas en un mismo mensaje (un subagente, un comando y una búsqueda ya devuelta).
+  if (escena === "trabajando" && vt === "paralelo") {
+    const det = [
+      { nombre: "Task", entrada: { description: "Leer los manejadores de IPC", subagent_type: "Explore" }, id: "toolu_p1" },
+      { nombre: "Bash", entrada: { command: "npx tsc -p tsconfig.json --noEmit", description: "Correr los tipos" }, id: "toolu_p2" },
+      { nombre: "Grep", entrada: { pattern: "lider:conversacion", path: "electron" }, id: "toolu_p3" },
+    ];
+    ev({ tipo: "mensaje", mid: "f-par", texto: "", herramientas: ["Task: Leer los manejadores de IPC", "Bash: npx tsc", "Grep: lider:conversacion"], modelo: "claude-opus-5-5", det });
+    ev({ tipo: "hace", hace: { que: "herramienta", nombre: "Bash", detalle: "npx tsc -p tsconfig.json --noEmit", desc: "Correr los tipos" } });
+    ev({ tipo: "tokens", salida: 1280, nuevo: true });
+    ev({ tipo: "resultado", id: "toolu_p3", texto: "electron/nucleo.ts:412:  lider:conversacion", error: false });
+    return;
+  }
   if (escena === "trabajando" && (vt === "uno" || vt === "sin-desc" || vt === "corrio" || vt === "quieto" || vt === "listo" || vt === "fallo" || vt === "parado")) {
     const command = "pa estado --workers --json | jq -r '.[] | select(.vivo) | .id' \\\n  && tablero lista --abiertas --proyecto atlas";
     const desc = vt === "sin-desc" ? undefined : "Revisando workers y tablero";

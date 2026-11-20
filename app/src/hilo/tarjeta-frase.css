@@ -1,26 +1,20 @@
-/* La tarjeta de un líder trabajando, propuesta Frase (maquetas/rediseno-0.4/status-trabajando-b-*.png): una cápsula de vidrio hermana de la caja.
-   Sólo tokens de src/tokens.css. Sin animaciones infinitas: el punto y la escena los mueve src/barra/latido.ts. */
+/* La tarjeta de un líder trabajando, dirección C · Anillo (src/hilo/Actividad.tsx): una cápsula de vidrio hermana de la caja.
+   Sólo tokens de src/tokens.css. Sin animaciones infinitas: el arco lo mueve src/barra/latido.ts (clase `gira-arco`). */
 .tv {
   container-type: inline-size;
   animation: tv-entra 200ms ease-out;
 }
-/* Una línea compacta, sin caja pesada: ícono (del color de su clase) + qué hace + el detalle en mono, y a la derecha «Ver todo», el modelo, el estado
-   con su palabra y la duración. Los hijos de `.tv-cu`, `.tv-1` y `.tv-2` fluyen directo en la línea (`display: contents`); el error y lo desplegado
-   ocupan la fila entera. Angosta, el detalle baja a una segunda línea. */
+/* Una cápsula baja: el anillo a la izquierda, dos renglones (qué pasa / el detalle), el tiempo y el modelo a la derecha y «Ver todo».
+   El error y lo desplegado ocupan la fila entera. Angosta, lo de la derecha baja a una segunda fila. */
 .tv-tar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--esp-1) var(--esp-2-5);
-  padding: var(--esp-2) var(--esp-3);
+  gap: var(--esp-1) var(--esp-3);
+  padding: var(--esp-3);
   border-radius: var(--r-md);
   background: var(--capa-card);
   transition: background-color 240ms ease-out;
-}
-.tv-cu,
-.tv-1,
-.tv-2 {
-  display: contents;
 }
 .tv[data-t="permiso"] .tv-tar,
 .tv[data-estado="quieto"] .tv-tar {
@@ -30,13 +24,6 @@
 .tv[data-error] .tv-tar {
   background: var(--fallo-fondo);
   box-shadow: inset 0 0 0 1px var(--fallo-luz);
-}
-/* Con `data-t`, para ganarle al color de cada tipo (src/index.css) sea cual sea el orden en que se cargan. */
-.tv[data-t][data-estado="quieto"] {
-  --c: var(--aviso);
-}
-.tv[data-t][data-error] {
-  --c: var(--critico);
 }
 .tv[data-saliendo] {
   animation: tv-pliega 200ms ease-in forwards;
@@ -48,29 +35,101 @@
   }
 }
 
-/* El ícono de la línea: el de la herramienta, en su color suave; sin novedades, la pausa; con el error, la ×. */
-.tv-tile {
+/* El anillo: el ícono de la herramienta en su color de clase (o el número, con varias a la vez) y, alrededor, un arco del mismo color que gira
+   como señal de vida. Quieto, pidiendo permiso, fallado o yéndose no gira (sin la clase `gira-arco`): la pose fija es la que se ve también con
+   movimiento reducido. */
+.tv-an {
+  --anillo: var(--acento);
+  position: relative;
   display: grid;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
   flex: none;
   place-items: center;
-  color: var(--c);
+  border-radius: 50%;
+  background: var(--capa-tile);
+  color: var(--anillo);
   transition: color 240ms ease-out;
 }
-.tv-tile > :is(.tv-ic, svg) {
+.tv-an[data-clase="leer"] {
+  --anillo: var(--tipo-leer);
+}
+.tv-an[data-clase="escribir"] {
+  --anillo: var(--tipo-escribir);
+}
+.tv-an[data-clase="comando"] {
+  --anillo: var(--tipo-comando);
+}
+.tv-an[data-clase="web"] {
+  --anillo: var(--tipo-web);
+}
+.tv-an[data-clase="neutro"] {
+  --anillo: var(--tipo-neutro);
+}
+.tv-an[data-clase="pensar"] {
+  --anillo: var(--probar);
+}
+.tv-an[data-clase="texto"] {
+  --anillo: var(--acento);
+}
+.tv-an:is([data-clase="permiso"], [data-clase="quieto"], [data-clase="paralelo"]) {
+  --anillo: var(--aviso);
+}
+.tv-an[data-clase="fallo"] {
+  --anillo: var(--critico);
+}
+/* El pensar y los estados llevan el color del anillo en el ícono (el resto, el de su clase, que ya es el mismo). */
+.tv-an:is([data-clase="pensar"], [data-clase="texto"]) .tv-ic {
+  color: var(--anillo);
+}
+.tv-arco {
+  position: absolute;
+  inset: 0;
+  border: 2px solid transparent;
+  border-top-color: var(--anillo);
+  border-right-color: var(--anillo);
+  border-radius: 50%;
+  transform: rotate(30deg);
+  transition: border-color 240ms ease-out;
+}
+/* Fallado: el anillo cerrado, sin giro. */
+.tv[data-error] .tv-arco {
+  border-color: var(--anillo);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tv-arco {
+    transform: rotate(30deg) !important;
+  }
+}
+.tv-n {
+  color: var(--texto-1);
+  font-size: var(--letra-6);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tv-an > :is(.tv-ic, svg, .tv-n) {
   animation: tv-escena 200ms ease-out;
+}
+.tv-an > .tv-arco {
+  animation: none;
 }
 @keyframes tv-escena {
   from {
     opacity: 0;
   }
 }
-/* Qué hace, en peso medio; lo recién hecho (la miga) no va en la línea: ya está en los pasos de «Ver todo». */
-.tv-frase {
+
+/* Los dos renglones: arriba qué pasa (con un solo verbo) y, más tenue, la herramienta o el resumen; abajo el detalle. */
+.tv-cu {
   display: flex;
   min-width: 0;
-  flex: 0 1 auto;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+}
+.tv-1 {
+  display: flex;
+  min-width: 0;
   align-items: baseline;
   gap: var(--esp-2);
 }
@@ -79,7 +138,7 @@
   flex: 0 1 auto;
   overflow: hidden;
   color: var(--texto-1);
-  font-size: var(--letra-5);
+  font-size: var(--letra-6);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -91,30 +150,95 @@
     transform: translateX(0.375rem);
   }
 }
-.tv-ant {
-  display: none;
+.tv-sub {
   min-width: 0;
   flex: 0 100000 auto;
-  justify-content: flex-end;
   overflow: hidden;
-  color: var(--texto-6);
+  color: var(--texto-5);
+  font-size: var(--letra-4);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tv-2 {
+  min-width: 0;
+}
+.tv-2:empty {
+  display: none;
+}
+.tv-out {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--texto-5);
   font-size: var(--letra-4);
   white-space: pre;
-  mask-image: linear-gradient(to right, transparent, var(--texto-1) 2.5rem);
+  mask-image: linear-gradient(to left, transparent, var(--texto-1) 3rem);
+  animation: tv-escena 160ms ease-out;
 }
-.tv-ant > span {
-  flex: none;
+.tv-out[data-mono] {
+  color: var(--texto-4);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
 }
-
-/* Un solo estado a la derecha: la palabra (`.tv-verbo`), el punto que late y la duración. */
-.tv-est {
-  order: 6;
+.tv:is([data-estado="quieto"], [data-error]) .tv-out {
+  color: var(--texto-4);
+}
+/* Una ficha por herramienta que corre a la vez: ícono, nombre y su estado en palabra (el color la acompaña, nunca la reemplaza). */
+.tv-chips {
+  display: flex;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: var(--esp-1-5);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  mask-image: linear-gradient(to left, transparent, var(--texto-1) 2rem);
+}
+.tv-chip {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: var(--esp-2);
+  gap: var(--esp-1-5);
+  height: 1.25rem;
+  padding: 0 var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
   color: var(--texto-3);
-  font-size: var(--letra-4);
+  font-size: var(--letra-3);
+  white-space: nowrap;
+}
+.tv-chip .tv-ic {
+  color: inherit;
+}
+.tv-chip[data-e="corriendo"] {
+  color: var(--acento);
+}
+.tv-chip[data-e="listo"] {
+  color: var(--ok);
+}
+.tv-chip[data-e="espera"] {
+  color: var(--aviso);
+}
+.tv-chip[data-e="error"] {
+  color: var(--fallo-texto);
+}
+
+/* A la derecha: el tiempo arriba y, debajo, el modelo con el punto del color de su familia. */
+.tv-der {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--esp-0-5);
+}
+.tv-est {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--texto-1);
+  font-size: var(--letra-6);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -122,89 +246,70 @@
   color: inherit;
   font-size: inherit;
 }
-.tv-punto {
-  flex: none;
-  width: 0.4375rem;
-  height: 0.4375rem;
-  border-radius: 50%;
-  background: var(--acento);
-}
 .tv[data-estado="quieto"] .tv-est {
   color: var(--decision-texto);
-  font-weight: 500;
-}
-.tv:is([data-estado="quieto"], [data-t="permiso"]) .tv-punto {
-  background: var(--aviso);
-  box-shadow: none;
 }
 .tv[data-error] .tv-est {
   color: var(--fallo-texto);
-  font-weight: 500;
 }
-
-/* El detalle en mono (comando o salida) y, a la derecha, «Ver todo», el modelo y el estado con su palabra («Corriendo», «Corrió»). */
-.tv-frase {
-  order: 1;
-}
-.tv-verbo {
-  order: 5;
-  flex: none;
-  color: var(--texto-3);
-  font-size: var(--letra-4);
-  font-weight: 500;
-}
-.tv-verbo[data-error],
-.tv[data-error] .tv-verbo {
-  color: var(--fallo-texto);
-}
-.tv-out {
-  order: 2;
-  min-width: 0;
-  flex: 1 1 0;
-  overflow: hidden;
+.tv-modelo {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--r-xs);
   color: var(--texto-5);
-  font-size: var(--letra-4);
-  white-space: pre;
-  mask-image: linear-gradient(to left, transparent, var(--texto-1) 1.5rem);
-  animation: tv-escena 160ms ease-out;
-}
-.tv-out[data-mono] {
-  font-family: var(--font-mono);
   font-size: var(--letra-3);
+  white-space: nowrap;
 }
-.tv:is([data-estado="quieto"], [data-error]) .tv-out {
-  color: var(--texto-4);
+.tv-fam {
+  flex: none;
+  width: 0.375rem;
+  height: 0.375rem;
+  margin-right: var(--esp-1-5);
+  border-radius: 50%;
+  background: var(--familia-otro);
 }
+.tv-fam[data-familia="opus"] {
+  background: var(--fam-opus);
+}
+.tv-fam[data-familia="sonnet"] {
+  background: var(--fam-sonnet);
+}
+.tv-fam[data-familia="haiku"] {
+  background: var(--fam-haiku);
+}
+.tv-fam[data-familia="fable"] {
+  background: var(--familia-fable);
+}
+/* El esfuerzo, tras el nombre del modelo, con su punto medio (el de index.css lleva un espacio que acá el flex se come). */
+.tv-modelo .tv-ef::before {
+  margin: 0 var(--esp-1-5);
+  content: "·";
+}
+/* «Ver todo ⌄»: un botón redondeado con su rótulo. */
 .tv-ver {
-  order: 3;
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: var(--esp-0-5);
-  padding: 0;
+  gap: var(--esp-1);
+  height: 1.75rem;
+  padding: 0 var(--esp-2-5) 0 var(--esp-3);
   border: 0;
-  border-radius: var(--r-xs);
-  background: none;
-  color: var(--texto-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--texto-3);
   font-size: var(--letra-4);
   white-space: nowrap;
-  transition: color 120ms ease-out;
+  transition: color 120ms ease-out, background-color 120ms ease-out;
 }
 .tv-ver:hover {
+  background: var(--capa-div);
   color: var(--texto-1);
 }
 .tv-ver[aria-expanded="true"] .tv-fl {
   transform: rotate(180deg);
 }
-.tv-modelo {
-  order: 4;
-  position: relative;
-  flex: none;
-  border-radius: var(--r-xs);
-  color: var(--apagado);
-  font-size: var(--letra-4);
-  white-space: nowrap;
-}
+
 /* Lo que falló se lee entero: acá la tarjeta ya no tiene que ser baja. */
 .tv[data-error] .tv-v {
   overflow: visible;
@@ -286,19 +391,31 @@
   margin-top: calc(var(--esp-1) * -1);
 }
 
-/* Angosta: el detalle baja a su propia línea, entero, y el resto queda arriba. */
-@container (max-width: 38rem) {
-  .tv-out {
-    order: 8;
-    flex: 1 0 100%;
+/* Angosta: el tiempo, el modelo y «Ver todo» bajan a una segunda fila, debajo de los renglones. */
+@container (max-width: 34rem) {
+  .tv-cu {
+    flex: 1 1 calc(100% - 3.25rem);
+  }
+  .tv-der {
+    margin-left: 3.25rem;
+    margin-right: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--esp-3);
+  }
+  .tv-est {
+    font-size: var(--letra-5);
   }
 }
 
-/* Muy angosta (la barra abierta en una ventana chica): la frase baja de renglón antes que cortarse. */
+/* Muy angosta (la barra abierta en una ventana chica): el verbo baja de renglón antes que cortarse. */
 @container (max-width: 22rem) {
   .tv-v {
     overflow: visible;
     white-space: normal;
+  }
+  .tv-1 {
+    flex-wrap: wrap;
   }
 }
 

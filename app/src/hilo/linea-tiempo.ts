@@ -1,7 +1,7 @@
 // La línea de tiempo de la tarjeta de actividad: lo que fue pasando en el turno de un líder, en orden. Aparte de `actividad-logica.ts` porque
 // éste no importa nada de la vista (su test corre sin el hook de imports); `herramientas.ts` sí.
 import type { Mensaje } from "../datos/contrato";
-import { iconoDe, type Icono } from "./actividad-logica";
+import { iconoDe, type Icono, type Paralela } from "./actividad-logica";
 import { archivoDe, usosDe } from "./herramientas";
 import type { ArchivoDeHerramienta } from "../../electron/archivo-ruta.ts";
 
@@ -33,4 +33,24 @@ export function lineaDeTiempo(msgs: Mensaje[], transcript: string | null = null)
     });
   });
   return out;
+}
+
+/**
+ * Las herramientas que el modelo lanzó juntas en su último mensaje (las del mismo mensaje van juntas: `vivo.ts`), cada una con cómo va. Sale
+ * de la misma línea de tiempo, no de otro dato: sin resultado todavía es `corriendo` (un subagente, `espera`: se espera a otro, no a un
+ * comando); con resultado, `listo` o `error`. Vacío si el último mensaje no llamó herramientas.
+ */
+export function paralelasDe(lineas: LineaTiempo[]): Paralela[] {
+  const hs = lineas.filter((x): x is Extract<LineaTiempo, { tipo: "herramienta" }> => x.tipo === "herramienta");
+  const ultimo = hs.at(-1);
+  if (!ultimo) return [];
+  const mensaje = ultimo.key.slice(0, ultimo.key.lastIndexOf("."));
+  return hs
+    .filter((x) => x.key.startsWith(`${mensaje}.`))
+    .map((x) => ({
+      nombre: x.nombre,
+      icono: x.icono,
+      detalle: x.detalle,
+      estado: x.estado === "error" ? "error" : x.estado === "corriendo" ? (x.icono === "delegar" ? "espera" : "corriendo") : "listo",
+    }));
 }

@@ -1,6 +1,6 @@
-// La tarjeta de un líder de la app mientras responde (propuesta Frase, maquetas/rediseno-0.4/status-trabajando-b-*.png): la frase de lo que
-// hace, la salida en una línea, "Ver todo" con el comando entero, los pasos y el progreso, y el pie con modelo y esfuerzo.
-// Qué evento da cada tipo y qué dice cada línea: src/hilo/actividad-logica.ts. El movimiento: src/barra/latido-escenas.ts.
+// La tarjeta de un líder de la app mientras responde (dirección C · Anillo): un círculo con el ícono de lo que hace y un arco que gira como
+// señal de vida; dos renglones (qué pasa, con un solo verbo, y el detalle); a la derecha el tiempo y el modelo, y «Ver todo» con el comando
+// entero, los pasos y el progreso. Qué dice cada renglón: `vistaDe` en src/hilo/actividad-logica.ts. El arco lo mueve src/barra/latido.ts.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Brain, ChevronDown, ChevronRight, Hand, MessageSquare, Pause, X, type LucideIcon } from "lucide-react";
 import type { HaceLider } from "../datos/contrato";
@@ -9,10 +9,12 @@ import { Reloj } from "../barra/piezas";
 import { t } from "../i18n";
 import { duracionFina, pintorDura } from "../tiempo";
 import { alScroll, bajar, seguidor, seguir } from "./seguir";
-import { cuentaMas, cuentaPasos, estadoDe, fraseDe, iconoDe, lineaPaso, muyLargo, PASOS, primeraLineaPensada, textoDetalle, ultimaFrasePensada, type Actividad as Act, type Icono, type Paso, type Salida } from "./actividad-logica";
+import { cuentaMas, cuentaPasos, estadoDe, iconoDe, lineaPaso, muyLargo, PASOS, primeraLineaPensada, textoDetalle, ultimaFrasePensada, vistaDe, type Actividad as Act, type EstadoParalela, type Icono, type Paralela, type Paso, type Salida } from "./actividad-logica";
 import type { LineaTiempo } from "./linea-tiempo";
 import { Tierno } from "./Tierno";
 import { EnlaceArchivo } from "./VerArchivo";
+import { familiaDe } from "../barra/marca-familia";
+import { claseAccion, TIPO_DE_CLAVE } from "./accion-tipo";
 import { IconoClave } from "./IconoAccion";
 
 /** Los dibujos que no son una herramienta; los de las herramientas salen del mapa único (./accion-tipo.ts) con su color suave. */
@@ -191,6 +193,8 @@ type Props = {
    * herramientas (`lineaDeTiempo`) y el pensamiento que todavía llega. `undefined`: no lo deja ver, y se muestran los pasos de siempre.
    */
   razon?: { lineas: LineaTiempo[]; pensando: string };
+  /** Las herramientas que el último mensaje lanzó juntas y cómo va cada una (`paralelasDe`): con dos o más sin terminar, la tarjeta las cuenta. */
+  paralelas?: Paralela[];
   /** Qué modelo y esfuerzo corre ("Sonnet 5.5", "high"), cuando se saben. */
   modelo?: string | null;
   effort?: string | null;
@@ -213,13 +217,28 @@ type Props = {
 
 const estadoVisible = (quieto: boolean, fallo: boolean) => (fallo ? "fallo" : quieto ? "quieto" : "corre");
 
+const ESTADO_PARALELA = { corriendo: "hz.c.e.corriendo", espera: "hz.c.e.espera", listo: "hz.c.e.listo", error: "hz.c.e.error" } as const satisfies Record<EstadoParalela, string>;
+
+/** Cómo se llama una herramienta en su ficha: un subagente, por su nombre en palabras. */
+const nombreFicha = (x: Paralela) => (x.icono === "delegar" && (x.nombre === "Task" || x.nombre === "Agent") ? t("hz.c.subagente") : x.nombre);
+
+/** El color del anillo y de su arco: el de la clase del ícono (los de las herramientas, los mismos que en el chat) o el del estado. */
+function claseAnillo(act: Act, o: { fallo: boolean; quieto: boolean; paralelo: boolean }): string {
+  if (o.fallo) return "fallo";
+  if (o.quieto) return "quieto";
+  if (act.tipo === "permiso") return "permiso";
+  if (o.paralelo) return "paralelo";
+  if (act.icono === "pensar" || act.icono === "texto") return act.icono;
+  return claseAccion(TIPO_DE_CLAVE[act.icono] ?? "otra");
+}
+
 /**
- * La tarjeta de un líder trabajando (propuesta Frase): una cápsula baja hermana de la caja, con un círculo por tipo de herramienta y la frase de lo
- * que hace; abajo, la salida (o el comando) en una línea que se funde, "Ver todo" y el modelo. Un solo estado: el punto que late y el tiempo.
- * Parar queda sólo en la caja: siempre a la vista, aunque se suba por la conversación.
+ * La tarjeta de un líder trabajando (dirección C · Anillo): una cápsula baja hermana de la caja. A la izquierda el círculo con el ícono de la
+ * herramienta (o el número, con varias a la vez) y un arco que gira mientras está vivo (quieto, pidiendo permiso o fallado, no gira); en el medio
+ * dos renglones; a la derecha el tiempo, el modelo y «Ver todo». Parar queda sólo en la caja: siempre a la vista, aunque se suba por la conversación.
  */
-export function Actividad({ act, hace, pasos, pasosN, desde, tokens, tierno, razon, modelo, effort, salida, crudo, quieto = null, callado = null, abierto, alAbrir, fallo, saliendo }: Props) {
-  // El latido (el punto y la escena) corre mientras la tarjeta está viva.
+export function Actividad({ act, hace, pasos, pasosN, desde, tokens, tierno, razon, paralelas = [], modelo, effort, salida, crudo, quieto = null, callado = null, abierto, alAbrir, fallo, saliendo }: Props) {
+  // El latido (el arco y la escena) corre mientras la tarjeta está viva.
   const viva = !fallo && !saliendo;
   useEffect(() => (viva ? latir() : undefined), [viva]);
   const [todos, setTodos] = useState(false);
@@ -227,115 +246,148 @@ export function Actividad({ act, hace, pasos, pasosN, desde, tokens, tierno, raz
   const sinNovedad = useMemo(() => (quieto !== null ? pintorDura(quieto / 1000, () => `${t("hz.quieto")} `) : null), [quieto]);
   const sinSalida = useMemo(() => (callado !== null ? pintorDura(callado / 1000, () => `${t("hz.callado")} `) : null), [callado]);
   const conRazon = !!razon && !fallo;
-  const frase = fraseDe({ act, hace, pasos, salida, pensando: razon?.pensando, fallo: !!fallo });
+  const vista = vistaDe({ act, hace, pasos, salida, pensando: razon?.pensando, fallo: !!fallo, paralelas });
+  const enParalelo = vista.n !== null;
   const lineas = pasos.map((p) => ({ l: lineaPaso(p), i: iconoDe(p.hace) })).filter((x): x is { l: string; i: Icono } => x.l !== null);
   // Con el progreso a la vista (pensamientos y herramientas en orden) los pasos de atrás sobran: serían lo mismo dos veces.
   const vis = conRazon ? [] : todos ? lineas : lineas.slice(0, PASOS);
   const ocultos = conRazon ? 0 : lineas.length - PASOS;
   const estado = estadoDe(act);
-  // Lo entero de lo que abajo se ve en una línea: el comando con sus renglones, la pregunta o el permiso.
-  const entero = act.tipo === "permiso" ? textoDetalle(act) : hace?.que === "herramienta" ? (crudo ?? (act.detalle !== hace.nombre ? act.detalle : "")) : "";
+  // Lo entero de lo que arriba se ve en una línea: el comando con sus renglones, la pregunta o el permiso. Con varias a la vez no es de ninguna.
+  const entero = enParalelo ? "" : act.tipo === "permiso" ? textoDetalle(act) : hace?.que === "herramienta" ? (crudo ?? (act.detalle !== hace.nombre ? act.detalle : "")) : "";
+  const descripcion = !enParalelo && act.tipo !== "permiso" && hace?.que === "herramienta" ? (hace.desc ?? "") : "";
+  const devuelto = !enParalelo && hace?.que === "herramienta" ? (salida?.linea ?? "") : "";
   const hayProgreso = conRazon && (razon.lineas.length > 0 || !!razon.pensando.trim());
-  const hayCuerpo = !!entero || lineas.length > 0 || hayProgreso;
+  const hayCuerpo = !!entero || !!descripcion || !!devuelto || enParalelo || lineas.length > 0 || hayProgreso;
   const cuenta = [tokens, pasosN ? cuentaPasos(pasosN) : null].filter(Boolean).join(" · ");
-  // Abierta, el comando ya se lee entero abajo: no va dos veces (la salida sí, que es otra cosa).
-  const linea = abierto && frase.mono && !salida?.linea ? "" : frase.linea;
+  const clase = claseAnillo(act, { fallo: !!fallo, quieto: quieto !== null, paralelo: enParalelo });
+  // El arco sólo gira con vida: quieto, esperando al usuario, fallado o yéndose, queda fijo.
+  const gira = viva && clase !== "quieto" && clase !== "permiso";
+  const detalle = vista.detalle;
+  // Abierta, el comando (o el permiso) ya se lee entero abajo: no va dos veces.
+  const detalleArriba = !(abierto && entero && (detalle.tipo === "mono" || act.tipo === "permiso"));
   return (
     <div className="tv" data-t={act.tipo} data-e={estado} data-estado={estadoVisible(quieto !== null, !!fallo)} data-abierto={abierto ? "" : undefined} data-error={fallo ? "" : undefined} data-saliendo={saliendo ? "" : undefined} role="status">
       <div className="tv-tar">
-        <span className="tv-tile" aria-hidden="true">
-          {fallo ? <X size={16} strokeWidth={2.2} /> : quieto !== null ? <Pause size={16} strokeWidth={2} /> : <IconoClave key={act.icono} clave={act.icono} propios={PROPIOS} className="tv-ic" size={16} />}
+        <span className="tv-an" data-clase={clase} aria-hidden="true">
+          <i className={gira ? "tv-arco gira-arco" : "tv-arco"} />
+          {fallo ? <X size={16} strokeWidth={2.2} /> : quieto !== null ? <Pause size={16} strokeWidth={2} /> : vista.n !== null ? <span className="tv-n">{vista.n}</span> : <IconoClave key={act.icono} clave={act.icono} propios={PROPIOS} className="tv-ic" size={18} />}
         </span>
         <div className="tv-cu">
           <div className="tv-1">
-            <span className="tv-frase">
-              {frase.antes.length ? (
-                <span className="tv-ant">
-                  <span>{frase.antes.join("  ›  ")}  ›</span>
-                </span>
+            {/* La clave cambia con el paso: la frase nueva entra. */}
+            {tierno ? <Tierno semilla={tierno} className="tv-v" limpia /> : <span className="tv-v" key={vista.verbo} data-tip={vista.verbo}>{vista.verbo}</span>}
+            {vista.sub ? <span className="tv-sub">{vista.sub}</span> : null}
+          </div>
+          {/* `aria-live` apagado: lo que cambia solo no se anuncia de a pedazos. */}
+          <div className="tv-2" aria-live="off">
+            {!detalleArriba ? null : detalle.tipo === "chips" ? (
+              <ul className="tv-chips" aria-label={t("hz.c.paralelas")}>
+                {detalle.items.map((x, i) => (
+                  <li key={i} className="tv-chip" data-e={x.estado}>
+                    <IconoClave clave={x.icono} propios={PROPIOS} className="tv-ic" size={12} />
+                    <span>{`${nombreFicha(x)} · ${t(ESTADO_PARALELA[x.estado])}`}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : detalle.tipo === "vacio" ? null : (
+              <span className="tv-out" key={detalle.texto} data-mono={detalle.tipo === "mono" ? "" : undefined}>
+                {detalle.texto}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="tv-der">
+          {fallo ? (
+            <span className="tv-est">
+              <X size={14} strokeWidth={2.4} aria-hidden="true" />
+              {t("hz.t.error")}
+              {fallo.dura !== null ? ` · ${duracionFina(fallo.dura)}` : ""}
+            </span>
+          ) : sinNovedad ? (
+            <span className="tv-est">
+              <Reloj pintor={sinNovedad} className="tv-x" />
+            </span>
+          ) : dura ? (
+            <span className="tv-est" aria-label={t("estado.trabajando")}>
+              <Reloj pintor={dura} className="tv-x" />
+              {sinSalida ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <Reloj pintor={sinSalida} className="tv-x" />
+                </>
               ) : null}
-              {/* La clave cambia con el paso: la frase nueva entra y la de antes ya quedó en la miga. */}
-              {tierno ? <Tierno semilla={tierno} className="tv-v" limpia /> : <span className="tv-v" key={frase.titulo} data-tip={frase.titulo}>{frase.titulo}</span>}
             </span>
-            {fallo ? (
-              <span className="tv-est">
-                <X size={14} strokeWidth={2.4} aria-hidden="true" />
-                {t("hz.t.error")}
-                {fallo.dura !== null ? ` · ${duracionFina(fallo.dura)}` : ""}
-              </span>
-            ) : sinNovedad ? (
-              <span className="tv-est">
-                <i className="tv-punto" />
-                <Reloj pintor={sinNovedad} className="tv-x" />
-              </span>
-            ) : dura ? (
-              <span className="tv-est" aria-label={t("estado.trabajando")}>
-                <i className={saliendo ? "tv-punto" : "tv-punto late"} />
-                <Reloj pintor={dura} className="tv-x" />
-                {sinSalida ? (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <Reloj pintor={sinSalida} className="tv-x" />
-                  </>
-                ) : null}
-              </span>
-            ) : null}
-          </div>
-          <div className="tv-2">
-            {frase.verbo ? <span className="tv-verbo" data-error={salida?.error ? "" : undefined}>{frase.verbo}</span> : null}
-            {/* `aria-live` apagado: la salida cambia sola y no se anuncia de a pedazos. */}
-            <span className="tv-out" key={linea} data-mono={frase.mono ? "" : undefined} aria-live="off">
-              {linea}
+          ) : null}
+          {modelo ? (
+            <span className="tv-modelo" aria-label={[t("hz.modelo"), modelo, effort, cuenta].filter(Boolean).join(" · ")} data-tip={cuenta || undefined} tabIndex={cuenta ? 0 : undefined}>
+              <i className="tv-fam" data-familia={familiaDe(modelo)} aria-hidden="true" />
+              {modelo}
+              {effort ? <span className="tv-ef">{effort}</span> : null}
             </span>
-            {hayCuerpo ? (
-              <button type="button" className="tv-ver" aria-expanded={abierto} onClick={() => alAbrir(!abierto)}>
-                {abierto ? t("hz.menos") : t("hz.todo")}
-                <ChevronDown className="tv-fl" size={12} strokeWidth={2} aria-hidden="true" />
-              </button>
-            ) : null}
-            {modelo ? (
-              <span className="tv-modelo" aria-label={[t("hz.modelo"), modelo, effort, cuenta].filter(Boolean).join(" · ")} data-tip={cuenta || undefined} tabIndex={cuenta ? 0 : undefined}>
-                {modelo}
-                {effort ? <span className="tv-ef">{effort}</span> : null}
-              </span>
-            ) : null}
-          </div>
-          {fallo ? <div className="tv-err">{fallo.error}</div> : null}
-          {hayCuerpo ? (
-            // Siempre armado, para plegarse con su transición; cerrado no se llega con el teclado.
-            <div className="tv-plieg">
-              <div className="tv-cuerpo" inert={!abierto}>
-                {entero ? (
-                  <div className="tv-det" data-fija={act.tipo === "permiso" ? "" : undefined}>
-                    {act.tipo === "permiso" ? null : <IconoClave clave={act.icono} propios={PROPIOS} className="tv-ic" size={13} />}
-                    <span className="tv-dt">{entero}</span>
-                  </div>
-                ) : null}
-                {vis.length ? (
-                  <ul className="tv-pasos">
-                    {vis.map((p, i) => {
-                      return (
-                        <li key={i}>
-                          <IconoClave clave={p.i} propios={PROPIOS} className="tv-ic" />
-                          <Entero texto={p.l} className="tv-pt" />
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : null}
-                {ocultos > 0 ? (
-                  <button type="button" className="tv-mas" aria-expanded={todos} onClick={() => setTodos((x) => !x)}>
-                    {todos ? t("hz.menos") : cuentaMas(ocultos)}
-                    <ChevronDown className="tv-fl" size={12} strokeWidth={2} aria-hidden="true" />
-                  </button>
-                ) : null}
-                {conRazon ? <Progreso lineas={razon.lineas} pensando={razon.pensando} /> : null}
-                {/* Lo mismo que el tooltip del modelo, para quien no tiene mouse (el celular). */}
-                {cuenta ? <span className="tv-cuenta">{cuenta}</span> : null}
-              </div>
-            </div>
           ) : null}
         </div>
+        {hayCuerpo ? (
+          <button type="button" className="tv-ver" aria-expanded={abierto} onClick={() => alAbrir(!abierto)}>
+            {abierto ? t("hz.menos") : t("hz.todo")}
+            <ChevronDown className="tv-fl" size={12} strokeWidth={2} aria-hidden="true" />
+          </button>
+        ) : null}
+        {fallo ? <div className="tv-err">{fallo.error}</div> : null}
+        {hayCuerpo ? (
+          // Siempre armado, para plegarse con su transición; cerrado no se llega con el teclado.
+          <div className="tv-plieg">
+            <div className="tv-cuerpo" inert={!abierto}>
+              {descripcion ? (
+                <div className="tv-det" data-fija="">
+                  <span className="tv-dt">{descripcion}</span>
+                </div>
+              ) : null}
+              {entero ? (
+                <div className="tv-det" data-fija={act.tipo === "permiso" ? "" : undefined}>
+                  {act.tipo === "permiso" ? null : <IconoClave clave={act.icono} propios={PROPIOS} className="tv-ic" size={13} />}
+                  <span className="tv-dt">{entero}</span>
+                </div>
+              ) : null}
+              {devuelto ? (
+                <div className="tv-det">
+                  <span className="tv-dt">{t("hz.c.salida", { d: devuelto })}</span>
+                </div>
+              ) : null}
+              {enParalelo && detalle.tipo === "chips" ? (
+                <ul className="tv-pasos">
+                  {detalle.items.map((x, i) => (
+                    <li key={i}>
+                      <IconoClave clave={x.icono} propios={PROPIOS} className="tv-ic" />
+                      <span className="tv-pt">{[`${nombreFicha(x)} · ${t(ESTADO_PARALELA[x.estado])}`, x.detalle].filter(Boolean).join(" — ")}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {vis.length ? (
+                <ul className="tv-pasos">
+                  {vis.map((p, i) => {
+                    return (
+                      <li key={i}>
+                        <IconoClave clave={p.i} propios={PROPIOS} className="tv-ic" />
+                        <Entero texto={p.l} className="tv-pt" />
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+              {ocultos > 0 ? (
+                <button type="button" className="tv-mas" aria-expanded={todos} onClick={() => setTodos((x) => !x)}>
+                  {todos ? t("hz.menos") : cuentaMas(ocultos)}
+                  <ChevronDown className="tv-fl" size={12} strokeWidth={2} aria-hidden="true" />
+                </button>
+              ) : null}
+              {conRazon ? <Progreso lineas={razon.lineas} pensando={razon.pensando} /> : null}
+              {/* Lo mismo que el tooltip del modelo, para quien no tiene mouse (el celular). */}
+              {cuenta ? <span className="tv-cuenta">{cuenta}</span> : null}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

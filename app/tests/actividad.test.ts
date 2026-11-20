@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { detalleHace, parsearLinea } from "../electron/lider-arma.ts";
-import { avanzar, clasificar, clasificarPedido, cuentaMas, cuentaPasos, cuentaTokens, delegaPa, dominio, estadoDe, fraseDe, iconoDe, limpiarComando, muyLargo, PLIEGUE, rutaLegible, sinNovedades, SIN_NOVEDADES_MS, sinPasos, textoPaso, ultimaLinea, unaLinea, MAX_PASOS, PASOS, type Actividad } from "../src/hilo/actividad-logica.ts";
+import { avanzar, clasificar, clasificarPedido, cuentaMas, cuentaPasos, cuentaTokens, delegaPa, dominio, estadoDe, hayParalelas, iconoDe, limpiarComando, muyLargo, PLIEGUE, resumenParalelas, rutaLegible, sinNovedades, SIN_NOVEDADES_MS, sinPasos, textoPaso, ultimaLinea, unaLinea, vistaDe, MAX_PASOS, PASOS, type Actividad, type Paralela } from "../src/hilo/actividad-logica.ts";
 import { cambiarIdioma } from "../src/i18n/index.ts";
 import { en } from "../src/i18n/en.ts";
 import { es } from "../src/i18n/es.ts";
@@ -191,57 +191,104 @@ test("los contadores del pie de la tarjeta: 1 va en singular, el resto en plural
 });
 
 const bash = (detalle: string, desc?: string): HaceLider => ({ que: "herramienta", nombre: "Bash", detalle, ...(desc ? { desc } : {}) });
-const fraseBash = (detalle: string, desc?: string, salida: { linea: string; error: boolean } | null = null) => {
+const vistaBash = (detalle: string, desc?: string, salida: { linea: string; error: boolean } | null = null) => {
   const hace = bash(detalle, desc);
-  return fraseDe({ act: clasificar(hace), hace, pasos: [], salida });
+  return vistaDe({ act: clasificar(hace), hace, pasos: [], salida });
 };
+const par = (nombre: string, estado: Paralela["estado"], icono: Paralela["icono"] = "correr"): Paralela => ({ nombre, icono, estado, detalle: "" });
 
-test("frase: el título es la descripción del comando, y abajo Corriendo con el comando", () => {
+test("vista: un comando dice un solo verbo, la herramienta y el comando en mono", () => {
   cambiarIdioma("es");
-  const f = fraseBash("tablero lista --abiertas", "Revisando workers y tablero");
-  assert.equal(f.titulo, "Revisando workers y tablero");
-  assert.equal(f.verbo, "Corriendo");
-  assert.equal(f.linea, "tablero lista --abiertas");
-  assert.equal(f.mono, true);
-});
-
-test("frase: sin descripción el título es «Corriendo Bash» y no repite el verbo", () => {
-  cambiarIdioma("es");
-  const f = fraseBash("npm test");
-  assert.equal(f.titulo, "Corriendo Bash");
-  assert.equal(f.verbo, null);
-  assert.equal(f.linea, "npm test");
+  const v = vistaBash("tablero lista --abiertas", "Revisando workers y tablero");
+  assert.equal(v.verbo, "Corriendo un comando");
+  assert.equal(v.sub, "en Bash");
+  assert.deepEqual(v.detalle, { tipo: "mono", texto: "tablero lista --abiertas" });
+  assert.equal(v.n, null);
   cambiarIdioma("en");
-  assert.equal(fraseBash("npm test").titulo, "Running Bash");
+  assert.equal(vistaBash("npm test").verbo, "Running a command");
+  assert.equal(vistaBash("npm test").sub, "in Bash");
   cambiarIdioma("es");
 });
 
-test("frase: con lo que devolvió el comando, Corrió y su última línea; con error, lo dice en palabras", () => {
+test("vista: con lo que devolvió el comando no repite el verbo ni muestra la salida cruda; el error se dice en palabras", () => {
   cambiarIdioma("es");
-  const f = fraseBash("npm test", "Probando", { linea: "12 passing", error: false });
-  assert.equal(f.verbo, "Corrió");
-  assert.equal(f.linea, "12 passing");
-  assert.equal(fraseBash("npm test", "Probando", { linea: "1 failing", error: true }).verbo, es["hz.t.error"]);
+  const ok = vistaBash("npm test", "Probando", { linea: "12 passing", error: false });
+  assert.equal(ok.verbo, "Corrió un comando");
+  assert.deepEqual(ok.detalle, { tipo: "mono", texto: "npm test" });
+  assert.equal(vistaBash("npm test", "Probando", { linea: "1 failing", error: true }).sub, "en Bash · salió con error");
   cambiarIdioma("en");
-  assert.equal(fraseBash("npm test", "Testing", { linea: "12 passing", error: false }).verbo, "Ran");
+  assert.equal(vistaBash("npm test", "Testing", { linea: "12 passing", error: false }).verbo, "Ran a command");
   cambiarIdioma("es");
 });
 
-test("frase: un permiso sin contestar manda; un turno fallado lo dice en el título", () => {
+test("vista: cada herramienta dice qué hace y de qué; sin detalle conocido el renglón queda vacío", () => {
+  cambiarIdioma("es");
+  const de = (h: HaceLider) => vistaDe({ act: clasificar(h), hace: h, pasos: [] });
+  assert.equal(de(herr("Read", "/home/u/proy/src/a.ts")).verbo, "Leyendo un archivo");
+  assert.equal(de(herr("Grep", "cauce", "src")).verbo, "Buscando en el código");
+  assert.equal(de(herr("Edit", "/a/b.ts")).verbo, "Editando un archivo");
+  assert.equal(de(herr("WebSearch", "css grid")).verbo, "Buscando en la web");
+  assert.equal(de(herr("Task", "revisar")).verbo, "Delegando una tarea");
+  const otra = de(herr("mcp__trama__estado_workers", null));
+  assert.equal(otra.verbo, "Usando una herramienta");
+  assert.equal(otra.sub, "en mcp__trama__estado_workers");
+  assert.deepEqual(otra.detalle, { tipo: "vacio" });
+});
+
+test("vista: pensando no muestra la salida de una herramienta como si fuera lo que piensa", () => {
+  cambiarIdioma("es");
+  const hace = sola("pensando");
+  const act = clasificar(hace);
+  const salida = { linea: "cauce-f2  corriendo  4 m", error: false };
+  const sin = vistaDe({ act, hace, pasos: [], salida });
+  assert.equal(sin.verbo, "Pensando");
+  assert.equal(sin.sub, "contenido oculto");
+  assert.deepEqual(sin.detalle, { tipo: "vacio" });
+  const conPaso = vistaDe({ act, hace, pasos: [{ hace: herr("Read", "/a/b.ts"), seg: 2 }], salida });
+  assert.equal(conPaso.detalle.tipo, "texto");
+  assert.ok(!JSON.stringify(conPaso).includes("cauce-f2"));
+  assert.match(JSON.stringify(conPaso.detalle), /Antes: /);
+  const piensa = vistaDe({ act, hace, pasos: [], pensando: "Reviso el parser. Si llega por archivo, lo leo al cerrar el turno." });
+  assert.deepEqual(piensa.detalle, { tipo: "texto", texto: "Si llega por archivo, lo leo al cerrar el turno." });
+});
+
+test("vista: escribiendo dice «Escribiendo la respuesta»", () => {
+  cambiarIdioma("es");
+  const hace = sola("escribiendo");
+  const v = vistaDe({ act: clasificar(hace), hace, pasos: [] });
+  assert.equal(v.verbo, "Escribiendo la respuesta");
+  assert.equal(v.sub, null);
+});
+
+test("vista: varias herramientas a la vez se cuentan, con su resumen y una ficha cada una", () => {
+  cambiarIdioma("es");
+  const hace = bash("npm test");
+  const paralelas = [par("Task", "espera", "delegar"), par("Bash", "corriendo"), par("Grep", "listo", "buscar")];
+  const v = vistaDe({ act: clasificar(hace), hace, pasos: [], paralelas });
+  assert.equal(v.verbo, "Esperando 3 cosas en paralelo");
+  assert.equal(v.sub, "1 lista · 1 corriendo · 1 en espera");
+  assert.equal(v.n, 3);
+  assert.equal(v.detalle.tipo, "chips");
+  cambiarIdioma("en");
+  assert.equal(vistaDe({ act: clasificar(hace), hace, pasos: [], paralelas }).verbo, "Waiting on 3 things in parallel");
+  cambiarIdioma("es");
+  // Todas terminadas, o una sola: no es «en paralelo».
+  assert.equal(hayParalelas([par("Bash", "listo"), par("Grep", "listo")]), false);
+  assert.equal(hayParalelas([par("Bash", "corriendo")]), false);
+  assert.equal(hayParalelas([par("Bash", "corriendo"), par("Grep", "error")]), true);
+  assert.equal(resumenParalelas([par("A", "listo"), par("B", "listo"), par("C", "error")]), "2 listas · 1 con error");
+});
+
+test("vista: un permiso sin contestar manda; un turno fallado lo dice en el verbo", () => {
   cambiarIdioma("es");
   const pedido = clasificarPedido({ id: "p1", nombre: "Bash", detalle: "git push origin main", tipo: "permiso" } as never);
-  assert.equal(fraseDe({ act: pedido, hace: bash("git push origin main"), pasos: [] }).titulo, "Te necesita");
+  const p = vistaDe({ act: pedido, hace: bash("git push origin main"), pasos: [], paralelas: [par("A", "corriendo"), par("B", "corriendo")] });
+  assert.equal(p.verbo, "Te necesita");
+  assert.equal(p.n, null);
   const hace = bash("tablero lista", "Revisando el tablero");
-  assert.equal(fraseDe({ act: clasificar(hace), hace, pasos: [], fallo: true }).titulo, "No pudo terminar: Revisando el tablero");
-});
-
-test("frase: lo de antes queda como miga, de lo más viejo a lo más nuevo y sólo tres", () => {
-  cambiarIdioma("es");
-  const hace = bash("npm test", "Probando");
-  const pasos = ["d.ts", "c.ts", "b.ts", "a.ts"].map((f, i) => ({ hace: herr("Read", f), seg: i }));
-  const { antes } = fraseDe({ act: clasificar(hace), hace, pasos });
-  assert.equal(antes.length, 3);
-  assert.ok(antes[2].includes("d.ts"), antes.join(" | "));
+  const f = vistaDe({ act: clasificar(hace), hace, pasos: [], fallo: true });
+  assert.equal(f.verbo, "No pudo terminar: corriendo un comando");
+  assert.equal(f.sub, "en Bash");
 });
 
 test("la última línea: sin colores, con barras de progreso y salteando los renglones vacíos", () => {
@@ -266,7 +313,7 @@ test("el main pasa la descripción del comando, salvo que sea lo mismo que el de
 });
 
 test("los textos de la tarjeta están en los dos idiomas", () => {
-  for (const k of ["hz.corrio", "hz.quieto", "hz.f.noTermino", "hz.f.noTerminoSolo", "hz.f.parado", "hz.todo", "hz.menos"] as const) {
+  for (const k of ["hz.corrio", "hz.c.comando", "hz.c.paralelo", "hz.c.e.espera", "hz.c.salioMal", "hz.quieto", "hz.f.noTermino", "hz.f.noTerminoSolo", "hz.f.parado", "hz.todo", "hz.menos"] as const) {
     assert.ok(es[k], `falta ${k} en es`);
     assert.ok(en[k], `falta ${k} en en`);
   }
