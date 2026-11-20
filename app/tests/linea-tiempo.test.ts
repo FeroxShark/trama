@@ -24,7 +24,7 @@ registerHooks({
   },
 });
 
-const { lineaDeTiempo } = await import("../src/hilo/linea-tiempo.ts");
+const { lineaDeTiempo, paralelasDe } = await import("../src/hilo/linea-tiempo.ts");
 const { primeraLineaPensada, ultimaFrasePensada } = await import("../src/hilo/actividad-logica.ts");
 
 // La línea de tiempo de la tarjeta: los pensamientos terminados y las herramientas, en el orden en que pasaron.
@@ -71,4 +71,19 @@ test("cada llamada de archivo lleva su archivo (Claude y una ruta de Windows) pa
   const hs = l.filter((x) => x.tipo === "herramienta") as { archivo?: { tipo: string } }[];
   assert.equal(hs[0].archivo?.tipo, "imagen");
   assert.equal("archivo" in hs[1], false);
+});
+
+test("las herramientas en paralelo: sólo las del último mensaje, cada una con cómo va (subagente = en espera)", () => {
+  const det = [
+    { nombre: "Task", entrada: { description: "explorar", subagent_type: "Explore" }, id: "t1" },
+    { nombre: "Bash", entrada: { command: "npm test" }, id: "t2" },
+    { nombre: "Grep", entrada: { pattern: "cauce" }, id: "t3", resultado: { texto: "3 coincidencias", error: false } },
+    { nombre: "Read", entrada: { file_path: "/a/b.ts" }, id: "t4", resultado: { texto: "x", error: true } },
+  ] as Mensaje["det"];
+  const ps = paralelasDe(lineaDeTiempo([asis(1, undefined, ["Read"], [{ nombre: "Read", entrada: { file_path: "/viejo.ts" }, id: "t0" }] as Mensaje["det"]), asis(2, "Lanzo varias.", ["Task", "Bash", "Grep", "Read"], det)]));
+  assert.deepEqual(
+    ps.map((x) => [x.nombre, x.estado]),
+    [["Task", "espera"], ["Bash", "corriendo"], ["Grep", "listo"], ["Read", "error"]],
+  );
+  assert.deepEqual(paralelasDe(lineaDeTiempo([asis(1, "Sólo pienso.")])), []);
 });

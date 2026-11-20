@@ -289,61 +289,83 @@ export function lineaPaso(p: Paso): string | null {
   return x ? tx(x.clave, { d: x.d, s: x.s ?? 0 }) : null;
 }
 
-const conMayuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const nombreArchivo = (r: string) => r.split(/[\\/]/).filter(Boolean).at(-1) ?? r;
+const minuscula = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
-/** De qué va una herramienta en pocas palabras: el archivo sin su carpeta, el patrón o el sitio. `null`: no hay nada corto que decir. */
-function sujetoDe(h: Extract<HaceLider, { que: "herramienta" }>): string | null {
-  if (!h.detalle) return null;
-  if (LEER.has(h.nombre) || EDITAR.has(h.nombre) || h.nombre === "Write") return nombreArchivo(h.detalle);
-  if (h.nombre === "Grep" || h.nombre === "Glob" || h.nombre === "WebSearch") return `«${unaLinea(h.detalle)}»`;
-  if (h.nombre === "WebFetch") return dominio(h.detalle);
-  return null;
-}
+/** Cómo va una de las herramientas que corren a la vez. `espera`: se espera a otro (un subagente), no a que termine un comando. */
+export type EstadoParalela = "corriendo" | "espera" | "listo" | "error";
 
-/** Lo recién hecho, corto, para la miga de al lado de la frase ("Leyó Actividad.tsx"); un comando con descripción, la descripción. `null`: pensar no va. */
-export function pasoCorto(p: Paso): string | null {
-  if (p.hace.que !== "herramienta") return null;
-  if (p.hace.desc) return conMayuscula(p.hace.desc);
-  const x = textoPaso(p);
-  return x ? tx(x.clave, { d: sujetoDe(p.hace) ?? x.d, s: x.s ?? 0 }) : null;
-}
+/** Una de las herramientas que el modelo lanzó juntas en un mismo mensaje (`paralelasDe`, src/hilo/linea-tiempo.ts). */
+export type Paralela = { nombre: string; icono: Icono; estado: EstadoParalela; detalle: string };
 
-/** Cuántos pasos de atrás entran en la miga. */
-export const MIGA = 3;
-
-/** Lo que dice la tarjeta en palabras. `verbo`: "Corriendo" o "Corrió", si hace falta decirlo; `linea`: la salida, el comando o la frase de abajo. */
-export type Frase = { titulo: string; verbo: string | null; linea: string; mono: boolean; antes: string[] };
+/** Lo que va en el renglón de abajo de la tarjeta: el comando o lo concreto (mono), lo que piensa (texto), una ficha por herramienta o nada. */
+export type DetalleVista = { tipo: "mono" | "texto"; texto: string } | { tipo: "chips"; items: Paralela[] } | { tipo: "vacio" };
 
 /**
- * El título y la línea de abajo. El título es lo que el modelo dijo que hace (la descripción del comando); sin descripción, "Corriendo Bash".
- * Abajo: la última línea que devolvió el comando con "Corrió" y, mientras corre (`claude` no manda la salida hasta terminar), el comando con
- * "Corriendo", salvo que el título ya lo diga. `fallo`: el turno terminó mal, y el título lo cuenta con lo último que hacía.
+ * Lo que dice la tarjeta en dos renglones. `verbo`: qué pasa, con UN solo verbo ("Corriendo un comando", "Pensando", "Esperando 3 cosas en
+ * paralelo"); `sub`: más tenue, la herramienta ("en Bash") o un resumen ("1 lista · 1 corriendo"); `detalle`: abajo. `n`: cuántas
+ * herramientas corren a la vez (el círculo muestra el número en vez del ícono). Nunca la salida cruda de una herramienta como si fuera lo
+ * que piensa: sin nada con sentido, el renglón queda vacío o dice lo último que se hizo.
  */
-export function fraseDe({ act, hace, pasos, salida = null, pensando = "", fallo = false }: { act: Actividad; hace: HaceLider | null; pasos: Paso[]; salida?: Salida | null; pensando?: string; fallo?: boolean }): Frase {
-  const antes = fallo ? [] : pasos.slice(0, MIGA).map(pasoCorto).filter((x): x is string => x !== null).reverse();
-  const conSalida = salida?.linea ? salida : null;
-  // En un turno fallado el estado ya dice "Falló": abajo no se repite.
-  const verboSalida = salida?.error && !fallo ? t("hz.t.error") : t("hz.corrio");
-  if (act.tipo === "permiso") return { titulo: tx(act.verbo), verbo: null, linea: textoDetalle(act), mono: false, antes };
-  if (hace?.que === "herramienta") {
-    const comando = hace.nombre === "Bash" && act.tipo === "comando";
-    const sujeto = sujetoDe(hace);
-    const desc = hace.desc ? conMayuscula(hace.desc) : null;
-    const base = desc ?? (comando ? t("hace.correr", { h: "Bash" }) : act.tipo === "comando" ? t("hace.usar", { h: hace.nombre }) : sujeto ? `${tx(act.verbo)} ${sujeto}` : tx(act.verbo));
-    const titulo = fallo ? t("hz.f.noTermino", { d: base }) : base;
-    const hizo = fallo ? lineaPaso({ hace, seg: 0 }) : null;
-    if (comando && salida && conSalida) return { titulo, verbo: verboSalida, linea: conSalida.linea, mono: true, antes };
-    if (hizo && !comando) return { titulo, verbo: null, linea: hizo, mono: false, antes };
-    const crudo = act.detalle === hace.nombre || act.detalle === sujeto ? "" : act.detalle;
-    if (crudo) return { titulo, verbo: comando && salida ? verboSalida : fallo && comando ? t("hz.corrio") : desc ? tx(act.verbo) : null, linea: crudo, mono: true, antes };
-    return { titulo, verbo: null, linea: pasos.length ? (lineaPaso(pasos[0]) ?? "") : "", mono: false, antes };
+export type Vista = { verbo: string; sub: string | null; detalle: DetalleVista; n: number | null };
+
+// El verbo de cada tipo de herramienta (el `verbo` de `clasificar` → la frase de la tarjeta).
+const VERBO_TARJETA: Record<string, string> = {
+  "hz.leer": "hz.c.leer",
+  "hz.buscar": "hz.c.buscar",
+  "hz.editar": "hz.c.editar",
+  "hz.escribirArchivo": "hz.c.escribirArchivo",
+  "hz.delegar": "hz.c.delegar",
+  "hz.usar": "hz.c.usar",
+  "hz.correr": "hz.c.comando",
+};
+
+/** Cuántas hay en cada estado, en palabras ("1 lista · 1 corriendo · 1 en espera"); lo que está en cero no se dice. */
+export function resumenParalelas(items: Paralela[]): string {
+  const n = (e: EstadoParalela) => items.filter((x) => x.estado === e).length;
+  const listas = n("listo");
+  return [
+    listas ? (listas === 1 ? t("hz.c.lista", { n: listas }) : t("hz.c.listas", { n: listas })) : null,
+    n("corriendo") ? t("hz.c.corriendo", { n: n("corriendo") }) : null,
+    n("espera") ? t("hz.c.espera", { n: n("espera") }) : null,
+    n("error") ? t("hz.c.error", { n: n("error") }) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** ¿Varias herramientas a la vez y alguna sin terminar? Entonces la tarjeta cuenta cosas en vez de describir una. */
+export const hayParalelas = (items: Paralela[]): boolean => items.length >= 2 && items.some((x) => x.estado === "corriendo" || x.estado === "espera");
+
+/**
+ * Los dos renglones de la tarjeta (dirección C · Anillo). Un permiso sin contestar manda; varias herramientas a la vez se cuentan; una
+ * herramienta dice su verbo, su nombre y lo concreto (el comando); lo demás (pensando, escribiendo) dice su verbo y, abajo, lo que piensa
+ * o lo último que hizo. `salida` (lo que devolvió el comando) sólo marca que ya volvió: la línea cruda no se muestra acá. `fallo`: el turno
+ * terminó mal, y el verbo lo cuenta con lo último que hacía.
+ */
+export function vistaDe({ act, hace, pasos, salida = null, pensando = "", fallo = false, paralelas = [] }: { act: Actividad; hace: HaceLider | null; pasos: Paso[]; salida?: Salida | null; pensando?: string; fallo?: boolean; paralelas?: Paralela[] }): Vista {
+  const antes = pasos.length ? lineaPaso(pasos[0]) : null;
+  const deAntes: DetalleVista = antes ? { tipo: "texto", texto: t("hz.c.antes", { d: antes }) } : { tipo: "vacio" };
+  if (act.tipo === "permiso") {
+    const texto = textoDetalle(act);
+    return { verbo: tx(act.verbo), sub: null, detalle: texto ? { tipo: "texto", texto } : { tipo: "vacio" }, n: null };
   }
-  const titulo = fallo ? t("hz.f.noTerminoSolo") : tx(act.verbo);
+  if (!fallo && hace?.que === "herramienta" && hayParalelas(paralelas)) {
+    return { verbo: t("hz.c.paralelo", { n: paralelas.length }), sub: resumenParalelas(paralelas), detalle: { tipo: "chips", items: paralelas }, n: paralelas.length };
+  }
+  if (hace?.que === "herramienta") {
+    const comando = act.tipo === "comando" && hace.nombre === "Bash";
+    const volvio = comando && !!salida && !fallo;
+    const base = comando && volvio ? t("hz.c.comandoListo") : VERBO_TARJETA[act.verbo] ? tx(VERBO_TARJETA[act.verbo]) : tx(act.verbo);
+    const verbo = fallo ? t("hz.f.noTermino", { d: minuscula(base) }) : base;
+    const en = t("hz.c.en", { h: hace.nombre });
+    const sub = salida?.error && comando && !fallo ? `${en} · ${t("hz.c.salioMal")}` : en;
+    // Lo concreto: el comando, el archivo, el patrón. Una herramienta sin detalle conocido deja el renglón vacío.
+    const crudo = act.verbo === "hz.usar" ? (hace.detalle ? unaLinea(hace.detalle) : "") : act.detalle === hace.nombre ? "" : act.detalle;
+    return { verbo, sub, detalle: crudo ? { tipo: "mono", texto: crudo } : { tipo: "vacio" }, n: null };
+  }
+  const verbo = fallo ? t("hz.f.noTerminoSolo") : act.tipo === "escribiendo" ? t("hz.c.respuesta") : tx(act.verbo);
+  // Pensando: «contenido oculto» / «esperando al modelo»; escribiendo ya lo dice el verbo.
+  const sub = act.tipo === "pensando" && act.detalleClave ? tx(act.detalleClave) : null;
   const frase = pensando.trim() ? ultimaFrasePensada(pensando) : "";
-  if (frase) return { titulo, verbo: null, linea: frase, mono: false, antes };
-  if (conSalida) return { titulo, verbo: verboSalida, linea: conSalida.linea, mono: true, antes };
-  const ultimo = pasos.length ? lineaPaso(pasos[0]) : null;
-  if (ultimo) return { titulo, verbo: null, linea: ultimo, mono: false, antes };
-  return { titulo, verbo: null, linea: fallo ? "" : textoDetalle(act), mono: false, antes };
+  return { verbo, sub, detalle: frase ? { tipo: "texto", texto: frase } : deAntes, n: null };
 }

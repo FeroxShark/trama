@@ -20,7 +20,7 @@ import { Tierno, useTiernos } from "./Tierno";
 import { Compactando } from "./Posta";
 import { Actividad } from "./Actividad";
 import { clasificar, clasificarPedido, cuentaTokens, SIN_NOVEDADES_MS } from "./actividad-logica";
-import { comandoCrudo, enCurso, indicador, lineasDelTurno, pensandoAhora, quietoDesde, razona, suscribir, type Indicador } from "./vivo";
+import { comandoCrudo, enCurso, indicador, lineasDelTurno, paralelasDelTurno, pensandoAhora, quietoDesde, razona, suscribir, type Indicador } from "./vivo";
 
 const LEER = new Set(["Read", "WebFetch", "NotebookRead"]);
 const EDITAR = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
@@ -178,6 +178,13 @@ const useLineas = (sid: string) =>
     () => lineasDelTurno(sid),
   );
 
+/** Las herramientas que el último mensaje lanzó juntas y cómo va cada una (el arreglo es estable mientras no cambia la línea de tiempo). */
+const useParalelas = (sid: string) =>
+  useSyncExternalStore(
+    useCallback((fn: () => void) => suscribir(sid, fn), [sid]),
+    () => paralelasDelTurno(sid),
+  );
+
 /** El pensamiento que todavía llega (un texto: el snapshot es estable mientras no llega más). */
 const usePensando = (sid: string) =>
   useSyncExternalStore(
@@ -241,6 +248,7 @@ export function HaceChat({ sid, modelo, effort, piensa = false, error }: { sid: 
   const veRazon = piensa || razonaYa;
   const lineas = useLineas(sid);
   const pensando = usePensando(sid);
+  const paralelas = useParalelas(sid);
   // Vive acá, no en la tarjeta: quien lo abrió lo sigue viendo abierto en el próximo turno.
   const [abierto, setAbierto] = useState(MODO.captura === "lider-trabajando" && MODO.variante === "detalle");
   // Lo último que se pintó, para que la tarjeta se pliegue al terminar el turno en vez de desaparecer de golpe.
@@ -302,6 +310,7 @@ export function HaceChat({ sid, modelo, effort, piensa = false, error }: { sid: 
     tokens: ind.salida > 0 ? cuentaTokens(ind.salida, miles(ind.salida)) : null,
     tierno: tierno && generico && !veRazon ? sid : undefined,
     razon: veRazon ? { lineas, pensando } : undefined,
+    paralelas,
     modelo,
     effort,
     salida,
