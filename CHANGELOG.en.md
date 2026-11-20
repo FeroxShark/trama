@@ -1,5 +1,10 @@
 # Changes
 
+## 0.3.10
+
+- Under each quota ring in the rail you can see how long until it comes back («2h 14m», «3d 4h»), without opening anything. With no usage, it still says «5 h» or «wk».
+- A chat that was answering when you opened or reloaded the window (or that you continued from your phone) no longer hides the earlier conversation: you can scroll up as usual.
+
 ## 0.3.9
 
 - Chat history: a window with archived and closed chats, with search, filters and grouped by project or by date. Open it with the clock button next to «Recent» or with Ctrl+H. Each one can be opened or deleted; deleted ones go to the system trash.

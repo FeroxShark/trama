@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.3.10
+
+- Debajo de cada anillo de cupo del riel se ve cuánto falta para que vuelva («2h 14m», «3d 4h»), sin abrir nada. Sin uso, sigue diciendo «5 h» o «sem».
+- Un chat que estaba respondiendo cuando abriste o recargaste la ventana (o que seguiste desde el celular) ya no esconde la conversación anterior: se puede subir como siempre.
+
 ## 0.3.9
 
 - Historial de chats: una ventana con los chats archivados y cerrados, con buscador, filtros y agrupados por proyecto o por fecha. Se abre con el botón del reloj al lado de «Recientes» o con Ctrl+H. Cada uno se puede abrir o borrar; lo borrado va a la papelera del sistema.
