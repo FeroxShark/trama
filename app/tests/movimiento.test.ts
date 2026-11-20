@@ -1,11 +1,11 @@
-// El movimiento de Trama (`src/movimiento.ts` + `src/movimiento.css`): un solo juego de constantes, el CSS lo espeja, y con
+// El movimiento de Trama (`src/movimiento.ts` + `src/movimiento-estilos.css`): un solo juego de constantes, el CSS lo espeja, y con
 // `prefers-reduced-motion` no queda desplazamiento ni escala, sólo fundido. Sólo opacity/transform (nunca width/height).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { CURVA_CORTA, CURVA_SUAVE, DESPLAZA, DUR, ESCALA_BOTON, ESCALON, retardo, desplaza, variantesLista, variantesPanel } from "../src/movimiento.ts";
 
-const css = readFileSync(new URL("../src/movimiento.css", import.meta.url), "utf8");
+const css = readFileSync(new URL("../src/movimiento-estilos.css", import.meta.url), "utf8");
 const indice = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
 const [base, reducido = ""] = css.split("@media (prefers-reduced-motion: reduce)");
 const raiz = base.match(/:root \{([^}]*)\}/)![1];
@@ -65,10 +65,10 @@ test("sólo opacity, translate y scale: nada de width/height ni duraciones suelt
   for (const l of lineas) assert.doesNotMatch(l, /\d(ms|s)\b(?!\))/, l);
 });
 
-test("el CSS que apaga animaciones en reduced-motion deja pasar lo de movimiento.css", () => {
+test("el CSS que apaga animaciones en reduced-motion deja pasar lo de movimiento-estilos.css", () => {
   const regla = indice.match(/\.app \*:not\(:is\(([^]*?)\)\),\n\s*\.app \*::before/)![1];
   for (const s of [".seg", ".at-caja", ".vuelo", ".avc-g", ".cmenu", ".seg-fondo", ".at", ".conv[data-asentado] > *", ".mov-lista > *"]) {
     assert.ok(regla.includes(s), `falta ${s} en la excepción de reduced-motion`);
-    assert.ok(css.includes(s), `${s} no está en movimiento.css`);
+    assert.ok(css.includes(s), `${s} no está en movimiento-estilos.css`);
   }
 });

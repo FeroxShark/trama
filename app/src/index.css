@@ -3225,7 +3225,7 @@ html[data-titulo-nativo] #root::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Lo del movimiento de Trama (movimiento.css) no se apaga: sin desplazamiento ni escala queda el fundido. La lista va igual en movimiento.css. */
+  /* Lo del movimiento de Trama (movimiento-estilos.css) no se apaga: sin desplazamiento ni escala queda el fundido. La lista va igual en movimiento-estilos.css. */
   .app *:not(:is(.seg, .at-caja, .vuelo, .avc-g, .cmenu, .seg-fondo, .at, .conv[data-asentado] > *, .mov-lista > *, .cmenu > .cmenu-op)),
   .app *::before,
   .app *::after,

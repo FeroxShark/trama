@@ -1,5 +1,5 @@
 // El movimiento de Trama, en un solo lugar: duraciones, resortes, desplazamientos y escalonado. Todo lo que se anima (paneles, modales,
-// mensajes nuevos, botones, listas) sale de acá; nada de duraciones sueltas nuevas. `movimiento.css` espeja estos valores para lo que
+// mensajes nuevos, botones, listas) sale de acá; nada de duraciones sueltas nuevas. `movimiento-estilos.css` espeja estos valores para lo que
 // se anima en CSS (`tests/movimiento.test.ts` comprueba que coinciden). Sólo `transform` y `opacity`: nunca width/height.
 // Con `prefers-reduced-motion` no hay desplazamiento ni escala: sólo fundidos (`reducido`, y en CSS las variables `--mov-desp`/`--mov-pulsa`).
 import { useEffect, useState } from "react";
@@ -31,7 +31,7 @@ export const ESCALA_BOTON = 0.97;
 /** Listas que aparecen: un retardo por elemento, y de `max` en adelante entran juntos. */
 export const ESCALON = { paso: 28, max: 8 } as const;
 
-/** Resortes en CSS (`linear()` sobre la curva de cada resorte de arriba): los dos únicos que usa `movimiento.css`. */
+/** Resortes en CSS (`linear()` sobre la curva de cada resorte de arriba): los dos únicos que usa `movimiento-estilos.css`. */
 export const CURVA_SUAVE = "linear(0, 0.044, 0.145, 0.271, 0.4, 0.522, 0.629, 0.719, 0.793, 0.851, 0.896, 0.93, 0.955, 0.973, 0.985, 0.993, 0.998, 1.001, 1)";
 export const CURVA_CORTA = "linear(0, 0.057, 0.185, 0.335, 0.482, 0.611, 0.719, 0.804, 0.868, 0.915, 0.948, 0.971, 0.985, 0.994, 1)";
 
@@ -82,7 +82,7 @@ export const ASIENTA_MS = 700;
 
 /**
  * Verdadero cuando la conversación `clave` ya terminó de abrirse: pasan `ASIENTA_MS` desde que tiene contenido. Los mensajes que
- * llegan después entran con `movimiento.css`; lo que se cargó al abrir (el historial) aparece quieto. Cambia `clave`, vuelve a empezar.
+ * llegan después entran con `movimiento-estilos.css`; lo que se cargó al abrir (el historial) aparece quieto. Cambia `clave`, vuelve a empezar.
  */
 export function useAsentado(clave: string | null | undefined, hayContenido: boolean): boolean {
   const [listo, setListo] = useState<string | null>(null);
