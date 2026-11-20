@@ -4362,6 +4362,20 @@ html[data-titulo-nativo] #root::after {
 .ll-e[data-e="error"] {
   color: var(--rojo-texto);
 }
+/* El estado se ve por la marca y por la palabra: ✓ ok, ✗ error, punto corriendo (nunca sólo el color). */
+.ll-e:is([data-e="ok"], [data-e="error"])::before {
+  width: auto;
+  height: auto;
+  background: none;
+  font-size: var(--letra-3);
+  line-height: 1;
+}
+.ll-e[data-e="ok"]::before {
+  content: "✓";
+}
+.ll-e[data-e="error"]::before {
+  content: "✗";
+}
 .ll-menos-n {
   color: var(--rojo-texto);
 }

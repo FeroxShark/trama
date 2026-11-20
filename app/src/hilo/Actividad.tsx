@@ -11,7 +11,6 @@ import { duracionFina, pintorDura } from "../tiempo";
 import { alScroll, bajar, seguidor, seguir } from "./seguir";
 import { cuentaMas, cuentaPasos, estadoDe, fraseDe, iconoDe, lineaPaso, muyLargo, PASOS, primeraLineaPensada, textoDetalle, ultimaFrasePensada, type Actividad as Act, type Icono, type Paso, type Salida } from "./actividad-logica";
 import type { LineaTiempo } from "./linea-tiempo";
-import { Escena } from "./Escenas";
 import { Tierno } from "./Tierno";
 import { EnlaceArchivo } from "./VerArchivo";
 import { IconoClave } from "./IconoAccion";
@@ -245,7 +244,7 @@ export function Actividad({ act, hace, pasos, pasosN, desde, tokens, tierno, raz
     <div className="tv" data-t={act.tipo} data-e={estado} data-estado={estadoVisible(quieto !== null, !!fallo)} data-abierto={abierto ? "" : undefined} data-error={fallo ? "" : undefined} data-saliendo={saliendo ? "" : undefined} role="status">
       <div className="tv-tar">
         <span className="tv-tile" aria-hidden="true">
-          {fallo ? <X size={20} strokeWidth={2} /> : quieto !== null ? <Pause size={20} strokeWidth={2} /> : <Escena key={act.tipo} tipo={act.tipo} />}
+          {fallo ? <X size={16} strokeWidth={2.2} /> : quieto !== null ? <Pause size={16} strokeWidth={2} /> : <IconoClave key={act.icono} clave={act.icono} propios={PROPIOS} className="tv-ic" size={16} />}
         </span>
         <div className="tv-cu">
           <div className="tv-1">

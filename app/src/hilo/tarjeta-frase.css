@@ -4,30 +4,32 @@
   container-type: inline-size;
   animation: tv-entra 200ms ease-out;
 }
+/* Una línea compacta, sin caja pesada: ícono (del color de su clase) + qué hace + el detalle en mono, y a la derecha «Ver todo», el modelo, el estado
+   con su palabra y la duración. Los hijos de `.tv-cu`, `.tv-1` y `.tv-2` fluyen directo en la línea (`display: contents`); el error y lo desplegado
+   ocupan la fila entera. Angosta, el detalle baja a una segunda línea. */
 .tv-tar {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  column-gap: var(--esp-3);
-  padding: var(--esp-2-5) var(--esp-4) var(--esp-2-5) var(--esp-2-5);
-  border-radius: var(--r-xl);
-  background: var(--capa-tile);
-  box-shadow: var(--popover-luz), var(--sombra-vidrio);
-  transition: background-color 240ms ease-out, box-shadow 240ms ease-out, border-radius 180ms ease-out;
+  gap: var(--esp-1) var(--esp-2-5);
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  transition: background-color 240ms ease-out;
 }
-/* Abierta o con el error a la vista ya no es una cápsula: el radio de una hoja y el círculo arriba. */
-.tv:is([data-abierto], [data-error]) .tv-tar {
-  align-items: start;
-  border-radius: var(--r-lg);
+.tv-cu,
+.tv-1,
+.tv-2 {
+  display: contents;
 }
 .tv[data-t="permiso"] .tv-tar,
 .tv[data-estado="quieto"] .tv-tar {
   background: var(--decision-fondo);
-  box-shadow: inset 0 0 0 1px var(--decision-luz), var(--decision-brillo);
+  box-shadow: inset 0 0 0 1px var(--decision-luz);
 }
 .tv[data-error] .tv-tar {
   background: var(--fallo-fondo);
-  box-shadow: inset 0 0 0 1px var(--fallo-luz), var(--fallo-brillo);
+  box-shadow: inset 0 0 0 1px var(--fallo-luz);
 }
 /* Con `data-t`, para ganarle al color de cada tipo (src/index.css) sea cual sea el orden en que se cargan. */
 .tv[data-t][data-estado="quieto"] {
@@ -46,21 +48,17 @@
   }
 }
 
-/* El círculo: la escena del tipo de herramienta; sin novedades, la pausa; con el error, la ×. */
+/* El ícono de la línea: el de la herramienta, en su color suave; sin novedades, la pausa; con el error, la ×. */
 .tv-tile {
   display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
   place-items: center;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--c) 18%, transparent);
   color: var(--c);
-  transition: background-color 240ms ease-out, color 240ms ease-out;
+  transition: color 240ms ease-out;
 }
-.tv-tile .esc {
-  width: 2.75rem;
-  height: 2.75rem;
-  background: transparent;
+.tv-tile > :is(.tv-ic, svg) {
   animation: tv-escena 200ms ease-out;
 }
 @keyframes tv-escena {
@@ -68,30 +66,11 @@
     opacity: 0;
   }
 }
-.tv-cu {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-}
-.tv-1,
-.tv-2 {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--esp-2-5);
-}
-.tv-1 {
-  min-height: 1.5rem;
-}
-.tv-2 {
-  min-height: 1.75rem;
-}
-
-/* La frase, a 16 px; lo recién hecho se funde a su izquierda y cede primero cuando falta ancho. */
+/* Qué hace, en peso medio; lo recién hecho (la miga) no va en la línea: ya está en los pasos de «Ver todo». */
 .tv-frase {
   display: flex;
   min-width: 0;
-  flex: 1 1 0;
+  flex: 0 1 auto;
   align-items: baseline;
   gap: var(--esp-2);
 }
@@ -100,9 +79,8 @@
   flex: 0 1 auto;
   overflow: hidden;
   color: var(--texto-1);
-  font-size: var(--letra-7);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: var(--letra-5);
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
   animation: tv-cambia 200ms ease-out;
@@ -114,7 +92,7 @@
   }
 }
 .tv-ant {
-  display: flex;
+  display: none;
   min-width: 0;
   flex: 0 100000 auto;
   justify-content: flex-end;
@@ -128,8 +106,9 @@
   flex: none;
 }
 
-/* Un solo estado: el punto que late y el tiempo. */
+/* Un solo estado a la derecha: la palabra (`.tv-verbo`), el punto que late y la duración. */
 .tv-est {
+  order: 6;
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -149,7 +128,6 @@
   height: 0.4375rem;
   border-radius: 50%;
   background: var(--acento);
-  box-shadow: 0 0 0 0.125rem color-mix(in srgb, var(--acento) 22%, transparent), 0 0 0.625rem color-mix(in srgb, var(--acento) 55%, transparent);
 }
 .tv[data-estado="quieto"] .tv-est {
   color: var(--decision-texto);
@@ -164,8 +142,12 @@
   font-weight: 500;
 }
 
-/* Abajo: «Corriendo», la salida que se funde, «Ver todo» y el modelo. */
+/* El detalle en mono (comando o salida) y, a la derecha, «Ver todo», el modelo y el estado con su palabra («Corriendo», «Corrió»). */
+.tv-frase {
+  order: 1;
+}
 .tv-verbo {
+  order: 5;
   flex: none;
   color: var(--texto-3);
   font-size: var(--letra-4);
@@ -176,6 +158,7 @@
   color: var(--fallo-texto);
 }
 .tv-out {
+  order: 2;
   min-width: 0;
   flex: 1 1 0;
   overflow: hidden;
@@ -193,6 +176,7 @@
   color: var(--texto-4);
 }
 .tv-ver {
+  order: 3;
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -213,6 +197,7 @@
   transform: rotate(180deg);
 }
 .tv-modelo {
+  order: 4;
   position: relative;
   flex: none;
   border-radius: var(--r-xs);
@@ -230,6 +215,8 @@
   display: none;
 }
 .tv-err {
+  order: 10;
+  flex: 0 0 100%;
   padding: var(--esp-1) 0 var(--esp-1-5);
 }
 .tv-err .aviso[data-tono="grave"] {
@@ -243,6 +230,8 @@
 
 /* "Ver todo": se abre empujando la cápsula; cerrado no ocupa nada ni se llega con el teclado. */
 .tv-plieg {
+  order: 11;
+  flex: 0 0 100%;
   display: grid;
   grid-template-rows: 0fr;
   transition: grid-template-rows 180ms ease-out;
@@ -292,16 +281,16 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Angosta: la miga se va y el modelo baja a su renglón; la salida queda entera en el suyo. */
+/* Cerrada, lo desplegable no suma ni el hueco entre filas. */
+.tv:not([data-abierto]) .tv-plieg {
+  margin-top: calc(var(--esp-1) * -1);
+}
+
+/* Angosta: el detalle baja a su propia línea, entero, y el resto queda arriba. */
 @container (max-width: 38rem) {
-  .tv-ant {
-    display: none;
-  }
-  .tv-2 {
-    flex-wrap: wrap;
-  }
   .tv-out {
-    flex-basis: 8rem;
+    order: 8;
+    flex: 1 0 100%;
   }
 }
 

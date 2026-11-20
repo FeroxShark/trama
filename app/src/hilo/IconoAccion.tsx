@@ -4,7 +4,7 @@ import type { Uso } from "./herramientas";
 import type { LucideIcon } from "lucide-react";
 import { claseAccion, iconoAccion, TIPO_DE_CLAVE, tiposDe, tipoAccion, type TipoAccion } from "./accion-tipo";
 
-export function IconoAccion({ tipo, size = 12 }: { tipo: TipoAccion; size?: number }) {
+export function IconoAccion({ tipo, size = 14 }: { tipo: TipoAccion; size?: number }) {
   const I = iconoAccion(tipo);
   return <I className="acc-i" size={size} strokeWidth={1.9} aria-hidden="true" data-accion={tipo} data-clase={claseAccion(tipo)} />;
 }
