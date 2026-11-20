@@ -134,4 +134,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
-        run: gh release upload "$TAG" nativo.yml Trama-Nativo-Setup-*.exe Trama-Nativo-Setup-*.exe.blockmap latest-linux.yml Trama-*.AppImage --clobber
+        # Sin release del tag (sólo se empujó el tag), se crea con la sección de esa versión del CHANGELOG como notas.
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh api "repos/$GH_REPO/contents/CHANGELOG.md?ref=$TAG" -H "Accept: application/vnd.github.raw" \
+              | awk -v v="## ${TAG#v}" '$0 == v { f = 1; next } /^## / { f = 0 } f' | sed '/./,$!d' > notas.md
+            gh release create "$TAG" --title "$TAG" --notes-file notas.md --verify-tag
+          fi
+          gh release upload "$TAG" nativo.yml Trama-Nativo-Setup-*.exe Trama-Nativo-Setup-*.exe.blockmap latest-linux.yml Trama-*.AppImage --clobber
