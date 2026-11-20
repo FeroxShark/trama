@@ -1,5 +1,14 @@
 # Changes
 
+## 0.3.11
+
+- New icons for chat tools, each with its soft color: terminal for commands, page for reading, pencil for editing, magnifier for searching, globe for the web and people for agents (bye robot). The «Running» card takes a single line.
+- The model selector is a narrow single-column list: the provider as a header and one row per model, with the effort next to the chosen one.
+- The debate between models is shown in columns, one per model, with its stance and what it's writing. Before running, «What was agreed» sums up the agreement, who said what and what stayed open.
+- Smoother animations: panels, new messages, buttons and lists come in with a short spring. With the system's «reduce motion», only fades.
+- Images pasted in the chat box are no longer lost if the window relaunches.
+- If the same batch of questions arrives twice, the one you're answering no longer moves.
+
 ## 0.3.10
 
 - Under each quota ring in the rail you can see how long until it comes back («2h 14m», «3d 4h»), without opening anything. With no usage, it still says «5 h» or «wk».

@@ -1,5 +1,14 @@
 # Cambios
 
+## 0.3.11
+
+- Íconos nuevos para las herramientas del chat, cada uno con su color suave: terminal para los comandos, hoja para leer, lápiz para editar, lupa para buscar, globo para la web y personas para los agentes (chau robot). La tarjeta «Corriendo» ocupa una sola línea.
+- El selector de modelos es una lista angosta de una columna: el proveedor como encabezado y un renglón por modelo, con el esfuerzo al lado del elegido.
+- El debate entre modelos se ve en columnas, una por modelo, con su postura y lo que va escribiendo. Antes de ejecutar, «Qué se acordó» resume lo acordado, quién dijo qué y lo que quedó sin acuerdo.
+- Animaciones más suaves: paneles, mensajes nuevos, botones y listas entran con un resorte corto. Con «reducir movimiento» del sistema, sólo fundidos.
+- Las imágenes pegadas en la caja del chat ya no se pierden si la ventana se relanza.
+- Si llega dos veces la misma tanda de preguntas, la que estás contestando ya no cambia de lugar.
+
 ## 0.3.10
 
 - Debajo de cada anillo de cupo del riel se ve cuánto falta para que vuelva («2h 14m», «3d 4h»), sin abrir nada. Sin uso, sigue diciendo «5 h» o «sem».
