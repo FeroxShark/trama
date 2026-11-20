@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.3.12
+
+- Los chats largos vuelven a abrir y a escribirse rápido: la animación de los mensajes nuevos se aplicaba a toda la conversación y cada tecla se trababa.
+- La tarjeta «Corriendo» se rediseñó: un círculo con el ícono y un arco que gira mientras trabaja, qué hace con un solo verbo, el detalle abajo, y el tiempo y el modelo a la derecha. Con varias herramientas a la vez, el círculo muestra cuántas son y cada una tiene su estado escrito.
+- Cambiar de modelo o de esfuerzo con un chat trabajando se aplica enseguida, desde el próximo paso del turno, sin esperar al mensaje siguiente. Si el asesor del modelo nuevo no sirve para el turno en curso, queda marcado «próx.» como antes.
+
 ## 0.3.11
 
 - Íconos nuevos para las herramientas del chat, cada uno con su color suave: terminal para los comandos, hoja para leer, lápiz para editar, lupa para buscar, globo para la web y personas para los agentes (chau robot). La tarjeta «Corriendo» ocupa una sola línea.

@@ -1,5 +1,11 @@
 # Changes
 
+## 0.3.12
+
+- Long chats open and take typing quickly again: the animation for new messages was being applied to the whole conversation and every keystroke stuttered.
+- The «Running» card was redesigned: a circle with the icon and an arc that spins while it works, what it is doing with a single verb, the detail below, and the time and model on the right. With several tools at once, the circle shows how many there are and each one has its status in words.
+- Changing the model or effort while a chat is working applies right away, from the next step of the turn, without waiting for the next message. If the new model's advisor does not fit the running turn, it stays marked «next» as before.
+
 ## 0.3.11
 
 - New icons for chat tools, each with its soft color: terminal for commands, page for reading, pencil for editing, magnifier for searching, globe for the web and people for agents (bye robot). The «Running» card takes a single line.
