@@ -22,10 +22,12 @@ import { FraseFila, TiempoFila } from "../hilo/Hace";
 import { Hojas } from "../hilo/Posta";
 import { Tierno, useTiernos } from "../hilo/Tierno";
 import { motion } from "motion/react";
+import { RESORTE } from "../movimiento";
 import { IconoMaquina } from "./Maquina";
 import { MarcaFamilia } from "./MarcaFamilia";
 
-export const RESORTE = { type: "spring", stiffness: 520, damping: 42, mass: 1 } as const;
+// El resorte de las filas vive con el resto del movimiento (src/movimiento.ts); acá se reexporta porque la barra y Ramas lo importan de este archivo.
+export { RESORTE } from "../movimiento";
 
 /** Cuántas veces renderizó una fila: el guion verifica que un tic del reloj no lo mueve. */
 export const renders = { filas: 0 };

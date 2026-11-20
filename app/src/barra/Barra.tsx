@@ -2701,7 +2701,7 @@ function Carpeta({
         {abierto ? (
           <motion.div
             key="cuerpo"
-            className="proy-cuerpo"
+            className="proy-cuerpo mov-lista"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

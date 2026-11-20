@@ -2,6 +2,7 @@
 // dónde vive y lo que se puede hacer (prender o apagar, quitar, instalar). Instalar una skill o agregar un conector SIEMPRE pasa por una confirmación que
 // dice qué pasa (qué archivos y si traen scripts; a qué dominio van tus datos); un conector que es un paquete NO se instala: se muestra su comando y su
 // enlace. Un plugin se instala con `claude plugin install` (electron/plugins-claude.ts). Cada estado se dice con ícono y palabra, no sólo con color.
+import { useSalida } from "../movimiento";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, ExternalLink, Loader, Plus, Terminal, Trash2, X } from "lucide-react";
@@ -101,7 +102,9 @@ function Previsualizacion({ x, a }: { x: Tarjeta; a: Abierto }) {
   );
 }
 
-export function DetalleTienda({ x, conector, propio, hoy, confirmar, acciones, alCerrar }: Props) {
+export function DetalleTienda({ x, conector, propio, hoy, confirmar, acciones, alCerrar: alCerrarYa }: Props) {
+  // Se cierra con la salida corta (movimiento.ts): el fondo se funde y recién entonces se llama a alCerrar.
+  const [alCerrar, saliendo] = useSalida(alCerrarYa);
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
   const vivo = useRef(true);
@@ -153,7 +156,7 @@ export function DetalleTienda({ x, conector, propio, hoy, confirmar, acciones, a
   };
 
   return createPortal(
-    <div className="seg-fondo" data-detalle-tienda onMouseDown={(e) => e.target === e.currentTarget && !ocupado && alCerrar()}>
+    <div className="seg-fondo" data-detalle-tienda data-saliendo={saliendo ? "" : undefined} onMouseDown={(e) => e.target === e.currentTarget && !ocupado && alCerrar()}>
       <div ref={raiz} className="seg ti-det" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} tabIndex={-1} data-tarjeta-detalle={x.clave}>
         <div className="seg-cab">
           <span className="seg-ico" aria-hidden>

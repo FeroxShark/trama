@@ -14,6 +14,7 @@ import "./index.css";
 import "./popovers-vidrio.css";
 import "./ui/ui.css";
 import "./barra/riel-estilos.css";
+import "./movimiento.css";
 import { MODO } from "./modo";
 import { traerVuelta } from "./volver";
 

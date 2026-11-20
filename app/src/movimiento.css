@@ -1,0 +1,133 @@
+/* El movimiento de Trama en CSS (espejo de src/movimiento.ts; tests/movimiento.test.ts comprueba que coinciden). Sólo `opacity` y las
+   propiedades individuales `translate`/`scale` (no pisan el `transform` de motion/react ni de la barra); nunca width/height.
+   Con prefers-reduced-motion los desplazamientos y la escala valen cero: queda sólo el fundido. */
+:root {
+  --mov-entra: 280ms;
+  --mov-sale: 140ms;
+  --mov-fundido: 160ms;
+  --mov-boton: 200ms;
+  --mov-escalon: 28ms;
+  --mov-desp-panel: 8px;
+  --mov-desp-mensaje: 8px;
+  --mov-desp-lista: 6px;
+  --mov-pulsa: 0.97;
+  --mov-resorte: linear(0, 0.044, 0.145, 0.271, 0.4, 0.522, 0.629, 0.719, 0.793, 0.851, 0.896, 0.93, 0.955, 0.973, 0.985, 0.993, 0.998, 1.001, 1);
+  --mov-resorte-corto: linear(0, 0.057, 0.185, 0.335, 0.482, 0.611, 0.719, 0.804, 0.868, 0.915, 0.948, 0.971, 0.985, 0.994, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --mov-desp-panel: 0px;
+    --mov-desp-mensaje: 0px;
+    --mov-desp-lista: 0px;
+    --mov-pulsa: 1;
+    --mov-escalon: 0ms;
+  }
+}
+
+@keyframes mov-panel-entra {
+  from {
+    opacity: 0;
+    translate: 0 var(--mov-desp-panel);
+  }
+}
+@keyframes mov-panel-sale {
+  to {
+    opacity: 0;
+    translate: 0 calc(var(--mov-desp-panel) / 2);
+  }
+}
+@keyframes mov-fundido-entra {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes mov-fundido-sale {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes mov-mensaje-entra {
+  from {
+    opacity: 0;
+    translate: 0 var(--mov-desp-mensaje);
+  }
+}
+@keyframes mov-lista-entra {
+  from {
+    opacity: 0;
+    translate: 0 var(--mov-desp-lista);
+  }
+}
+
+/* 1. Paneles y modales: un leve desplazamiento con fundido, con resorte; se van más rápido de lo que llegan (`useSalida` pone data-saliendo). */
+.seg,
+.at-caja,
+.vuelo,
+.avc-g {
+  animation: mov-panel-entra var(--mov-entra) var(--mov-resorte) both;
+}
+.cmenu,
+.seg-fondo,
+.at {
+  animation: mov-fundido-entra var(--mov-fundido) ease-out both;
+}
+.seg-fondo[data-saliendo],
+.at[data-saliendo] {
+  animation: mov-fundido-sale var(--mov-sale) ease-in both;
+}
+[data-saliendo] > .seg,
+[data-saliendo] > .at-caja {
+  animation: mov-panel-sale var(--mov-sale) ease-in both;
+}
+
+/* 2. Mensajes nuevos del chat: suben unos píxeles con fundido. Sólo cuando la conversación ya se asentó (useAsentado): el historial no se anima,
+   y un mensaje que crece con el texto en vivo no vuelve a entrar (la animación corre una sola vez, al montarse el elemento). */
+.conv[data-asentado] > * {
+  animation: mov-mensaje-entra var(--mov-entra) var(--mov-resorte) both;
+}
+
+/* 4. Listas que aparecen: escalonadas hasta 8; del 8 en adelante entran juntos. `--i` lo da la posición. */
+.mov-lista > *,
+.cmenu > .cmenu-op {
+  --i: 7;
+  animation: mov-lista-entra var(--mov-entra) var(--mov-resorte) both;
+  animation-delay: calc(var(--i) * var(--mov-escalon));
+}
+.mov-lista > :nth-child(1),
+.cmenu > .cmenu-op:nth-child(1) {
+  --i: 0;
+}
+.mov-lista > :nth-child(2),
+.cmenu > .cmenu-op:nth-child(2) {
+  --i: 1;
+}
+.mov-lista > :nth-child(3),
+.cmenu > .cmenu-op:nth-child(3) {
+  --i: 2;
+}
+.mov-lista > :nth-child(4),
+.cmenu > .cmenu-op:nth-child(4) {
+  --i: 3;
+}
+.mov-lista > :nth-child(5),
+.cmenu > .cmenu-op:nth-child(5) {
+  --i: 4;
+}
+.mov-lista > :nth-child(6),
+.cmenu > .cmenu-op:nth-child(6) {
+  --i: 5;
+}
+.mov-lista > :nth-child(7),
+.cmenu > .cmenu-op:nth-child(7) {
+  --i: 6;
+}
+
+/* 3. Botones: al apretar se achican un poco, con resorte corto. Lo que ya declara su propia `transition` conserva la suya al soltar
+   (el resorte de la ida lo da `:active`). `data-sin-pulso` lo evita donde achicar estorba. */
+:where(button, [role="button"]):not(:disabled, [aria-disabled="true"], [data-sin-pulso]) {
+  transition: scale var(--mov-boton) var(--mov-resorte-corto);
+}
+:is(button, [role="button"]):not(:disabled, [aria-disabled="true"], [data-sin-pulso]):active {
+  scale: var(--mov-pulsa);
+  transition: scale var(--mov-boton) var(--mov-resorte-corto);
+}

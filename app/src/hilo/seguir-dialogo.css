@@ -23,7 +23,6 @@
   box-shadow:
     var(--vidrio-borde),
     var(--sombra-vidrio);
-  animation: abre var(--t-smooth) cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .seg:focus-visible {
   outline: none;

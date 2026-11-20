@@ -1591,11 +1591,6 @@ img.logo {
   text-decoration-color: var(--texto-8);
   text-underline-offset: 0.1875rem;
 }
-@media (prefers-reduced-motion: reduce) {
-  .avc-g {
-    animation: none;
-  }
-}
 
 /* "Falta configurar": la misma pastilla que el aviso de Claude Code, con el punto ámbar (no es una novedad: falta algo). */
 .avs .avc-p {
@@ -3230,7 +3225,8 @@ html[data-titulo-nativo] #root::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app *,
+  /* Lo del movimiento de Trama (movimiento.css) no se apaga: sin desplazamiento ni escala queda el fundido. La lista va igual en movimiento.css. */
+  .app *:not(:is(.seg, .at-caja, .vuelo, .avc-g, .cmenu, .seg-fondo, .at, .conv[data-asentado] > *, .mov-lista > *, .cmenu > .cmenu-op)),
   .app *::before,
   .app *::after,
   #tip {

@@ -3,6 +3,7 @@
 // «Por proyecto» o «Por fecha»; cada fila: nombre, modelo, si está archivado o cerrado y hace cuánto, «Abrir» y una papelera. La papelera pide
 // confirmar en una burbuja pegada al botón y manda a la papelera del sistema SÓLO el transcript de ese chat (electron/historial-chats.ts).
 // Teclado: flechas entre filas, Enter abre, Supr pide borrar, Esc cierra la burbuja y después la ventana. Maqueta: opcion-c. Lógica: historial-logica.ts.
+import { useSalida } from "../movimiento";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Crown, History, Search, Trash2, TriangleAlert, X } from "lucide-react";
@@ -34,7 +35,9 @@ type Props = {
 
 const modeloLindo = (m: string | null) => (m ? (modeloCorto(m) ?? m) : null);
 
-export function Historial({ nombreCarpeta, tituloDe, alAbrir, alCerrar, ahora, confirmarInicial }: Props) {
+export function Historial({ nombreCarpeta, tituloDe, alAbrir, alCerrar: alCerrarYa, ahora, confirmarInicial }: Props) {
+  // Se cierra con la salida corta (movimiento.ts): el fondo se funde y recién entonces se llama a alCerrar.
+  const [alCerrar, saliendo] = useSalida(alCerrarYa);
   useIdioma();
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
@@ -204,7 +207,7 @@ export function Historial({ nombreCarpeta, tituloDe, alAbrir, alCerrar, ahora, c
   const etiquetaFiltro = (f: FiltroHistorial) => t(f === "todos" ? "historial.todos" : f === "archivado" ? "historial.archivados" : "historial.cerrados");
 
   return createPortal(
-    <div className="seg-fondo" data-historial onMouseDown={(e) => e.target === e.currentTarget && alCerrar()}>
+    <div className="seg-fondo" data-historial data-saliendo={saliendo ? "" : undefined} onMouseDown={(e) => e.target === e.currentTarget && alCerrar()}>
       <div ref={raiz} className="seg his" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} tabIndex={-1}>
         <div className="his-cab">
           <History size={17} strokeWidth={2} aria-hidden="true" />
@@ -235,7 +238,7 @@ export function Historial({ nombreCarpeta, tituloDe, alAbrir, alCerrar, ahora, c
             ))}
           </div>
         </div>
-        <div className="his-lista" aria-label={t("historial.lista")}>
+        <div className="his-lista mov-lista" aria-label={t("historial.lista")}>
           {chats === null ? (
             <p className="seg-vacio" role="status">
               {t("historial.leyendo")}

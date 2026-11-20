@@ -3,6 +3,7 @@
 // plazo se elige (1, 3, 7 o 30 días). Qué entra lo decide `limpiar-logica.ts`; archivar usa el mismo camino que el botón de cada fila
 // (`alArchivar` → `settleLiderYa`): cierra el proceso y la conversación queda en disco. Sin segundo clic por fila: se destildan los que
 // se quieren conservar y un solo botón archiva el resto. Estilo: el diálogo de «Seguir con otro modelo» y los componentes de `src/ui/`.
+import { useSalida } from "../movimiento";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Brush, Check, Skull, Moon } from "lucide-react";
@@ -33,7 +34,9 @@ type Props = {
 
 const textoDias = (n: number) => (n === 1 ? t("limpiar.dia1") : t("limpiar.diasN", { n }));
 
-export function Limpiar({ entradas, proyecto, nombreCarpeta, alArchivar, alCerrar, ahora, diasInicial = DIAS_DEFECTO }: Props) {
+export function Limpiar({ entradas, proyecto, nombreCarpeta, alArchivar, alCerrar: alCerrarYa, ahora, diasInicial = DIAS_DEFECTO }: Props) {
+  // Se cierra con la salida corta (movimiento.ts): el fondo se funde y recién entonces se llama a alCerrar.
+  const [alCerrar, saliendo] = useSalida(alCerrarYa);
   useIdioma();
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
@@ -73,7 +76,7 @@ export function Limpiar({ entradas, proyecto, nombreCarpeta, alArchivar, alCerra
   const titulo = proyecto !== undefined ? t("limpiar.tituloCarpeta", { carpeta: nombreCarpeta(proyecto) }) : t("limpiar.titulo");
 
   return createPortal(
-    <div className="seg-fondo" data-limpiar onMouseDown={(e) => e.target === e.currentTarget && alCerrar()}>
+    <div className="seg-fondo" data-limpiar data-saliendo={saliendo ? "" : undefined} onMouseDown={(e) => e.target === e.currentTarget && alCerrar()}>
       <div ref={raiz} className="seg lim" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} aria-describedby={`${id}-d`} tabIndex={-1}>
         <div className="seg-cab">
           <span className="seg-ico" aria-hidden="true">

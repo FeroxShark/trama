@@ -2,6 +2,7 @@
 // lo marca `retirado`: sale de la barra y de los selectores, la carpeta no se toca). Aparte y apagado, «También mandar la carpeta a la papelera»: muestra
 // la ruta, avisa si git tiene trabajo sin guardar y pide escribir el nombre exacto. Se niega, con el motivo, si hay líderes o workers vivos. Al terminar,
 // el resultado ofrece «Deshacer» (si sólo se quitó). Las guardas de verdad viven en el main (electron/proyectos-borrar.ts). Estilo: .seg-* (seguir-dialogo.css).
+import { useSalida } from "../movimiento";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Check, Trash2 } from "lucide-react";
@@ -23,7 +24,9 @@ type Props = {
   alCerrar: () => void;
 };
 
-export function BorrarProyecto({ slug, nombre, alCerrar }: Props) {
+export function BorrarProyecto({ slug, nombre, alCerrar: alCerrarYa }: Props) {
+  // Se cierra con la salida corta (movimiento.ts): el fondo se funde y recién entonces se llama a alCerrar.
+  const [alCerrar, saliendo] = useSalida(alCerrarYa);
   useIdioma();
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
@@ -80,7 +83,7 @@ export function BorrarProyecto({ slug, nombre, alCerrar }: Props) {
 
   const git = vista && papelera && !vista.papeleraNegada ? avisoGit(vista.git) : null;
   return createPortal(
-    <div className="seg-fondo" data-borrar-proyecto onMouseDown={(e) => e.target === e.currentTarget && !ocupado && alCerrar()}>
+    <div className="seg-fondo" data-borrar-proyecto data-saliendo={saliendo ? "" : undefined} onMouseDown={(e) => e.target === e.currentTarget && !ocupado && alCerrar()}>
       <div ref={raiz} className="seg bp" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} aria-describedby={`${id}-d`} tabIndex={-1}>
         <div className="seg-cab">
           <span className="seg-ico bp-ico" aria-hidden="true">

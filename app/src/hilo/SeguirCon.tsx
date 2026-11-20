@@ -3,6 +3,7 @@
 // tiene cupo se marca con su hora (ícono y palabra, no sólo el color) y va al final de su proveedor. Elegir una fila llama a `alElegir`
 // (el host lanza `pa --seguir-con` o abre un líder nuevo con el resumen); mientras eso corre la lista queda quieta, y si falla el error
 // se ve acá y se puede elegir otro. La lógica de la lista (orden, marcas, flechas): seguir-con.ts.
+import { useSalida } from "../movimiento";
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { ArrowRightLeft, Ban, Check, Clock, MessagesSquare, ScanSearch, Search, X } from "lucide-react";
@@ -62,7 +63,9 @@ const MODELOS_DEBATE = { min: 2, max: 3 } as const;
 const RONDAS_DEBATE = [1, 2, 3] as const;
 const RONDAS_DEFECTO = 2;
 
-export function SeguirCon({ de, opciones, actual, alElegir, alDebatir, alCerrar, preferido, busquedaInicial = "", esfuerzos }: Props) {
+export function SeguirCon({ de, opciones, actual, alElegir, alDebatir, alCerrar: alCerrarYa, preferido, busquedaInicial = "", esfuerzos }: Props) {
+  // Se cierra con la salida corta (movimiento.ts): el fondo se funde y recién entonces se llama a alCerrar.
+  const [alCerrar, saliendo] = useSalida(alCerrarYa);
   useIdioma();
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
@@ -161,7 +164,7 @@ export function SeguirCon({ de, opciones, actual, alElegir, alDebatir, alCerrar,
 
   let n = -1;
   return createPortal(
-    <div className="seg-fondo" data-seguir onMouseDown={(e) => e.target === e.currentTarget && !enviando && alCerrar()}>
+    <div className="seg-fondo" data-seguir data-saliendo={saliendo ? "" : undefined} onMouseDown={(e) => e.target === e.currentTarget && !enviando && alCerrar()}>
       <div ref={raiz} className="seg" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} aria-describedby={`${id}-d`} tabIndex={-1} onKeyDown={tecla}>
         <div className="seg-cab">
           <span className="seg-ico" aria-hidden="true">
@@ -201,7 +204,7 @@ export function SeguirCon({ de, opciones, actual, alElegir, alDebatir, alCerrar,
             autoComplete="off"
           />
         </label>
-        <div className="seg-lista" ref={lista} id={`${id}-l`} role="listbox" aria-multiselectable={enDebate || undefined} aria-label={t("seguir.lista")} aria-busy={!!enviando}>
+        <div className="seg-lista mov-lista" ref={lista} id={`${id}-l`} role="listbox" aria-multiselectable={enDebate || undefined} aria-label={t("seguir.lista")} aria-busy={!!enviando}>
           {!filas.length ? <p className="seg-vacio">{t("seguir.sinResultados")}</p> : null}
           {grupos.map((g) => (
             <Fragment key={g.clave}>
