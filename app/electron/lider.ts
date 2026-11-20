@@ -1022,15 +1022,15 @@ export function pedirUsoCuentas(forzar = false): Promise<boolean> {
  * `apply_flag_settings` (sin relanzar). `false`: no contestó (o salió); hay que
  * relanzar. Si `claude` rechaza el modelo, el error sube tal cual.
  */
-async function cambiarEnVivo(x: Proc, modelo: string, effort: string): Promise<boolean> {
+async function cambiarEnVivo(x: Proc, modelo: string, effort: string, enTurno = false): Promise<boolean> {
   // Lo de un local va en el entorno (adónde habla, su esfuerzo): de o hacia un local, se relanza.
   if (x.local || localDe(modelo)) return false;
   // Gemini y Ollama también van en el proceso (el puente, o el endpoint en el entorno): otro modelo de esas clases es relanzar.
   if (x.clase !== "claude" || claseDeModelo(modelo) !== "claude") return false;
-  // El tope de «Contexto antes de compactar» va en el argv del proceso: otra familia con otro tope se relanza (`--resume`), no se cambia en vivo.
-  if (x.modelo !== modelo && (x.tope ?? null) !== topeDeLider(modelo)) return false;
-  // El asesor (`--advisor`) también va en el argv: otra familia con otro asesor se relanza.
-  if (x.modelo !== modelo && (x.asesor ?? null) !== asesorDeLider(modelo, entornoLider(process.env, HOME), HOME)) return false;
+  // El tope de «Contexto antes de compactar» y el asesor (`--advisor`) van en el argv: otra familia con otro tope u otro asesor se relanza
+  // (`--resume`). A mitad de un turno no se puede relanzar: el modelo cambia ya, el turno termina con el tope y el asesor de antes y el
+  // próximo mensaje relanza (`desfasado`).
+  if (!enTurno && x.modelo !== modelo && desfasado({ ...x, modelo })) return false;
   if (x.modelo !== modelo) {
     const r = await control(x, (id) => lineaModelo(id, modelo));
     if (!r || (!r.ok && !r.error)) return false;
@@ -1043,6 +1043,11 @@ async function cambiarEnVivo(x: Proc, modelo: string, effort: string): Promise<b
     x.effort = effort;
   }
   return true;
+}
+
+/** ¿El tope o el asesor del proceso (van en su argv) no son los de su modelo? Pasa tras cambiar de familia a mitad de un turno. */
+function desfasado(x: Pick<Proc, "modelo" | "tope" | "asesor">): boolean {
+  return (x.tope ?? null) !== topeDeLider(x.modelo) || (x.asesor ?? null) !== asesorDeLider(x.modelo, entornoLider(process.env, HOME), HOME);
 }
 
 /** ¿Hay un proceso vivo con esta sesión que no es de la app? (terminal, otra trama). */
@@ -1105,6 +1110,26 @@ export function paraSeleccion(x: { sid?: unknown; modelo?: unknown; effort?: unk
   const sid = String(x?.sid);
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
   return { sid, seleccion: { modelo: sueltoDe("modelo", x.modelo), effort: sueltoDe("effort", x.effort) } };
+}
+
+/**
+ * Otro modelo o esfuerzo elegido con un turno en curso: se aplica ya, sin esperar al próximo mensaje (`set_model` y
+ * `apply_flag_settings` valen desde el próximo pedido a la API, aunque el turno siga o espere una tarea de fondo). Sólo si se puede
+ * en vivo (`cambiarEnVivo`: mismo motor, mismo tope y mismo asesor); si no, queda para el próximo mensaje como antes. `true`: se aplicó.
+ */
+export async function cambiarEnTurno(sid: string, s: { modelo: string; effort: string }): Promise<boolean> {
+  const p = procs.get(sid);
+  if (!p?.ocupado || (p.modelo === s.modelo && p.effort === s.effort)) return false;
+  const ok = await cambiarEnVivo(p, s.modelo, s.effort, true).catch(() => false);
+  // Aunque sólo haya entrado una parte (el modelo sí, el esfuerzo no), lo guardado sigue al proceso: la vista deja de marcarlo pendiente.
+  const g = guardados?.find((l) => l.sid === sid);
+  if (g && procs.get(sid) === p && (g.modelo !== p.modelo || g.effort !== p.effort)) {
+    g.modelo = p.modelo;
+    g.effort = p.effort;
+    await guardar();
+    alCambio();
+  }
+  return ok;
 }
 
 /**
@@ -1345,7 +1370,7 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
       p = undefined;
     }
   }
-  if (p && (p.modelo !== modelo || p.effort !== effort) && !(await cambiarEnVivo(p, modelo, effort))) {
+  if (p && ((p.modelo !== modelo || p.effort !== effort) && !(await cambiarEnVivo(p, modelo, effort)) || (p.clase === "claude" && !p.local && desfasado(p)))) {
     // Pudo haber salido mientras esperaba: si sigue, se cierra y se relanza con los nuevos.
     if (procs.get(g.sid) === p) await terminar(p);
     p = undefined;

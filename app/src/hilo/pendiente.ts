@@ -20,7 +20,7 @@ export function pendienteDe(x: { ocupado: boolean; modelo: string; effort: strin
 }
 
 /**
- * Las opciones de modelo con un turno en curso: las del mismo motor se eligen (se aplican al próximo mensaje); las de otro motor
+ * Las opciones de modelo con un turno en curso: las del mismo motor se eligen (las toma el turno ya si se puede en vivo; si no, el próximo mensaje); las de otro motor
  * (Claude, Gemini, DeepSeek Harness, OpenCode) quedan a la vista pero apagadas, diciendo por qué: ese cambio sigue como siempre,
  * con su confirmación y con el líder en reposo.
  */

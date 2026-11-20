@@ -409,21 +409,22 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     setModelo(modeloServidor);
     setEffort(effortDe(effortServidor, modeloServidor) ?? effortPara(modeloServidor, effortsLeidos() ?? {}));
   }, [modeloServidor, effortServidor]);
-  // Con un turno en curso los selectores siguen abiertos: lo elegido no toca el turno, se aplica al próximo mensaje que salga
-  // (el de la caja o el de la cola al desencolarse). Lo que difiere de lo que usa el turno se marca en el selector.
+  // Con un turno en curso los selectores siguen abiertos: lo elegido del mismo motor lo toma el turno ya (desde su próximo pedido a la
+  // API, `cambiarEnTurno`); lo que no se puede en vivo va con el próximo mensaje. Mientras difiere de lo que usa el turno, se marca en el selector.
   const turnoModelo = modeloDe(l?.modelo);
   const enTurno = app && ocupado;
   const pend = pendienteDe({ ocupado: enTurno, modelo, effort, turno: l ? { modelo: turnoModelo ?? undefined, effort: effortDe(l.effort, turnoModelo) } : null });
   const modelosEnTurno = useMemo(() => opcionesEnTurno(MODELOS, enTurno, l?.modelo, tr("lider.cruceEnTurno")), [enTurno, l?.modelo, tablaModelos]);
-  // Con mensajes en la cola, cada cambio de la caja se avisa al main: el que sale lleva lo vigente al desencolarse, no lo de cuando se encoló.
+  // Con mensajes en la cola o un turno en curso, cada cambio de la caja se avisa al main: el que sale de la cola lleva lo vigente al
+  // desencolarse, y el turno en curso lo toma ya si se puede (si no, queda marcado «próx.» hasta el próximo mensaje).
   const selVista = useRef<string | null>(null);
   useEffect(() => {
     const k = `${sid}|${modelo}|${effort}`;
     const antes = selVista.current;
     selVista.current = k;
-    if (antes === null || antes === k || !l || !encolados.length) return;
+    if (antes === null || antes === k || !l || (!encolados.length && !enTurno)) return;
     cola.elegir(l.id, modelo, effort);
-  }, [sid, modelo, effort, encolados.length]);
+  }, [sid, modelo, effort, encolados.length, enTurno]);
   // El modo de un líder nuevo se elige antes de que exista (y el de uno de la terminal, antes de
   // traerlo); el de uno de la app, lo dice el stream (o la lista).
   const [modoNuevo, setModoNuevo] = useState<Modo>(MODO_DEFAULT);

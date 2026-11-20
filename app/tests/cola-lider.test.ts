@@ -100,6 +100,26 @@ test("líder de la app respondiendo: lo que se manda queda en cola y sale al ter
   assert.equal(await lider.disponible(sid), "app");
 });
 
+test("esfuerzo elegido a mitad de un turno: lo toma el turno ya (apply_flag_settings), sin relanzar ni esperar al próximo mensaje", { timeout: 30_000 }, async () => {
+  const antes = lanzados().length;
+  const fin0 = fines();
+  const sid = await lider.nuevo({ ...M, texto: "muchos pasos" });
+  assert.equal(await lider.disponible(sid), "ocupado");
+  assert.equal(await lider.cambiarEnTurno(sid, { ...M, effort: "low" }), true);
+  const controles = readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((x) => x.control);
+  assert.equal(controles.at(-1)?.settings?.effortLevel, "low", "llegó al proceso a mitad del turno");
+  assert.equal((await lider.lideresApp()).find((l) => l.sid === sid)?.effort, "low", "y quedó guardado: la vista deja de marcarlo «próx.»");
+  assert.equal(await lider.disponible(sid), "ocupado", "el turno sigue");
+  // Lo mismo otra vez no manda nada.
+  assert.equal(await lider.cambiarEnTurno(sid, { ...M, effort: "low" }), false);
+  await hasta(() => fines() === fin0 + 1);
+  // Sin turno en curso no hace nada (va con el próximo mensaje, como siempre).
+  assert.equal(await lider.cambiarEnTurno(sid, { ...M, effort: "max" }), false);
+  await lider.mandar({ sid, texto: "hola", ...M, effort: "low" });
+  await hasta(() => fines() === fin0 + 2);
+  assert.equal(lanzados().length, antes + 1, "el mismo proceso todo el tiempo");
+});
+
 test("líder abierto en una terminal a mitad de un turno: espera sin tocarlo; al terminar lo trae (ese pid) y manda", { timeout: 30_000 }, async () => {
   pasos.length = 0;
   const sid = "eeeeeeee-1111-4111-8111-111111111111";

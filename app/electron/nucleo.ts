@@ -1672,10 +1672,12 @@ export function armarNucleo() {
     await leerCola();
     cola.encolar(sid, item);
   });
-  // Lo elegido en la caja (modelo y esfuerzo) mientras hay cola: el mensaje sale con lo vigente al desencolarse (cola.ts).
-  manejar("lider:colaSeleccion", (_e, x: { sid: string; modelo: string; effort: string }) => {
+  // Lo elegido en la caja (modelo y esfuerzo) con cola o con un turno en curso: el mensaje de la cola sale con lo vigente al desencolarse
+  // (cola.ts), y el turno en curso lo toma ya si se puede en vivo (`cambiarEnTurno`; si no, va con el próximo mensaje).
+  manejar("lider:colaSeleccion", async (_e, x: { sid: string; modelo: string; effort: string }) => {
     const { sid, seleccion } = lider.paraSeleccion(x ?? {});
     cola.elegir(sid, seleccion);
+    await lider.cambiarEnTurno(sid, seleccion);
   });
   // El MCP de Trama (cli/mcp-trama.ts): otro líder o un worker le deja un mensaje a un líder. Entra por la misma cola que lo del usuario,
   // con el modelo y el esfuerzo del líder (los de su proceso, o los guardados si no tiene).
