@@ -3218,6 +3218,7 @@ export const en = {
   "tiempo.unidadD": "d",
   "tiempo.unidadH": "h",
   "tiempo.unidadMin": "min",
+  "tiempo.unidadMinCorta": "m",
   "tiempo.unidadS": "s",
   "uso.tipLinea": "{quien} · {ventana} · {pct} % used · {reinicio}",
   "uso.sinHoraLinea": "reset time unknown",

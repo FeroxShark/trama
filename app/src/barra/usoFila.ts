@@ -47,6 +47,18 @@ export function formatearHasta(iso: string | undefined): { d: number; m: number 
 }
 
 /**
+ * Lo más corto, debajo de un anillo del riel (sin agrandarlo): "2h 8m", "3d 4h", "45m", "30s". `m` es la unidad corta de los minutos. Mismo `en`.
+ */
+export function formatearFaltaMini(r: number, u: Unidades, m: string): { texto: string; en: number } {
+  const largo = formatearFalta(r, u);
+  if (r <= 0) return largo;
+  if (r < MIN) return { texto: `${Math.max(1, Math.floor(r))}${u.s}`, en: largo.en };
+  if (r < HORA) return { texto: `${Math.floor(r / MIN)}${m}`, en: largo.en };
+  if (r < DIA) return { texto: `${Math.floor(r / HORA)}${u.h} ${Math.floor((r % HORA) / MIN)}${m}`, en: largo.en };
+  return { texto: `${Math.floor(r / DIA)}${u.d} ${Math.floor((r % DIA) / HORA)}${u.h}`, en: largo.en };
+}
+
+/**
  * Lo mismo, abreviado para la celda de la barra, donde tiene que entrar al lado del porcentaje: "45 s", "20 min", "1 h20" (las horas con
  * los minutos pegados) y, desde un día, "2 d 17 h" igual que `formatearFalta` (sin los minutos: "2 d" solo ya confundía). Mismo `en`.
  */

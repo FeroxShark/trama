@@ -3204,6 +3204,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "tiempo.unidadD": "d",
   "tiempo.unidadH": "h",
   "tiempo.unidadMin": "min",
+  "tiempo.unidadMinCorta": "m",
   "tiempo.unidadS": "s",
   "uso.tipLinea": "{quien} · {ventana} · {pct} % usado · {reinicio}",
   "uso.sinHoraLinea": "no se sabe cuándo se reinicia",

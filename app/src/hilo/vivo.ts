@@ -51,6 +51,11 @@ export type FinTurno = {
 export type EnCurso = {
   /** Cuántos mensajes tenía el transcript cuando empezó esta tanda. */
   base: number;
+  /**
+   * `base` salió de esta vista (mandó el mensaje o leyó el transcript que cubre la tanda). Un turno que ya corría al abrir la ventana
+   * (recargada, o lo mandó otra máquina) no lo sabe: ahí `base` vale 0 y no sirve para cortar el transcript.
+   */
+  baseSabida: boolean;
   /** Lo de esta tanda (`i` desde 0: la vista los corre después del transcript). */
   tanda: Mensaje[];
   /**
@@ -100,6 +105,7 @@ export type Pedido = Omit<Extract<EventoLider, { tipo: "permiso" }>, "tipo">;
 const QUIETO: Indicador = { hace: null, desde: null, salida: 0, inicio: 0, pasos: [], pasosN: 0 };
 const VACIO: EnCurso = {
   base: 0,
+  baseSabida: false,
   tanda: [],
   turno: 0,
   parcial: "",
@@ -299,15 +305,18 @@ function cambiarPor(sid: string, ev: EventoLider) {
  * final y con el `i` que va a tener el entero: cuando ése llega lo reemplaza en su lugar (mismo
  * turno, misma key), así nunca se ve dos veces ni salta.
  */
-export function mensajesVistos(pag: { mensajes: Mensaje[]; total: number } | null, v: Pick<EnCurso, "ocupado" | "base" | "tanda" | "parcial" | "pensando">): Mensaje[] {
+export function mensajesVistos(pag: { mensajes: Mensaje[]; total: number } | null, v: Pick<EnCurso, "ocupado" | "base" | "tanda" | "parcial" | "pensando"> & Partial<Pick<EnCurso, "baseSabida">>): Mensaje[] {
   const ms = pag?.mensajes ?? [];
   const total = pag?.total ?? 0;
   const cubierto = !v.ocupado && total >= v.base + v.tanda.length;
   if (cubierto && !v.parcial && !v.pensando) return ms;
   // Respondiendo, del transcript sólo lo de antes de la tanda: lo demás ya está en ella (si un
   // mensaje de la cola salió antes de releerlo, el transcript puede traer el turno anterior y el nuevo).
-  const desde = v.ocupado ? v.base : total;
-  const previos = v.ocupado ? ms.filter((m) => m.i < desde) : ms;
+  // Un turno que ya corría al abrir la vista no sabe dónde empieza: va todo el transcript leído (es de antes de lo que llega por el
+  // stream, porque mientras responde no se relee) y la tanda detrás. Cortarlo en 0 escondía toda la conversación.
+  const corta = !!v.ocupado && v.baseSabida !== false;
+  const desde = corta ? v.base : total;
+  const previos = corta ? ms.filter((m) => m.i < desde) : ms;
   const extra: Mensaje[] = cubierto ? [] : v.tanda.map((m) => ({ ...m, i: desde + m.i }));
   if (v.parcial || v.pensando)
     extra.push({ i: desde + extra.length, rol: "assistant", texto: v.parcial, herramientas: [], ts: null, modelo: null, ...(v.pensando ? { pensado: v.pensando } : {}) });
@@ -395,7 +404,7 @@ export function enviado(sid: string, texto: string, base: number, imagenes?: Men
     const tanda = (primero ? [yo, ...e.tanda] : [...e.tanda, yo]).map((m, i) => ({ ...m, i }));
     const turno = primero ? 0 : tanda.length - 1;
     const desde = e.desde ?? ahora();
-    const x = { ...e, base: primero ? base : e.base, tanda, turno, avisos: [], tok: { previos: 0, actual: 0 }, ocupado: true, desde, novedad: Date.now(), salida: null, fin: null };
+    const x = { ...e, base: primero ? base : e.base, baseSabida: primero || e.baseSabida, tanda, turno, avisos: [], tok: { previos: 0, actual: 0 }, ocupado: true, desde, novedad: Date.now(), salida: null, fin: null };
     return conInd(x, { hace: { que: "pidiendo", nombre: null, detalle: null }, desde, salida: 0 });
   });
 }
@@ -453,7 +462,7 @@ export function confirmar(sid: string, total: number, forzar = false) {
     return;
   }
   if (!forzar && total < e.base + e.tanda.length) return;
-  cambiar(sid, (x) => ({ ...x, tanda: [], turno: 0, parcial: "", pensando: "", base: total }));
+  cambiar(sid, (x) => ({ ...x, tanda: [], turno: 0, parcial: "", pensando: "", base: total, baseSabida: true }));
 }
 
 const espejo = crearEspejo();

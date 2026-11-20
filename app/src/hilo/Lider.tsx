@@ -639,7 +639,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   }, [pag, sid]);
 
   // Lo del transcript y, detrás, lo que llegó por el stream y todavía no está en él.
-  const mensajes = useMemo(() => mensajesVistos(pag, vivo), [pag, vivo.ocupado, vivo.base, vivo.tanda, vivo.parcial, vivo.pensando]);
+  const mensajes = useMemo(() => mensajesVistos(pag, vivo), [pag, vivo.ocupado, vivo.base, vivo.baseSabida, vivo.tanda, vivo.parcial, vivo.pensando]);
   // ¿El último pedido del chat es la revisión de un plan? Entonces el plan que llega es el corregido: «Plan revisado listo».
   const trasRevision = useMemo(() => {
     for (let i = mensajes.length - 1; i >= 0; i--) {

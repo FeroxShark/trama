@@ -447,3 +447,20 @@ test("tarjeta: que el proceso cierre después de un turno bueno no le cambia el 
   mandar(sid, { tipo: "salio", codigo: 0, error: null });
   assert.equal(enCurso(sid).fin, f);
 });
+
+test("un turno que ya corría al abrir la ventana no esconde la conversación: va todo el transcript y la tanda detrás", () => {
+  // La ventana se recargó (o el mensaje lo mandó otra máquina): no hubo `enviado` acá, `base` no se sabe.
+  suscribir("retomado", () => {});
+  emitir({ sid: "retomado", e: { tipo: "estado", ocupado: true, vivo: true } });
+  emitir({ sid: "retomado", e: entero("msg_r", "Sigo con lo que estaba.") });
+  const pag = { mensajes: [viejo(40, "user", "lo de antes"), viejo(41, "assistant", "Hecho.")], total: 42 };
+  const v = mensajesVistos(pag, enCurso("retomado"));
+  assert.deepEqual(
+    v.map((m) => m.texto),
+    ["lo de antes", "Hecho.", "Sigo con lo que estaba."],
+  );
+  assert.equal(v.at(-1)!.i, 42, "lo del stream va después de lo leído");
+  // Mandado desde esta vista, `base` sí se sabe y corta como siempre.
+  empezar("sabida");
+  assert.ok(enCurso("sabida").baseSabida);
+});

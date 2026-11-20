@@ -21,7 +21,7 @@ import { ElegirCuenta, useCuentasBarra } from "./ElegirCuenta";
 import { PerfilRiel } from "./PerfilRiel";
 import { Reloj } from "./piezas";
 import { pintorActualizado, useUso } from "./useUso";
-import { formatearFalta, type Unidades } from "./usoFila";
+import { formatearFalta, formatearFaltaMini, type Unidades } from "./usoFila";
 
 
 /** Las capturas `uso*` dejan el detalle abierto. */
@@ -96,9 +96,18 @@ const pintorNota = (v: VentanaRiel, ts: number): Pintor =>
     true,
   );
 
+/** Debajo del anillo: cuánto falta para que vuelva el cupo («2h 8m», «3d 4h»); sin uso o sin hora, el nombre de la ventana («5 h», «sem»). */
+const pintorEtiqueta =
+  (v: VentanaRiel, etiqueta: string): Pintor =>
+  (a) => {
+    if (v.pct === null || v.pct <= 0 || !v.hasta || v.hasta <= a) return { texto: etiqueta, en: Infinity };
+    return formatearFaltaMini(v.hasta - a, unidades(), t("tiempo.unidadMinCorta"));
+  };
+
 export function Anillo({ v, etiqueta, ventana, ts, semanal = false, ahora }: { v: VentanaRiel; etiqueta: string; ventana: string; ts: number; semanal?: boolean; ahora?: number }) {
   const numero = useMemo(() => pintorNumero(v.pct ?? 0, ts), [v.pct, ts]);
   const tip = useMemo(() => pintorAnilloTip(ventana, v, ts, semanal), [ventana, v, ts, semanal]);
+  const resto = useMemo(() => pintorEtiqueta(v, etiqueta), [v, etiqueta]);
   const estado = estadoAnillo(v, ahora ?? Math.floor(Date.now() / 1000), semanal);
   const marca = semanal && v.pct !== null && estado.esperado !== null ? marcaAnillo(estado.esperado, ANILLO_R) : null;
   return (
@@ -112,7 +121,7 @@ export function Anillo({ v, etiqueta, ventana, ts, semanal = false, ahora }: { v
         {v.pct === null ? <span className="an-n">—</span> : <Reloj pintor={numero} className="an-n" />}
         {v.pct !== null ? <Insignia nivel={estado.nivel} /> : null}
       </span>
-      <span className="an-e">{etiqueta}</span>
+      <Reloj pintor={resto} className="an-e" />
       <Reloj pintor={tip} className="an-tip" />
     </span>
   );
