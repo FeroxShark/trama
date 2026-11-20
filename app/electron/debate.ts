@@ -336,7 +336,7 @@ export function iniciarDebate(x: { sid: string; plan: string; participantes: rea
     }
     if (!conclusion) throw errorT("main.debateSinConclusion");
     const vista: DebateVista = { ...conclusion, modelos: ordenados.map((p) => p.modelo), nombres: ordenados.map((p) => p.nombre), motivo: motivo as DebateVista["motivo"], rondas: st.ronda };
-    sumar({ tipo: "conclusion", modelo: ordenados[0]?.modelo ?? "", nombre: ordenados[0]?.nombre ?? "", ronda: st.ronda, argumento: conclusion.libre ?? conclusion.acuerdos, plan: conclusion.plan || null });
+    sumar({ tipo: "conclusion", modelo: ordenados[0]?.modelo ?? "", nombre: ordenados[0]?.nombre ?? "", ronda: st.ronda, argumento: conclusion.libre ?? conclusion.acuerdos, plan: conclusion.plan || null, desacuerdos: conclusion.desacuerdos });
 
     st.fase = "entregando";
     emitir(null);

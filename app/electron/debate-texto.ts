@@ -49,6 +49,8 @@ export type LineaDebate = {
   plan: string | null;
   pregunta: PreguntaDebate | null;
   error: string | null;
+  /** Sólo en la conclusión: lo que quedó sin acuerdo (el texto crudo de la sección). */
+  desacuerdos?: string;
   /** Lo que el modelo leyó y usó para decir esto (sus pasos). */
   pasos?: PasoRevision[];
   clave?: string;
