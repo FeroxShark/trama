@@ -30,9 +30,10 @@ import {
   type Participante,
   type RespuestaDebate,
   type TurnoLeido,
+  type VivoDebate,
 } from "./debate-texto.ts";
 import { entregarGuardada, PLAN_MAX, revisarPlan, type DepsRevision, type OpcionesCorrida } from "./revision-plan.ts";
-import { sinComillas, type RevisionVista } from "./revision-plan-texto.ts";
+import { sinComillas, type PasoRevision, type RevisionVista } from "./revision-plan-texto.ts";
 
 export * from "./debate-texto.ts";
 
@@ -73,12 +74,15 @@ export type Debate = {
   terminado: Promise<ResultadoDebate>;
 };
 
+/** Cuántos pasos (lecturas) de un turno en curso se guardan. */
+const PASOS_VIVOS_MAX = 8;
+
 export type OpcionesDebate = { id?: string; esperaPreguntaMs?: number };
 
 let secuencia = 0;
 
 /** Quién es el último en pie: lo mismo que `Participante` pero con su nombre, sus turnos y si sigue. */
-type Estado = { modelo: string; effort: string; nombre: string; turnos: number; activo: boolean };
+type Estado = { modelo: string; effort: string; nombre: string; turnos: number; activo: boolean; vivo?: VivoDebate };
 
 /**
  * Arranca un debate sobre un plan. Valida sin esperar (rechaza con el motivo si el plan está vacío o es larguísimo, o si no son 2 o 3
@@ -105,7 +109,7 @@ export function iniciarDebate(x: { sid: string; plan: string; participantes: rea
   const st: EstadoDebate = { id, sid: x.sid, rondas, ronda: 0, fase: "corriendo", participantes: [], lineas: [], pregunta: null, motivo: null, error: null, inicio: ahora(), fin: null };
   const copia = (): EstadoDebate => ({
     ...st,
-    participantes: orden.map((p) => ({ modelo: p.modelo, nombre: p.nombre, effort: p.effort, turnos: p.turnos, activo: p.activo })),
+    participantes: orden.map((p) => ({ modelo: p.modelo, nombre: p.nombre, effort: p.effort, turnos: p.turnos, activo: p.activo, ...(p.vivo ? { vivo: { texto: p.vivo.texto, pasos: [...p.vivo.pasos] } } : {}) })),
     lineas: [...st.lineas],
     pregunta: st.pregunta ? { ...st.pregunta, opciones: [...st.pregunta.opciones] } : null,
   });
@@ -114,8 +118,11 @@ export function iniciarDebate(x: { sid: string; plan: string; participantes: rea
       d.avisar({ estado: copia(), linea });
     } catch {}
   };
+  /** Los pasos del último turno de cada modelo: la línea del turno los lleva. */
+  const pasosDe = new Map<string, PasoRevision[]>();
   const sumar = (l: Partial<LineaDebate> & Pick<LineaDebate, "tipo" | "modelo" | "nombre" | "ronda">) => {
-    const linea: LineaDebate = { n: st.lineas.length + 1, postura: null, argumento: "", plan: null, pregunta: null, error: null, ...l };
+    const pasos = l.tipo === "turno" || l.tipo === "conclusion" ? pasosDe.get(l.modelo) : undefined;
+    const linea: LineaDebate = { n: st.lineas.length + 1, postura: null, argumento: "", plan: null, pregunta: null, error: null, ...(pasos?.length ? { pasos } : {}), ...l };
     st.lineas.push(linea);
     emitir(linea);
     return linea;
@@ -180,8 +187,22 @@ export function iniciarDebate(x: { sid: string; plan: string; participantes: rea
     if (conCorte) cortada.signal.addEventListener("abort", cortarTurno, { once: true });
     if (cancelada.signal.aborted || (conCorte && cortada.signal.aborted)) propio.abort();
     const señal = propio.signal;
+    // Lo que el modelo va haciendo se ve en su columna: los pasos y el texto que sale (a lo sumo unos 4 avisos por segundo).
+    const vivo: VivoDebate = { texto: "", pasos: [] };
+    p.vivo = vivo;
+    let ultimoAviso = 0;
+    const avance: OpcionesCorrida["avance"] = (a) => {
+      d.avance?.(p.modelo, a);
+      if (a.paso) vivo.pasos = [...vivo.pasos.filter((x) => x.k !== a.paso!.k || x.v !== a.paso!.v), a.paso].slice(-PASOS_VIVOS_MAX);
+      if (a.texto !== undefined) vivo.texto = a.texto;
+      const t = ahora();
+      if (t - ultimoAviso >= 250) {
+        ultimoAviso = t;
+        emitir(null);
+      }
+    };
     try {
-      const salida = (await d.correr(p.modelo, p.effort, prompt, { avance: (a) => d.avance?.(p.modelo, a), señal })).trim();
+      const salida = (await d.correr(p.modelo, p.effort, prompt, { avance, señal })).trim();
       if (cancelada.signal.aborted) alCancelar();
       if (conCorte && cortada.signal.aborted) return null;
       if (!salida) throw errorT("main.revisionVacia", { v: p.nombre });
@@ -191,6 +212,9 @@ export function iniciarDebate(x: { sid: string; plan: string; participantes: rea
       if (conCorte && cortada.signal.aborted) return null;
       throw e;
     } finally {
+      // Lo leído queda en la línea del turno (`pasosDe`); la columna ya no está «escribiendo».
+      pasosDe.set(p.modelo, vivo.pasos);
+      p.vivo = undefined;
       cancelada.signal.removeEventListener("abort", cortarTurno);
       cortada.signal.removeEventListener("abort", cortarTurno);
     }

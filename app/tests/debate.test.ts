@@ -213,3 +213,22 @@ test("«Cortar y concluir» con una pregunta pendiente: la pregunta se suelta y 
   assert.equal(hecho.mandado.length, 1);
   deb.cortar(); // ya terminó: no hace nada
 });
+
+test("columnas en vivo: mientras un modelo habla su estado lleva el texto y lo que leyó; al terminar la línea del turno guarda lo leído", async () => {
+  let reloj = 1000;
+  const { d, hecho } = armar({ a: [turno("acuerdo"), CONCLUSION], b: [turno("acuerdo")] }, {
+    ahora: () => (reloj += 300),
+    correr: async (modelo, _e, _p, o) => {
+      o.avance({ paso: { k: "leer", v: `plan-${modelo}.md` } });
+      o.avance({ texto: "## Postura\nacuerdo" });
+      return modelo === "a" ? turno("acuerdo") : turno("acuerdo");
+    },
+  });
+  const deb = iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a"), P("b")], rondas: 1 }, d);
+  await deb.terminado;
+  const vistos = hecho.eventos.flatMap((e) => e.estado.participantes.filter((p) => p.vivo));
+  assert.ok(vistos.some((p) => p.modelo === "a" && p.vivo!.texto.startsWith("## Postura") && p.vivo!.pasos[0]?.v === "plan-a.md"), "a se vio escribiendo con su lectura");
+  const turnoA = hecho.eventos.at(-1)!.estado.lineas.find((l) => l.tipo === "turno" && l.modelo === "a");
+  assert.deepEqual(turnoA?.pasos, [{ k: "leer", v: "plan-a.md" }]);
+  assert.ok(hecho.eventos.at(-1)!.estado.participantes.every((p) => !p.vivo), "al terminar nadie está escribiendo");
+});

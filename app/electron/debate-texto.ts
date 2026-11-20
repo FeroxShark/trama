@@ -2,7 +2,7 @@
 // prompt de un turno y el de la conclusión, cómo se lee lo que contesta cada modelo (Postura / Argumento / Plan propuesto / Pregunta
 // para el dueño), la cuenta de si coinciden del todo y el mensaje que recibe el líder (con una marca, como la revisión de la etapa 1).
 // Sin imports de Node: lo prueba tests/debate.test.ts. El moderador (rondas, turnos, cortes): debate.ts. Diseño: docs/modo-debate-diseno.md.
-import { sinComillas, type ArchivoAdjunto } from "./revision-plan-texto.ts";
+import { sinComillas, type ArchivoAdjunto, type PasoRevision } from "./revision-plan-texto.ts";
 
 /** Rondas: de 1 a 3 (default 2). En cada una habla cada participante una vez. */
 export const RONDAS_MIN = 1;
@@ -49,6 +49,8 @@ export type LineaDebate = {
   plan: string | null;
   pregunta: PreguntaDebate | null;
   error: string | null;
+  /** Lo que el modelo leyó y usó para decir esto (sus pasos). */
+  pasos?: PasoRevision[];
   clave?: string;
   vars?: Record<string, string | number>;
 };
@@ -58,7 +60,9 @@ export type FaseDebate = "corriendo" | "esperando" | "concluyendo" | "entregando
 /** Por qué terminó: todos coincidieron, se llegó al tope de rondas, el dueño cortó, o quedó un solo modelo y fue una revisión simple. */
 export type MotivoDebate = "acuerdo" | "tope" | "cortado" | "simple";
 
-export type ParticipanteVisto = { modelo: string; nombre: string; effort: string; turnos: number; activo: boolean };
+/** Lo que un modelo hace en su turno en curso: los pasos que dio (lo que leyó) y el texto que va saliendo. */
+export type VivoDebate = { texto: string; pasos: PasoRevision[] };
+export type ParticipanteVisto = { modelo: string; nombre: string; effort: string; turnos: number; activo: boolean; /** Su turno en curso (`undefined`: no está hablando). */ vivo?: VivoDebate };
 /** La pregunta que tiene el debate en pausa, para que la ventana la dibuje con un botón por opción (más «Elegí vos»). */
 export type PreguntaPendiente = { modelo: string; nombre: string; ronda: number; texto: string; opciones: string[]; hasta: number };
 
