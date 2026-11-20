@@ -537,27 +537,29 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
    * la píldora es un botón aparte (no puede ir adentro del renglón, que ya es un botón).
    */
   const renglon = (o: Opcion, colNombre: string) => {
-    if (!esf || o.id !== actual.id || !esf.opciones.length) return opcionCompacta(o, colNombre);
-    const nivel = esf.opciones.find((x) => x.id === esf.valor);
+    const nivel = esf && o.id === actual.id && esf.opciones.length ? esf.opciones.find((x) => x.id === esf.valor) : undefined;
+    // Todos los renglones van en el mismo envoltorio: así elegir otro modelo no remonta el botón (y no le saca el foco, que con Esc cerraría la vista).
     return (
       <Fragment key={o.id}>
         <div className="op-fila">
           {opcionCompacta(o, colNombre)}
-          <button
-            type="button"
-            className="mc-esf-pill"
-            tabIndex={-1}
-            aria-expanded={esfAbierta}
-            aria-label={`${esf.etiqueta}: ${nivel?.nombre ?? ""}`}
-            title={esf.etiqueta}
-            onClick={() => setEsfAbierta((a) => !a)}
-          >
-            {nivel?.marca}
-            <span>{nivel?.nombre}</span>
-            <ChevronUp className="mc-esf-chev" size={11} strokeWidth={2} aria-hidden="true" />
-          </button>
+          {esf && nivel !== undefined ? (
+            <button
+              type="button"
+              className="mc-esf-pill"
+              tabIndex={-1}
+              aria-expanded={esfAbierta}
+              aria-label={`${esf.etiqueta}: ${nivel.nombre}`}
+              title={esf.etiqueta}
+              onClick={() => setEsfAbierta((a) => !a)}
+            >
+              {nivel.marca}
+              <span>{nivel.nombre}</span>
+              <ChevronUp className="mc-esf-chev" size={11} strokeWidth={2} aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
-        {esfAbierta ? filaEsfuerzo : null}
+        {esf && nivel !== undefined && esfAbierta ? filaEsfuerzo : null}
       </Fragment>
     );
   };
