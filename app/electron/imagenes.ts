@@ -15,6 +15,26 @@ export const LADO_MAX = 2000;
 export const BASE64_MAX = 5 * 1024 * 1024;
 /** Por mensaje. */
 export const IMAGENES_MAX = 20;
+/** Cuántas imágenes pegadas se guardan en disco por borrador (lo que pasa no se guarda, sólo se avisa). */
+export const BORRADOR_IMAGENES_MAX = 4;
+/** Cuánto pesan, en total y contado en caracteres de base64, las imágenes guardadas de un borrador. */
+export const BORRADOR_IMAGENES_BASE64 = 8 * 1024 * 1024;
+
+/**
+ * Las imágenes de un borrador que entran en el guardado (en orden: las primeras; una que no cabe se salta y las
+ * que le siguen pueden entrar si caben) y cuántas se quedan afuera.
+ */
+export function acotarImagenes<T extends { datos: string }>(l: readonly T[]): { entran: T[]; sobran: number } {
+  const entran: T[] = [];
+  let resta = BORRADOR_IMAGENES_BASE64;
+  for (const i of l) {
+    if (entran.length >= BORRADOR_IMAGENES_MAX || i.datos.length > resta) continue;
+    entran.push(i);
+    resta -= i.datos.length;
+  }
+  return { entran, sobran: l.length - entran.length };
+}
+
 /** Por archivo que no es imagen (electron/archivos.ts). */
 export const ARCHIVO_MAX = 25 * 1024 * 1024;
 

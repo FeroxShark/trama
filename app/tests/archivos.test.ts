@@ -24,7 +24,7 @@ registerHooks({
     return next(spec, ctx);
   },
 });
-const { agregarAdjuntos, archivosDe, imagenesDe, leerAdjuntos, prepararAdjunto, textoConArchivos } = await import("../src/hilo/adjuntos.ts");
+const { agregarAdjuntos, archivosDe, fotoImagenes, imagenesDe, imagenesSinGuardar, leerAdjuntos, quitarAdjunto, vaciarAdjuntos, prepararAdjunto, textoConArchivos } = await import("../src/hilo/adjuntos.ts");
 
 const clave = (f: () => unknown) => {
   try {
@@ -127,4 +127,19 @@ test("limpiarAdjuntos: borra las carpetas viejas y deja las nuevas", async () =>
   assert.equal(existsSync(pathM.join(dir, "viejo")), false);
   assert.equal(existsSync(pathM.join(dir, "nuevo")), true);
   assert.equal(await limpiarAdjuntos(pathM.join(dir, "no-existe")), 0);
+});
+
+test("imágenes pegadas: la foto de guardado las acota, avisa las que sobran y mandar/× las saca", () => {
+  const img = { tipo: "image/png", datos: "QUJD".repeat(10) };
+  vaciarAdjuntos("g");
+  agregarAdjuntos("g", [img, img]);
+  assert.equal(fotoImagenes().g.length, 2);
+  assert.equal(imagenesSinGuardar(leerAdjuntos("g")), 0);
+  agregarAdjuntos("g", [img, img, img, img]); // 6 en la caja: se guardan 4
+  assert.equal(fotoImagenes().g.length, 4);
+  assert.equal(imagenesSinGuardar(leerAdjuntos("g")), 2);
+  quitarAdjunto("g", leerAdjuntos("g")[0].id);
+  assert.equal(imagenesSinGuardar(leerAdjuntos("g")), 1);
+  vaciarAdjuntos("g"); // al mandar
+  assert.equal(fotoImagenes().g, undefined);
 });

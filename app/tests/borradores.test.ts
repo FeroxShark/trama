@@ -2,7 +2,8 @@
 // adjuntos cuyo archivo ya no está. Con el disco de mentira (una variable) y nunca el estado de Ana.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { almacenBorradores, armar, BORRADOR_MAX, BORRADORES_MAX, leerFoto, recortar } from "../electron/borradores.ts";
+import { almacenBorradores, armar, BORRADOR_MAX, BORRADORES_MAX, IMAGENES_TOTAL_MAX, leerFoto, recortar } from "../electron/borradores.ts";
+import { acotarImagenes, BORRADOR_IMAGENES_BASE64, BORRADOR_IMAGENES_MAX } from "../electron/imagenes.ts";
 
 /** Un disco de mentira y una forma de "abrir la app de nuevo" sobre él. */
 function disco(existe: (ruta: string) => boolean = () => true) {
@@ -128,4 +129,57 @@ test("armar: claves absurdas y entradas que no son un objeto no rompen", () => {
   assert.deepEqual(armar(null, {}, 1).borradores, {});
   assert.deepEqual(armar([1, 2], {}, 1).borradores, {});
   assert.deepEqual(armar({ ["k".repeat(300)]: { texto: "a" } }, {}, 1).borradores, {});
+});
+
+// --- Imágenes pegadas (tablero 2117) ---
+
+const PNG = (n: number) => ({ tipo: "image/png", datos: "QUJD".repeat(n) }); // base64 válido, 4 caracteres por unidad
+
+test("las imágenes pegadas sobreviven a un reinicio y mandar el mensaje (caja vacía) las borra", async () => {
+  const { abrir } = disco();
+  const a = abrir();
+  const dos = [PNG(10), { tipo: "image/jpeg", datos: "QUJDRA==" }];
+  await a.guardar({ "lider:s1": { texto: "", imagenes: dos } });
+  const b = abrir();
+  assert.deepEqual((await b.leer()).borradores["lider:s1"].imagenes, dos); // "relanzar": otra trama, mismo disco
+  await b.guardar({}); // lo mandó (o las sacó con ×): la ventana ya no las manda
+  assert.deepEqual((await abrir().leer()).borradores, {});
+  await b.guardar({ "lider:s1": { texto: "hola", imagenes: [dos[1]] } }); // sacó una con ×
+  assert.deepEqual((await abrir().leer()).borradores["lider:s1"].imagenes, [dos[1]]);
+});
+
+test("tope de imágenes por borrador: 4 y 8 MB; lo que pasa no se guarda y no rompe nada", async () => {
+  assert.equal(BORRADOR_IMAGENES_MAX, 4);
+  const { abrir } = disco();
+  const a = abrir();
+  await a.guardar({ x: { texto: "t", imagenes: Array.from({ length: 6 }, () => PNG(10)) } });
+  assert.equal((await abrir().leer()).borradores.x.imagenes?.length, 4);
+  const grande = PNG(BORRADOR_IMAGENES_BASE64 / 4 - 10); // casi todo el tope
+  await a.guardar({ y: { texto: "t", imagenes: [grande, grande, PNG(1)] } });
+  const y = (await abrir().leer()).borradores.y;
+  assert.deepEqual(y.imagenes?.map((i) => i.datos.length), [grande.datos.length, 4]); // la segunda no cabe; la chica sí
+  assert.deepEqual(acotarImagenes([grande, grande]).sobran, 1);
+  // basura: tipo raro, base64 roto, no-arreglo
+  await a.guardar({ z: { texto: "t", imagenes: [{ tipo: "text/html", datos: "QUJD" }, { tipo: "image/png", datos: "no es base64!" }, null, 3] }, w: { texto: "t", imagenes: "x" } });
+  const r = (await abrir().leer()).borradores;
+  assert.equal(r.z.imagenes, undefined);
+  assert.equal(r.w.imagenes, undefined);
+});
+
+test("tope total de imágenes: pasado, los borradores más viejos las pierden y conservan su texto", async () => {
+  const { abrir, d } = disco();
+  const a = abrir();
+  const una = PNG(BORRADOR_IMAGENES_BASE64 / 4 - 10);
+  const entrada: Record<string, unknown> = {};
+  for (let i = 0; i < 5; i++) entrada[`c${i}`] = { texto: `t${i}`, imagenes: [una] }; // 5 × ~8 MB > 24 MB
+  await a.guardar(entrada);
+  const r = (await abrir().leer()).borradores;
+  assert.equal(Object.values(r).filter((b) => b.imagenes).length, 3);
+  assert.equal(Object.keys(r).length, 5, "ninguno pierde su texto");
+  assert.ok(d.json!.length <= IMAGENES_TOTAL_MAX + 4096);
+});
+
+test("una foto sin imágenes guardada por una versión anterior se lee igual", () => {
+  const f = leerFoto(JSON.stringify({ version: 1, borradores: { x: { texto: "hola", ts: 5 } } }));
+  assert.deepEqual(f.borradores.x, { texto: "hola", ts: 5 });
 });

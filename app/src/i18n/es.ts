@@ -1415,6 +1415,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "adjunto.imagen": "Imagen",
   "adjunto.leer": "No se pudo leer la imagen",
   "adjunto.muchas": "Hasta {n} imágenes por mensaje",
+  "adjunto.sinGuardar": "{n} imagen no se guardará si se cierra Trama (se guardan hasta {max} imágenes o {mb} MB por chat)",
+  "adjunto.sinGuardarVarias": "{n} imágenes no se guardarán si se cierra Trama (se guardan hasta {max} imágenes o {mb} MB por chat)",
   "main.imagenRara": "imagen mal formada",
   "main.imagenTipo": "tipo de imagen no soportado: {v}",
   "main.imagenGrande": "imagen demasiado grande (máx. 5 MB)",

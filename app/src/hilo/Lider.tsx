@@ -99,7 +99,7 @@ import { cola, comandosAgy, comandosClaude, confirmar, contestado, enCurso, envi
 import { ASPECTO, esModo, MODO_DEFAULT, siguienteModo, type Modo } from "./modos";
 import { directo, ESTILOS_FABRICA, menuEn, moverSel, parsearComando, reemplazar, type Sugerencia, type Valores } from "./comandos";
 import { esVentana, main, mensaje } from "../puente";
-import { agregarAdjuntos, archivosDe, archivosDeDatos, type Adjunto, ErrorAdjunto, escucharAdjuntos, imagenesDe, leerAdjuntos, pegadoSinTexto, prepararAdjunto, quitarAdjunto, textoConArchivos, vaciarAdjuntos } from "./adjuntos";
+import { agregarAdjuntos, archivosDe, archivosDeDatos, type Adjunto, ErrorAdjunto, escucharAdjuntos, imagenesDe, imagenesSinGuardar, leerAdjuntos, pegadoSinTexto, prepararAdjunto, quitarAdjunto, textoConArchivos, vaciarAdjuntos } from "./adjuntos";
 import { Bandeja } from "./Bandeja";
 import { Fondo } from "./Fondo";
 import { Adjuntos, Miniaturas } from "./Imagenes";
@@ -107,7 +107,7 @@ import { Dictar } from "./Dictar";
 import { Logo } from "./Logos";
 import { PedidoPreguntas } from "./Preguntas";
 import { aparecioTanda, contarPendientes, tandasPendientes } from "./preguntas-logica";
-import { ARCHIVO_MAX, IMAGENES_MAX, type Imagen } from "../../electron/imagenes";
+import { ARCHIVO_MAX, BORRADOR_IMAGENES_BASE64, BORRADOR_IMAGENES_MAX, IMAGENES_MAX, type Imagen } from "../../electron/imagenes";
 import { separarAdjuntos } from "../../electron/adjunto";
 import { useAsentado } from "../movimiento";
 
@@ -1698,6 +1698,12 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         ) : null}
         {mcpAbierto ? <PanelMcp modelo={modelo} alCerrar={() => setMcpAbierto(false)} /> : null}
         {nota && !errorCaja ? <div className="caja-nota" role="status">{nota}</div> : null}
+        {/* Las imágenes pegadas vuelven tras un reinicio sólo hasta el tope del guardado: se avisa de las que no. */}
+        {esVentana() && imagenesSinGuardar(adjuntos) > 0 && !errorCaja ? (
+          <div className="caja-nota" role="status">
+            {tr(imagenesSinGuardar(adjuntos) === 1 ? "adjunto.sinGuardar" : "adjunto.sinGuardarVarias", { n: imagenesSinGuardar(adjuntos), max: BORRADOR_IMAGENES_MAX, mb: BORRADOR_IMAGENES_BASE64 / 1024 / 1024 })}
+          </div>
+        ) : null}
         {aviso ? <Reloj pintor={aviso} className="caja-aviso" /> : null}
         {/* Un líder local corre en la GPU de esta máquina, sin pa ni subagentes: que se sepa antes de pedirle una tarea grande. */}
         {puede && sinWorkers(modelo) ? (

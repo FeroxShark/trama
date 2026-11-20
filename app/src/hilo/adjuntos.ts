@@ -7,7 +7,7 @@
 // Lo que no es imagen de la API (.md, .pdf, código, un SVG…) es un archivo: el
 // main lo guarda al adjuntarlo (electron/archivos.ts) y el mensaje lleva su ruta.
 import { huboCambio } from "./cambios";
-import { ARCHIVO_MAX, BASE64_MAX, escala, IMAGENES_MAX, LADO_MAX, TIPOS_IMAGEN, type Imagen } from "../../electron/imagenes";
+import { acotarImagenes, ARCHIVO_MAX, BASE64_MAX, escala, IMAGENES_MAX, LADO_MAX, TIPOS_IMAGEN, type Imagen } from "../../electron/imagenes";
 
 /** Un archivo ya guardado por el main: Claude lo lee de `ruta`. */
 export type Archivo = { nombre: string; ruta: string };
@@ -31,6 +31,22 @@ export function fotoArchivos(): Record<string, Archivo[]> {
   }
   return r;
 }
+
+/**
+ * Las imágenes pegadas de cada caja que entran en el guardado en disco (src/volver.ts; el tope, `acotarImagenes`).
+ * Las que pasan el tope no van: la caja avisa con `imagenesSinGuardar`.
+ */
+export function fotoImagenes(): Record<string, Imagen[]> {
+  const r: Record<string, Imagen[]> = {};
+  for (const [clave, l] of cajas) {
+    const { entran } = acotarImagenes(imagenesDe(l));
+    if (entran.length) r[clave] = entran;
+  }
+  return r;
+}
+
+/** Cuántas imágenes de la lista no entran en el guardado en disco (0 si todas). */
+export const imagenesSinGuardar = (l: readonly Adjunto[]) => acotarImagenes(imagenesDe(l)).sobran;
 
 function poner(clave: string, l: readonly Adjunto[]) {
   if (l.length) cajas.set(clave, l);

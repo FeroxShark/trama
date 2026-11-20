@@ -1427,6 +1427,8 @@ export const en = {
   "adjunto.imagen": "Image",
   "adjunto.leer": "Couldn't read the image",
   "adjunto.muchas": "Up to {n} images per message",
+  "adjunto.sinGuardar": "{n} image won't be kept if Trama closes (up to {max} images or {mb} MB are kept per chat)",
+  "adjunto.sinGuardarVarias": "{n} images won't be kept if Trama closes (up to {max} images or {mb} MB are kept per chat)",
   "main.imagenRara": "Malformed image",
   "main.imagenTipo": "Unsupported image type: {v}",
   "main.imagenGrande": "Image too large (max 5 MB)",
