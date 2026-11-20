@@ -113,11 +113,67 @@ test("esfuerzo elegido a mitad de un turno: lo toma el turno ya (apply_flag_sett
   // Lo mismo otra vez no manda nada.
   assert.equal(await lider.cambiarEnTurno(sid, { ...M, effort: "low" }), false);
   await hasta(() => fines() === fin0 + 1);
-  // Sin turno en curso no hace nada (va con el próximo mensaje, como siempre).
-  assert.equal(await lider.cambiarEnTurno(sid, { ...M, effort: "max" }), false);
   await lider.mandar({ sid, texto: "hola", ...M, effort: "low" });
   await hasta(() => fines() === fin0 + 2);
   assert.equal(lanzados().length, antes + 1, "el mismo proceso todo el tiempo");
+});
+
+test("modelo elegido a mitad de un turno: set_model ya; A → B → A seguidos terminan en A; ocioso también, sin relanzar", { timeout: 30_000 }, async () => {
+  const antes = lanzados().length;
+  const fin0 = fines();
+  const sid = await lider.nuevo({ ...M, texto: "muchos pasos" });
+  const modelos = () => readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((x) => x.control === "set_model").map((x) => x.model);
+  const n0 = modelos().length;
+  const S = { modelo: "claude-sonnet-5-5", effort: "high" };
+  const [a, b] = await Promise.all([lider.cambiarEnTurno(sid, S), lider.cambiarEnTurno(sid, M)]);
+  assert.deepEqual([a, b], [true, true]);
+  assert.deepEqual(modelos().slice(n0), ["claude-sonnet-5-5", "claude-opus-5-5"], "de a uno y en orden");
+  assert.equal((await lider.lideresApp()).find((l) => l.sid === sid)?.modelo, "claude-opus-5-5");
+  await hasta(() => fines() === fin0 + 1);
+  // Ocioso: también ya (una tarea de fondo puede retomar el turno sola), con las reglas de siempre.
+  assert.equal(await lider.cambiarEnTurno(sid, S), true);
+  assert.equal(modelos().at(-1), "claude-sonnet-5-5");
+  await lider.mandar({ sid, texto: "hola", ...S });
+  await hasta(() => fines() === fin0 + 2);
+  assert.equal(lanzados().length, antes + 1, "el mismo proceso todo el tiempo");
+});
+
+test("cambio de familia a mitad de un turno con asesor: sólo si el asesor sigue siendo más fuerte; el próximo mensaje relanza con el suyo", { timeout: 30_000 }, async () => {
+  const conf = path.join(tmp, "modelos-asesor.json");
+  writeFileSync(conf, JSON.stringify({ version: 1, advisor: { opus: "fable", sonnet: "opus" } }));
+  const previo = process.env.TRAMA_MODELOS;
+  process.env.TRAMA_MODELOS = conf;
+  try {
+    const asesor = (x: { args: string[] }) => x.args[x.args.indexOf("--advisor") + 1];
+    const S = { modelo: "claude-sonnet-5-5", effort: "high" };
+    // Sonnet (asesor Opus) → Opus en turno: el asesor no sería más fuerte; queda para el próximo mensaje.
+    let fin0 = fines();
+    let n = lanzados().length;
+    const uno = await lider.nuevo({ ...S, texto: "muchos pasos" });
+    // El falso anota su arranque al rato de lanzarse.
+    await hasta(() => lanzados().length === n + 1);
+    assert.equal(asesor(lanzados().at(-1)), "opus");
+    assert.equal(await lider.cambiarEnTurno(uno, M), false);
+    assert.equal((await lider.lideresApp()).find((l) => l.sid === uno)?.modelo, "claude-sonnet-5-5");
+    await hasta(() => fines() === fin0 + 1);
+    // Opus (asesor Fable) → Sonnet en turno: sí; el turno termina con Fable y el próximo mensaje relanza con Opus de asesor.
+    fin0 = fines();
+    n = lanzados().length;
+    const dos = await lider.nuevo({ ...M, texto: "muchos pasos" });
+    await hasta(() => lanzados().length === n + 1);
+    n += 1;
+    assert.equal(asesor(lanzados().at(-1)), "fable");
+    assert.equal(await lider.cambiarEnTurno(dos, S), true);
+    await hasta(() => fines() === fin0 + 1);
+    await lider.mandar({ sid: dos, texto: "hola", ...S });
+    await hasta(() => fines() === fin0 + 2);
+    await hasta(() => lanzados().length === n + 1);
+    assert.equal(lanzados().length, n + 1, "relanzó una vez");
+    assert.equal(asesor(lanzados().at(-1)), "opus");
+  } finally {
+    if (previo === undefined) delete process.env.TRAMA_MODELOS;
+    else process.env.TRAMA_MODELOS = previo;
+  }
 });
 
 test("líder abierto en una terminal a mitad de un turno: espera sin tocarlo; al terminar lo trae (ese pid) y manda", { timeout: 30_000 }, async () => {

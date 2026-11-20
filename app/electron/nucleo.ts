@@ -1672,8 +1672,8 @@ export function armarNucleo() {
     await leerCola();
     cola.encolar(sid, item);
   });
-  // Lo elegido en la caja (modelo y esfuerzo) con cola o con un turno en curso: el mensaje de la cola sale con lo vigente al desencolarse
-  // (cola.ts), y el turno en curso lo toma ya si se puede en vivo (`cambiarEnTurno`; si no, va con el próximo mensaje).
+  // Lo elegido en la caja (modelo y esfuerzo) de un líder de la app: el mensaje de la cola sale con lo vigente al desencolarse (cola.ts), y
+  // el proceso vivo lo toma ya si se puede (`cambiarEnTurno`, también a mitad de un turno; si no, va con el próximo mensaje).
   manejar("lider:colaSeleccion", async (_e, x: { sid: string; modelo: string; effort: string }) => {
     const { sid, seleccion } = lider.paraSeleccion(x ?? {});
     cola.elegir(sid, seleccion);

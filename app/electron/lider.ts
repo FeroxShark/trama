@@ -76,6 +76,7 @@ import { paraAcp, resueltos } from "./mcp-config.ts";
 import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { partirCodex } from "./codex-stream.ts";
 import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
+import { familiaAdvisor, parValido } from "./advisor.js";
 import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
 import { parsearModelo } from "./dsh.ts";
 import { parsearModelo as parsearOpencode } from "./opencode.ts";
@@ -1031,6 +1032,10 @@ async function cambiarEnVivo(x: Proc, modelo: string, effort: string, enTurno = 
   // (`--resume`). A mitad de un turno no se puede relanzar: el modelo cambia ya, el turno termina con el tope y el asesor de antes y el
   // próximo mensaje relanza (`desfasado`).
   if (!enTurno && x.modelo !== modelo && desfasado({ ...x, modelo })) return false;
+  // Pero el asesor que queda tiene que seguir siendo de una familia más fuerte que el modelo nuevo (Opus → Sonnet con Fable de asesor, sí;
+  // Sonnet → Opus con Opus de asesor, no): si no, el cambio espera al próximo mensaje, que relanza con el que corresponde.
+  const base = familiaAdvisor(modelo);
+  if (enTurno && x.modelo !== modelo && x.asesor && !(base && parValido(base, x.asesor))) return false;
   if (x.modelo !== modelo) {
     const r = await control(x, (id) => lineaModelo(id, modelo));
     if (!r || (!r.ok && !r.error)) return false;
@@ -1113,14 +1118,29 @@ export function paraSeleccion(x: { sid?: unknown; modelo?: unknown; effort?: unk
 }
 
 /**
- * Otro modelo o esfuerzo elegido con un turno en curso: se aplica ya, sin esperar al próximo mensaje (`set_model` y
- * `apply_flag_settings` valen desde el próximo pedido a la API, aunque el turno siga o espere una tarea de fondo). Sólo si se puede
- * en vivo (`cambiarEnVivo`: mismo motor, mismo tope y mismo asesor); si no, queda para el próximo mensaje como antes. `true`: se aplicó.
+ * Otro modelo o esfuerzo elegido en la caja de un líder de la app: se aplica ya, sin esperar al próximo mensaje (`set_model` y
+ * `apply_flag_settings` valen desde el próximo pedido a la API, también a mitad de un turno o con una tarea de fondo que lo retome).
+ * Sólo si se puede en vivo (`cambiarEnVivo`: mismo motor; a mitad de un turno, un asesor que siga siendo más fuerte); si no, queda para el
+ * próximo mensaje como antes. `true`: se aplicó.
  */
-export async function cambiarEnTurno(sid: string, s: { modelo: string; effort: string }): Promise<boolean> {
+export function cambiarEnTurno(sid: string, s: { modelo: string; effort: string }): Promise<boolean> {
+  // De a uno por líder: A → B → A seguidos tienen que terminar en A (el segundo no ve el primero hasta que `claude` contesta).
+  const antes = cambiosEnTurno.get(sid) ?? Promise.resolve(false);
+  const este = antes.catch(() => false).then(() => cambiarYa(sid, s));
+  cambiosEnTurno.set(sid, este);
+  void este.finally(() => {
+    if (cambiosEnTurno.get(sid) === este) cambiosEnTurno.delete(sid);
+  });
+  return este;
+}
+const cambiosEnTurno = new Map<string, Promise<boolean>>();
+
+async function cambiarYa(sid: string, s: { modelo: string; effort: string }): Promise<boolean> {
   const p = procs.get(sid);
-  if (!p?.ocupado || (p.modelo === s.modelo && p.effort === s.effort)) return false;
-  const ok = await cambiarEnVivo(p, s.modelo, s.effort, true).catch(() => false);
+  // Ocioso también (esperando una tarea de fondo, que puede retomar sola): con las reglas de siempre, sin relanzar; lo que no se pueda en
+  // vivo va con el próximo mensaje.
+  if (!p || (p.modelo === s.modelo && p.effort === s.effort)) return false;
+  const ok = await cambiarEnVivo(p, s.modelo, s.effort, p.ocupado).catch(() => false);
   // Aunque sólo haya entrado una parte (el modelo sí, el esfuerzo no), lo guardado sigue al proceso: la vista deja de marcarlo pendiente.
   const g = guardados?.find((l) => l.sid === sid);
   if (g && procs.get(sid) === p && (g.modelo !== p.modelo || g.effort !== p.effort)) {

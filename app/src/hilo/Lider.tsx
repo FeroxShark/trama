@@ -415,16 +415,16 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const enTurno = app && ocupado;
   const pend = pendienteDe({ ocupado: enTurno, modelo, effort, turno: l ? { modelo: turnoModelo ?? undefined, effort: effortDe(l.effort, turnoModelo) } : null });
   const modelosEnTurno = useMemo(() => opcionesEnTurno(MODELOS, enTurno, l?.modelo, tr("lider.cruceEnTurno")), [enTurno, l?.modelo, tablaModelos]);
-  // Con mensajes en la cola o un turno en curso, cada cambio de la caja se avisa al main: el que sale de la cola lleva lo vigente al
-  // desencolarse, y el turno en curso lo toma ya si se puede (si no, queda marcado «próx.» hasta el próximo mensaje).
+  // Con mensajes en la cola o un líder de la app, cada cambio de la caja se avisa al main: el que sale de la cola lleva lo vigente al
+  // desencolarse, y el proceso vivo lo toma ya si se puede, también a mitad de un turno (si no, queda marcado «próx.» hasta el próximo mensaje).
   const selVista = useRef<string | null>(null);
   useEffect(() => {
     const k = `${sid}|${modelo}|${effort}`;
     const antes = selVista.current;
     selVista.current = k;
-    if (antes === null || antes === k || !l || (!encolados.length && !enTurno)) return;
+    if (antes === null || antes === k || !l || (!encolados.length && !app)) return;
     cola.elegir(l.id, modelo, effort);
-  }, [sid, modelo, effort, encolados.length, enTurno]);
+  }, [sid, modelo, effort, encolados.length, app]);
   // El modo de un líder nuevo se elige antes de que exista (y el de uno de la terminal, antes de
   // traerlo); el de uno de la app, lo dice el stream (o la lista).
   const [modoNuevo, setModoNuevo] = useState<Modo>(MODO_DEFAULT);
