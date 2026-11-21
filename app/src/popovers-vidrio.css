@@ -177,9 +177,7 @@
 }
 .menu .op:focus-visible,
 .cmenu .cmenu-op:focus-visible,
-.menu-cmd .cmd:focus-visible,
-.mc-esf-pill:focus-visible,
-.mc-esf-op:focus-visible {
+.menu-cmd .cmd:focus-visible {
   outline: 2px solid var(--acento);
   outline-offset: -2px;
 }
@@ -242,15 +240,6 @@
 }
 .menu .mc-prov .logo {
   color: var(--acento);
-}
-.menu .mc-esf-pill {
-  border: 0;
-  background: var(--capa-card);
-  box-shadow: var(--vidrio-borde);
-  color: var(--texto);
-}
-.menu .mc-esf-pill:is(:hover, :focus-visible) {
-  background: var(--popover-fila);
 }
 /* Las etiquetas de una fila (Gratis, Plan Go, De pago…): cápsulas calmas con su palabra. */
 .menu .oc-tag {
@@ -317,40 +306,6 @@
 .menu .mc-cap[data-si] {
   color: var(--texto);
   font-weight: 500;
-}
-
-/* --- La fila del esfuerzo: cápsulas con la elegida en celeste --- */
-.menu .mc-esf {
-  gap: var(--esp-1-5);
-  padding: var(--esp-2) var(--esp-3) var(--esp-1);
-  border-top: 0;
-  margin-top: var(--esp-1);
-  box-shadow: 0 -1px 0 var(--popover-divisor);
-}
-.menu .mc-esf-op {
-  height: 2rem;
-  padding: 0 var(--esp-3);
-  border: 0;
-  border-radius: var(--r-cap);
-  background: var(--capa-card);
-  box-shadow: var(--vidrio-borde);
-  color: var(--apagado);
-  transition:
-    background-color var(--t-snappy),
-    box-shadow var(--t-snappy),
-    color var(--t-snappy);
-}
-.menu .mc-esf-op:is(:hover, :focus-visible) {
-  background: var(--popover-fila);
-  color: var(--texto);
-}
-.menu .mc-esf-op[aria-checked="true"] {
-  background: var(--popover-fila-activa);
-  box-shadow: inset 0 0 0 1px var(--popover-fila-activa-borde);
-  color: var(--texto);
-}
-.menu .mc-esf-op[aria-checked="true"] svg {
-  color: var(--acento);
 }
 
 /* --- Menús del clic derecho --- */

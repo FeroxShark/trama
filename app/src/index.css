@@ -2202,10 +2202,6 @@ html[data-titulo-nativo] #root::after {
 .barra-c .pbtn {
   white-space: nowrap;
 }
-.pbtn-suf {
-  display: none;
-  white-space: nowrap;
-}
 /* Lo elegido todavía no lo usa el turno en curso (se aplica al próximo): un reloj y "próx.", no sólo color. */
 .pbtn-pend {
   display: inline-flex;
@@ -2215,13 +2211,6 @@ html[data-titulo-nativo] #root::after {
   font-size: var(--letra-3);
   font-weight: 500;
   white-space: nowrap;
-}
-/* El del esfuerzo fusionado en el chip del modelo: sólo cuando la barra lo fusiona (pasos 2 y 3). */
-.pbtn-pend[data-compacto] {
-  display: none;
-}
-.barra-c:is([data-nivel="2"], [data-nivel="3"]) .pbtn-pend[data-compacto] {
-  display: inline-flex;
 }
 /* Con la barra apretada queda sólo el reloj (el tooltip y el nombre accesible dicen el resto). */
 .barra-c:is([data-nivel="2"], [data-nivel="3"]) .pbtn-pend-t {
@@ -2236,14 +2225,6 @@ html[data-titulo-nativo] #root::after {
   min-width: 2rem;
   margin-right: 0;
   padding: 0 var(--esp-1-5);
-}
-/* Paso 2: modelo y esfuerzo en un solo chip ("Opus 5.5 · med") que abre el selector de modelo. */
-.barra-c:is([data-nivel="2"], [data-nivel="3"]) .pbtn-suf {
-  display: inline;
-}
-.barra-c:is([data-nivel="2"], [data-nivel="3"]) > .pick:has(.nivel),
-.barra-c:is([data-nivel="2"], [data-nivel="3"]) > .pick:has([data-sin-esfuerzo]) {
-  display: none;
 }
 /* Paso 3: sin adornos y, si aun así no entra, el nombre del modelo cede con puntos suspensivos. */
 .barra-c[data-nivel="3"] .pbtn :is(.chev, .chip) {
@@ -2337,6 +2318,186 @@ html[data-titulo-nativo] #root::after {
 }
 .nivel i[data-on] {
   background: var(--texto-3);
+}
+/* El esfuerzo (Esfuerzo.tsx): el chip lleva las barritas en el color del nivel (de frío a caliente, esfuerzo-extras.ts) y el popover un deslizador con un punto
+   por nivel, Ultracode a la izquierda y Fast a la derecha. El nivel se dice siempre con texto (el chip, la cabecera y los nombres bajo el carril). */
+.esf-chip .nivel i[data-on] {
+  background: var(--esf-color, var(--texto-3));
+}
+.esf-chip-ex {
+  flex: none;
+  color: var(--texto-4);
+}
+/* Con la barra apretada (pasos 2 y 3) el chip queda en las barritas: el tooltip y el nombre accesible dicen el nivel. */
+.barra-c:is([data-nivel="2"], [data-nivel="3"]) .esf-chip-n {
+  display: none;
+}
+.barra-c:is([data-nivel="2"], [data-nivel="3"]) > .pick:has([data-sin-esfuerzo]) {
+  display: none;
+}
+.menu.esf-pop {
+  --esf-pulgar: 1.125rem;
+  width: 16.25rem;
+  min-width: 0;
+  max-height: none;
+  gap: 0;
+  padding: var(--esp-3-5) var(--esp-4) var(--esp-3);
+  overflow: visible;
+}
+.esf-cab {
+  color: var(--texto-1);
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.esf-zona {
+  margin-top: var(--esp-1);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+.esf-carril {
+  position: relative;
+  height: 2.25rem;
+}
+.esf-pista {
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 0.25rem;
+  transform: translateY(-50%);
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+}
+.esf-relleno {
+  height: 100%;
+  border-radius: var(--r-cap);
+  background: var(--esf-color);
+  transition:
+    width var(--t-snappy) ease-out,
+    background-color var(--t-smooth);
+}
+.esf-punto {
+  position: absolute;
+  top: 50%;
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-radius: 50%;
+  background: var(--texto-6);
+  transform: translate(-50%, -50%);
+}
+/* Los puntos que ya cubre el relleno van en un tono más hondo del mismo color: se cuentan los niveles también en lo lleno, sin cortar el relleno. */
+.esf-punto[data-lleno] {
+  background: color-mix(in srgb, var(--esf-color) 45%, var(--sup-1));
+}
+.esf-pulgar {
+  position: absolute;
+  top: 50%;
+  width: var(--esf-pulgar);
+  height: var(--esf-pulgar);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--esf-color);
+  box-shadow: 0 0 0 0.125rem var(--vidrio-opaco);
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  transition:
+    left var(--t-snappy) ease-out,
+    background-color var(--t-smooth);
+}
+.esf-pulgar:focus-visible {
+  outline: 0.125rem solid var(--texto-1);
+  outline-offset: 0.25rem;
+}
+.esf-zona[data-arrastrando] .esf-pulgar {
+  cursor: grabbing;
+}
+.esf-zona[data-arrastrando] :is(.esf-pulgar, .esf-relleno) {
+  transition: none;
+}
+.esf-nombres {
+  position: relative;
+  height: 1rem;
+}
+.esf-nombre {
+  position: absolute;
+  top: 0;
+  color: var(--texto-5);
+  font-size: var(--letra-2);
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.esf-nombre[data-actual] {
+  color: var(--texto-1);
+  font-weight: 600;
+}
+.esf-pie {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin-top: var(--esp-3);
+  padding-top: var(--esp-3);
+  border-top: 1px solid var(--borde-2);
+}
+.esf-tog {
+  display: inline-flex;
+  height: 2rem;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+  color: var(--apagado);
+  font: inherit;
+  font-size: var(--letra-4);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--t-snappy),
+    color var(--t-snappy);
+}
+.esf-tog:is(:hover, :focus-visible) {
+  background: var(--capa-track);
+  color: var(--texto);
+}
+.esf-tog:focus-visible {
+  outline: 0.125rem solid var(--acento);
+  outline-offset: 0.125rem;
+}
+.esf-tog[aria-busy] {
+  cursor: progress;
+  opacity: 0.7;
+}
+/* Prendido: tinte y borde del color de cada uno, el tilde (Ultracode) y la palabra en la cabecera: no sólo color. */
+.esf-tog[aria-pressed="true"][data-tipo="ultracode"] {
+  background: var(--probar-fondo);
+  box-shadow: inset 0 0 0 1px var(--probar-borde);
+  color: var(--probar);
+}
+.esf-tog[aria-pressed="true"][data-tipo="fast"] {
+  background: var(--decision-fondo);
+  box-shadow: inset 0 0 0 1px var(--decision-borde);
+  color: var(--decision-texto);
+}
+.esf-aviso {
+  margin: var(--esp-3) 0 0;
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--r-sm);
+  background: var(--decision-fondo);
+  color: var(--decision-texto);
+  font-size: var(--letra-3);
+  line-height: 1.45;
+}
+@media (pointer: coarse) {
+  .esf-tog {
+    height: 2.5rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .esf-relleno,
+  .esf-pulgar {
+    transition: none;
+  }
 }
 .fondo {
   position: fixed;
@@ -6355,77 +6516,6 @@ summary.sis-div-t:hover,
 .mc-prov .oc-punto {
   align-self: center;
 }
-/* El renglón elegido con su esfuerzo al lado: el renglón ocupa lo que queda y la píldora lleva el nivel de hoy. */
-.op-fila {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--esp-1);
-}
-.op-fila > .op {
-  min-width: 0;
-  flex: 1;
-}
-.mc-esf-pill {
-  display: inline-flex;
-  height: 1.5rem;
-  flex: none;
-  align-items: center;
-  gap: var(--esp-1);
-  padding: 0 var(--esp-1) 0 var(--esp-2);
-  border: 0;
-  border-radius: var(--radio-pastilla);
-  background: transparent;
-  color: var(--texto-3);
-  font: inherit;
-  font-size: var(--letra-3);
-  cursor: pointer;
-}
-.mc-esf-pill:is(:hover, :focus-visible) {
-  background: var(--sup-2);
-  color: var(--texto-1);
-}
-.mc-esf-pill:focus-visible {
-  outline-offset: -2px;
-}
-.mc-esf-pill[aria-expanded="true"] {
-  color: var(--texto-1);
-}
-/* El submenú del esfuerzo, al costado del menú del modelo, a la altura del renglón elegido: una columna de niveles como renglones. */
-.mc-fly {
-  position: fixed;
-  z-index: 501;
-  display: flex;
-  min-width: 8.5rem;
-  flex-direction: column;
-  padding: var(--esp-1);
-  border: 1px solid var(--borde-3);
-  border-radius: var(--radio-4);
-  background: var(--sup-1);
-  box-shadow: 0 1rem 2.5rem var(--sombra);
-}
-.mc-fly .mc-esf {
-  flex-direction: column;
-  flex-wrap: nowrap;
-  align-items: stretch;
-  gap: 1px;
-  margin: 0;
-  padding: 0;
-  border-top: 0;
-}
-.mc-fly .mc-esf-t {
-  padding: var(--esp-1) var(--esp-2) var(--esp-1);
-}
-.mc-fly .mc-esf-op {
-  border-color: transparent;
-}
-.mc-fly .mc-esf-op[aria-checked="true"] {
-  border-color: transparent;
-  background: var(--sup-2);
-}
-.mc-fly .mc-esf-op svg:last-child:not(:first-child) {
-  margin-left: auto;
-}
 .mc-sub {
   padding: var(--esp-2) var(--esp-2-5) var(--esp-1);
   color: var(--texto-7);
@@ -6622,58 +6712,6 @@ summary.sis-div-t:hover,
 }
 .menu[data-columnas] .op[aria-selected="true"] .on-n {
   font-weight: 600;
-}
-/* La fila del esfuerzo, al pie del menú del modelo (la barra lo fusionó en el chip): un nivel por botón; el elegido, con tilde y en negrita. */
-.mc-esf {
-  display: flex;
-  flex: none;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--esp-1);
-  margin-top: var(--esp-1);
-  padding: var(--esp-1-5) var(--esp-2-5) var(--esp-1);
-  border-top: 1px solid var(--borde-2);
-}
-/* Debajo del renglón elegido (lista compacta) los niveles van sin la línea de arriba y con el rótulo al lado. */
-.mc-lista .mc-esf {
-  margin-top: 0;
-  padding: var(--esp-1) var(--esp-2-5) var(--esp-1-5);
-  border-top: 0;
-}
-.mc-esf-t {
-  width: 100%;
-  padding: 0 0 var(--esp-1);
-}
-.mc-esf-op {
-  display: inline-flex;
-  height: 2rem;
-  align-items: center;
-  gap: var(--esp-1-5);
-  padding: 0 var(--esp-2);
-  border: 1px solid var(--borde-3);
-  border-radius: var(--radio-2);
-  background: transparent;
-  color: var(--texto-3);
-  font: inherit;
-  font-size: var(--letra-4);
-  cursor: pointer;
-}
-.mc-esf-op:is(:hover, :focus-visible) {
-  background: var(--sup-2);
-  color: var(--texto-1);
-}
-.mc-esf-op[aria-checked="true"] {
-  border-color: var(--texto-6);
-  color: var(--texto-1);
-  font-weight: 600;
-}
-.mc-esf-op:focus-visible {
-  outline-offset: -2px;
-}
-@media (pointer: coarse) {
-  .mc-esf-op {
-    height: 2.5rem;
-  }
 }
 /* Celular: la columna ocupa casi todo el ancho. */
 @media (max-width: 37.5rem) {
