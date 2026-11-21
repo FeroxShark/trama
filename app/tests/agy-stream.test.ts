@@ -69,9 +69,9 @@ test("un result que no es SUCCESS es un error con su motivo; sin result, fin() c
   const t = new Traductor({ sid: "s", modelo: "gemini-3.8-flash-low" });
   t.linea({ event: "step_update", step_update: { conversation_id: "c", step_index: 1, step_type: "agent_response", state: "ACTIVE", text_delta: "hola" } });
   const f = t.fin("agy salió con 1");
-  assert.equal(f.length, 1);
-  assert.equal(f[0].is_error, true);
-  assert.equal(f[0].result, "agy salió con 1");
+  assert.ok((f as any[]).some((l) => l.type === "assistant" && l.message.content[0].text === "hola"), "el texto parcial se conserva");
+  assert.equal(f.at(-1)!.is_error, true);
+  assert.equal(f.at(-1)!.result, "agy salió con 1");
   assert.deepEqual(t.fin(null), []);
 });
 
