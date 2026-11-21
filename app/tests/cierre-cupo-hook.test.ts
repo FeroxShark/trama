@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { CIERRE_PASOS } from "../electron/cli/pa/contrato.ts";
-import { cierreDe, cierreDeModelo, cierresVigentes, suscripcionDeProveedor, textoSinCupo } from "../electron/cli/cierre-cupo-lectura.ts";
+import { cierreDe, cierreDeModelo, cierresVigentes, grupoDeModelo, suscripcionDeProveedor, textoSinCupo } from "../electron/cli/cierre-cupo-lectura.ts";
 import { avisarLideres, lideresParaAvisar, settingsCierreCupo, type LiderVivo } from "../electron/cierre-cupo-texto.ts";
 import type { EntradaCierre } from "../electron/cierre-cupo.ts";
 
@@ -132,6 +132,19 @@ test("pa y reparto: lectura de la señal, suscripción de un modelo y mensaje", 
   assert.equal(cierreDeModelo(vigentes, "opencode:opencode/x"), null);
   assert.equal(cierreDe(vigentes, suscripcionDeProveedor("claude"), "otra"), null);
   assert.equal(suscripcionDeProveedor("openai"), "chatgpt");
+
+  // Google tiene tres ventanas: una entrada con grupo sólo cierra a los modelos de ese grupo.
+  const soloGemini = [ent({ proveedor: "google", cuenta: "google", grupo: "gemini", vuelve: AHORA + 600 })];
+  assert.ok(cierreDeModelo(soloGemini, "gemini-4-hydrogen-xhigh"));
+  assert.equal(cierreDeModelo(soloGemini, "agy:claude-sonnet-5-5-high"), null, "Claude por agy tiene su propia ventana");
+  assert.equal(cierreDeModelo(soloGemini, "agy:gpt-oss-120b-medium"), null);
+  assert.equal(cierreDeModelo(soloGemini, "gemini-4-argon-high"), null, "Argon tiene su propia ventana");
+  assert.ok(cierreDeModelo([ent({ proveedor: "google", cuenta: "google", grupo: "claude-gpt" })], "agy:claude-opus-5-5-high"));
+  assert.ok(cierreDeModelo([ent({ proveedor: "google", cuenta: "google" })], "gemini-4-argon-high"), "sin grupo cierra a toda la suscripción");
+  assert.ok(cierreDe(soloGemini, "google", "google"), "sin saber el grupo del modelo, cierra");
+  assert.equal(cierreDe(soloGemini, "google", "google", "gemini-4-argon"), null);
+  assert.equal(grupoDeModelo("claude-sonnet-5-5"), null);
+  assert.equal(grupoDeModelo("gemini-4-neon-low"), "gemini");
   assert.match(textoSinCupo(ent(), AHORA), /^sin cupo: vuelve a las \d\d:\d\d$/);
 });
 
