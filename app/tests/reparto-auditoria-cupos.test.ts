@@ -68,3 +68,14 @@ test("sin ningún proveedor disponible (Claude apagado y nada más) no ofrece un
   const s = elegir("codigo-acotado", {});
   assert.equal(s.modelo, null, String(s.modelo));
 });
+
+// A06 (REPARTO-CUPOS-5)
+const claude = [{ id: "claude", nombre: "Claude", proveedor: "claude", cuenta: "claude", ventanas: [{ id: "5h", usado: 0.1, vuelve: "2026-11-21T15:00:00Z" }, { id: "7d", usado: 0.1, vuelve: "2026-11-25T12:00:00Z" }] }];
+test("con el reparto fijo, el modelo asignado pero excluido en Ajustes no se devuelve", () => {
+  const mod = { reparto: "fijo", excluir: ["sonnet"], workers: { debug: { modelo: "claude-sonnet-5-5", effort: "high" } } };
+  const s = elegir("debug", { REPARTO_CLAUDE: "1" }, mod, claude);
+  assert.ok(s.modelo && !/sonnet/.test(s.modelo), String(s.modelo));
+  assert.ok(s.avisos.some((a) => /excluido/.test(a)), s.avisos.join("|"));
+  // sin exclusión sigue valiendo la asignación
+  assert.equal(elegir("debug", { REPARTO_CLAUDE: "1" }, { ...mod, excluir: [] }, claude).modelo, "claude-sonnet-5-5");
+});

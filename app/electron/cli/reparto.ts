@@ -3120,12 +3120,17 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
     const w = get(cfg.workers, tipo) || get(cfg.workers, "default") || { modelo: "claude-sonnet-5-5", effort: "high" };
     let ef = get(w, "effort");
     if (ef === "max" && !pyStr(get(w, "modelo", "")).toLowerCase().includes("haiku")) ef = "xhigh";
-    return {
-      version: VERSION, modelo: get(w, "modelo", "claude-sonnet-5-5"), effort: ef, cuenta: null,
-      motivo: `El reparto está en "fijo" en modelos.json: uso el modelo que ese archivo asigna al tipo ${tipo}.`,
-      candidatos: [], avisos: [...avisos, ...avisosDeUso(cupos, now)], tipo,
-      todo_lleno: false, sin_cupo: cfg.sin_cupo, vuelve_antes: null,
-    };
+    // la persona apagó ese modelo en Ajustes (`excluir`): la asignación fija no lo salva, se elige entre los que quedan
+    const apagado = excluidoPor(get(w, "modelo", "claude-sonnet-5-5"), cfg.excluir);
+    if (!apagado) {
+      return {
+        version: VERSION, modelo: get(w, "modelo", "claude-sonnet-5-5"), effort: ef, cuenta: null,
+        motivo: `El reparto está en "fijo" en modelos.json: uso el modelo que ese archivo asigna al tipo ${tipo}.`,
+        candidatos: [], avisos: [...avisos, ...avisosDeUso(cupos, now)], tipo,
+        todo_lleno: false, sin_cupo: cfg.sin_cupo, vuelve_antes: null,
+      };
+    }
+    avisos.push(`el modelo fijo de ${tipo} (${get(w, "modelo", "claude-sonnet-5-5")}) está excluido en modelos.json (excluir: ${apagado}): elijo otro`);
   }
   let [cands, minimo, minimoFam] = armarCandidatos(tipo, cfg, cupos, now);
   // Cierre por cupo (Ajustes > cierre, `$PA_STATE/cierre-cupo.json`): una suscripción bajo el umbral no se elige; si no queda ninguna con cupo
