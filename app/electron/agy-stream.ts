@@ -287,7 +287,18 @@ export class Traductor {
   fin(error: string | null): Obj[] {
     if (this.cerrado) return [];
     this.cerrado = true;
+    // Lo que quedó a medias no se pierde: el texto parcial se vuelca como mensaje y cada herramienta abierta se cierra con un error.
+    const parcial: Obj[] = [];
+    for (const t of this.texto.values()) {
+      const completo = t.acumulado.replace(/\s+$/, "");
+      parcial.push(this.ev({ type: "content_block_stop", index: 0 }));
+      if (completo) parcial.push(this.mensaje(t.id, [{ type: "text", text: completo }], null));
+      parcial.push(this.ev({ type: "message_stop" }));
+    }
+    this.texto.clear();
     return [
+      ...parcial,
+      ...this.cerrarAbiertas(error ?? "Interrumpido antes de que terminara este paso."),
       {
         type: "result",
         subtype: error ? "error_during_execution" : "success",

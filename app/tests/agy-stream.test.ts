@@ -135,3 +135,17 @@ test("un paso con texto lleva el razonamiento en el mismo mensaje entero; sin ra
   const enteros = lineas.filter((l) => l.type === "assistant").map((l) => l.message.content.map((c: any) => c.type));
   assert.deepEqual(enteros, [["thinking", "text"], ["text"]]);
 });
+
+test("fin() con una herramienta abierta y texto parcial: cierra la herramienta con error y vuelca el texto antes del result", () => {
+  const t = new Traductor({ sid: "s1", modelo: "gemini-2.5-pro" });
+  t.linea({ event: "init", conversation_id: "g1" });
+  t.linea({ event: "step_update", step_update: { step_index: 1, step_type: "tool", state: "PENDING", tool_name: "run_command", tool_info: { parameters: { CommandLine: "sleep 10" } } } });
+  t.linea({ event: "step_update", step_update: { step_index: 2, step_type: "agent_response", state: "RUNNING", text_delta: "Texto parcial" } });
+  const f = t.fin(null) as any[];
+  const res = f.find((l) => l.type === "user");
+  assert.equal(res.message.content[0].is_error, true, "la herramienta no queda girando");
+  const msg = f.find((l) => l.type === "assistant");
+  assert.equal(msg.message.content[0].text, "Texto parcial");
+  assert.equal(f.at(-1).type, "result");
+  assert.deepEqual(t.fin(null), []);
+});
