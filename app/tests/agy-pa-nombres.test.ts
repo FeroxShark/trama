@@ -46,10 +46,10 @@ for (const variante of VARIANTES) {
     assert.equal(pre("write_file", { Path: "/tmp/x.txt" }), null);
     // lo que los hooks protegen a propósito sigue cerrado
     assert.match(pre("read_file", { Path: "/etc/passwd" })?.reason ?? "", /privacidad/);
-    assert.match(pre("read_file", { Path: "/home/ferox/.gemini/config/skills/taste-skill/SKILL.md" })?.reason ?? "", /privacidad/);
+    assert.match(pre("read_file", { Path: "/home/trama-falso/.gemini/config/skills/taste-skill/SKILL.md" })?.reason ?? "", /privacidad/);
     assert.match(pre("read_file", { Path: "../../../etc/hosts" })?.reason ?? "", /privacidad/);
-    assert.match(pre("write_file", { Path: "/home/ferox/.local/state/pa/worktrees/orquestador/x.py" })?.reason ?? "", /privacidad|fuera de tu worktree/);
-    assert.match(pre("edit_file", { Path: "/home/ferox/Proyectos/trama/a.ts" })?.reason ?? "", /privacidad|fuera de tu worktree/);
+    assert.match(pre("write_file", { Path: "/home/trama-falso/.local/state/pa/worktrees/orquestador/x.py" })?.reason ?? "", /privacidad|fuera de tu worktree/);
+    assert.match(pre("edit_file", { Path: "/home/trama-falso/Proyectos/trama/a.ts" })?.reason ?? "", /privacidad|fuera de tu worktree/);
     assert.match(pre("write_file", {})?.reason ?? "", /qué archivo/);
     // sigue habiendo allowlist: lo que no es de archivos ni terminal no corre
     assert.match(pre("schedule", { DurationSeconds: 240, Prompt: "x" })?.reason ?? "", /'schedule' no está permitida/);
@@ -114,7 +114,7 @@ for (const variante of VARIANTES) {
       "ls ~",
       "cat ~root/.ssh/id_rsa",
       'cat "/etc/passwd"',
-      "python3 - <<'PY'\nopen('/home/ferox/.ssh/id_rsa').read()\nPY",
+      "python3 - <<'PY'\nopen('/home/trama-falso/.ssh/id_rsa').read()\nPY",
       "echo hola; ls //",
     ]) {
       assert.match(pre("run_command", { CommandLine: malo })?.reason ?? "", /privacidad/, malo);
