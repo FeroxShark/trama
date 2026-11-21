@@ -79,3 +79,16 @@ test("con el reparto fijo, el modelo asignado pero excluido en Ajustes no se dev
   // sin exclusión sigue valiendo la asignación
   assert.equal(elegir("debug", { REPARTO_CLAUDE: "1" }, { ...mod, excluir: [] }, claude).modelo, "claude-sonnet-5-5");
 });
+
+// A07 (REPARTO-CUPOS-7)
+const google = [{ id: "google", nombre: "Google AI Pro", agy_modelos: [{ id: "claude-sonnet-4-6-thinking", nombre: "Claude Sonnet 4.6 (Thinking)" }], grupos: [{ id: "claude-gpt", nombre: "Claude y GPT por Google", ventanas: [{ id: "5h", usado: 0.1, vuelve: "2026-11-21T15:00:00Z" }, { id: "7d", usado: 0.1, vuelve: "2026-11-25T12:00:00Z" }] }] }];
+test("un modelo de agy fuera de la tabla respeta una lista de esfuerzos vacía", () => {
+  const env = { REPARTO_AGY: "1" };
+  const base = { excluir: ["claude-*", "gemini-*"] };
+  const ap = (m: { efforts_permitidos?: object }) => elegir("mecanico", env, { ...base, ...m }, google);
+  assert.ok(ap({}).candidatos.some((c) => c.modelo === "agy:claude-sonnet-4-6-thinking" && !c.descartado_por), "sin la lista, entra");
+  const s = ap({ efforts_permitidos: { "agy:claude-sonnet-4-6-thinking": [] } });
+  const c = s.candidatos.find((x) => x.modelo === "agy:claude-sonnet-4-6-thinking");
+  assert.ok(c?.descartado_por, JSON.stringify(c));
+  assert.notEqual(s.modelo, "agy:claude-sonnet-4-6-thinking");
+});

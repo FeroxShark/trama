@@ -2816,6 +2816,7 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     let modelo: string;
     let effortC: string | null;
     let eCal: string;
+    let sinEfforts = false;
     const fijoAgy = efs !== null && efs.length === 0; // un modelo de agy que FAMILIAS no conoce: su id ya trae el esfuerzo (o no tiene)
     if (efs !== null && sus === "google" && !fijoAgy && get(cuentaS, "agy_modelos") != null) {
       // el agy de esta cuenta ofrece otros modelos que los de siempre: sólo valen los esfuerzos que lista
@@ -2832,6 +2833,11 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
       // de su familia (sin familia conocida, 0: no se elige solo) y --tabla lo marca estimado.
       [ePerm, notaEffort] = [null, `calidad estimada: la de ${fam} al esfuerzo low (sin dato propio de este modelo)`];
       [modelo, effortC, eCal] = [base, null, "low"];
+      // una lista de esfuerzos vacía en Ajustes lo apaga aunque su id no admita un esfuerzo aparte
+      if (effortsDe(cfg, base, fam)?.length === 0) {
+        [ePerm, notaEffort] = [null, `efforts_permitidos deja sin ningún effort a ${fam || base}`];
+        sinEfforts = true;
+      }
     } else {
       let e = efectivo(base, efs, eTipo);
       [ePerm, notaEffort] = effortPermitido(cfg, base, fam, e, efs.filter((x) => EFFORTS_AA.includes(x)));
@@ -2849,7 +2855,7 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
       aviso: null, grupo: gid || "claude-oficial", cuenta, proveedor: sus,
       estimada: fijoAgy || !tieneDato, origen: fijoAgy ? "estimada" : origenCand, nota_effort: notaEffort,
     };
-    if (ePerm === null && notaEffort && !fijoAgy) {
+    if (ePerm === null && notaEffort && (!fijoAgy || sinEfforts)) {
       cand.descartado_por = `excluido en modelos.json (${notaEffort})`;
       cand.duro = true;
     }
