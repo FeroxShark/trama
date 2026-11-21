@@ -69,7 +69,7 @@ const conMain = (m: NonNullable<typeof main>): FuenteTablero => ({
 const fija: FuenteTablero = (() => {
   const ahora = Date.now();
   // Con los pendientes de muestra sólo en las capturas del tablero nuevo: el resto no cambia (ni el número del pie).
-  const conPendientes = !!MODO.captura?.startsWith("tablero-nuevo");
+  const conPendientes = !!MODO.captura?.startsWith("tablero-nuevo") || MODO.captura === "acople-tablero";
   // Con items de otra máquina y una caída sólo en `tablero-maquinas`.
   const conMaquinas = MODO.captura === "tablero-maquinas";
   const accion = async () => {

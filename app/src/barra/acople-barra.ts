@@ -33,9 +33,17 @@ export function acopleInicialBarra(p: ParamsInicialAcople): Acople {
       if (p.variante === "abajo") a = mover(a, "cupo", "abajo");
     } else if (p.captura === "oculta") a = cerrar(a, "chats");
     if (p.variante?.endsWith("-angosta") || p.variante?.endsWith("-300")) a = redimensionar(a, "izq", p.ancho);
+    // «Tablero» sólo se ve en su propia captura (abierto); en las demás se cierra para no cambiarles el lugar.
+    if (p.captura === "acople-tablero") {
+      a = alternarPlegado(a, "tablero");
+      a = cerrar(a, "cupo");
+    } else {
+      a = cerrar(a, "tablero");
+    }
     if (!p.consumo) {
       a = cerrar(a, "contexto");
       a = cerrar(a, "cupo");
+      a = cerrar(a, "tablero");
     }
     return a;
   }
