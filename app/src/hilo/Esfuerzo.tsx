@@ -179,6 +179,7 @@ export function Esfuerzo({ modelo, niveles, valor, alElegir, pendiente, ultracod
         ref={boton}
         type="button"
         className="pbtn esf-chip"
+        data-ultra={ultracode ? "" : undefined}
         style={{ ["--esf-color" as string]: color }}
         aria-haspopup="dialog"
         aria-expanded={abierto}
@@ -209,7 +210,7 @@ export function Esfuerzo({ modelo, niveles, valor, alElegir, pendiente, ultracod
         ? createPortal(
             <>
               <button type="button" className="fondo" tabIndex={-1} aria-label={t("comun.cerrarMenu")} onClick={() => cerrar(false)} />
-              <div ref={menu} className="menu esf-pop" role="dialog" aria-label={etiqueta} style={{ ["--esf-color" as string]: color }} onKeyDown={teclaMenu}>
+              <div ref={menu} className="menu esf-pop" data-ultra={ultracode ? "" : undefined} role="dialog" aria-label={etiqueta} style={{ ["--esf-color" as string]: color }} onKeyDown={teclaMenu}>
                 <div className="esf-cab" aria-live="polite">
                   {cabecera}
                 </div>

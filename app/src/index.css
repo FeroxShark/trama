@@ -2335,6 +2335,51 @@ html[data-titulo-nativo] #root::after {
 .barra-c:is([data-nivel="2"], [data-nivel="3"]) > .pick:has([data-sin-esfuerzo]) {
   display: none;
 }
+/* Ultracode prendido: «máximo poder». Un campo de cuadraditos pixelados violeta, rosa y rojo que se corre y cambia de color
+   detrás del contenido (el chip y el panel). La palabra «Ultracode» sigue escrita: el efecto no es el único aviso. */
+.esf-chip[data-ultra] {
+  position: relative;
+}
+:is(.esf-chip, .menu.esf-pop)[data-ultra] {
+  isolation: isolate;
+  border-color: color-mix(in srgb, var(--rosa) 55%, transparent);
+}
+:is(.esf-chip, .menu.esf-pop)[data-ultra]::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(115deg, var(--paso-pensar), var(--rosa), var(--critico), var(--rosa), var(--paso-pensar)) 0 0 / 300% 300%;
+  content: "";
+  opacity: 0.5;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' shape-rendering='crispEdges'%3E%3Crect x='0' y='0' width='7' height='7' fill-opacity='0.18'/%3E%3Crect x='16' y='0' width='7' height='7' fill-opacity='0.35'/%3E%3Crect x='24' y='0' width='7' height='7' fill-opacity='0.8'/%3E%3Crect x='48' y='0' width='7' height='7' fill-opacity='1'/%3E%3Crect x='56' y='0' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='8' y='8' width='7' height='7' fill-opacity='0.18'/%3E%3Crect x='16' y='8' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='32' y='8' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='0' y='16' width='7' height='7' fill-opacity='0.35'/%3E%3Crect x='8' y='16' width='7' height='7' fill-opacity='0.35'/%3E%3Crect x='40' y='16' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='48' y='16' width='7' height='7' fill-opacity='0.35'/%3E%3Crect x='0' y='24' width='7' height='7' fill-opacity='1'/%3E%3Crect x='8' y='24' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='32' y='24' width='7' height='7' fill-opacity='0.8'/%3E%3Crect x='40' y='24' width='7' height='7' fill-opacity='0.8'/%3E%3Crect x='48' y='24' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='0' y='32' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='8' y='32' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='16' y='32' width='7' height='7' fill-opacity='0.35'/%3E%3Crect x='48' y='32' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='56' y='32' width='7' height='7' fill-opacity='1'/%3E%3Crect x='8' y='40' width='7' height='7' fill-opacity='0.18'/%3E%3Crect x='16' y='40' width='7' height='7' fill-opacity='0.35'/%3E%3Crect x='32' y='40' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='48' y='40' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='56' y='40' width='7' height='7' fill-opacity='0.18'/%3E%3Crect x='0' y='48' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='8' y='48' width='7' height='7' fill-opacity='1'/%3E%3Crect x='16' y='48' width='7' height='7' fill-opacity='0.8'/%3E%3Crect x='40' y='48' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='48' y='48' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='56' y='48' width='7' height='7' fill-opacity='0.8'/%3E%3Crect x='8' y='56' width='7' height='7' fill-opacity='0.18'/%3E%3Crect x='24' y='56' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='32' y='56' width='7' height='7' fill-opacity='0.8'/%3E%3Crect x='48' y='56' width='7' height='7' fill-opacity='0.55'/%3E%3C/svg%3E") 0 0 / 4rem 4rem;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' shape-rendering='crispEdges'%3E%3Crect x='0' y='0' width='7' height='7' fill-opacity='0.18'/%3E%3Crect x='16' y='0' width='7' height='7' fill-opacity='0.35'/%3E%3Crect x='24' y='0' width='7' height='7' fill-opacity='0.8'/%3E%3Crect x='48' y='0' width='7' height='7' fill-opacity='1'/%3E%3Crect x='56' y='0' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='8' y='8' width='7' height='7' fill-opacity='0.18'/%3E%3Crect x='16' y='8' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='32' y='8' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='0' y='16' width='7' height='7' fill-opacity='0.35'/%3E%3Crect x='8' y='16' width='7' height='7' fill-opacity='0.35'/%3E%3Crect x='40' y='16' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='48' y='16' width='7' height='7' fill-opacity='0.35'/%3E%3Crect x='0' y='24' width='7' height='7' fill-opacity='1'/%3E%3Crect x='8' y='24' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='32' y='24' width='7' height='7' fill-opacity='0.8'/%3E%3Crect x='40' y='24' width='7' height='7' fill-opacity='0.8'/%3E%3Crect x='48' y='24' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='0' y='32' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='8' y='32' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='16' y='32' width='7' height='7' fill-opacity='0.35'/%3E%3Crect x='48' y='32' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='56' y='32' width='7' height='7' fill-opacity='1'/%3E%3Crect x='8' y='40' width='7' height='7' fill-opacity='0.18'/%3E%3Crect x='16' y='40' width='7' height='7' fill-opacity='0.35'/%3E%3Crect x='32' y='40' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='48' y='40' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='56' y='40' width='7' height='7' fill-opacity='0.18'/%3E%3Crect x='0' y='48' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='8' y='48' width='7' height='7' fill-opacity='1'/%3E%3Crect x='16' y='48' width='7' height='7' fill-opacity='0.8'/%3E%3Crect x='40' y='48' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='48' y='48' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='56' y='48' width='7' height='7' fill-opacity='0.8'/%3E%3Crect x='8' y='56' width='7' height='7' fill-opacity='0.18'/%3E%3Crect x='24' y='56' width='7' height='7' fill-opacity='0.55'/%3E%3Crect x='32' y='56' width='7' height='7' fill-opacity='0.8'/%3E%3Crect x='48' y='56' width='7' height='7' fill-opacity='0.55'/%3E%3C/svg%3E") 0 0 / 4rem 4rem;
+  pointer-events: none;
+  animation:
+    ultra-color 4s linear infinite alternate,
+    ultra-pixeles 2.4s steps(8) infinite;
+}
+.esf-chip[data-ultra]::before {
+  opacity: 0.6;
+  -webkit-mask-size: 2rem 2rem;
+  mask-size: 2rem 2rem;
+}
+@keyframes ultra-color {
+  to {
+    background-position: 100% 100%;
+  }
+}
+@keyframes ultra-pixeles {
+  to {
+    -webkit-mask-position: 4rem -4rem;
+    mask-position: 4rem -4rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.esf-chip, .menu.esf-pop)[data-ultra]::before {
+    animation: none;
+  }
+}
 .menu.esf-pop {
   --esf-pulgar: 1.125rem;
   width: 16.25rem;
