@@ -1,5 +1,10 @@
 # Changes
 
+## 0.3.16
+
+- On the phone, the back gesture or button closes the open photo or file and returns to the chat, instead of leaving Trama.
+- On Windows, the model picker and OpenCode read the app's `modelos.json` and `claves.env`: what you exclude in Settings is now respected. Fix by Gonza.
+
 ## 0.3.15
 
 - «Board» panel next to the chat, along with Quota and Context: it shows the questions, waits and to-dos of the open chat's project. Questions with options are answered with one tap and each item can be closed from there; the header says how many are waiting for you. It starts collapsed: open it from its title.

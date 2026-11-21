@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.3.16
+
+- En el celular, el gesto o el botón de atrás cierra la foto o el archivo abierto y vuelve al chat, en vez de salir de Trama.
+- En Windows, el reparto y OpenCode leen el `modelos.json` y el `claves.env` de la app: lo que se excluye en Ajustes ahora se respeta. Arreglo de Gonza.
+
 ## 0.3.15
 
 - Panel «Tablero» al costado del chat, junto a Cupo y Contexto: muestra las preguntas, esperas y pendientes del proyecto del chat abierto. Las preguntas con opciones se contestan con un toque y cada cosa se cierra desde ahí; el encabezado dice cuántas te esperan. Viene plegado: se abre desde su título.
