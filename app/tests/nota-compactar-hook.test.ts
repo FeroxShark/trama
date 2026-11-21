@@ -1,4 +1,4 @@
-// Hook «nota-compactar» (motor/hooks/nota-compactar.mjs y nota-compactar-textos.mjs), la clave `nota_compactar` de modelos.json y su
+// Hook «nota-compactar» (motor/hooks/nota-compactar.mjs y nota-compactar-textos.mjs), las claves de modelos.json y su
 // registro en líderes de la app (cierre-cupo-texto.ts + lider.ts) y workers de `pa` (cli/pa/lanzar.ts).
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
@@ -16,8 +16,8 @@ import { argvLider } from "../electron/lider-arma.ts";
 import { armarLanzamiento, settingsWorker, type Corrida } from "../electron/cli/pa/lanzar.ts";
 import { Modelos, problemaModelos } from "../electron/cli/pa/modelos.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
-import { guardarModelos, leerModelos, notaCompactarGuardado } from "../electron/modelos-config.ts";
-import { leerConfig, unir, validarConfig } from "../electron/modelos-tipos.ts";
+import { guardarModelos, leerModelos, notaCompactarGuardado, notaCompactarPctGuardado, notaCompactarTareaPctGuardado } from "../electron/modelos-config.ts";
+import { leerConfig, umbralesNota, unir, validarConfig } from "../electron/modelos-tipos.ts";
 
 registerHooks({
   resolve(spec, ctx, next) {
@@ -36,7 +36,7 @@ const MOTOR = path.join(import.meta.dirname, "..", "..", "motor");
 const hookMod = (await import(pathToFileURL(HOOK).href)) as {
   TAIL_BYTES: number;
   estadoHilos: (e?: Record<string, string | undefined>, plat?: string) => string;
-  parsearArgs: (argv?: string[]) => { umbral: number | null };
+  parsearArgs: (argv?: string[]) => { umbral: number | null; umbralTarea: number | null };
   leerColaTranscript: (ruta: string, maxBytes?: number) => string[];
   ultimoUsoDeLineas: (lineas: string[]) => { tokens: number | null; compactada: boolean };
   ultimaNotaDeLineas: (lineas: string[], o?: { trasCompact?: boolean }) => { texto: string; tsMs: number | null } | null;
@@ -46,10 +46,12 @@ const hookMod = (await import(pathToFileURL(HOOK).href)) as {
     sesion: string;
     transcript?: string;
     umbral?: number | null;
+    umbralTarea?: number | null;
     hilos?: string;
     ahoraMs?: number;
     idioma?: string;
     tailBytes?: number;
+    esSubagente?: boolean;
   }) => Promise<{ hookSpecificOutput: { hookEventName: string; additionalContext: string } } | null>;
 };
 
@@ -84,39 +86,51 @@ test("ruta de estado en win32 con usuario de mentira trama-falso y en Linux", ()
   assert.equal(hookMod.estadoHilos({ HILOS_STATE: "/estado/propio", USERPROFILE: "C:\\Users\\trama-falso" }, "win32"), "/estado/propio");
 });
 
-test("parsearArgs lee --umbral y lo deja null si falta o no sirve", () => {
-  assert.deepEqual(hookMod.parsearArgs(["--umbral", "255000"]), { umbral: 255000 });
-  assert.deepEqual(hookMod.parsearArgs(["--umbral=170000"]), { umbral: 170000 });
-  assert.deepEqual(hookMod.parsearArgs([]), { umbral: null });
-  assert.deepEqual(hookMod.parsearArgs(["--umbral", "abc"]), { umbral: null });
-  assert.deepEqual(hookMod.parsearArgs(["--umbral", "-5"]), { umbral: null });
+test("parsearArgs lee --umbral y --umbral-tarea y los deja null si faltan o no sirven", () => {
+  assert.deepEqual(hookMod.parsearArgs(["--umbral", "255000", "--umbral-tarea", "180000"]), { umbral: 255000, umbralTarea: 180000 });
+  assert.deepEqual(hookMod.parsearArgs(["--umbral=170000", "--umbral-tarea=120000"]), { umbral: 170000, umbralTarea: 120000 });
+  assert.deepEqual(hookMod.parsearArgs([]), { umbral: null, umbralTarea: null });
+  assert.deepEqual(hookMod.parsearArgs(["--umbral", "abc", "--umbral-tarea", "-1"]), { umbral: null, umbralTarea: null });
+  assert.deepEqual(hookMod.parsearArgs(["--umbral", "-5"]), { umbral: null, umbralTarea: null });
 });
 
-test("no pide bajo el umbral ni sin umbral; pide una sola vez por ciclo", async () => {
+test("no pide bajo el umbral ni sin umbral; pide suave una vez y fuerte una sola vez por ciclo", async () => {
   const dir = nuevoDir();
   const tr = path.join(dir, "s1.jsonl");
   const usoBajo = { input_tokens: 1000, cache_read_input_tokens: 90_000, cache_creation_input_tokens: 5000 };
   escribirTranscript(tr, [linAsistente([{ type: "text", text: "hola" }], usoBajo)]);
-  assert.equal(await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: 170_000, hilos: dir }), null);
+  assert.equal(await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: 170_000, umbralTarea: 120_000, hilos: dir }), null);
   assert.equal(existsSync(path.join(dir, "notas", "s1.pedida")), false);
+  assert.equal(existsSync(path.join(dir, "notas", "s1.sugerida")), false);
+
+  // Entre suave (120k) y fuerte (170k): sugiere una sola vez (.sugerida)
+  escribirTranscript(tr, [linAsistente([{ type: "text", text: "a mitad" }], { input_tokens: 100, cache_read_input_tokens: 130_000 })]);
+  const rSuave = await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: 170_000, umbralTarea: 120_000, hilos: dir, idioma: "es" });
+  assert.ok(rSuave);
+  assert.match(rSuave.hookSpecificOutput.additionalContext, /cuando termines la tarea actual/i);
+  assert.match(rSuave.hookSpecificOutput.additionalContext, /todavía no la escribas/i);
+  assert.equal(existsSync(path.join(dir, "notas", "s1.sugerida")), true);
+  assert.equal(existsSync(path.join(dir, "notas", "s1.pedida")), false);
+  assert.equal(await hookMod.decidir({ evento: "UserPromptSubmit", sesion: "s1", transcript: tr, umbral: 170_000, umbralTarea: 120_000, hilos: dir, idioma: "es" }), null);
 
   const usoAlto = { input_tokens: 100, cache_read_input_tokens: 160_000, cache_creation_input_tokens: 10_000 };
   escribirTranscript(tr, [linAsistente([{ type: "text", text: "trabajando" }], usoAlto)]);
-  // Sin umbral, nunca pide
-  assert.equal(await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: null, hilos: dir }), null);
+  // Sin umbrales, nunca pide
+  assert.equal(await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: null, umbralTarea: null, hilos: dir }), null);
 
-  const r1 = await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: 170_000, hilos: dir, idioma: "es" });
+  const r1 = await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: 170_000, umbralTarea: 120_000, hilos: dir, idioma: "es" });
   assert.ok(r1);
   assert.equal(r1.hookSpecificOutput.hookEventName, "PostToolUse");
   assert.match(r1.hookSpecificOutput.additionalContext, /\[\[nota-compactar\]\]/);
   assert.match(r1.hookSpecificOutput.additionalContext, /\[\[\/nota-compactar\]\]/);
+  assert.match(r1.hookSpecificOutput.additionalContext, /Si te falta poco para un corte natural, terminá y escribila/);
   assert.match(r1.hookSpecificOutput.additionalContext, /Objetivo.*Pedidos de la persona.*Estado.*Decisiones.*Qué sigue.*Rutas.*Qué NO hacer/s);
   assert.match(r1.hookSpecificOutput.additionalContext, /600 palabras/);
   assert.equal(existsSync(path.join(dir, "notas", "s1.pedida")), true);
 
   // En el mismo ciclo no vuelve a pedir ni en PostToolUse ni en UserPromptSubmit
-  assert.equal(await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: 170_000, hilos: dir }), null);
-  assert.equal(await hookMod.decidir({ evento: "UserPromptSubmit", sesion: "s1", transcript: tr, umbral: 170_000, hilos: dir }), null);
+  assert.equal(await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: 170_000, umbralTarea: 120_000, hilos: dir }), null);
+  assert.equal(await hookMod.decidir({ evento: "UserPromptSubmit", sesion: "s1", transcript: tr, umbral: 170_000, umbralTarea: 120_000, hilos: dir }), null);
 
   // Otra sesión sí recibe su propio pedido, y en inglés si preferencias.json dice en
   writeFileSync(path.join(dir, "preferencias.json"), JSON.stringify({ idioma: "en" }));
@@ -125,17 +139,22 @@ test("no pide bajo el umbral ni sin umbral; pide una sola vez por ciclo", async 
   assert.match(r2?.hookSpecificOutput.additionalContext ?? "", /NEXT response.*Objective.*What NOT to do/s);
 });
 
-test("si el uso bajó de la mitad del umbral, borra la marca para el nuevo ciclo", async () => {
+test("si el uso bajó de la mitad del umbral, borra las marcas (.pedida y .sugerida) para el nuevo ciclo", async () => {
   const dir = nuevoDir();
   const tr = path.join(dir, "s1.jsonl");
+  escribirTranscript(tr, [linAsistente([{ type: "text", text: "suave" }], { input_tokens: 1000, cache_read_input_tokens: 130_000 })]);
+  assert.ok(await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: 170_000, umbralTarea: 120_000, hilos: dir, idioma: "es" }));
+  assert.equal(existsSync(path.join(dir, "notas", "s1.sugerida")), true);
+
   escribirTranscript(tr, [linAsistente([{ type: "text", text: "lleno" }], { input_tokens: 1000, cache_read_input_tokens: 180_000 })]);
-  assert.ok(await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: 170_000, hilos: dir, idioma: "es" }));
+  assert.ok(await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: 170_000, umbralTarea: 120_000, hilos: dir, idioma: "es" }));
   assert.equal(existsSync(path.join(dir, "notas", "s1.pedida")), true);
 
-  // Bajo de la mitad (< 85 000): se compactó por fuera y borra la marca
+  // Bajo de la mitad (< 60 000): se compactó por fuera y borra ambas marcas
   escribirTranscript(tr, [linAsistente([{ type: "text", text: "fresco" }], { input_tokens: 1000, cache_read_input_tokens: 40_000 })]);
-  assert.equal(await hookMod.decidir({ evento: "UserPromptSubmit", sesion: "s1", transcript: tr, umbral: 170_000, hilos: dir, idioma: "es" }), null);
+  assert.equal(await hookMod.decidir({ evento: "UserPromptSubmit", sesion: "s1", transcript: tr, umbral: 170_000, umbralTarea: 120_000, hilos: dir, idioma: "es" }), null);
   assert.equal(existsSync(path.join(dir, "notas", "s1.pedida")), false);
+  assert.equal(existsSync(path.join(dir, "notas", "s1.sugerida")), false);
 
   // Al volver a pasar el umbral pide otra vez
   escribirTranscript(tr, [linAsistente([{ type: "text", text: "lleno otra vez" }], { input_tokens: 1000, cache_read_input_tokens: 175_000 })]);
@@ -150,7 +169,7 @@ test("si el uso bajó de la mitad del umbral, borra la marca para el nuevo ciclo
   assert.equal(existsSync(path.join(dir, "notas", "s1.pedida")), false);
 });
 
-test("ignora subagentes (isSidechain) y mensajes sintéticos tanto en el uso como al copiar la nota", async () => {
+test("ignora subagentes (isSidechain, agent_id en stdin y subagents/) sin gastar marcas", async () => {
   const dir = nuevoDir();
   const tr = path.join(dir, "s1.jsonl");
   escribirTranscript(tr, [
@@ -162,7 +181,25 @@ test("ignora subagentes (isSidechain) y mensajes sintéticos tanto en el uso com
   assert.equal(existsSync(path.join(dir, "notas", "s1.pedida")), false);
   assert.equal(existsSync(path.join(dir, "notas", "s1.md")), false);
 
-  // Un mensaje sintético con usage 0 después de superar el umbral tampoco borra la marca
+  // Si el último mensaje del transcript es isSidechain (subagente en curso), PostToolUse no gasta la marca aunque el principal haya pasado umbral
+  escribirTranscript(tr, [
+    linAsistente([{ type: "text", text: "principal alto" }], { input_tokens: 500, cache_read_input_tokens: 180_000 }),
+    linAsistente([{ type: "text", text: "subagente" }], { input_tokens: 100 }, { isSidechain: true }),
+  ]);
+  assert.equal(await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: 170_000, hilos: dir }), null);
+  assert.equal(existsSync(path.join(dir, "notas", "s1.pedida")), false);
+
+  // Stdin del hook con agent_id (CLI subagente): tampoco gasta la marca
+  const rCliSub = spawnSync(process.execPath, [HOOK, "--umbral", "170000"], {
+    input: JSON.stringify({ hook_event_name: "PostToolUse", session_id: "s1", transcript_path: tr, agent_id: "a-sub-1" }),
+    env: { ...process.env, HILOS_STATE: dir },
+    encoding: "utf8",
+  });
+  assert.equal(rCliSub.status, 0);
+  assert.equal(rCliSub.stdout, "");
+  assert.equal(existsSync(path.join(dir, "notas", "s1.pedida")), false);
+
+  // UserPromptSubmit sobre la sesión principal sí puede pedir cuando el mensaje anterior era sintético
   escribirTranscript(tr, [
     linAsistente([{ type: "text", text: "principal alto" }], { input_tokens: 500, cache_read_input_tokens: 180_000 }),
     JSON.stringify({ type: "assistant", isApiErrorMessage: true, message: { id: "e2", model: "<synthetic>", content: [{ type: "text", text: "rate limit" }], usage: { input_tokens: 0 } } }),
@@ -174,7 +211,6 @@ test("ignora subagentes (isSidechain) y mensajes sintéticos tanto en el uso com
 test("copia el bloque [[nota-compactar]] en PostToolUse/PreCompact (modo 0600, sin reescribir si es igual) y sólo lee la cola", async () => {
   const dir = nuevoDir();
   const tr = path.join(dir, "grande.jsonl");
-  // Cabecera vieja > 260 KB fuera de la cola
   const vieja = linAsistente([{ type: "text", text: `[[nota-compactar]]vieja ${"x".repeat(270 * 1024)}[[/nota-compactar]]` }], { input_tokens: 100, cache_read_input_tokens: 190_000 });
   const actual = linAsistente([{ type: "text", text: "Sigo.\n[[nota-compactar]]\n## Objetivo\nArreglar X\n[[/nota-compactar]]" }], { input_tokens: 100, cache_read_input_tokens: 50_000 });
   escribirTranscript(tr, [vieja, actual]);
@@ -184,42 +220,44 @@ test("copia el bloque [[nota-compactar]] en PostToolUse/PreCompact (modo 0600, s
   assert.equal(readFileSync(md, "utf8"), "## Objetivo\nArreglar X");
   if (!soloPosix("modos POSIX")) assert.equal(statSync(md).mode & 0o777, 0o600);
 
-  // Mismo contenido: no reescribe el archivo
   const viejoMs = Date.now() - 120_000;
   utimesSync(md, viejoMs / 1000, viejoMs / 1000);
   await hookMod.decidir({ evento: "PostToolUse", sesion: "s1", transcript: tr, umbral: 170_000, hilos: dir });
   assert.ok(Math.abs(statSync(md).mtimeMs - viejoMs) < 1500, "no reescribe si no cambió");
 
-  // Si la nota vieja quedó fuera de la cola y la cola no tiene nota nueva, no la lee
   const trSoloVieja = path.join(dir, "solo-vieja.jsonl");
   escribirTranscript(trSoloVieja, [vieja, linAsistente([{ type: "text", text: "fin sin nota ".repeat(20_000) }], { input_tokens: 100, cache_read_input_tokens: 10_000 })]);
   assert.equal(await hookMod.decidir({ evento: "PreCompact", sesion: "s-vieja", transcript: trSoloVieja, hilos: dir }), null);
   assert.equal(existsSync(path.join(dir, "notas", "s-vieja.md")), false);
 });
 
-test("devuelve sólo en SessionStart con source compact, borra .pedida y cae a la cola del transcript si falta .md", async () => {
+test("devuelve sólo en SessionStart con source compact, renombra .md a .devuelta.md, borra marcas y cae a la cola del transcript", async () => {
   const dir = nuevoDir();
   const tr = path.join(dir, "s1.jsonl");
   const notas = path.join(dir, "notas");
   mkdirSync(notas, { recursive: true });
   writeFileSync(path.join(notas, "s1.pedida"), "1\n");
+  writeFileSync(path.join(notas, "s1.sugerida"), "1\n");
   writeFileSync(path.join(notas, "s1.md"), "## Objetivo\nGuardar nota");
   const mtime = statSync(path.join(notas, "s1.md")).mtimeMs;
 
-  // Otros source: no hacen nada ni borran .pedida
   for (const source of ["startup", "resume", "clear", undefined]) {
     assert.equal(await hookMod.decidir({ evento: "SessionStart", source, sesion: "s1", transcript: tr, hilos: dir, idioma: "es" }), null);
     assert.equal(existsSync(path.join(notas, "s1.pedida")), true);
   }
 
-  // source === "compact": devuelve la nota con encabezado de minutos y borra .pedida
   const r = await hookMod.decidir({ evento: "SessionStart", source: "compact", sesion: "s1", transcript: tr, hilos: dir, ahoraMs: mtime + 7 * 60_000, idioma: "es" });
   assert.ok(r);
   assert.equal(r.hookSpecificOutput.hookEventName, "SessionStart");
   assert.match(r.hookSpecificOutput.additionalContext, /^Nota que te escribiste antes de compactar; escrita hace 7 min\n\n## Objetivo\nGuardar nota$/);
   assert.equal(existsSync(path.join(notas, "s1.pedida")), false);
+  assert.equal(existsSync(path.join(notas, "s1.sugerida")), false);
+  assert.equal(existsSync(path.join(notas, "s1.md")), false, "renombra .md a .devuelta.md");
+  assert.equal(readFileSync(path.join(notas, "s1.devuelta.md"), "utf8"), "## Objetivo\nGuardar nota");
 
-  // Respaldo del transcript si falta .md (con compact_boundary ya escrito)
+  // Un segundo SessionStart(compact) sin nota nueva no devuelve la vieja (.md ya no existe y .devuelta.md no se lee)
+  assert.equal(await hookMod.decidir({ evento: "SessionStart", source: "compact", sesion: "s1", transcript: tr, hilos: dir, idioma: "es" }), null);
+
   const tsNota = Date.parse("2026-11-21T10:00:00Z");
   escribirTranscript(tr, [
     linAsistente([{ type: "text", text: "[[nota-compactar]]nota del transcript[[/nota-compactar]]" }], { input_tokens: 100, cache_read_input_tokens: 180_000 }),
@@ -249,7 +287,6 @@ test("CLI por spawnSync: siempre sale con 0, sin salida si no corresponde, y flu
   const tr = path.join(dir, "s-cli.jsonl");
   const env = { ...process.env, HILOS_STATE: dir, LANG: "es_AR.UTF-8" };
 
-  // SessionStart sin nota ni transcript: exit 0 y sin salida
   const vacio = spawnSync(process.execPath, [HOOK], {
     input: JSON.stringify({ hook_event_name: "SessionStart", source: "compact", session_id: "prueba-1", transcript_path: "no-existe.jsonl" }),
     env,
@@ -259,7 +296,6 @@ test("CLI por spawnSync: siempre sale con 0, sin salida si no corresponde, y flu
   assert.equal(vacio.stdout, "");
   assert.equal(existsSync(path.join(dir, "notas")), false);
 
-  // session_id inválido: no hace nada
   const raro = spawnSync(process.execPath, [HOOK, "--umbral", "100"], {
     input: JSON.stringify({ hook_event_name: "PostToolUse", session_id: "../raro", transcript_path: tr }),
     env,
@@ -268,7 +304,6 @@ test("CLI por spawnSync: siempre sale con 0, sin salida si no corresponde, y flu
   assert.equal(raro.status, 0);
   assert.equal(raro.stdout, "");
 
-  // Flujo entero
   escribirTranscript(tr, [linAsistente([{ type: "text", text: "paso 1" }], { input_tokens: 1000, cache_read_input_tokens: 90_000 })]);
   const rPedir = spawnSync(process.execPath, [HOOK, "--umbral", "85000"], {
     input: JSON.stringify({ hook_event_name: "PostToolUse", session_id: "s-cli", transcript_path: tr }),
@@ -299,43 +334,61 @@ test("CLI por spawnSync: siempre sale con 0, sin salida si no corresponde, y flu
   assert.equal(existsSync(path.join(dir, "notas", "s-cli.pedida")), false);
 });
 
-// ============================================================================ Configuración nota_compactar y registro
+// ============================================================================ Configuración nota_compactar, porcentajes y umbralesNota
 
-test("nota_compactar en modelos.json: booleana, por defecto prendida, valida y se conserva al unir", async () => {
+test("nota_compactar, nota_compactar_pct y nota_compactar_tarea_pct en modelos.json y umbralesNota", async () => {
   assert.equal(leerConfig({}).nota_compactar, undefined);
   assert.equal(leerConfig({ nota_compactar: false }).nota_compactar, false);
-  assert.equal(leerConfig({ nota_compactar: "no" }).nota_compactar, undefined);
+  assert.equal(leerConfig({ nota_compactar_pct: 70, nota_compactar_tarea_pct: 0 }).nota_compactar_pct, 70);
+  assert.equal(leerConfig({ nota_compactar_pct: 99, nota_compactar_tarea_pct: 20 }).nota_compactar_pct, undefined);
   assert.throws(() => validarConfig({ nota_compactar: "no" }));
-  assert.equal(validarConfig({ nota_compactar: false }).nota_compactar, false);
+  assert.throws(() => validarConfig({ nota_compactar_pct: 49 }));
+  assert.throws(() => validarConfig({ nota_compactar_tarea_pct: 25 }));
+  assert.equal(validarConfig({ nota_compactar_pct: 80, nota_compactar_tarea_pct: 55 }).nota_compactar_pct, 80);
 
-  // Si un borrador no conoce nota_compactar (undefined), unir conserva el false guardado en el archivo
-  assert.equal(unir({ version: 1, nota_compactar: false }, validarConfig({})).nota_compactar, false);
-  // Volver a true la saca del archivo (vuelve al default)
-  assert.equal("nota_compactar" in unir({ version: 1, nota_compactar: false }, validarConfig({ nota_compactar: true })), false);
+  // Defaults 85 y 60 salen del archivo al unir; otros se guardan; undefined conserva
+  assert.equal(unir({ version: 1, nota_compactar: false, nota_compactar_pct: 75 }, validarConfig({})).nota_compactar_pct, 75);
+  const vuelto = unir({ version: 1, nota_compactar: false, nota_compactar_pct: 75, nota_compactar_tarea_pct: 45 }, validarConfig({ nota_compactar: true, nota_compactar_pct: 85, nota_compactar_tarea_pct: 60 }));
+  assert.equal("nota_compactar" in vuelto, false);
+  assert.equal("nota_compactar_pct" in vuelto, false);
+  assert.equal("nota_compactar_tarea_pct" in vuelto, false);
 
-  // problemaModelos + Modelos.notaCompactar (lado pa)
-  assert.equal(problemaModelos({ version: 1, nota_compactar: false }), "");
+  assert.equal(problemaModelos({ version: 1, nota_compactar: false, nota_compactar_pct: 75, nota_compactar_tarea_pct: 0 }), "");
   assert.match(problemaModelos({ version: 1, nota_compactar: "si" }), /nota_compactar/);
+  assert.match(problemaModelos({ version: 1, nota_compactar_pct: 40 }), /nota_compactar_pct/);
+  assert.match(problemaModelos({ version: 1, nota_compactar_tarea_pct: 95 }), /nota_compactar_tarea_pct/);
+
+  // umbralesNota: nativo nunca supera 75% de la ventana y suave siempre < fuerte
+  assert.deepEqual(umbralesNota({ tope: null, ventana: 1_000_000, pct: 85, tareaPct: 60 }), { fuerte: 750_000, suave: 600_000 });
+  const uCap = umbralesNota({ tope: null, ventana: 1_000_000, pct: 95, tareaPct: 80 });
+  assert.equal(uCap.fuerte, 750_000);
+  assert.ok(uCap.suave !== null && uCap.suave < uCap.fuerte);
+  assert.deepEqual(umbralesNota({ tope: 300_000, ventana: 1_000_000, pct: 85, tareaPct: 60 }), { fuerte: 255_000, suave: 180_000 });
+  assert.deepEqual(umbralesNota({ tope: 300_000, ventana: 1_000_000, pct: 85, tareaPct: 0 }), { fuerte: 255_000, suave: null });
 
   const dir = nuevoDir();
   const f = path.join(dir, "modelos.json");
   const prev = process.env.TRAMA_MODELOS;
   process.env.TRAMA_MODELOS = f;
   try {
-    assert.equal(notaCompactarGuardado(), true, "sin archivo vale true");
-    assert.equal(new Modelos({ TRAMA_MODELOS: f }, { out: () => {}, err: () => {} }).notaCompactar(), true);
-    await guardarModelos({ ...(await leerModelos(undefined, f)).config, nota_compactar: false }, undefined, f);
-    assert.equal(notaCompactarGuardado(), false);
-    assert.equal(new Modelos({ TRAMA_MODELOS: f }, { out: () => {}, err: () => {} }).notaCompactar(), false);
-    await guardarModelos({ ...(await leerModelos(undefined, f)).config, nota_compactar: true }, undefined, f);
     assert.equal(notaCompactarGuardado(), true);
+    assert.equal(notaCompactarPctGuardado(), 85);
+    assert.equal(notaCompactarTareaPctGuardado(), 60);
+    await guardarModelos({ ...(await leerModelos(undefined, f)).config, nota_compactar: false, nota_compactar_pct: 70, nota_compactar_tarea_pct: 0 }, undefined, f);
+    assert.equal(notaCompactarGuardado(), false);
+    assert.equal(notaCompactarPctGuardado(), 70);
+    assert.equal(notaCompactarTareaPctGuardado(), 0);
+    const mod = new Modelos({ TRAMA_MODELOS: f }, { out: () => {}, err: () => {} });
+    assert.equal(mod.notaCompactar(), false);
+    assert.equal(mod.notaCompactarPct(), 70);
+    assert.equal(mod.notaCompactarTareaPct(), 0);
   } finally {
     if (prev === undefined) delete process.env.TRAMA_MODELOS;
     else process.env.TRAMA_MODELOS = prev;
   }
 });
 
-test("workers (settingsWorker y armarLanzamiento): registra nota-compactar con el 85 % del tope, se apaga con nota_compactar=false y nunca va en Ollama", () => {
+test("workers (settingsWorker y armarLanzamiento): usa umbralesNota (tope 75% nativo y --umbral-tarea), se apaga con nota_compactar=false y nunca va en Ollama", () => {
   const dir = nuevoDir();
   const modelosF = path.join(dir, "modelos.json");
   const paBase = (extraEnv: Record<string, string> = {}): Pa => ({
@@ -387,17 +440,17 @@ test("workers (settingsWorker y armarLanzamiento): registra nota-compactar con e
     ...o,
   });
 
-  // Nativo 1M (claude-sonnet-5-5) -> 850 000
+  // Nativo 1M (claude-sonnet-5-5) -> 750 000 y --umbral-tarea 600 000
   const s1 = JSON.parse(armarLanzamiento(paBase(), corrida()).settings);
   const cmd1 = s1.hooks.PreCompact[0].hooks[0].command as string;
-  assert.match(cmd1, /nota-compactar\.mjs' --umbral 850000$/);
+  assert.match(cmd1, /nota-compactar\.mjs' --umbral 750000 --umbral-tarea 600000$/);
   assert.equal(s1.hooks.SessionStart[0].matcher, "compact");
   assert.ok(s1.hooks.PostToolUse.some((g: { hooks: { command: string }[] }) => g.hooks[0]!.command.includes("nota-compactar.mjs")));
   assert.ok(s1.hooks.UserPromptSubmit.some((g: { hooks: { command: string }[] }) => g.hooks[0]!.command.includes("nota-compactar.mjs")));
 
-  // Con autocompact 300 000 -> 255 000
+  // Con autocompact 300 000 -> 255 000 y 180 000
   const s2 = JSON.parse(armarLanzamiento(paBase(), corrida({ modelo: "claude-haiku-5-5", autocompact: "300000" })).settings);
-  assert.match(s2.hooks.PreCompact[0].hooks[0].command, /--umbral 255000$/);
+  assert.match(s2.hooks.PreCompact[0].hooks[0].command, /--umbral 255000 --umbral-tarea 180000$/);
 
   // Ollama: sin nota-compactar
   const sOllama = JSON.parse(armarLanzamiento(paBase(), corrida({ motor: "ollama", local: { url: "http://127.0.0.1:11434", modelo: "qwen3" } })).settings);
@@ -411,15 +464,19 @@ test("workers (settingsWorker y armarLanzamiento): registra nota-compactar con e
   assert.equal(sOff.hooks.SessionStart, undefined);
   assert.ok(sOff.hooks.UserPromptSubmit.some((g: { hooks: { command: string }[] }) => g.hooks[0]!.command.includes("cierre-cupo.mjs")));
 
-  // Llamada directa a settingsWorker con opciones explícitas
+  // Llamada directa a settingsWorker con opciones explícitas (claude-opus-4-6 200k nativo -> 150k / 120k)
   const sw = JSON.parse(settingsWorker(paBase(), { hb: "/tmp/hb", leer: false, modelo: "claude-opus-4-6", autocompact: "" }));
-  assert.match(sw.hooks.PreCompact[0].hooks[0].command, /--umbral 170000$/);
+  assert.match(sw.hooks.PreCompact[0].hooks[0].command, /--umbral 150000 --umbral-tarea 120000$/);
   assert.deepEqual(ARCHIVOS_NOTA_COMPACTAR, ["nota-compactar.mjs", "nota-compactar-textos.mjs"]);
   assert.equal(EVENTOS_NOTA_COMPACTAR.length, 4);
   assert.equal(comandoNotaCompactar("/h", { umbral: 170000, plataforma: "linux" }), "node '/h/nota-compactar.mjs' --umbral 170000");
+  assert.equal(
+    comandoNotaCompactar("/h", { umbral: 170000, umbralTarea: 120000, plataforma: "linux" }),
+    "node '/h/nota-compactar.mjs' --umbral 170000 --umbral-tarea 120000",
+  );
 });
 
-test("líderes (settingsCierreCupo y lider.nuevo): un solo JSON con cierre-cupo y nota-compactar al 85 %, respeta autocompact_lider y nota_compactar", { timeout: 20_000 }, async () => {
+test("líderes (settingsCierreCupo y lider.nuevo): un solo JSON con cierre-cupo y nota-compactar, respeta umbralesNota, autocompact_lider y nota_compactar", { timeout: 20_000 }, async () => {
   const dir = nuevoDir();
   const prev = {
     HILOS_STATE: process.env.HILOS_STATE,
@@ -450,7 +507,7 @@ test("líderes (settingsCierreCupo y lider.nuevo): un solo JSON con cierre-cupo 
       return s;
     };
 
-    // 1. Con autocompact_lider para opus = 400 000 -> umbral 340 000, en un solo JSON con cierre-cupo
+    // 1. Con autocompact_lider para opus = 400 000 -> 340 000 y --umbral-tarea 240 000
     writeFileSync(modelosF, JSON.stringify({ version: 1, autocompact_lider: { defecto: null, por_modelo: { opus: 400_000 } } }));
     const s1 = await lider.nuevo({ modelo: "claude-opus-5-5", effort: "high", texto: "hola" });
     await esperarHasta(() => existsSync(log) && readFileSync(log, "utf8").includes(s1), { tope: 8000 });
@@ -458,15 +515,15 @@ test("líderes (settingsCierreCupo y lider.nuevo): un solo JSON con cierre-cupo 
     assert.ok(hooks1);
     assert.equal(hooks1.PostToolUse!.length, 2);
     assert.match(hooks1.PostToolUse![0]!.hooks[0]!.command, /cierre-cupo\.mjs/);
-    assert.match(hooks1.PostToolUse![1]!.hooks[0]!.command, /nota-compactar\.mjs' --umbral 340000$/);
+    assert.match(hooks1.PostToolUse![1]!.hooks[0]!.command, /nota-compactar\.mjs' --umbral 340000 --umbral-tarea 240000$/);
     assert.equal(hooks1.SessionStart![0]!.matcher, "compact");
-    assert.match(hooks1.PreCompact![0]!.hooks[0]!.command, /--umbral 340000$/);
+    assert.match(hooks1.PreCompact![0]!.hooks[0]!.command, /--umbral 340000 --umbral-tarea 240000$/);
 
-    // 2. Con tope nativo null en Sonnet 5.5 -> 85 % de 1 000 000 = 850 000
+    // 2. Con tope nativo null en Sonnet 5.5 -> 75 % de 1 000 000 = 750 000 (nunca supera 75 %), suave 600 000
     const s2 = await lider.nuevo({ modelo: "claude-sonnet-5-5", effort: "high", texto: "hola" });
     await esperarHasta(() => readFileSync(log, "utf8").includes(s2), { tope: 8000 });
     const hooks2 = settingsDe(s2).find((x) => x.hooks)?.hooks as Record<string, { hooks: { command: string }[] }[]>;
-    assert.match(hooks2.PreCompact![0]!.hooks[0]!.command, /--umbral 850000$/);
+    assert.match(hooks2.PreCompact![0]!.hooks[0]!.command, /--umbral 750000 --umbral-tarea 600000$/);
 
     // 3. Con nota_compactar: false -> sólo cierre-cupo
     writeFileSync(modelosF, JSON.stringify({ version: 1, nota_compactar: false }));
@@ -477,8 +534,7 @@ test("líderes (settingsCierreCupo y lider.nuevo): un solo JSON con cierre-cupo 
     assert.equal(hooks3.PostToolUse!.length, 1);
     assert.match(hooks3.PostToolUse![0]!.hooks[0]!.command, /cierre-cupo\.mjs/);
 
-    // settingsCierreCupo directo y exclusión en local/Ollama (argvLider)
-    const comb = JSON.parse(settingsCierreCupo("/m/hooks", { plataforma: "linux", umbralNota: 170_000 }));
+    const comb = JSON.parse(settingsCierreCupo("/m/hooks", { plataforma: "linux", umbralNota: 170_000, umbralTareaNota: 120_000 }));
     assert.equal(comb.hooks.SessionStart[0].matcher, "compact");
     assert.equal(comb.hooks.PostToolUse.length, 2);
     const sidTest = "11111111-2222-3333-4444-555555555555";

@@ -9,11 +9,14 @@ const REGISTRAR = path.join(import.meta.dirname, "..", "scripts", "registrar-hoo
 const HOOK = path.join(import.meta.dirname, "..", "scripts", "hook-compactando.sh");
 
 const temporal = () => mkdtempSync(path.join(tmpdir(), "trama-registrar-hook-"));
-const registrar = (ruta: string) => execFileSync(process.execPath, [REGISTRAR, ruta], { encoding: "utf8" });
+const registrar = (ruta: string, env: Record<string, string> = {}) =>
+  execFileSync(process.execPath, [REGISTRAR, ruta], { encoding: "utf8", env: { ...process.env, ...env } });
 const leer = (ruta: string) => JSON.parse(readFileSync(ruta, "utf8"));
 /** Cuántas veces aparece el hook de compactando en un evento (cualquier grupo). */
 const cuantos = (ajustes: any, evento: string) =>
   (ajustes.hooks?.[evento] ?? []).flatMap((g: any) => g.hooks ?? []).filter((h: any) => /hook-compactando\.sh/.test(h.command)).length;
+const cuantosNota = (ajustes: any, evento: string) =>
+  (ajustes.hooks?.[evento] ?? []).flatMap((g: any) => g.hooks ?? []).filter((h: any) => /nota-compactar\.mjs/.test(h.command)).length;
 
 test("registrar-hook: dos corridas dejan el hook una sola vez y los otros hooks intactos", () => {
   const dir = temporal();

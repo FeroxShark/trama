@@ -29,7 +29,9 @@ import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
 import { deDueno, dueno } from "./dueno.ts";
 import { avisoDestrabo, REINTENTOS_MAX, Vigilante, type Bucle, type Senal } from "./destrabar.ts";
 import { cerrarDestrabo, registrarDestrabo } from "./destrabar-registro.ts";
-import { destrabarModelo, modeloAgy } from "./modelos-config.ts";
+import { destrabarModelo, modeloAgy, notaCompactarGuardado } from "./modelos-config.ts";
+import { carpetaHooksNota } from "./cierre-cupo-texto.ts";
+import { cargarTextosNota, consumirNotaParaDevolver, idiomaDeEstado, textosNotaCargados } from "./nota-compactar-main.ts";
 import { ESTADO } from "./estado.ts";
 import { hijoEnGrupo, matarArbol } from "./procesos.ts";
 import { SESIONES } from "./sesiones.ts";
@@ -145,21 +147,24 @@ function anotar(o: Record<string, unknown>) {
   }
 }
 
-function leerLado(): { conversation_id: string | null; contexto: number | null } {
+type LadoAgy = { conversation_id: string | null; contexto: number | null; pendienteNota: boolean };
+
+function leerLado(): LadoAgy {
   try {
     const o = JSON.parse(readFileSync(LADO, "utf8"));
     return {
       conversation_id: typeof o?.conversation_id === "string" ? o.conversation_id : null,
       contexto: typeof o?.contexto === "number" ? o.contexto : null,
+      pendienteNota: o?.pendiente_nota === true,
     };
   } catch {
-    return { conversation_id: null, contexto: null };
+    return { conversation_id: null, contexto: null, pendienteNota: false };
   }
 }
 
-/** `contexto`: lo que pesaba la conversación al terminar el último turno (el "antes" de un `/compact`). */
-function guardarLado(id: string, contexto: number | null = leerLado().contexto) {
-  const texto = JSON.stringify({ version: 1, sid, conversation_id: id, modelo, ...(contexto ? { contexto } : {}) }) + "\n";
+/** `contexto`: lo que pesaba la conversación al terminar el último turno; `pendienteNota`: si compactó con nota por devolver. */
+function guardarLado(id: string, contexto: number | null = leerLado().contexto, pendienteNota: boolean = leerLado().pendienteNota) {
+  const texto = JSON.stringify({ version: 1, sid, conversation_id: id, modelo, ...(contexto ? { contexto } : {}), ...(pendienteNota ? { pendiente_nota: true } : {}) }) + "\n";
   try {
     // Entero o nada: el main lo lee mientras el puente lo escribe, y un archivo a medias (vacío) se leía como «sin conversación».
     const tmp = `${LADO}.${process.pid}.tmp`;
@@ -487,6 +492,22 @@ async function turno(m: Mensaje) {
   anotar({ type: "user", message: { role: "user", content: texto } });
   // `/compact` solo (o con un mensaje detrás): agy compacta de verdad la conversación. Sin conversación no hay qué compactar.
   const compactar = /^\/compact(?:\s|$)/i.test(texto.trim());
+  let textoAgy = texto;
+  if (!compactar && lado.pendienteNota) {
+    if (lado.conversation_id) guardarLado(lado.conversation_id, lado.contexto, false);
+    if (notaCompactarGuardado()) {
+      const hooks = carpetaHooksNota();
+      if (hooks && !textosNotaCargados()) await cargarTextosNota(hooks).catch(() => {});
+      const dev = consumirNotaParaDevolver(ESTADO, sid);
+      if (dev) {
+        const tMod = textosNotaCargados();
+        const enc = tMod
+          ? tMod.textoDevolucionNota({ idioma: idiomaDeEstado(ESTADO), nota: dev.nota, minutos: dev.minutos, archivo: dev.archivo })
+          : dev.nota;
+        textoAgy = `${enc}\n\n${texto}`;
+      }
+    }
+  }
   const tr = new Traductor({ sid, modelo, compactar, contextoPrevio: lado.contexto, pensamiento: razonamiento });
   tr.conversacion = lado.conversation_id;
   if (compactar && !lado.conversation_id && texto.trim().toLowerCase() === "/compact") {
@@ -495,11 +516,11 @@ async function turno(m: Mensaje) {
   }
   for (const o of tr.inicio()) escribir(o);
   vigilante = destrabarModelo(modelo) ? new Vigilante() : null;
-  let { v, tr: ultimo } = await conDirectos(await correrAgy(lado.conversation_id ? texto : conPrefacio(texto, previo), lado.conversation_id, tr), tr);
+  let { v, tr: ultimo } = await conDirectos(await correrAgy(lado.conversation_id ? textoAgy : conPrefacio(textoAgy, previo), lado.conversation_id, tr), tr);
   if (v.sinConversacion && !interrumpido) {
     // agy no encontró la conversación: una nueva con lo hablado.
     const nuevo = new Traductor({ sid, modelo, compactar, contextoPrevio: lado.contexto, pensamiento: razonamiento });
-    ({ v, tr: ultimo } = await conDirectos(await correrAgy(conPrefacio(texto, previo), null, nuevo), nuevo));
+    ({ v, tr: ultimo } = await conDirectos(await correrAgy(conPrefacio(textoAgy, previo), null, nuevo), nuevo));
   }
   ultimo = await destrabar(v, ultimo);
   vigilante = null;
@@ -531,9 +552,11 @@ async function turnoSeguro(m: Mensaje) {
   }
 }
 
-/** Lo que pesa la conversación al terminar el turno; tras compactar, lo que pesa ahora (o nada hasta que conteste). */
+/** Lo que pesa la conversación al terminar el turno; tras compactar, marca `pendiente_nota` para adjuntar la nota al próximo mensaje. */
 function recordarContexto(tr: Traductor) {
-  if (tr.conversacion && (tr.contexto || tr.compactado)) guardarLado(tr.conversacion, tr.contexto || null);
+  if (tr.conversacion && (tr.contexto || tr.compactado)) {
+    guardarLado(tr.conversacion, tr.contexto || null, tr.compactado ? true : leerLado().pendienteNota);
+  }
 }
 
 function cerrarTurno() {

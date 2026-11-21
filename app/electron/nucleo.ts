@@ -1510,7 +1510,18 @@ export function armarNucleo() {
     if (e.tipo === "estado" && !e.ocupado) void leerCola().then(() => cola.libre(sid));
     // El eco del CLI: lo que estaba en camino a mitad del turno entró (recién ahora va al chat y deja el disco). El fin del turno, lo que salió como uno propio.
     if (e.tipo === "entregado") void leerCola().then(() => cola.entro(sid, e.texto));
-    if (e.tipo === "fin") void leerCola().then(() => cola.finTurno(sid));
+    if (e.tipo === "fin") {
+      void leerCola().then(() => {
+        cola.finTurno(sid);
+        if (!e.error) {
+          const auto = lider.planAutoNotaCompactar(sid);
+          if (auto) {
+            const { item } = lider.paraCola({ sid, texto: auto.texto, modelo: auto.modelo, effort: auto.effort });
+            cola.encolarPrimero(sid, { ...item, aviso: true, solo: true });
+          }
+        }
+      });
+    }
     // Empezó o terminó un turno: lo que esperaba a su próximo turno (o su vuelta) puede salir.
     if (e.tipo === "estado") conAvisos(() => avisosL.entregar(sid));
   });

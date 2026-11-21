@@ -109,7 +109,9 @@ if (/morite/i.test(texto)) {
   process.exit(1);
 }
 
+const compactoMarca = path.join(dir, `${id}.compactado`);
 if (/^\/compact(\s|$)/i.test(texto)) {
+  writeFileSync(compactoMarca, "1");
   step({ state: "DONE", step_type: "system_message", duration_seconds: 0 });
   paso++;
   await dormir(ms);
@@ -159,7 +161,10 @@ if (bucle && (!trabado || process.env.TRAMA_FALSO_BUCLE === "siempre")) {
   }
 }
 
-const dicho = [`eco: ${texto}`, `(turno ${turno})`, /\bpa\b/.test(prompt) ? "(el prefacio habla de pa)" : ""].filter(Boolean).join(" ");
+const alto = !existsSync(compactoMarca) && process.env.TRAMA_FALSO_AGY_TOKENS ? Number(process.env.TRAMA_FALSO_AGY_TOKENS) : null;
+const conNota = process.env.TRAMA_FALSO_AUTO_NOTA === "1" && /\[\[nota-compactar\]\]/.test(texto);
+const extraNota = conNota ? "\n\n[[nota-compactar]]Nota falsa de Gemini[[/nota-compactar]]" : "";
+const dicho = [`eco: ${texto}`, `(turno ${turno})`, /\bpa\b/.test(prompt) ? "(el prefacio habla de pa)" : "", extraNota].filter(Boolean).join(" ");
 const palabras = dicho.split(/(?<= )/);
 let acumulado = "";
 for (const w of palabras) {
@@ -167,5 +172,6 @@ for (const w of palabras) {
   acumulado += w;
   await dormir(ms);
 }
-step({ state: "DONE", step_type: "agent_response", text_delta: "\n", duration_seconds: 0.5, usage: { input_tokens: 5000 + turno, output_tokens: 12, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: 5012 } });
-salir({ event: "result", result: { conversation_id: id, status: "SUCCESS", response: acumulado + "\n", duration_seconds: 1, num_turns: 1, usage: { input_tokens: 5000 + turno, output_tokens: 12, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: 5012 } } });
+const inTok = alto !== null && Number.isFinite(alto) ? alto : 5000 + turno;
+step({ state: "DONE", step_type: "agent_response", text_delta: "\n", duration_seconds: 0.5, usage: { input_tokens: inTok, output_tokens: 12, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: inTok + 12 } });
+salir({ event: "result", result: { conversation_id: id, status: "SUCCESS", response: acumulado + "\n", duration_seconds: 1, num_turns: 1, usage: { input_tokens: inTok, output_tokens: 12, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: inTok + 12 } } });

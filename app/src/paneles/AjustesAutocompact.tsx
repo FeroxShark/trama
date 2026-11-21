@@ -1,7 +1,7 @@
 // Ajustes > Modelos > «Contexto antes de compactar»: un tope de tokens por familia (Haiku, Sonnet, Opus) que `pa` pasa como `--autocompact`
 // a los workers de Claude. Nativo = no se pasa nada. Se guarda en `autocompact.por_modelo` de modelos.json (ajustes-autocompact.ts) y
 // trabaja sobre el borrador de AjustesModelos: nada se escribe hasta Guardar. Los líderes usan el mismo tope salvo que se apague
-// «Igual que los workers»: entonces tienen el suyo (`autocompact_lider`).
+// «Igual que los workers»: entonces tienen el suyo (`autocompact_lider`). Abajo va «Compactar con nota del modelo».
 import { useState } from "react";
 import { t } from "../i18n";
 import { Interruptor } from "../ui/componentes";
@@ -20,6 +20,19 @@ import {
   type Familia,
   type Rol,
 } from "./ajustes-autocompact";
+import {
+  NOTA_PCT_DEFECTO,
+  NOTA_PCT_MAX,
+  NOTA_PCT_MIN,
+  NOTA_TAREA_PCT_DEFECTO,
+  NOTA_TAREA_PCT_MAX,
+  NOTA_TAREA_PCT_MIN,
+  pctNotaDe,
+  ponerNotaCompactar,
+  ponerNotaCompactarPct,
+  ponerNotaCompactarTarea,
+  ponerNotaCompactarTareaPct,
+} from "./ajustes-nota-compactar";
 
 const NOMBRE: Record<Familia, string> = { haiku: "Haiku", sonnet: "Sonnet", opus: "Opus" };
 
@@ -87,6 +100,88 @@ function Fila({ fam, b, cambiar, rol }: { fam: Familia; b: Borrador; cambiar: (b
   );
 }
 
+function NotaCompactarFilas({ b, cambiar }: { b: Borrador; cambiar: (b: Borrador) => void }) {
+  const activa = b.notaCompactar ?? true;
+  const pctStr = b.notaCompactarPct ?? String(NOTA_PCT_DEFECTO);
+  const tareaOn = b.notaCompactarTarea ?? true;
+  const tareaStr = b.notaCompactarTareaPct ?? String(NOTA_TAREA_PCT_DEFECTO);
+  const pctRes = pctNotaDe(pctStr, NOTA_PCT_MIN, NOTA_PCT_MAX);
+  const tareaRes = pctNotaDe(tareaStr, NOTA_TAREA_PCT_MIN, NOTA_TAREA_PCT_MAX);
+  const pctVista = pctRes.valor ?? NOTA_PCT_DEFECTO;
+  const tareaVista = tareaRes.valor ?? NOTA_TAREA_PCT_DEFECTO;
+
+  return (
+    <>
+      <div className="mdl-compactar-tit mdl-compactar-igual">
+        <span>{t("ajustes.mdlNotaActiva")}</span>
+        <Interruptor activo={activa} alCambiar={(v) => cambiar(ponerNotaCompactar(b, v))} aria-label={t("ajustes.mdlNotaActiva")} />
+      </div>
+      <p className="pn-alt">{t("ajustes.mdlNotaActivaQue")}</p>
+
+      {activa ? (
+        <>
+          <div className="mdl-compactar-fila">
+            <span className="mdl-compactar-nom">{t("ajustes.mdlNotaPct", { n: pctVista })}</span>
+            <div className="pn-campo-fila">
+              <input
+                className="pn-campo pn-campo-num"
+                type="number"
+                inputMode="numeric"
+                min={NOTA_PCT_MIN}
+                max={NOTA_PCT_MAX}
+                step={5}
+                value={pctStr}
+                aria-label={t("ajustes.mdlNotaPctLabel")}
+                aria-invalid={pctRes.error}
+                onChange={(e) => cambiar(ponerNotaCompactarPct(b, e.target.value))}
+              />
+              <span className="pn-unidad">%</span>
+            </div>
+            {pctRes.error ? (
+              <div className="bv-error pn-campo-error" role="alert">
+                {t("ajustes.errNotaPctRango", { min: NOTA_PCT_MIN, max: NOTA_PCT_MAX })}
+              </div>
+            ) : null}
+          </div>
+          <p className="pn-alt">{t("ajustes.mdlNotaPctQue")}</p>
+
+          <div className="mdl-compactar-tit mdl-compactar-igual">
+            <span>{t("ajustes.mdlNotaTarea", { n: tareaVista })}</span>
+            <Interruptor activo={tareaOn} alCambiar={(v) => cambiar(ponerNotaCompactarTarea(b, v))} aria-label={t("ajustes.mdlNotaTareaLabel")} />
+          </div>
+          {tareaOn ? (
+            <div className="mdl-compactar-fila">
+              <span className="mdl-compactar-nom">{t("ajustes.mdlNotaTareaLabel")}</span>
+              <div className="pn-campo-fila">
+                <input
+                  className="pn-campo pn-campo-num"
+                  type="number"
+                  inputMode="numeric"
+                  min={NOTA_TAREA_PCT_MIN}
+                  max={NOTA_TAREA_PCT_MAX}
+                  step={5}
+                  value={tareaStr}
+                  aria-label={t("ajustes.mdlNotaTareaLabel")}
+                  aria-invalid={tareaRes.error}
+                  onChange={(e) => cambiar(ponerNotaCompactarTareaPct(b, e.target.value))}
+                />
+                <span className="pn-unidad">%</span>
+              </div>
+              {tareaRes.error ? (
+                <div className="bv-error pn-campo-error" role="alert">
+                  {t("ajustes.errNotaPctRango", { min: NOTA_TAREA_PCT_MIN, max: NOTA_TAREA_PCT_MAX })}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <p className="pn-alt">{t("ajustes.mdlNotaTareaQue")}</p>
+        </>
+      ) : null}
+      <p className="pn-alt">{t("ajustes.mdlNotaSinMotores")}</p>
+    </>
+  );
+}
+
 export function AutocompactFilas({ b, cambiar }: { b: Borrador; cambiar: (b: Borrador) => void }) {
   const igual = b.autocompactLider === null;
   return (
@@ -100,6 +195,7 @@ export function AutocompactFilas({ b, cambiar }: { b: Borrador; cambiar: (b: Bor
         <Interruptor activo={igual} alCambiar={(v) => cambiar(separarLideres(b, !v))} aria-label={t("ajustes.mdlCompactarIgual")} />
       </div>
       {igual ? null : AUTOCOMPACT_FAMILIAS.map((f) => <Fila key={`l-${f}`} fam={f} b={b} cambiar={cambiar} rol="lideres" />)}
+      <NotaCompactarFilas b={b} cambiar={cambiar} />
     </div>
   );
 }

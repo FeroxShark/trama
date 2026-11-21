@@ -15,7 +15,7 @@ const PEDIDOS = {
     "- Qué sigue (pasos exactos)",
     "- Rutas, ids y comandos exactos",
     "- Qué NO hacer",
-    "Después de compactar se te va a devolver entera. Después de escribirla, seguí con lo que estabas haciendo.",
+    "Si te falta poco para un corte natural, terminá y escribila; si no, escribila ahora. Después de compactar se te va a devolver entera. Después de escribirla, seguí con lo que estabas haciendo.",
   ].join("\n"),
   en: [
     "[Trama · context] You are running low on context before compaction. In your NEXT response, write a note to yourself between `[[nota-compactar]]` and `[[/nota-compactar]]` with these sections (max ~600 words):",
@@ -26,13 +26,43 @@ const PEDIDOS = {
     "- What is next (exact steps)",
     "- Exact paths, ids and commands",
     "- What NOT to do",
-    "After compacting, it will be returned to you in full. After writing it, continue with what you were doing.",
+    "If you are close to a natural cutoff, finish up and write it; otherwise write it now. After compacting, it will be returned to you in full. After writing it, continue with what you were doing.",
   ].join("\n"),
 };
 
-/** El pedido para que el modelo se escriba su nota antes de compactar. */
+/** El pedido fuerte para que el modelo se escriba su nota antes de compactar. */
 export function textoPedidoNota({ idioma } = {}) {
   return PEDIDOS[idiomaValido(idioma)];
+}
+
+/** Pedido suave cuando el contexto pasa el umbral de tarea: pide cerrar con la nota recién al terminar la tarea actual. */
+export function textoPedidoNotaSuave({ idioma, pct } = {}) {
+  const lang = idiomaValido(idioma);
+  const p = typeof pct === "number" && Number.isFinite(pct) ? Math.max(1, Math.min(100, Math.round(pct))) : null;
+  if (lang === "en") {
+    return [
+      `[Trama · context] Context is${p !== null ? ` at ${p}%` : " filling up"}. When you finish the current task and reach a natural cutoff, end your final response with a note to yourself between \`[[nota-compactar]]\` and \`[[/nota-compactar]]\` with these sections (max ~600 words):`,
+      "- Objective",
+      "- User requests (verbatim)",
+      "- Status (done / in progress)",
+      "- Decisions and why",
+      "- What is next (exact steps)",
+      "- Exact paths, ids and commands",
+      "- What NOT to do",
+      "If you are in the middle of a task, do not write it yet. After compacting, it will be returned to you in full.",
+    ].join("\n");
+  }
+  return [
+    `[Trama · contexto] El contexto está${p !== null ? ` al ${p} %` : " subiendo"}. Cuando termines la tarea actual y llegues a un corte natural, cerrá tu respuesta final con una nota para vos mismo entre \`[[nota-compactar]]\` y \`[[/nota-compactar]]\` con estas secciones (máximo ~600 palabras):`,
+    "- Objetivo",
+    "- Pedidos de la persona (textuales)",
+    "- Estado (hecho / a medias)",
+    "- Decisiones y por qué",
+    "- Qué sigue (pasos exactos)",
+    "- Rutas, ids y comandos exactos",
+    "- Qué NO hacer",
+    "Si estás en medio de algo, todavía no la escribas. Después de compactar se te va a devolver entera.",
+  ].join("\n");
 }
 
 /**

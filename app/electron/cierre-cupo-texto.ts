@@ -51,6 +51,8 @@ export type OpcionesSettingsHooks = {
   plataforma?: NodeJS.Platform;
   /** Umbral en tokens para `nota-compactar.mjs` (`--umbral <tokens>`). Si falta o es `null`, no se agrega `nota-compactar` (salvo `notaSinUmbral`). */
   umbralNota?: number | null;
+  /** Umbral suave en tokens al terminar una tarea (`--umbral-tarea <tokens>`). */
+  umbralTareaNota?: number | null;
   /** Agregar `nota-compactar.mjs` sin `--umbral` (sólo copiar/devolver). */
   notaSinUmbral?: boolean;
   /** Incluir `cierre-cupo.mjs` (default `true`). */
@@ -72,7 +74,11 @@ export function settingsCierreCupo(hooks: string, o: OpcionesSettingsHooks = {})
   }
   const conUmbral = typeof o.umbralNota === "number" && Number.isFinite(o.umbralNota) && o.umbralNota > 0;
   if (conUmbral || o.notaSinUmbral) {
-    const cmd = comandoNotaCompactar(hooks, { ...o, umbral: conUmbral ? o.umbralNota : null });
+    const cmd = comandoNotaCompactar(hooks, {
+      ...o,
+      umbral: conUmbral ? o.umbralNota : null,
+      umbralTarea: conUmbral ? o.umbralTareaNota : null,
+    });
     for (const e of EVENTOS_NOTA_COMPACTAR) {
       const matcher = "matcher" in e ? { matcher: e.matcher } : {};
       sumar(e.evento, { ...matcher, hooks: [{ type: "command", command: cmd, timeout: 10 }] });

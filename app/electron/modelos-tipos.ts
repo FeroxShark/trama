@@ -43,6 +43,48 @@ export const AGY = [
 ] as const;
 
 export const REPARTO = ["auto", "fijo"] as const;
+
+export const NOTA_PCT_MIN = 50;
+export const NOTA_PCT_MAX = 95;
+export const NOTA_PCT_DEFECTO = 85;
+export const NOTA_TAREA_PCT_MIN = 30;
+export const NOTA_TAREA_PCT_MAX = 90;
+export const NOTA_TAREA_PCT_DEFECTO = 60;
+const NOTA_NATIVO_TECHO_PCT = 75;
+
+export const notaPctValido = (x: unknown): x is number =>
+  typeof x === "number" && Number.isInteger(x) && x >= NOTA_PCT_MIN && x <= NOTA_PCT_MAX;
+
+export const notaTareaPctValido = (x: unknown): x is number =>
+  x === 0 || (typeof x === "number" && Number.isInteger(x) && x >= NOTA_TAREA_PCT_MIN && x <= NOTA_TAREA_PCT_MAX);
+
+/**
+ * Umbrales en tokens para pedir la nota antes de compactar (`fuerte`) y al terminar una tarea (`suave`).
+ * Con compactación nativa (`tope == null`), el umbral fuerte nunca supera el 75 % de la ventana (nativa compacta antes del 85 %),
+ * y el suave siempre queda estrictamente por debajo del fuerte (o `null` si `tareaPct === 0`).
+ */
+export function umbralesNota(o: {
+  tope?: number | null;
+  ventana: number;
+  pct?: number | null;
+  tareaPct?: number | null;
+}): { fuerte: number; suave: number | null } {
+  const ventana = Number.isFinite(o.ventana) && o.ventana > 0 ? Math.round(o.ventana) : 200_000;
+  const pct = notaPctValido(o.pct) ? o.pct : NOTA_PCT_DEFECTO;
+  const tareaPct = notaTareaPctValido(o.tareaPct) ? o.tareaPct : NOTA_TAREA_PCT_DEFECTO;
+  const tope = typeof o.tope === "number" && Number.isFinite(o.tope) && o.tope > 0 ? Math.round(o.tope) : null;
+  const base = tope ? Math.min(tope, ventana) : ventana;
+  const pctFuerte = tope ? pct : Math.min(pct, NOTA_NATIVO_TECHO_PCT);
+  const fuerte = Math.max(1, Math.round(base * (pctFuerte / 100)));
+  if (tareaPct === 0) return { fuerte, suave: null };
+  const bruto = Math.round(base * (tareaPct / 100));
+  const suave = bruto < fuerte
+    ? Math.max(1, bruto)
+    : fuerte > 1
+      ? Math.max(1, Math.min(fuerte - 1, Math.round(base * (Math.max(1, pctFuerte - 5) / 100))))
+      : null;
+  return { fuerte, suave };
+}
 export type ModoReparto = (typeof REPARTO)[number];
 
 export const SIN_CLAUDE = ["claude", "esperar", "fallar"] as const;
@@ -128,6 +170,10 @@ export type ConfigModelos = {
    * devuelve tras compactar. Booleana; sin la clave vale `true` (prendida). Apagada (`false`), no se registra en líderes ni en workers.
    */
   nota_compactar?: boolean;
+  /** Porcentaje del tope (50..95, entero, default 85) desde el cual se pide sí o sí la nota antes de compactar. */
+  nota_compactar_pct?: number;
+  /** Porcentaje del tope (0 = apagado, o 30..90 entero, default 60) desde el cual se sugiere la nota al terminar una tarea. */
+  nota_compactar_tarea_pct?: number;
   /** Advisor de Claude Code: por familia del modelo principal, la del asesor (`--advisor`). Sin entradas la clave no se escribe (ver advisor.ts). */
   advisor?: AdvisorConfig;
   /**
@@ -288,6 +334,8 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
   }
   if (esObj(j.autocompact_lider)) c.autocompact_lider = leerTope(j.autocompact_lider);
   if (typeof j.nota_compactar === "boolean") c.nota_compactar = j.nota_compactar;
+  if (notaPctValido(j.nota_compactar_pct)) c.nota_compactar_pct = j.nota_compactar_pct;
+  if (notaTareaPctValido(j.nota_compactar_tarea_pct)) c.nota_compactar_tarea_pct = j.nota_compactar_tarea_pct;
   if (esObj(j.advisor)) {
     const ad: AdvisorConfig = {};
     for (const [k, v] of Object.entries(j.advisor)) if (esFamiliaAdvisor(k) && parValido(k, v)) ad[k] = v as FamiliaAdvisor;
@@ -338,7 +386,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "nota_compactar", "advisor", "cierre", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h", "planes"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "nota_compactar", "nota_compactar_pct", "nota_compactar_tarea_pct", "advisor", "cierre", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h", "planes"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -413,6 +461,14 @@ export function validarConfig(x: unknown): ConfigModelos {
   if (x.nota_compactar !== undefined && x.nota_compactar !== null) {
     if (typeof x.nota_compactar !== "boolean") throw errorT("main.modelosForma");
     c.nota_compactar = x.nota_compactar;
+  }
+  if (x.nota_compactar_pct !== undefined && x.nota_compactar_pct !== null) {
+    if (!notaPctValido(x.nota_compactar_pct)) throw errorT("main.modelosNotaPct", { min: NOTA_PCT_MIN, max: NOTA_PCT_MAX });
+    c.nota_compactar_pct = x.nota_compactar_pct;
+  }
+  if (x.nota_compactar_tarea_pct !== undefined && x.nota_compactar_tarea_pct !== null) {
+    if (!notaTareaPctValido(x.nota_compactar_tarea_pct)) throw errorT("main.modelosNotaTareaPct", { min: NOTA_TAREA_PCT_MIN, max: NOTA_TAREA_PCT_MAX });
+    c.nota_compactar_tarea_pct = x.nota_compactar_tarea_pct;
   }
   if (x.advisor !== undefined && x.advisor !== null) {
     if (!esObj(x.advisor)) throw errorT("main.modelosForma");
@@ -586,6 +642,10 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   // `nota_compactar` es booleana (default true): `false` se escribe; `true` vuelve al default y sale; `undefined` deja lo que hubiera.
   if (c.nota_compactar === false) base.nota_compactar = false;
   else if (c.nota_compactar === true) delete base.nota_compactar;
+  if (c.nota_compactar_pct === NOTA_PCT_DEFECTO) delete base.nota_compactar_pct;
+  else if (c.nota_compactar_pct !== undefined) base.nota_compactar_pct = c.nota_compactar_pct;
+  if (c.nota_compactar_tarea_pct === NOTA_TAREA_PCT_DEFECTO) delete base.nota_compactar_tarea_pct;
+  else if (c.nota_compactar_tarea_pct !== undefined) base.nota_compactar_tarea_pct = c.nota_compactar_tarea_pct;
   // `advisor` lo leen Trama (líderes) y `pa` (workers): sin entradas la clave sale (sin asesor).
   if (c.advisor && Object.keys(c.advisor).length) base.advisor = { ...c.advisor };
   else delete base.advisor;
