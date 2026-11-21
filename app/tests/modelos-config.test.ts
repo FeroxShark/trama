@@ -460,3 +460,11 @@ test("modelos opencode: la clase, la familia y la validación (lider y workers a
   for (const mal of ["opencode:", "opencode:suelto", "opencode:/x", "opencode:a b/c"]) assert.throws(() => validarConfig({ lider: { modelo: mal } }), mal);
   assert.throws(() => validarConfig({ lider: { modelo: "opencode:opencode/beam-free", effort: "high" } }), "opencode no lleva esfuerzo");
 });
+
+test("validarConfig acepta un modelo de ChatGPT (codex:) de líder y de worker, sin esfuerzo aparte", () => {
+  const ok = validarConfig({ lider: { modelo: "codex:gpt-6.2-sol-high" }, workers: { debug: { modelo: "codex:gpt-6.2-sol-high" } } });
+  assert.deepEqual(ok.lider, { modelo: "codex:gpt-6.2-sol-high" });
+  assert.deepEqual(ok.workers.debug, { modelo: "codex:gpt-6.2-sol-high" });
+  for (const mal of ["codex:", "codex:a b"]) assert.throws(() => validarConfig({ lider: { modelo: mal } }), mal);
+  assert.throws(() => validarConfig({ lider: { modelo: "codex:gpt-6.2-sol-high", effort: "high" } }), "codex lleva el esfuerzo en el id");
+});
