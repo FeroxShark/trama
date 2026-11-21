@@ -3,6 +3,7 @@
 // para líderes y workers: a ese tamaño Claude Code compacta solo. El relevo del
 // líder (una sesión nueva con contexto limpio) se descartó: ya no hay umbral de
 // relevo. Las pruebas no leen el real. Sólo se lee. Lo prueba `tests/contexto.test.ts`.
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -22,6 +23,15 @@ export function umbralDeSettings(texto: string): number | null {
 export async function leerUmbral(ruta = RUTA_SETTINGS): Promise<number | null> {
   try {
     return umbralDeSettings(await readFile(ruta, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/** Lo mismo sin esperar, para quien arma un proceso: el `settings.json` de la carpeta de Claude Code que se le pasa. */
+export function leerUmbralYa(carpetaClaude: string): number | null {
+  try {
+    return umbralDeSettings(readFileSync(process.env.HILOS_CLAUDE_SETTINGS ?? path.join(carpetaClaude, "settings.json"), "utf8"));
   } catch {
     return null;
   }
