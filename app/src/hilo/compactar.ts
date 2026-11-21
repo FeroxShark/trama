@@ -6,13 +6,12 @@ import type { Desglose } from "../../electron/contexto-desglose";
 import { fuente } from "../datos/fuente";
 import { effortDe, MODELO_DEFAULT, modeloDe } from "./opciones";
 import { useCompactando } from "./compactando";
+import { ESPERA_COMPACTAR_S } from "./cambio-compactado";
 import { mensaje } from "../puente";
 import { locale, t } from "../i18n";
 
 const miles = (n: number) => n.toLocaleString(locale());
 
-/** Cuántos segundos se espera a que el líder empiece a compactar antes de decir que no lo hizo. */
-export const ESPERA_COMPACTAR_S = 30;
 
 export type FaseCompactar = "reposo" | "preguntando" | "enviando" | "esperando" | "compactando" | "midiendo";
 
