@@ -10,17 +10,19 @@
 // con los pasos nuevos o tocados desde la revisión `desde`. Quien tenga `gen` distinto o `v < desde` (se perdió
 // uno) vuelve a pedir `mirar`. Un solo aviso por lote aunque lleguen muchas líneas (DEBOUNCE_MS).
 //
-// Los workers que no son de Claude (agy, codex, opencode, dsh) no tienen transcript: su hilo sale del `<id>.stream.jsonl`
-// (`pa --hilo`, que la vista de siempre pide). Para que se actualice en vivo, `mirar` vigila ese archivo igual que el
-// transcript (un watch de su carpeta, sin reloj) y, cuando le llega una línea ENTERA, avisa por `alStream` que el hilo
-// de ese id cambió; el núcleo lo manda como "eventos:ids" y la vista relee. Una línea a medio escribir no avisa: se
-// avisa cuando se completa (`ColaDeLineas`, la misma lectura incremental que el armador). Mirar no cambia lo que contesta.
+// Los workers que no son de Claude (agy, codex, opencode, dsh) no tienen transcript: sus pasos salen del `<id>.stream.jsonl`
+// (`ArmadorStream`, electron/pasos-stream.ts) y la vista de worker es la misma que la de Claude. `mirar` vigila ese archivo igual
+// que el transcript (un watch de su carpeta, sin reloj) y, cuando le llega una línea ENTERA, empuja un `CambioPasos` y avisa por
+// `alStream` que el hilo de ese id cambió (el núcleo lo manda como "eventos:ids" y la vista de siempre relee). Una línea a medio
+// escribir no avisa: se avisa cuando se completa (`ColaDeLineas`, la misma lectura incremental que el armador). Sin ninguna línea
+// todavía, `hay: false` (la vista de siempre).
 //
 // Un subagente de un líder (herramienta Agent de Claude Code) se mira igual, con el id `sub:<sid>:<agentId>`: su
 // transcript está en `projects/<cwd>/<sid>/subagents/agent-<agentId>.jsonl` y se arma como subagente (sin nietos).
-import { stat, readdir } from "node:fs/promises";
+import { stat, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { ArmadorPasos, ColaDeLineas, encabezadoVacio, type CambioPasos, type VistaPasos } from "./pasos.ts";
+import { ArmadorPasos, encabezadoVacio, type CambioPasos, type VistaPasos } from "./pasos.ts";
+import { ArmadorStream } from "./pasos-stream.ts";
 import { sidDeWorker, transcriptDe } from "./consumo.ts";
 import { mirarCarpeta, type Mirada } from "./mirar.ts";
 import { silencio } from "./log.ts";
@@ -42,7 +44,7 @@ type Mirado = {
   watches: Map<string, Mirada>;
   reloj: NodeJS.Timeout | null;
   /** El stream de un worker que no es de Claude: lo que se leyó ya y su watch. */
-  stream: { ruta: string; cola: ColaDeLineas; mirada: Mirada | null; reloj: NodeJS.Timeout | null } | null;
+  stream: { ruta: string; armador: ArmadorStream; mirada: Mirada | null; reloj: NodeJS.Timeout | null } | null;
 };
 
 /** Lo que contesta `mirar` cuando no hay nada que ver (id inválido, o el worker todavía no tiene transcript). */
@@ -99,17 +101,35 @@ export function crearPasos(o: { proyectos: string; paState: string; alCambiar: (
   async function leerStream(m: Mirado): Promise<boolean> {
     const st = m.stream;
     if (!st) return false;
-    let reinicio = false;
-    const leyo = await st.cola.avanzar(st.ruta, () => {}, () => (reinicio = true));
-    return leyo || reinicio;
+    return st.armador.leer();
   }
 
-  /** Vigila el stream del worker (si lo hay y todavía no se lo vigila). Lo que ya tiene el archivo lo lee la vista al abrir: sólo se avisa lo que llegue después. */
-  async function vigilarStream(m: Mirado): Promise<void> {
-    if (m.stream || m.armador || SUB.test(m.id)) return;
+  /** Cuándo arrancó el worker, en ms: el `inicio` de su `.hilo` (epoch en s) o, si no está, cuándo se creó su stream. */
+  async function inicioDe(ruta: string): Promise<number> {
+    const hilo = await readFile(ruta.replace(/\.stream\.jsonl$/, ".hilo"), "utf8").catch(() => "");
+    const s = Number(/^inicio=(\d+)/m.exec(hilo)?.[1]);
+    if (Number.isFinite(s) && s > 0) return s * 1000;
+    const x = await stat(ruta).catch(() => null);
+    return x ? (x.birthtimeMs || x.mtimeMs) : Date.now();
+  }
+
+  /** La vista de un worker de otro motor: sus pasos salen del stream (`hay` recién cuando se leyó una línea). */
+  async function vistaStream(m: Mirado): Promise<VistaPasos> {
+    const st = m.stream;
+    if (!st) return sinPasos(m.id);
+    await leerStream(m);
+    m.empujado = st.armador.v;
+    return st.armador.vista(m.id);
+  }
+
+  /** Vigila el stream del worker (si lo hay y todavía no se lo vigila); `true` si recién lo encontró. Lo que ya tiene el archivo lo lee la vista al abrir: sólo se avisa lo que llegue después. */
+  async function vigilarStream(m: Mirado): Promise<boolean> {
+    if (m.stream || m.armador || SUB.test(m.id)) return false;
     const ruta = await rutaStream(m.id);
-    if (!ruta || mirados.get(m.id) !== m || m.stream) return;
-    const st = { ruta, cola: new ColaDeLineas(), mirada: null as Mirada | null, reloj: null as NodeJS.Timeout | null };
+    if (!ruta || mirados.get(m.id) !== m || m.stream) return false;
+    const inicio = await inicioDe(ruta);
+    if (mirados.get(m.id) !== m || m.stream) return false;
+    const st = { ruta, armador: new ArmadorStream(ruta, { inicio }), mirada: null as Mirada | null, reloj: null as NodeJS.Timeout | null };
     m.stream = st;
     await leerStream(m);
     const sucioStream = () => {
@@ -117,7 +137,12 @@ export function crearPasos(o: { proyectos: string; paState: string; alCambiar: (
         st.reloj = null;
         void enFila(async () => {
           if (mirados.get(m.id) !== m || m.stream !== st) return;
-          if (await leerStream(m)) o.alStream?.(m.id);
+          if (!(await leerStream(m))) return;
+          // Los pasos nuevos para la vista de worker, y el aviso de siempre de que el hilo cambió.
+          const c = st.armador.cambio(m.id, m.empujado);
+          m.empujado = st.armador.v;
+          o.alCambiar(c);
+          o.alStream?.(m.id);
         });
       }, esperaStream);
     };
@@ -131,6 +156,7 @@ export function crearPasos(o: { proyectos: string; paState: string; alCambiar: (
       },
       { donde: "pasos-stream", alRearmar: sucioStream },
     );
+    return true;
   }
 
   /** Un watch por carpeta del transcript y de sus subagentes; la de subagentes puede no existir todavía: se reintenta en cada lectura. */
@@ -210,8 +236,9 @@ export function crearPasos(o: { proyectos: string; paState: string; alCambiar: (
       return enFila(async () => {
         if (mirados.get(id) !== mirado) return sinPasos(id);
         if (!(await ubicar(mirado)) || !mirado.armador) {
+          // Un worker de otro motor: sus pasos salen del stream; sin una línea todavía, "sin pasos" (la vista de siempre).
           await vigilarStream(mirado);
-          return sinPasos(id);
+          return mirado.stream ? vistaStream(mirado) : sinPasos(id);
         }
         await mirado.armador.leer();
         mirarCarpetas(mirado);
@@ -229,7 +256,12 @@ export function crearPasos(o: { proyectos: string; paState: string; alCambiar: (
           if (mirados.get(m.id) !== m) continue;
           if (!(await ubicar(m))) {
             // Todavía sin transcript: puede ser un worker de otro motor cuyo stream apareció después de abrirlo.
-            await vigilarStream(m);
+            if (await vigilarStream(m)) {
+              const a = m.stream!.armador;
+              // Quien miraba tenía la vista vacía (`gen` 0): con lo que ya trae el stream se arma la suya.
+              if (a.v > 0) o.alCambiar(a.cambio(m.id, 0));
+              m.empujado = a.v;
+            }
             continue;
           }
           cerrarStream(m);
