@@ -26,7 +26,7 @@
 // modo: can_use_tool con requires_user_interaction; allow con `answers` → tool_result "The user answered: …"
 // y contesta "respuestas: <answers en JSON>"; deny → "sin respuesta: <message>".
 // Cambios en vivo, como el real: set_model cambia el modelo de lo que sigue y
-// apply_flag_settings el esfuerzo (`effortLevel`); los dos contestan success.
+// apply_flag_settings el esfuerzo (`effortLevel`), Ultracode (`ultracode`) y Fast (`fastMode`); los dos contestan success.
 // update_settings (/output-style) recuerda el estilo (en $HILOS_STATE/claude-falso-estilo, como el real en
 // settings.local.json) y lo dice el próximo init. No escribe nada en ~/.claude.
 //   TRAMA_FALSO_LOG=<archivo>  agrega una línea JSON por arranque (argv, cwd y las claves del entorno)
@@ -91,6 +91,10 @@ const ms = Number(process.env.TRAMA_FALSO_MS ?? 30);
 let modo = args.includes("--dangerously-skip-permissions") ? "bypassPermissions" : (val("--permission-mode") ?? "default");
 const archivoEstilo = process.env.HILOS_STATE ? path.join(process.env.HILOS_STATE, "claude-falso-estilo") : null;
 let estilo = "default";
+// Ultracode como el real (2.1.329): apply_flag_settings { ultracode } lo pide y contesta success siempre; get_settings dice si quedó en vigor
+// (applied.ultracode) y un effortLevel posterior lo apaga. TRAMA_FALSO_ULTRACODE=no: nunca queda en vigor (modelo que no lo soporta o flujos apagados).
+let ultracodePedido = false;
+let esfuerzoVivo = val("--effort") ?? "high";
 try {
   if (archivoEstilo) estilo = readFileSync(archivoEstilo, "utf8").trim() || "default";
 } catch {}
@@ -375,8 +379,19 @@ rl.on("line", (l) => {
       }
       if (process.env.TRAMA_FALSO_LOG) appendFileSync(process.env.TRAMA_FALSO_LOG, JSON.stringify({ control: q.subtype, source: q.source, settings: q.settings }) + "\n");
     }
+    if (q.subtype === "get_settings") {
+      const vigor = ultracodePedido && process.env.TRAMA_FALSO_ULTRACODE !== "no";
+      r = { applied: { model: modelo, effort: esfuerzoVivo, ultracode: vigor, ultracodeRequested: ultracodePedido, ultracodeAvailable: process.env.TRAMA_FALSO_ULTRACODE !== "no" } };
+    }
     if (q.subtype === "set_model" || q.subtype === "apply_flag_settings") {
       if (q.subtype === "set_model") modelo = q.model ?? "claude-opus-5-5";
+      if (q.subtype === "apply_flag_settings") {
+        if (typeof q.settings?.effortLevel === "string") {
+          esfuerzoVivo = q.settings.effortLevel;
+          ultracodePedido = false;
+        }
+        if (typeof q.settings?.ultracode === "boolean") ultracodePedido = q.settings.ultracode;
+      }
       if (process.env.TRAMA_FALSO_LOG)
         appendFileSync(process.env.TRAMA_FALSO_LOG, JSON.stringify({ control: q.subtype, model: q.model, settings: q.settings }) + "\n");
     }
