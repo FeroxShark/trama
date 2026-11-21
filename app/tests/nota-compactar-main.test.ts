@@ -28,6 +28,7 @@ const { pctNotaDe, ponerNotaCompactar, ponerNotaCompactarPct, ponerNotaCompactar
 const { borradorDe, configDe, sucio } = await import("../src/paneles/modelos-borrador.ts");
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "trama-nota-main-"));
+const estadoLider = path.join(tmp, "estado-lider");
 after(() => rmSync(tmp, { recursive: true, force: true }));
 let seq = 0;
 const nuevoDir = () => {
@@ -113,7 +114,7 @@ test("flujo Claude de la app (solo Claude, claude-falso): nota escrita + umbral 
     TRAMA_FALSO_CONTEXTO: process.env.TRAMA_FALSO_CONTEXTO,
     TRAMA_MODELOS: process.env.TRAMA_MODELOS,
   };
-  const estadoDir = path.join(dir, "estado");
+  const estadoDir = estadoLider;
   const dichoF = path.join(dir, "dicho.log");
   const modelosF = path.join(dir, "modelos.json");
   process.env.HILOS_STATE = estadoDir;
@@ -187,7 +188,7 @@ test("flujo Gemini (solo Gemini, agy-falso): al pasar umbral fuerte pide nota, e
     TRAMA_FALSO_AUTO_NOTA: process.env.TRAMA_FALSO_AUTO_NOTA,
     TRAMA_MODELOS: process.env.TRAMA_MODELOS,
   };
-  const estadoDir = path.join(dir, "estado");
+  const estadoDir = estadoLider;
   const logF = path.join(dir, "agy.log");
   const modelosF = path.join(dir, "modelos.json");
   process.env.HILOS_STATE = estadoDir;
