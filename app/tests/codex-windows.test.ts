@@ -29,3 +29,15 @@ test("Windows: el codex.exe de la app de escritorio (la versión más nueva de ~
   assert.equal(hallarCodex(env, home, (f) => f === nuevo || f === viejo, "win32", listar), nuevo);
   assert.equal(hallarCodex(env, home, () => false, "win32", listar), null);
 });
+
+test("Windows: los argumentos de codex.cmd no llevan comillas dobles y paraLanzar no tira", async () => {
+  const { argsCodex } = await import("../electron/codex-stream.ts");
+  const { paraLanzar } = await import("../electron/binario.ts");
+  const x = { modelo: "gpt-5.4", effort: "medium", sandbox: "workspace-write", cwd: "C:\\proj", imagenes: [], thread: null };
+  const args = argsCodex(x, "win32");
+  assert.ok(args.includes("model_reasoning_effort=medium"));
+  assert.ok(args.includes("approval_policy=never"));
+  assert.doesNotThrow(() => paraLanzar("C:\\Users\\gonza\\AppData\\Roaming\\npm\\codex.cmd", args, {}, "win32"));
+  // Linux conserva las comillas TOML
+  assert.ok(argsCodex(x, "linux").includes('model_reasoning_effort="medium"'));
+});

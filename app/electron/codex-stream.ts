@@ -14,6 +14,7 @@
 //   turn.failed     { error: { message } }
 //   error           { message }
 
+import { plataformaActual, type Plataforma } from "./rutas.ts";
 import { EFFORTS_CODEX_PA, aliasMasNuevosCodex, leerCodexModelos, ventanaCodex } from "./cli/codex-modelos.ts";
 
 /** La ventana de contexto de respaldo de los modelos de ChatGPT que corre codex (lo que dice el medidor del chat). */
@@ -245,7 +246,12 @@ export function partirCodex(modelo: string, effort?: string | null): { modelo: s
 export const sandboxDe = (m: string): string => (m === "plan" ? "read-only" : m === "bypassPermissions" ? "danger-full-access" : "workspace-write");
 
 /** Lo que se le pasa a codex: el turno por la entrada estándar (`-`) y, si hay, la conversación que retoma. */
-export function argsCodex(x: { modelo: string; effort: string; sandbox: string; cwd: string; imagenes: string[]; thread: string | null }): string[] {
+export function argsCodex(
+  x: { modelo: string; effort: string; sandbox: string; cwd: string; imagenes: string[]; thread: string | null },
+  plat: Plataforma = plataformaActual(),
+): string[] {
+  // En Windows `codex.cmd` va por cmd.exe, que no admite `"` en un argumento (`argParaCmd`): sin comillas codex toma el valor como texto.
+  const q = plat === "win32" ? "" : '"';
   return [
     "exec",
     "--json",
@@ -253,9 +259,9 @@ export function argsCodex(x: { modelo: string; effort: string; sandbox: string; 
     "-m",
     x.modelo,
     "-c",
-    `model_reasoning_effort="${x.effort}"`,
+    `model_reasoning_effort=${q}${x.effort}${q}`,
     "-c",
-    'approval_policy="never"',
+    `approval_policy=${q}never${q}`,
     "--sandbox",
     x.sandbox,
     "-C",
