@@ -1,0 +1,1075 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A2 · Menú flotante sobre el chip Debate</title>
+<link rel="stylesheet" href="../../../app/src/tokens.css">
+<style>
+
+@font-face {
+  font-family: "Inter";
+  src: url("../../../app/src/fuentes/Inter-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: block;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../../../app/src/fuentes/JetBrainsMono-Variable.woff2") format("woff2");
+  font-weight: 100 800;
+  font-display: block;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html {
+  font-size: 16px;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  color: var(--texto);
+  background: var(--fondo-ventana);
+}
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--fondo-ventana);
+  font-variant-numeric: tabular-nums;
+}
+button, input, textarea { font: inherit; color: inherit; }
+.app {
+  display: flex;
+  height: 100%;
+  gap: var(--gap-paneles);
+  padding: var(--gap-paneles);
+  background: var(--fondo-ventana);
+  font-size: var(--letra-5);
+  line-height: 1.45;
+}
+
+/* ── Barra lateral (fiel a Riel + Vidrio Quieto) ── */
+.barra {
+  display: flex;
+  width: 20rem;
+  flex: none;
+  border-radius: var(--r-xl);
+  background: var(--vidrio-a);
+  box-shadow: var(--vidrio-borde);
+  overflow: hidden;
+}
+.riel {
+  display: flex;
+  width: 3.75rem;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-3) 0;
+  box-shadow: inset -1px 0 0 var(--capa-div);
+}
+.riel-logo {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--capa-tile);
+  color: var(--texto);
+  font-weight: 700;
+  font-size: var(--letra-5);
+  margin-bottom: var(--esp-1);
+}
+.pr {
+  position: relative;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--capa-tile);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 650;
+}
+.pr.activo {
+  background: var(--acento-tinte);
+  color: var(--texto);
+}
+.pr.activo::before {
+  content: "";
+  position: absolute;
+  left: -0.375rem;
+  top: 0.375rem;
+  width: 0.1875rem;
+  height: 1.25rem;
+  border-radius: 0 var(--r-cap) var(--r-cap) 0;
+  background: var(--acento);
+}
+.pr.todos {
+  font-size: var(--letra-3);
+  color: var(--texto);
+}
+.riel-esp { flex: 1; }
+.cupo-anillo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--letra-2);
+  color: var(--inactivo);
+}
+.cupo-ring {
+  position: relative;
+  width: 2.375rem;
+  height: 2.375rem;
+  display: grid;
+  place-items: center;
+}
+.cupo-ring svg { position: absolute; inset: 0; }
+.cupo-ring span { font-size: var(--letra-3); font-weight: 600; color: var(--texto); }
+.cupo-anillo.poco .cupo-ring span { color: var(--decision-texto); }
+.riel-ico {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  color: var(--inactivo);
+}
+.barra-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--esp-3);
+  gap: var(--esp-2-5);
+}
+.barra-top {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.buscar {
+  flex: 1;
+  min-width: 0;
+  height: 2.125rem;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-2-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--inactivo);
+  font-size: var(--letra-4);
+}
+.buscar kbd {
+  margin-left: auto;
+  font-family: "JetBrains Mono", monospace;
+  font-size: var(--letra-2);
+  color: var(--inactivo);
+}
+.nueva {
+  width: 2.125rem;
+  height: 2.125rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--acento);
+  color: var(--acento-texto);
+}
+.proy-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+}
+.proy-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--esp-1) var(--esp-1-5);
+  color: var(--acento);
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.proy-cab span:last-child { color: var(--inactivo); font-weight: 400; font-family: "JetBrains Mono", monospace; font-size: var(--letra-3); }
+.hilo-item {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1-5) var(--esp-2);
+  border-radius: var(--r-sm);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.hilo-item.activo {
+  background: var(--capa-tile);
+  color: var(--texto);
+  font-weight: 600;
+}
+.hilo-item .tit {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hilo-item .hace {
+  color: var(--inactivo);
+  font-size: var(--letra-3);
+}
+.hilo-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0.25rem var(--esp-2) 0.25rem 1.75rem;
+  color: var(--inactivo);
+  font-size: var(--letra-3);
+}
+.pt-ok { color: var(--ok); }
+.pt-vivo {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: var(--acento);
+  flex: none;
+}
+
+/* ── Panel principal del chat ── */
+.hilo {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--r-xl);
+  background: var(--vidrio-a);
+  box-shadow: var(--vidrio-borde);
+}
+.migas {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2-5);
+  min-height: 3.75rem;
+  flex: none;
+  padding: var(--esp-2-5) var(--esp-4);
+  border-bottom: 1px solid var(--capa-div);
+}
+.lado-movil {
+  display: none;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--apagado);
+}
+.ruta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ruta b {
+  font-size: var(--letra-7);
+  font-weight: 600;
+  color: var(--texto);
+  line-height: 1.25;
+}
+.ruta-sub {
+  color: var(--inactivo);
+  font-size: var(--letra-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cab-btn {
+  height: 1.875rem;
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+  color: var(--texto);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.ctx-boton {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-cap);
+  background: transparent;
+  color: var(--apagado);
+}
+
+/* ── Conversación ── */
+.conv-zona {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.conv {
+  width: 100%;
+  max-width: 47.5rem; /* ~760px con padding */
+  margin: 0 auto;
+  padding: var(--esp-3-5) var(--esp-6) var(--esp-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+}
+.yo {
+  align-self: flex-end;
+  max-width: 82%;
+  padding: var(--esp-2-5) var(--esp-4);
+  border-radius: var(--r-lg) var(--r-lg) var(--r-xs) var(--r-lg);
+  background: var(--capa-tile);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  line-height: 1.48;
+}
+.el-bloque {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  line-height: 1.5;
+}
+.trabajo-linea {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--inactivo);
+  font-size: var(--letra-4);
+}
+.hora {
+  color: var(--inactivo);
+  font-family: "JetBrains Mono", monospace;
+  font-size: var(--letra-3);
+}
+.esp-flex { flex: 1; }
+
+/* ── Zona de caja y tarjetas ── */
+.caja-zona {
+  position: relative;
+  width: 100%;
+  max-width: 47.5rem; /* ~760px */
+  flex: none;
+  margin: 0 auto;
+  padding: 0 var(--esp-6) var(--esp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.caja {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding: var(--esp-3) var(--esp-3) var(--esp-3) var(--esp-4);
+  border-radius: var(--r-xl);
+  background: var(--capa-input);
+  box-shadow: var(--vidrio-borde);
+}
+.caja-texto {
+  color: var(--texto);
+  font-size: var(--letra-6);
+  line-height: 1.48;
+  min-height: 2.25rem;
+}
+.caja-texto.ph {
+  color: var(--inactivo);
+  min-height: 1.5rem;
+}
+.barra-c {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--esp-1-5);
+}
+.clip {
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+  color: var(--apagado);
+}
+.modo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  height: 2rem;
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: color-mix(in srgb, rgb(255, 107, 128) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, rgb(255, 107, 128) 30%, transparent);
+  color: rgb(255, 107, 128);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  white-space: nowrap;
+  flex: none;
+}
+.modo .modo-t {
+  color: color-mix(in srgb, rgb(255, 107, 128) 65%, var(--texto));
+}
+.pbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  height: 2rem;
+  padding: 0 var(--esp-2-5);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+  color: var(--texto);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  white-space: nowrap;
+  min-width: 0;
+}
+.pbtn-txt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-rombo {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 2px;
+  background: var(--texto);
+  transform: rotate(45deg);
+  flex: none;
+}
+.nivel {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 0.625rem;
+  flex: none;
+}
+.nivel i {
+  display: block;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--borde-4);
+}
+.nivel i:nth-child(1) { height: 0.25rem; }
+.nivel i:nth-child(2) { height: 0.375rem; }
+.nivel i:nth-child(3) { height: 0.5rem; }
+.nivel i:nth-child(4) { height: 0.625rem; }
+.nivel i[data-on] { background: var(--texto-3); }
+.nivel[data-tope] i[data-on] { background: var(--acento); }
+.esp { flex: 1 1 0; min-width: 0; }
+.barra-der {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1);
+  flex: none;
+  margin-left: auto;
+}
+.ctx-w, .ico-btn {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-cap);
+  color: var(--apagado);
+  flex: none;
+}
+.prim-send {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--acento);
+  color: var(--acento-texto);
+}
+.prim-send.apagado {
+  background: var(--acento-tinte);
+  color: var(--acento);
+}
+
+/* ── Interruptor y carril grueso píldora + perilla blanca ── */
+.ui-sw {
+  position: relative;
+  width: 2.75rem;
+  height: 1.625rem;
+  flex: none;
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+  box-shadow: var(--vidrio-borde);
+}
+.ui-sw.on {
+  background: var(--acento);
+  box-shadow: none;
+}
+.ui-sw::after {
+  content: "";
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 50%;
+  background: var(--texto);
+}
+.ui-sw.on::after {
+  left: auto;
+  right: 0.25rem;
+}
+
+/* ── Botones estándar ── */
+.btn-prim {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-1-5);
+  height: 2rem;
+  padding: 0 var(--esp-3-5);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--acento);
+  color: var(--acento-texto);
+  font-size: var(--letra-4);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.btn-sec {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-1-5);
+  height: 2rem;
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  box-shadow: var(--vidrio-borde);
+  color: var(--texto);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.btn-sutil {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-1-5);
+  height: 2rem;
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: transparent;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ── Chip ejecutor en la caja ── */
+.ejecuta-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 2px 2px 2px var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--capa-hover);
+  box-shadow: inset 0 0 0 1px var(--capa-div);
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.ejecuta-etq {
+  font-size: var(--letra-3);
+  color: var(--inactivo);
+  white-space: nowrap;
+}
+
+/* ── Badges de postura / estado (siempre ícono + palabra) ── */
+.postura-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  height: 1.375rem;
+  padding: 0 var(--esp-2);
+  border-radius: var(--r-cap);
+  font-size: var(--letra-3);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.postura-chip.acuerdo {
+  background: var(--ok-tinte);
+  box-shadow: inset 0 0 0 1px var(--ajustes-ok-borde);
+  color: var(--ok);
+}
+.postura-chip.cambio {
+  background: var(--decision-fondo);
+  box-shadow: inset 0 0 0 1px var(--decision-borde);
+  color: var(--decision-texto);
+}
+.postura-chip.escribiendo {
+  background: var(--acento-tinte);
+  box-shadow: inset 0 0 0 1px var(--ajustes-acento-borde);
+  color: var(--acento);
+}
+.postura-chip.espera {
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+  color: var(--inactivo);
+}
+
+/* ── Angosto (390×844): igual que index.css @media (max-width: 35rem) ── */
+@media (max-width: 35rem) {
+  .app { padding: 0; gap: 0; }
+  .barra { display: none; }
+  .hilo { border-radius: 0; box-shadow: none; }
+  .migas { min-height: 3.125rem; padding: var(--esp-1-5) var(--esp-2-5); gap: var(--esp-2); }
+  .lado-movil { display: grid; }
+  .cab-btn { display: none; }
+  .conv { padding: var(--esp-2-5) var(--esp-3) var(--esp-1-5); gap: var(--esp-2); }
+  .yo { max-width: 92%; padding: var(--esp-2) var(--esp-3); }
+  .caja-zona { padding: 0 var(--esp-2-5) var(--esp-2-5); gap: var(--esp-1-5); }
+  .caja { padding: var(--esp-2-5) var(--esp-2-5) var(--esp-2-5) var(--esp-3); border-radius: var(--r-lg); gap: var(--esp-1-5); }
+  .caja-texto { font-size: var(--letra-5); min-height: 1.75rem; }
+  .barra-c { gap: var(--esp-1); }
+  .clip { width: 1.875rem; height: 1.875rem; }
+  .modo { padding: 0; width: 1.875rem; height: 1.875rem; justify-content: center; }
+  .modo .modo-t { display: none; }
+  .pbtn { padding: 0 var(--esp-2); font-size: var(--letra-3); gap: var(--esp-1); height: 1.875rem; }
+  .pbtn .chev, .pbtn .chip-rombo { display: none; }
+  .ctx-w, .ico-btn { width: 1.75rem; height: 1.75rem; }
+  .ico-btn.ocultar-movil { display: none; }
+  .ejecuta-etq { display: none; }
+  .ejecuta-wrap { padding: 0; background: transparent; box-shadow: none; gap: var(--esp-1); }
+  .prim-send { width: 2rem; height: 2rem; }
+}
+
+
+  .a2-popover {
+    position: absolute;
+    left: var(--esp-6);
+    bottom: calc(100% + var(--esp-1));
+    width: min(32rem, calc(100% - 3rem));
+    display: flex;
+    flex-direction: column;
+    gap: var(--esp-2-5);
+    padding: var(--esp-3-5);
+    border-radius: var(--r-lg);
+    background: var(--popover-fondo);
+    backdrop-filter: var(--popover-desenfoque);
+    box-shadow: var(--popover-luz), var(--popover-sombra);
+    z-index: 20;
+  }
+  .a2-cab {
+    display: flex;
+    align-items: center;
+    gap: var(--esp-2-5);
+  }
+  .a2-ico {
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r-sm);
+    background: var(--acento-tinte);
+    color: var(--acento);
+  }
+  .a2-cab-txt { flex: 1; min-width: 0; }
+  .a2-cab-txt h3 { margin: 0; font-size: var(--letra-6); font-weight: 600; color: var(--texto); }
+  .a2-cab-txt p { margin: 1px 0 0; font-size: var(--letra-3); color: var(--apagado); }
+  .a2-subh {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--apagado);
+    font-size: var(--letra-3);
+    font-weight: 600;
+  }
+  .a2-subh span:last-child { color: var(--inactivo); font-weight: 400; }
+  .a2-lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--esp-1-5);
+  }
+  .a2-fila {
+    display: flex;
+    align-items: center;
+    gap: var(--esp-2);
+    padding: var(--esp-1-5) var(--esp-2-5);
+    border-radius: var(--r-md);
+    background: var(--capa-tile);
+    box-shadow: var(--vidrio-borde);
+  }
+  .a2-num {
+    width: 1.125rem;
+    height: 1.125rem;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r-cap);
+    background: var(--capa-card);
+    color: var(--apagado);
+    font-family: "JetBrains Mono", monospace;
+    font-size: var(--letra-2);
+    font-weight: 600;
+    flex: none;
+  }
+  .a2-mod {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--esp-1-5);
+    font-size: var(--letra-4);
+    font-weight: 600;
+    color: var(--texto);
+  }
+  .a2-mod span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .a2-esf-pills {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--r-cap);
+    background: var(--capa-card);
+    flex: none;
+  }
+  .a2-esf-pills span {
+    padding: 1px var(--esp-1-5);
+    border-radius: var(--r-cap);
+    font-size: var(--letra-3);
+    color: var(--inactivo);
+  }
+  .a2-esf-pills span.on {
+    background: var(--acento-tinte);
+    box-shadow: inset 0 0 0 1px var(--ajustes-acento-borde);
+    color: var(--texto);
+    font-weight: 600;
+  }
+  .a2-act {
+    width: 1.5rem;
+    height: 1.5rem;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r-cap);
+    color: var(--inactivo);
+    flex: none;
+  }
+  .a2-sumar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--esp-1) var(--esp-2);
+    padding: var(--esp-1-5) var(--esp-2-5);
+    border: 1px dashed var(--borde-4);
+    border-radius: var(--r-md);
+    color: var(--inactivo);
+    font-size: var(--letra-3);
+  }
+  .a2-sumar > span:first-child { display: inline-flex; align-items: center; gap: 4px; }
+  .a2-rondas-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--esp-3);
+    padding: var(--esp-2) var(--esp-2-5);
+    border-radius: var(--r-md);
+    background: var(--capa-card);
+  }
+  .a2-rondas-izq {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 11rem;
+  }
+  .a2-rondas-etq {
+    font-size: var(--letra-3);
+    font-weight: 600;
+    color: var(--apagado);
+  }
+  /* Carril grueso tipo píldora y perilla blanca (sin solaparse con los números) */
+  .a2-slider {
+    position: relative;
+    width: 100%;
+    height: 1.625rem;
+    border-radius: var(--r-cap);
+    background: var(--capa-track);
+    box-shadow: inset 0 0 0 1px var(--borde-3);
+  }
+  .a2-slider-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 57%;
+    border-radius: var(--r-cap);
+    background: var(--acento);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 0.1875rem;
+  }
+  .a2-slider-dots {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.75rem;
+    pointer-events: none;
+  }
+  .a2-slider-dots i {
+    width: 0.25rem;
+    height: 0.25rem;
+    border-radius: 50%;
+    background: var(--texto-6);
+    opacity: 0.65;
+  }
+  .a2-slider-dots i.lleno {
+    background: var(--acento-texto);
+    opacity: 0.45;
+  }
+  .a2-slider-nombres {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    padding: 0 0.25rem;
+    font-size: var(--letra-2);
+    color: var(--inactivo);
+  }
+  .a2-slider-nombres span:nth-child(2) { text-align: center; }
+  .a2-slider-nombres span:nth-child(3) { text-align: right; }
+  .a2-slider-nombres span.on {
+    color: var(--texto);
+    font-weight: 700;
+  }
+  .a2-costo { text-align: right; }
+  .a2-costo b { display: block; color: var(--texto); font-size: var(--letra-4); }
+  .a2-costo span { display: block; color: var(--inactivo); font-size: var(--letra-3); }
+  .a2-pie {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: var(--esp-2);
+    border-top: 1px solid var(--capa-div);
+    font-size: var(--letra-3);
+    color: var(--apagado);
+  }
+  .a2-pie b { color: var(--texto); }
+  .debate-chip-open {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--esp-1-5);
+    height: 2rem;
+    padding: 0 var(--esp-2-5);
+    border-radius: var(--r-cap);
+    background: var(--acento-tinte);
+    box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
+    color: var(--texto);
+    font-size: var(--letra-4);
+    font-weight: 600;
+    white-space: nowrap;
+    flex: none;
+  }
+  .debate-chip-open svg { color: var(--acento); }
+  @media (max-width: 35rem) {
+    .a2-popover {
+      left: var(--esp-2-5);
+      right: var(--esp-2-5);
+      bottom: calc(100% + var(--esp-1));
+      width: auto;
+      padding: var(--esp-2-5);
+      gap: var(--esp-2);
+    }
+    .a2-fila { flex-wrap: wrap; gap: var(--esp-1-5); padding: var(--esp-1-5) var(--esp-2); }
+    .a2-mod { flex: 1 1 60%; }
+    .a2-esf-pills { order: 4; width: 100%; justify-content: space-between; }
+    .a2-rondas-box { flex-direction: column; align-items: stretch; gap: var(--esp-2); }
+    .a2-rondas-izq { width: 100%; }
+    .a2-costo { text-align: left; display: flex; justify-content: space-between; align-items: baseline; }
+    .a2-pie { flex-direction: column; align-items: flex-start; gap: 2px; }
+    .debate-chip-open { height: 1.875rem; padding: 0 var(--esp-2); font-size: var(--letra-3); gap: 4px; }
+    .debate-chip-open .solo-desk, .debate-chip-open .chev-deb { display: none; }
+    .barra-der .ctx-w { display: none; }
+  }
+  
+</style>
+</head>
+<body>
+<div class="app">
+  
+<aside class="barra" aria-label="Barra lateral">
+  <div class="riel">
+    <div class="riel-logo">T</div>
+    <div class="pr todos">Todo</div>
+    <div class="pr activo">tr</div>
+    <div class="pr">pa</div>
+    <div class="pr">co</div>
+    <div class="riel-esp"></div>
+    <div class="cupo-anillo">
+      <div class="cupo-ring">
+        <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="var(--capa-track)" stroke-width="2.5"/><circle cx="18" cy="18" r="15" fill="none" stroke="var(--acento)" stroke-width="2.5" stroke-dasharray="100" stroke-dashoffset="58" pathLength="100" transform="rotate(-90 18 18)" stroke-linecap="round"/></svg>
+        <span>42</span>
+      </div>
+      <span>5 h</span>
+    </div>
+    <div class="cupo-anillo poco">
+      <div class="cupo-ring">
+        <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="var(--capa-track)" stroke-width="2.5"/><circle cx="18" cy="18" r="15" fill="none" stroke="var(--aviso)" stroke-width="2.5" stroke-dasharray="100" stroke-dashoffset="19" pathLength="100" transform="rotate(-90 18 18)" stroke-linecap="round"/></svg>
+        <span>81</span>
+      </div>
+      <span>sem</span>
+    </div>
+    <div class="riel-ico"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></div>
+  </div>
+  <div class="barra-col">
+    <div class="barra-top">
+      <div class="buscar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Buscar hilos</span><kbd>Ctrl K</kbd></div>
+      <div class="nueva"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></div>
+    </div>
+    <div class="proy-grupo">
+      <div class="proy-cab"><span>trama</span><span>4</span></div>
+      <div class="hilo-item activo"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg><span class="tit">ana-c7 · Cola a SQLite</span><span class="hace">4 m</span></div>
+      <div class="hilo-sub"><span class="pt-vivo"></span><span class="tit">Esquema y migración</span><span>1 m</span></div>
+      <div class="hilo-sub"><span class="pt-ok"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span><span class="tit">Tests JSON respaldo</span><span>3 m</span></div>
+      <div class="hilo-item"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg><span class="tit">ana-a3 · Revisar hooks</span><span class="hace">1 h</span></div>
+    </div>
+    <div class="proy-grupo">
+      <div class="proy-cab"><span>pa</span><span>2</span></div>
+      <div class="hilo-item"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg><span class="tit">ana-b5 · Topes de cupo</span><span class="hace">ayer</span></div>
+    </div>
+  </div>
+</aside>
+
+  <main class="hilo">
+    
+<header class="migas">
+  <button type="button" class="lado-movil" aria-label="Volver"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
+  <div class="ruta">
+    <b>ana-c7</b>
+    <span class="ruta-sub">trama · Opus 5.5 · high</span>
+  </div>
+  <button type="button" class="cab-btn">Cerrar líder</button>
+  <button type="button" class="ctx-boton" aria-label="Contexto"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg></button>
+</header>
+
+    <div class="conv-zona">
+      <div class="conv">
+        
+  <div class="yo">Revisá cómo guardamos hoy los mensajes en cola en <code>electron/cola.ts</code>.</div>
+  <div class="el-bloque">
+    <div class="trabajo-linea"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><span>Leyó 3 archivos · 8 s</span></div>
+    <div>Hoy cada líder guarda su cola en un JSON por sesión. Con varios hilos escribiendo a la vez al reiniciar puede haber choques si no unificamos la escritura.</div>
+    <div class="hora">09:02</div>
+  </div>
+
+      </div>
+    </div>
+    <div class="caja-zona">
+      
+  <div class="a2-popover" role="dialog" aria-label="Configurar debate">
+    <div class="a2-cab">
+      <div class="a2-ico"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg></div>
+      <div class="a2-cab-txt">
+        <h3>Debate entre modelos</h3>
+        <p>Elegí 2 o 3 sillas · podés repetir modelo</p>
+      </div>
+      <div class="ui-sw on" role="switch" aria-checked="true" aria-label="Debate activo"></div>
+    </div>
+    <div class="a2-subh">
+      <span>Sillas (3 de 3)</span>
+      <span>Esfuerzo por silla</span>
+    </div>
+    <div class="a2-lista">
+      <div class="a2-fila">
+        <span class="a2-num">1</span>
+        <div class="a2-mod"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5527h3.7442L10.5363 3.541Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg><span>Opus 5.5</span></div>
+        <div class="a2-esf-pills"><span>low</span><span>medium</span><span class="on">high</span><span>xhigh</span></div>
+        <span class="a2-act" title="Repetir silla"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="12" height="12" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></span>
+        <span class="a2-act" title="Quitar"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+      </div>
+      <div class="a2-fila">
+        <span class="a2-num">2</span>
+        <div class="a2-mod"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 2.5c.7 5.2 4.3 8.8 9.5 9.5-5.2.7-8.8 4.3-9.5 9.5-.7-5.2-4.3-8.8-9.5-9.5 5.2-.7 8.8-4.3 9.5-9.5Z"/></svg><span>Gemini 4 Hydrogen</span></div>
+        <div class="a2-esf-pills"><span>low</span><span>medium</span><span>high</span><span class="on">xhigh</span></div>
+        <span class="a2-act" title="Repetir silla"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="12" height="12" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></span>
+        <span class="a2-act" title="Quitar"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+      </div>
+      <div class="a2-fila">
+        <span class="a2-num">3</span>
+        <div class="a2-mod"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 2.8 19 6.9v8.2l-7 4.1-7-4.1V6.9Z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 2.8v8.4m0 0 7 4.1M12 11.2 5 15.3"/></svg><span>GPT-6.1 Sol</span></div>
+        <div class="a2-esf-pills"><span>low</span><span class="on">medium</span><span>high</span></div>
+        <span class="a2-act" title="Repetir silla"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="12" height="12" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></span>
+        <span class="a2-act" title="Quitar"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+      </div>
+      <div class="a2-sumar">
+        <span><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Agregar o repetir silla</span>
+        <span>Máx. 3 (quitá una con ×)</span>
+      </div>
+    </div>
+    <div class="a2-rondas-box">
+      <div class="a2-rondas-izq">
+        <span class="a2-rondas-etq">Rondas · 2</span>
+        <div class="a2-slider" aria-label="Rondas 1 a 3, elegido 2">
+          <div class="a2-slider-fill"><span class="perilla-blanca"></span></div>
+          <div class="a2-slider-dots"><i class="lleno"></i><i></i><i></i></div>
+        </div>
+        <div class="a2-slider-nombres">
+          <span>1 ronda</span>
+          <span class="on">2 rondas</span>
+          <span>3 rondas</span>
+        </div>
+      </div>
+      <div class="a2-costo">
+        <b>Hasta 7 llamadas</b>
+        <span>Claude · Gemini · ChatGPT</span>
+      </div>
+    </div>
+    <div class="a2-pie">
+      <span>Ejecuta al terminar: <b>Opus 5.5 · high</b></span>
+      <span>(selector del chat)</span>
+    </div>
+  </div>
+  <div class="caja">
+    <div class="caja-texto">Migremos la cola de mensajes a SQLite sin perder compatibilidad con los archivos JSON viejos ni frenar el arranque.</div>
+    <div class="barra-c">
+      <button type="button" class="clip" aria-label="Adjuntar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"/></svg></button>
+      <button type="button" class="modo"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg><span class="modo-t">bypass permissions on</span></button>
+      <button type="button" class="debate-chip-open"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg><span>Debate</span><span class="chev-deb"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></button>
+      <div class="ejecuta-wrap">
+        <span class="ejecuta-etq">Ejecuta</span>
+        <button type="button" class="pbtn"><span class="chip-rombo"></span><span class="pbtn-txt">Opus 5.5</span><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
+        <button type="button" class="pbtn"><span class="nivel" aria-hidden="true"><i data-on=""></i><i data-on=""></i><i data-on=""></i><i></i></span><span>high</span><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
+      </div>
+      <span class="esp"></span>
+      <div class="barra-der">
+        
+<span class="ctx-w" title="Contexto: 34 %">
+  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+    <circle cx="8" cy="8" r="6" fill="none" stroke="var(--capa-track)" stroke-width="2.2"/>
+    <circle cx="8" cy="8" r="6" fill="none" stroke="var(--acento)" stroke-width="2.2" stroke-dasharray="100" stroke-dashoffset="66" pathLength="100" transform="rotate(-90 8 8)" stroke-linecap="round"/>
+  </svg>
+</span>
+        <button type="button" class="prim-send" aria-label="Mandar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button>
+      </div>
+    </div>
+  </div>
+  
+    </div>
+  </main>
+</div>
+</body>
+</html>
