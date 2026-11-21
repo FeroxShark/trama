@@ -9,8 +9,9 @@
 // decir, PreToolUse no imprime NADA (`{}` sin "decision" agy lo toma como deny). Los porqués largos viven en agy-pa.sh.
 //
 // Diferencias conocidas con el .sh: las guardias que llama son las versiones .mjs de al lado (PA_AGY_GUARD / PA_AGY_LATIDO
-// pueden apuntar a un .sh —se corre con bash— o a un .mjs); y la lógica de rutas es POSIX (/home, /etc, /tmp…): en Windows
-// el chequeo de privacidad no conoce las raíces de Windows (C:\Users…), eso queda para cuando agy corra nativo.
+// pueden apuntar a un .sh —se corre con bash— o a un .mjs); y en Windows (win32, inyectable vía PA_AGY_PLAT para tests)
+// el chequeo de privacidad soporta unidades (C:\...), barras mezcladas (/ y \), %USERPROFILE%/variables Windows y raíces
+// sensibles de Windows (USERPROFILE, Users, Windows, ProgramData, raíces de unidad, UNC).
 import { spawnSync } from "node:child_process";
 import { readFileSync, realpathSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
@@ -83,7 +84,9 @@ function campo(...claves) {
   return String(v);
 }
 
-const HOME = process.platform === "win32" ? env.USERPROFILE || env.HOME || homedir() : env.HOME || homedir();
+const plat = env.PA_AGY_PLAT || process.platform;
+const win = plat === "win32";
+const HOME = win ? env.USERPROFILE || env.HOME || homedir() : env.HOME || homedir();
 const worker = !!env.PA_AGY_HB;
 // agy nuevo: read_file/write_file/edit_file (parámetro `Path`) en vez de view_file/write_to_file/replace_file_content, y `bash`
 // como alias de run_command (mismo `CommandLine`). Se normaliza a los nombres de siempre para que valgan todas las guardias.
@@ -180,15 +183,57 @@ if (leer) {
 // --- Privacidad: nada de leer fuera del worktree ni de salir a la red -------------------------
 // El chequeo es LÉXICO (ve las rutas escritas en el comando, no lo que un intérprete arme por dentro): es una barrera, no una jaula.
 const posix = (p) => p.replaceAll("\\", "/");
+const normCmp = (p) => (win ? p.toLowerCase() : p);
+const esWinAbs = (p) => /^[A-Za-z]:/.test(posix(p));
+const esAbsoluta = (p) => (win ? posix(p).startsWith("/") || esWinAbs(p) : p.startsWith("/"));
+const escRe = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const sinBarraFinal = (r) => (/^[A-Za-z]:\/$/.test(r) ? r : r.length > 1 && r.endsWith("/") ? r.slice(0, -1) : r);
 /** `realpath -ms`: ruta absoluta normalizada sin resolver symlinks ni exigir que exista. */
 function lex(p) {
-  const abs = p.startsWith("/") ? p : path.posix.resolve(posix(process.cwd()), p);
-  const r = path.posix.normalize(abs);
-  return r.length > 1 && r.endsWith("/") ? r.slice(0, -1) : r;
+  if (!win) {
+    const abs = p.startsWith("/") ? p : path.posix.resolve(posix(process.cwd()), p);
+    const r = path.posix.normalize(abs);
+    return r.length > 1 && r.endsWith("/") ? r.slice(0, -1) : r;
+  }
+  let s = posix(p);
+  if (/^\/\/\?\/[A-Za-z]:\//.test(s)) s = s.slice(4);
+  else if (/^\/\/\?\/UNC\//i.test(s)) s = `//${s.slice(8)}`;
+  let r;
+  if (/^[A-Za-z]:$/.test(s)) {
+    r = `${s}/`;
+  } else if (/^[A-Za-z]:\//.test(s)) {
+    const norm = path.posix.normalize(s.slice(2));
+    r = `${s.slice(0, 2)}${norm.startsWith("/") ? norm : `/${norm}`}`;
+  } else if (s.startsWith("//")) {
+    r = posix(path.win32.normalize(s));
+  } else if (s.startsWith("/")) {
+    r = path.posix.normalize(s);
+  } else {
+    const base = env.PA_AGY_CWD || (process.platform === "win32" ? process.cwd() : esWinAbs(env.PA_AGY_RAIZ || "") ? env.PA_AGY_RAIZ : "C:\\");
+    r = posix(path.win32.resolve(base, s));
+  }
+  return sinBarraFinal(r);
 }
 /** `realpath -m`: resuelve los symlinks de lo que existe y deja el resto como está. */
 function realpathM(p) {
   const abs = lex(p);
+  if (win) {
+    // En tests con PA_AGY_PLAT=win32 desde Linux o rutas POSIX sintéticas (/tmp/...), no tocar realpathSync del host.
+    if (process.platform !== "win32" || (abs.startsWith("/") && !abs.startsWith("//"))) return abs;
+    let resto = "";
+    let actual = abs;
+    for (;;) {
+      try {
+        return sinBarraFinal(posix(path.win32.join(posix(realpathSync(actual)), resto)));
+      } catch {
+        const padre = posix(path.win32.dirname(actual));
+        if (normCmp(padre) === normCmp(actual)) return abs;
+        resto = posix(path.win32.join(path.win32.basename(actual), resto));
+        actual = padre;
+      }
+    }
+  }
+  if (process.platform === "win32") return abs;
   let resto = "";
   let actual = abs;
   for (;;) {
@@ -202,42 +247,99 @@ function realpathM(p) {
     }
   }
 }
+const tempRaw = win ? env.TEMP || env.TMP || env.TMPDIR || "" : "";
+const tempCand = tempRaw && !/^\/tmp\/?$/.test(posix(tempRaw)) && (process.platform === "win32" || esWinAbs(tempRaw)) ? lex(tempRaw) : "";
 const raizN = lex(env.PA_AGY_RAIZ || "/nonexistent");
 const homeN = lex(posix(HOME));
+const tempN = tempCand && normCmp(tempCand) !== normCmp(homeN) && !/^(?:\/|[a-z]:\/)$/.test(normCmp(tempCand)) ? tempCand : "";
 const mapaN = env.PA_AGY_MAPA ? lex(env.PA_AGY_MAPA) : "";
 const raicesProhibidas = [homeN, "/home", "/root", "/etc", "/var", "/mnt", "/media", "/run", "/srv", "/boot", "/sys", "/proc", "/opt", "/dev"];
-const dentro = (a, b) => a === b || a.startsWith(`${b}/`);
+const WIN_RAICES = ["users", "documents and settings", "windows", "programdata", "recovery", "system volume information", "$recycle.bin"];
+const WIN_PROHIBIDAS = new RegExp(`^(?:[a-z]:/(?:${WIN_RAICES.map(escRe).join("|")})(?:/|$)|[a-z]:/$|//)`);
+const WIN_VARS_SENSIBLES = new Set([
+  "USERPROFILE", "HOME", "LOCALAPPDATA", "APPDATA", "ROAMINGAPPDATA",
+  "PROGRAMDATA", "SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "HOMEDRIVE",
+  "HOMEPATH", "ALLUSERSPROFILE", "PUBLIC", "ONEDRIVE",
+]);
+const igual = (a, b) => normCmp(a) === normCmp(b);
+const dentro = (a, b) => {
+  const x = normCmp(a);
+  const y = normCmp(b);
+  if (!y) return false;
+  return x === y || x.startsWith(y.endsWith("/") ? y : `${y}/`);
+};
 function permitida(p) {
   if (dentro(p, raizN)) return true;
   if (p === "/tmp" || p.startsWith("/tmp/")) return true;
-  if (mapaN && p === mapaN) return true;
-  return ["/dev/null", "/dev/zero", "/dev/stdin", "/dev/stdout", "/dev/stderr", "/dev/urandom", "/dev/random"].includes(p);
+  if (tempN && dentro(p, tempN)) return true;
+  if (mapaN && igual(p, mapaN)) return true;
+  return ["/dev/null", "/dev/zero", "/dev/stdin", "/dev/stdout", "/dev/stderr", "/dev/urandom", "/dev/random"].includes(p) || (win && normCmp(p) === "nul");
 }
 function prohibida(p) {
   if (permitida(p)) return false;
   if (p === "/") return true;
+  if (win && WIN_PROHIBIDAS.test(normCmp(p))) return true;
   return raicesProhibidas.some((r) => dentro(p, r));
+}
+function expandirWin(s, cwd) {
+  const casa = posix(HOME);
+  const mapear = (nombre, orig) => {
+    const u = nombre.toUpperCase();
+    if (u === "USERPROFILE" || u === "HOME") return casa;
+    if (u === "PWD") return cwd;
+    if (u === "TEMP" || u === "TMP" || u === "TMPDIR") return tempN || "$TMPDIR";
+    if (u === "LOCALAPPDATA" && env.LOCALAPPDATA && (process.platform === "win32" || esWinAbs(env.LOCALAPPDATA))) return posix(env.LOCALAPPDATA);
+    if (u === "APPDATA" && env.APPDATA && (process.platform === "win32" || esWinAbs(env.APPDATA))) return posix(env.APPDATA);
+    return orig;
+  };
+  return s
+    .replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, v) => mapear(v, m))
+    .replace(/\$env:([A-Za-z_][A-Za-z0-9_]*)/gi, (m, v) => mapear(v, m));
 }
 /** t = token tal como lo escribió el modelo, cwd = el directorio de trabajo. true si toca algo fuera del worktree. */
 function tokenSale(t, cwd) {
   t = t.replaceAll("${HOME}", "$HOME");
   const casa = posix(HOME);
+  if (win) {
+    t = expandirWin(posix(t), cwd);
+    const mVar = /^(?:%([A-Za-z_][A-Za-z0-9_]*)%|\$env:([A-Za-z_][A-Za-z0-9_]*))/i.exec(t);
+    if (mVar && (WIN_VARS_SENSIBLES.has((mVar[1] || mVar[2]).toUpperCase()) || t.slice(mVar[0].length).includes("/"))) return true;
+  }
   if (t === "~" || t.startsWith("~/")) t = casa + t.slice(1);
   else if (t.startsWith("~")) return true; // ~otro_usuario (comandoSale ya descartó los "~" de prosa o de código)
   else if (t === "$HOME" || t.startsWith("$HOME/")) t = casa + t.slice("$HOME".length);
   else if (t.startsWith("$XDG_") || t.startsWith("$PA_") || t.startsWith("$OLDPWD")) return true;
   else if (t === "$PWD" || t.startsWith("$PWD/")) t = cwd + t.slice("$PWD".length);
-  else if (t === "$TMPDIR" || t.startsWith("$TMPDIR/")) return false;
+  else if (t === "$TMPDIR" || t.startsWith("$TMPDIR/")) return win && `/${t}/`.includes("/../");
   else if (/^\$[A-Za-z_][\s\S]*\/[\s\S]*$/.test(t)) return true; // $LO_QUE_SEA/… : no se sabe adónde apunta
   let p;
-  if (t.startsWith("/")) {
+  if (esAbsoluta(t)) {
     // con glob: se mira el tramo fijo; si algún prohibido empieza igual, se niega
     if (/[*?]/.test(t)) {
       const pre = t.slice(0, t.search(/[*?]/));
-      if (dentro(pre.replace(/\/$/, ""), raizN)) return false;
-      if (pre.startsWith("/tmp/")) return false;
-      for (const r of [...raicesProhibidas, "/"]) {
-        if (`${r}/`.startsWith(pre) || pre.startsWith(`${r}/`) || pre === r) return true;
+      let preNorm = pre;
+      if (win) {
+        const sep = pre.lastIndexOf("/");
+        if (sep >= 0) {
+          const d = lex(pre.slice(0, sep + 1));
+          preNorm = `${d}${d.endsWith("/") ? "" : "/"}${pre.slice(sep + 1)}`;
+        }
+        if (preNorm.startsWith("//")) return true;
+      }
+      const preSin = /^[A-Za-z]:\/$/.test(preNorm) ? preNorm : preNorm.replace(/\/$/, "");
+      if (dentro(preSin, raizN)) return false;
+      if (preNorm.startsWith("/tmp/")) return false;
+      if (tempN && dentro(preSin, tempN) && normCmp(preNorm).startsWith(`${normCmp(tempN)}/`)) return false;
+      const raices = [...raicesProhibidas, "/"];
+      if (win) {
+        const mDrv = /^([a-z]:\/)/.exec(normCmp(preNorm));
+        if (mDrv) raices.push(mDrv[1], ...WIN_RAICES.map((g) => `${mDrv[1]}${g}`));
+      }
+      for (const r of raices) {
+        const rn = normCmp(r);
+        const pn = normCmp(preNorm);
+        const rBarra = rn.endsWith("/") ? rn : `${rn}/`;
+        if (rBarra.startsWith(pn) || pn.startsWith(rBarra) || pn === rn) return true;
       }
       return false;
     }
@@ -251,13 +353,41 @@ function tokenSale(t, cwd) {
  * regex). Sólo cuentan si aparecen como PALABRA suelta del shell: fuera de comillas y fuera del cuerpo de un heredoc.
  * Una ruta de verdad (/etc/x, ~/.ssh/x, /home/…) siempre se mira, esté donde esté.
  */
-const ambiguo = (t) => /^\/[*/]*$/.test(t) || t === "~" || /^~[A-Za-z_]/.test(t);
+const ambiguo = (t) => /^\/[*/]*$/.test(t) || (win && /^\\+$/.test(t)) || t === "~" || /^~[A-Za-z_]/.test(t);
 function sinTexto(c) {
   return c
     .replace(/(<<-?\s*(['"]?)([A-Za-z_]\w*)\2[^\n]*\n)[\s\S]*?\n[ \t]*\3[ \t]*(?=\n|$)/g, "$1")
     .replace(/"(?:[^"\\]|\\[\s\S])*"|'[^']*'/g, " ");
 }
-const escRe = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** En Windows conserva `C:\…`, URLs `scheme://…` y `$env:VAR` al dividir por `:` en comandoSale. */
+function partirDosPuntos(w) {
+  if (!win) return [w];
+  const out = [];
+  let i = 0;
+  while (i < w.length) {
+    const resto = w.slice(i);
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^/]/.test(resto)) {
+      const fin = w.indexOf(":", i + resto.indexOf("://") + 3);
+      if (fin === -1) { out.push(resto); break; }
+      out.push(w.slice(i, fin));
+      i = fin + 1;
+      continue;
+    }
+    if (/^(?:[A-Za-z]:(?:[\\/]|\.\.)|\$env:[A-Za-z_][A-Za-z0-9_]*)/i.test(resto)) {
+      const desde = resto[0] === "$" ? i + 5 : i + 2;
+      const sig = w.indexOf(":", desde);
+      if (sig === -1) { out.push(resto); break; }
+      out.push(w.slice(i, sig));
+      i = sig + 1;
+      continue;
+    }
+    const sig = w.indexOf(":", i);
+    if (sig === -1) { out.push(resto); break; }
+    if (sig > i) out.push(w.slice(i, sig));
+    i = sig + 1;
+  }
+  return out;
+}
 /** Todo token de un texto de comando que salga del worktree -> lo devuelve (o null). */
 function comandoSale(c, cwd) {
   const suelto = sinTexto(c);
@@ -267,10 +397,14 @@ function comandoSale(c, cwd) {
     .map((l) => l.replace(/(-m|--message)[\s=]+("[^"$`]*"|'[^']*')/g, " "))
     .join("\n");
   c = c.replaceAll("${HOME}", "$HOME");
-  for (const tok of c.split(/[ \t\n;|&<>()"'`=:,{}[\]]+/)) {
-    if (!tok) continue;
-    if (ambiguo(tok) && !new RegExp(`(^|[\\s;&|(<>=])${escRe(tok)}($|[\\s;&|)<>])`).test(suelto)) continue;
-    if (tokenSale(tok, cwd)) return tok;
+  if (win) c = c.replace(/\$\{env:([A-Za-z_][A-Za-z0-9_]*)\}/gi, "$env:$1");
+  const delim = win ? /[ \t\n;|&<>()"'`=,{}[\]]+/ : /[ \t\n;|&<>()"'`=:,{}[\]]+/;
+  for (const bruto of c.split(delim)) {
+    for (const tok of partirDosPuntos(bruto)) {
+      if (!tok) continue;
+      if (ambiguo(tok) && !new RegExp(`(^|[\\s;&|(<>=])${escRe(tok)}($|[\\s;&|)<>])`).test(suelto)) continue;
+      if (tokenSale(tok, cwd)) return tok;
+    }
   }
   return null;
 }
@@ -282,10 +416,14 @@ if (worker) {
   let cwd = raizN;
   const msgFuera = (x) =>
     `BLOQUEADO (privacidad): '${x}' está fuera de tu worktree (${env.PA_AGY_RAIZ || "?"}). Un worker Gemini no lee, lista, busca ni ejecuta nada fuera de su worktree (ni ~/.ssh, ~/.config, ~/.gemini, ~/.claude, /etc, otros proyectos, $HOME): lo que lee viaja a Google. Si hace falta, decilo en DECISION.`;
-  const sospechosa = (v) => v.startsWith("/") || v.startsWith("~") || v.startsWith("$") || `/${v}/`.includes("/../");
+  const sospechosa = (v) => {
+    const s = win ? posix(v) : v;
+    return s.startsWith("/") || (win && (/^[A-Za-z]:/.test(s) || s.startsWith("%"))) || s.startsWith("~") || s.startsWith("$") || `/${s}/`.includes("/../");
+  };
   if (cwdPedido) {
     if (sospechosa(cwdPedido) && tokenSale(cwdPedido, raizN)) negar(msgFuera(cwdPedido));
-    if (cwdPedido.startsWith("/")) cwd = lex(cwdPedido);
+    const cwdExp = win ? expandirWin(posix(cwdPedido), raizN) : cwdPedido;
+    if (esAbsoluta(cwdExp)) cwd = lex(cwdExp);
   }
   const args = (() => {
     try {
@@ -330,7 +468,9 @@ if (worker) {
     // red: sólo lo que agy necesita para hablar con el modelo; nada de run_command
     const preCmd = String.raw`(sudo|env|command|exec|nohup|time|xargs|timeout\s+[0-9.]+[smhd]?)\s+`;
     const red = "(curl|wget|nc|ncat|netcat|socat|ssh|scp|sftp|rsync|ftp|tftp|telnet|lftp|aria2c|nmap|ssh-keyscan|gh|glab|aws|gcloud|gsutil|mail|sendmail|msmtp|mutt)";
-    const reRed = new RegExp(String.raw`(^|[;&|(` + "`" + String.raw`]|\$\(|-c\s+["'])\s*(` + preCmd + String.raw`)*([^\s;&|]*/)?` + red + String.raw`(\s|"|'|$)`);
+    const sepDir = win ? String.raw`[^\s;&|]*[/\\]` : String.raw`[^\s;&|]*/`;
+    const extWin = win ? String.raw`(?:\.(?:exe|cmd|bat))?` : "";
+    const reRed = new RegExp(String.raw`(^|[;&|(` + "`" + String.raw`]|\$\(|-c\s+["'])\s*(` + preCmd + String.raw`)*(${sepDir})?` + red + extWin + String.raw`(\s|"|'|$)`, win ? "i" : "");
     if (reRed.test(cmd) || cmd.includes("/dev/tcp/") || cmd.includes("/dev/udp/")) {
       negar("BLOQUEADO (privacidad): sin red en un worker Gemini (curl, wget, nc, ssh, scp, rsync, gh…): lo que sale de la máquina sale a un tercero. Sólo habla con el modelo la propia agy.");
     }
@@ -347,11 +487,12 @@ if (worker) {
 if (nombre === "Write" || nombre === "Edit") {
   const raiz = env.PA_AGY_RAIZ || "";
   if (!archivo) negar(`BLOQUEADO: no se pudo saber qué archivo escribe '${herramientaCruda}'.`);
-  const real = realpathM(archivo);
+  const real = realpathM(win ? expandirWin(posix(archivo), raizN) : archivo);
   let ok = false;
-  if (raiz && (real === realpathM(raiz) || real.startsWith(`${realpathM(raiz)}/`))) ok = true;
+  if (raiz && dentro(real, realpathM(raiz))) ok = true;
   if (real.startsWith("/tmp/")) ok = true;
-  if (env.PA_AGY_MAPA && real === realpathM(env.PA_AGY_MAPA)) ok = true;
+  if (tempN && dentro(real, tempN) && !igual(real, tempN)) ok = true;
+  if (env.PA_AGY_MAPA && igual(real, realpathM(env.PA_AGY_MAPA))) ok = true;
   if (!ok) negar(`BLOQUEADO: '${archivo}' está fuera de tu worktree (${raiz}). Un worker escribe sólo ahí (y en /tmp); el tree principal y el resto de la máquina los toca el jefe.`);
 }
 
@@ -372,8 +513,11 @@ if (herramienta === "run_command" && cmd) {
   }
   const ppal = env.PA_AGY_PPAL || "";
   let ppalTocado = false;
-  if (ppal && ppal !== (env.PA_AGY_RAIZ || "")) {
-    for (const pre of ["cd ", "pushd ", "-C "]) for (const q of ["", '"', "'"]) if (cmd.includes(pre + q + ppal)) ppalTocado = true;
+  if (ppal && !igual(ppal, env.PA_AGY_RAIZ || "")) {
+    const cmdC = win ? posix(cmd).toLowerCase() : cmd;
+    const ppalC = win ? posix(ppal).toLowerCase() : ppal;
+    const pres = win ? ["cd ", "cd /d ", "pushd ", "-c "] : ["cd ", "pushd ", "-C "];
+    for (const pre of pres) for (const q of ["", '"', "'"]) if (cmdC.includes(pre + q + ppalC)) ppalTocado = true;
   }
   if (ppalTocado) negar(`BLOQUEADO: '${ppal}' es el tree principal del proyecto: no se toca desde un worker. Trabajá en tu worktree (${env.PA_AGY_RAIZ || ""}).`);
 }
