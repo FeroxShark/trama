@@ -72,15 +72,39 @@ test("registrar-hook: un hook de este script con otra ruta (checkout viejo) o re
       },
     }),
   );
-  registrar(settings);
+  registrar(settings, { TRAMA_MODELOS: path.join(dir, "no-existe.json") });
   const ajustes = leer(settings);
   assert.equal(cuantos(ajustes, "PreCompact"), 1);
   assert.equal(cuantos(ajustes, "PostCompact"), 1);
-  // La primera aparición se actualiza en su lugar; las repetidas salen, y el grupo que quedó vacío se saca.
-  assert.deepEqual(ajustes.hooks.PreCompact, [
-    { hooks: [{ type: "command", command: HOOK }, { type: "command", command: "/usr/bin/otro.sh" }] },
-  ]);
+  assert.equal(cuantosNota(ajustes, "PreCompact"), 1);
+  assert.equal(cuantosNota(ajustes, "PostToolUse"), 1);
+  assert.equal(cuantosNota(ajustes, "UserPromptSubmit"), 1);
+  assert.equal(cuantosNota(ajustes, "SessionStart"), 1);
+  assert.equal(ajustes.hooks.SessionStart[0].matcher, "compact");
+  // La primera aparición se actualiza en su lugar; las repetidas salen, y se suma nota-compactar sin pisar lo ajeno.
+  assert.deepEqual(ajustes.hooks.PreCompact[0], {
+    hooks: [{ type: "command", command: HOOK }, { type: "command", command: "/usr/bin/otro.sh" }],
+  });
   assert.deepEqual(ajustes.hooks.PostCompact, [{ hooks: [{ type: "command", command: HOOK }] }]);
+  rmSync(dir, { recursive: true });
+});
+
+test("registrar-hook: saca nota-compactar de los 4 eventos si nota_compactar es false y lo vuelve a poner al prender", () => {
+  const dir = temporal();
+  const settings = path.join(dir, "settings.json");
+  const modelos = path.join(dir, "modelos.json");
+  writeFileSync(modelos, JSON.stringify({ version: 1, nota_compactar_pct: 70, nota_compactar_tarea_pct: 55 }));
+  registrar(settings, { TRAMA_MODELOS: modelos });
+  const a1 = leer(settings);
+  assert.equal(cuantosNota(a1, "PreCompact"), 1);
+  assert.equal(cuantosNota(a1, "SessionStart"), 1);
+  assert.match(a1.hooks.PreCompact.at(-1).hooks[0].command, /--umbral 700000 --umbral-tarea 550000/);
+
+  writeFileSync(modelos, JSON.stringify({ version: 1, nota_compactar: false }));
+  registrar(settings, { TRAMA_MODELOS: modelos });
+  const a2 = leer(settings);
+  for (const ev of ["PostToolUse", "UserPromptSubmit", "PreCompact", "SessionStart"]) assert.equal(cuantosNota(a2, ev), 0);
+  assert.equal(cuantos(a2, "PreCompact"), 1, "conserva hook-compactando.sh");
   rmSync(dir, { recursive: true });
 });
 
