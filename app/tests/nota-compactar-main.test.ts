@@ -202,6 +202,8 @@ test("flujo Gemini (solo Gemini, agy-falso): al pasar umbral fuerte pide nota, e
   process.env.TRAMA_FALSO_AUTO_NOTA = "1";
   process.env.TRAMA_MODELOS = modelosF;
   writeFileSync(modelosF, JSON.stringify({ version: 1, lider: { modelo: "gemini-4-neon-high" }, gemini: { habilitado: true } }));
+  mkdirSync(estadoDir, { recursive: true });
+  writeFileSync(path.join(estadoDir, "preferencias.json"), JSON.stringify({ idioma: "es" }));
 
   const lider = await import("../electron/lider.ts");
   const { crearCola } = await import("../electron/cola.ts");
