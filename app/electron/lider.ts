@@ -92,7 +92,7 @@ import { guardada, igual, juntar, lecturaDe, oficialDe, type Lectura } from "./u
 import { errorT } from "./errores.ts";
 import { ESTADO, escribirAtomico, esperarEscrituras, PA_STATE } from "./pa.js";
 import { asegurarCuenta } from "./cli/cuentas.ts";
-import { esClaudeOficial } from "./esfuerzo-extras.ts";
+import { argvFast, esClaudeOficial, fastDesfasado } from "./esfuerzo-extras.ts";
 import { archivoUsoCuenta, cuentaConConversacion, cuentasClaude, entornoCuenta, preferidaClaude, usoParaReparto } from "./uso-cuentas.ts";
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
 import { log, silencio } from "./log.js";
@@ -215,6 +215,8 @@ type Proc = {
   /** Ultracode prendido en esta sesión (se vuelve a mandar tras cada cambio de esfuerzo en vivo, que lo apaga) y Fast (con que arrancó o lo último que se le dijo). */
   ultracode?: boolean;
   fast?: boolean;
+  /** Arrancó con `--fast-mode on`: apagar Fast después pide relanzar (`fastDesfasado`). */
+  fastArgv?: boolean;
   ocupado: boolean;
   /** Los textos de "Mandar ya" que el CLI todavía no entregó (el eco con `isReplay` los saca de acá). */
   directos: string[];
@@ -773,7 +775,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: [LINEA_CHAT, extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
       : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, cierreCupo, autocompact: tope, advisor: asesor, fast: g.fast, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
-  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, topeNota, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ...(g.ultracode && oficial ? { ultracode: true } : {}), ...(g.fast && oficial ? { fast: true } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null, usoContexto: null, compactadoMs: 0, autoCompactEncolado: false, geminiNotaPedidaCiclo: false };
+  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, topeNota, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ...(g.ultracode && oficial ? { ultracode: true } : {}), ...(g.fast && oficial ? { fast: true } : {}), ...(clase === "claude" && !local && !extra.ollama && argvFast(g.modelo, g.fast).length ? { fastArgv: true } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null, usoContexto: null, compactadoMs: 0, autoCompactEncolado: false, geminiNotaPedidaCiclo: false };
   procs.set(g.sid, x);
   // Ultracode va tras el arranque, por el mismo canal que el cambio en vivo (el argv no lo lleva): si Claude Code no lo acepta, queda apagado.
   if (x.ultracode)
@@ -1217,9 +1219,9 @@ export async function cambiarExtras(sid: string, x: unknown): Promise<{ ok: bool
   return { ok: true };
 }
 
-/** ¿El tope o el asesor del proceso (van en su argv) no son los de su modelo? Pasa tras cambiar de familia a mitad de un turno. */
-function desfasado(x: Pick<Proc, "modelo" | "tope" | "asesor">): boolean {
-  return (x.tope ?? null) !== topeDeLider(x.modelo) || (x.asesor ?? null) !== asesorDeLider(x.modelo, entornoLider(process.env, HOME), HOME);
+/** ¿El tope, el asesor o el Fast del proceso (van en su argv) no son los que corresponden? Pasa tras cambiar de familia a mitad de un turno, o al apagar Fast. */
+function desfasado(x: Pick<Proc, "modelo" | "tope" | "asesor" | "fast" | "fastArgv">): boolean {
+  return (x.tope ?? null) !== topeDeLider(x.modelo) || (x.asesor ?? null) !== asesorDeLider(x.modelo, entornoLider(process.env, HOME), HOME) || fastDesfasado(x);
 }
 
 /** ¿Hay un proceso vivo con esta sesión que no es de la app? (terminal, otra trama). */
