@@ -81,7 +81,7 @@ import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
 import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, notaCompactarGuardado, notaCompactarPctGuardado, notaCompactarTareaPctGuardado, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
 import { umbralesNota } from "./modelos-tipos.ts";
 import { VENTANA_GEMINI } from "./agy-stream.ts";
-import { cargarTextosNota, debeAutoCompactar, extraerNotaDeTexto, guardarNotaSiCambia, idiomaDeEstado, mtimeNota, textosNotaCargados, tokensDeUso, usoDeLineaStream, type UmbralesNota } from "./nota-compactar-main.ts";
+import { cargarTextosNota, debeAutoCompactar, extraerNotaDeTexto, guardarNotaSiCambia, idiomaDeEstado, mtimeNota, textosNotaCargados, usoDeLineaStream, type UmbralesNota } from "./nota-compactar-main.ts";
 import { ventanaDe } from "./contexto-previa.ts";
 import { parsearModelo } from "./dsh.ts";
 import { parsearModelo as parsearOpencode } from "./opencode.ts";
@@ -784,7 +784,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
     const c = cortar(x.resto, trozo);
     x.resto = c.resto;
     for (const l of c.lineas) {
-      const usoLinea = usoDeLineaStream(l);
+      const usoLinea = usoDeLineaStream(l, clase !== "claude");
       if (usoLinea !== null) x.usoContexto = usoLinea;
       // Cada pedido contestado renueva el caché: a mitad de un turno la barra no espera al `fin`.
       const pd = pedidoDe(l);
@@ -801,10 +801,6 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
       const lu = lecturaDe(l, Math.floor(Date.now() / 1000)) ?? oficialDe(l, Math.floor(Date.now() / 1000));
       if (lu && !x.cuenta) anotarUso(lu);
       for (const e of parsearLinea(l)) {
-        if (e.tipo === "contexto" && e.usage) {
-          const tok = tokensDeUso(e.usage);
-          if (tok !== null) x.usoContexto = tok;
-        }
         if (e.tipo === "aviso" && e.aviso.clase === "compacto") {
           x.compactadoMs = Date.now();
           x.usoContexto = null;
