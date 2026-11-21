@@ -145,12 +145,15 @@ import { alLeerVista, vueltaInicial } from "../volver";
 import { copiarConAviso } from "../copiar";
 import { CuposRiel } from "./CuposRiel";
 import { PanelCupo } from "./PanelCupo";
+import { PanelTablero } from "../paneles/PanelTablero";
+import { contadorPanel } from "../paneles/panel-tablero-logica";
+import { useTableroVivo } from "../datos/tablero-vivo";
 import { Glifo } from "./Glifo";
 import { latir } from "./latido";
 import { estiloProyecto, Riel } from "./Riel";
 import { Acople, type PanelDef } from "./Acople";
 import { acopleInicialBarra, chatsAbiertoEn, contextoAbiertoEn } from "./acople-barra";
-import type { PanelId } from "./acople-logica";
+import { zonaDe, type PanelId } from "./acople-logica";
 import { useAcople, type UseAcople } from "./useAcople";
 import { aRiel, atencionCarpeta, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, filasCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, segunLista } from "./riel-logica";
 import { LogoCab } from "./Logo";
@@ -1085,14 +1088,16 @@ export function Barra() {
     },
     [ultimo],
   );
+  // El panel acoplable «Tablero»: sólo con él a la vista (abierto o plegado) se lee el tablero y se mira cuándo cambia.
+  const tableroAcoplado = acoplado && zonaDe(acopleCtrl.acople, "tablero") !== null;
   useEffect(() => {
-    if (panel !== "tablero") return;
+    if (panel !== "tablero" && !tableroAcoplado) return;
     let vivo = true;
     void fuente.slugsPorNombre().then((s) => vivo && setSlugsReg(s));
     return () => {
       vivo = false;
     };
-  }, [panel]);
+  }, [panel, tableroAcoplado]);
 
   /**
    * El tablero nuevo: deja el mensaje armado en la caja de ese líder (debajo de lo que ya tuviera escrito) o de uno
@@ -1389,7 +1394,7 @@ export function Barra() {
     const proyectos = grupos.map((g) => g.proyecto);
     // La caja (modelo, esfuerzo, aviso de cambiar de modelo), el indicador y los avisos: en el líder de la app.
     const app = lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? lideres[0]?.id ?? "";
-    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-revision", "lider-revision-vivo", "lider-revision-sin-sesion", "lider-revision-chat", "lider-debate", "lider-debate-acuerdo", "lider-cierre", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-mcp", "lider-dictado", "programar", "lider-valores", "lider-sistema", "lider-tablero-dejado", "lider-cambio-motor", "cuenta-lider", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-cache", "lider-editar", "lider-puntos", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-intermedios", "lider-cola", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja"].includes(c) || c.startsWith("contexto") || c.startsWith("acople-angosto");
+    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-revision", "lider-revision-vivo", "lider-revision-sin-sesion", "lider-revision-chat", "lider-debate", "lider-debate-acuerdo", "lider-cierre", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-mcp", "lider-dictado", "programar", "lider-valores", "lider-sistema", "lider-tablero-dejado", "lider-cambio-motor", "cuenta-lider", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-cache", "lider-editar", "lider-puntos", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-intermedios", "lider-cola", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja", "acople-tablero"].includes(c) || c.startsWith("contexto") || c.startsWith("acople-angosto");
     // Las guías del chat y de su caja piden el líder de la app abierto.
     const guiaLider = c === "guia-lider" || c === "guia-caja" || c === "guia-modelo";
     if (enApp || guiaLider) setActiva(LIDER + app);
@@ -1614,6 +1619,8 @@ export function Barra() {
       : hiloActivo && !cerrados.some((it) => it.h.id === hiloActivo.id)
       ? (arbol.lideres.get(hiloActivo.jefe_id ?? "")?.proyecto ?? dondeSeVe(hiloActivo.proyecto, reemplazos))
       : null;
+  const tableroVivo = useTableroVivo(tableroAcoplado);
+  const esperanEnTablero = useMemo(() => contadorPanel(tableroVivo.datos, carpetaActiva, slugsReg), [tableroVivo.datos, carpetaActiva, slugsReg]);
 
   // El líder que se está viendo queda siempre a la vista: al elegirlo, o cuando cambia de carpeta
   // (uno nuevo arranca en el home y pasa a la de su proyecto), se abre la suya aunque estuviera
@@ -2387,7 +2394,7 @@ export function Barra() {
         {/* El panel de contexto, a la derecha de todo: el líder que se mira (o el del worker que se mira) y sus workers. */}
     </Fragment>
   );
-  const VIVOS_APP: readonly PanelId[] = ["chats", "contexto", "cupo"];
+  const VIVOS_APP: readonly PanelId[] = ["chats", "contexto", "cupo", "tablero"];
   const panelesAcople: Partial<Record<PanelId, PanelDef>> = {
     chats: {
       titulo: tr("acople.chats"),
@@ -2407,6 +2414,13 @@ export function Barra() {
       titulo: tr("acople.cupo"),
       icono: <Gauge size={16} strokeWidth={1.8} aria-hidden></Gauge>,
       contenido: <PanelCupo />,
+    },
+    tablero: {
+      titulo: tr("acople.tablero"),
+      icono: <SquareKanban size={16} strokeWidth={1.8} aria-hidden></SquareKanban>,
+      contenido: <PanelTablero carpeta={carpetaActiva} slugs={slugsReg} datos={tableroVivo.datos} error={tableroVivo.error} alCambiar={tableroVivo.releer} />,
+      contador: esperanEnTablero,
+      contadorEtiqueta: tr("acople.tableroCuenta", { n: esperanEnTablero }),
     },
   };
 

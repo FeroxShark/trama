@@ -86,7 +86,7 @@ export function AcopleDemo({ movido = false }: { movido?: boolean }) {
     };
   }, [menuAbierto]);
 
-  const paneles: Record<PanelId, PanelDef> = {
+  const paneles: Partial<Record<PanelId, PanelDef>> = {
     chats: {
       titulo: t("acople.demo.chats"),
       icono: iconoPanel("chats"),
