@@ -57,7 +57,9 @@ test("extracción de nota, guardado idempotente, renombrado a .devuelta.md y tok
   assert.equal(extraerNotaDeTexto("[[nota-compactar]]primera[[/nota-compactar]] texto [[nota-compactar]]\nsegunda\n[[/nota-compactar]]"), "segunda");
   assert.equal(tokensDeUso({ input_tokens: 10, cache_read_input_tokens: 500, cache_creation_input_tokens: 40 }), 550);
   assert.equal(usoDeLineaStream(JSON.stringify({ type: "assistant", parent_tool_use_id: "p1", message: { usage: { input_tokens: 999 } } })), null);
-  assert.equal(usoDeLineaStream(JSON.stringify({ type: "result", usage: { input_tokens: 120_000 } })), 120_000);
+  // El `result` trae la suma del turno entero (no el contexto): no cuenta.
+  assert.equal(usoDeLineaStream(JSON.stringify({ type: "result", usage: { input_tokens: 120_000 } })), null);
+  assert.equal(usoDeLineaStream(JSON.stringify({ type: "result", usage: { input_tokens: 120_000 } }), true), 120_000);
 
   assert.equal(guardarNotaSiCambia(dir, "s1", "mi nota"), true);
   assert.equal(guardarNotaSiCambia(dir, "s1", "mi nota"), false, "no reescribe igual");
