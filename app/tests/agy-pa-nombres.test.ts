@@ -16,13 +16,16 @@ const VARIANTES: Array<[string, string, string[]]> = [
   ["sh", "bash", [path.join(HOOKS, "agy-pa.sh")]],
 ];
 const RAIZ = "/work/wt";
+// La .sh no existe para Windows (ahí corre la .mjs): con el bash que trae el runner daba resultados que no valen.
+const saltear = (v: string): string | false => (v !== "sh" ? false : process.platform === "win32" ? "la .sh no corre en Windows" : !tieneJq ? "sin jq" : false);
 
 function conWorker(variante: [string, string, string[]], f: (pre: (nombre: string, args: Record<string, unknown>, extra?: Record<string, string>) => { reason?: string } | null) => void) {
   const dir = mkdtempSync(path.join(tmpdir(), "trama-agy-nombres-"));
   try {
     const base: NodeJS.ProcessEnv = {};
     for (const [k, v] of Object.entries(process.env)) if (!/^(PA_|TRAMA_|CLAUDE)/.test(k)) base[k] = v;
-    const env = { ...base, HOME: "/home/trama-falso", USERPROFILE: "/home/trama-falso", PA_STATE: path.join(dir, "estado"), PA_AGY_HB: path.join(dir, "hb"), PA_AGY_RAIZ: RAIZ, PA_AGY_RAMA: "rama-x", PA_MAX_TURNS: "30" };
+    // Rutas POSIX de mentira (/work/wt, /tmp): la plataforma va fija en linux, también cuando el test corre en Windows.
+    const env = { ...base, PA_AGY_PLAT: "linux", HOME: "/home/trama-falso", USERPROFILE: "/home/trama-falso", PA_STATE: path.join(dir, "estado"), PA_AGY_HB: path.join(dir, "hb"), PA_AGY_RAIZ: RAIZ, PA_AGY_RAMA: "rama-x", PA_MAX_TURNS: "30" };
     f((nombre, args, extra = {}) => {
       const input = JSON.stringify({ toolCall: { name: nombre, args } });
       const r = spawnSync(variante[1], [...variante[2], "pre"], { input, encoding: "utf8", env: { ...env, ...extra } });
@@ -35,7 +38,7 @@ function conWorker(variante: [string, string, string[]], f: (pre: (nombre: strin
 }
 
 for (const variante of VARIANTES) {
-  const skip = variante[0] === "sh" && !tieneJq ? "sin jq" : false;
+  const skip = saltear(variante[0]);
   test(`agy-pa: read_file / write_file / edit_file (Path) andan dentro del worktree y no fuera [${variante[0]}]`, { skip }, () => {
   conWorker(variante, (pre) => {
     assert.equal(pre("read_file", { Path: `${RAIZ}/docs/reglas/tablero.md` }), null);
@@ -59,7 +62,7 @@ for (const variante of VARIANTES) {
 }
 
 for (const variante of VARIANTES) {
-  const skip = variante[0] === "sh" && !tieneJq ? "sin jq" : false;
+  const skip = saltear(variante[0]);
   test(`agy-pa: en --leer, read_file corre y write_file / edit_file no [${variante[0]}]`, { skip }, () => {
   conWorker(variante, (pre) => {
     const leer = { PA_AGY_MODO: "leer" };
@@ -71,7 +74,7 @@ for (const variante of VARIANTES) {
 }
 
 for (const variante of VARIANTES) {
-  const skip = variante[0] === "sh" && !tieneJq ? "sin jq" : false;
+  const skip = saltear(variante[0]);
   test(`agy-pa: la herramienta 'bash' pasa por las mismas guardias que run_command [${variante[0]}]`, { skip }, () => {
   conWorker(variante, (pre) => {
     assert.equal(pre("bash", { CommandLine: "cd app && sed -n 40,70p /tmp/pa.txt" }), null);
@@ -82,7 +85,7 @@ for (const variante of VARIANTES) {
 }
 
 for (const variante of VARIANTES) {
-  const skip = variante[0] === "sh" && !tieneJq ? "sin jq" : false;
+  const skip = saltear(variante[0]);
   test(`agy-pa: un '/' o '~' de prosa o de código no es una ruta, pero las rutas sensibles siguen cerradas [${variante[0]}]`, { skip }, () => {
   conWorker(variante, (pre) => {
     // los comandos reales que se negaron: "/" suelto dentro de un echo
