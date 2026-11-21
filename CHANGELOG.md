@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.3.14
+
+- El esfuerzo se elige con un deslizador: un carril grueso que cambia de color con el nivel, con chispitas en el relleno y el nivel escrito arriba. Se abre desde el chip del esfuerzo; la rueda del mouse sobre el chip lo sube o lo baja sin abrirlo. El menú del modelo quedó sólo con modelos.
+- Ultracode y Fast en los líderes de Claude: se prenden desde el panel del esfuerzo y se aplican en vivo, sin reabrir el chat. Si Claude Code no deja usar Ultracode, el panel dice por qué. Con Ultracode prendido, el chip y el panel se llenan de cuadraditos violeta, rosa y rojo que se mueven.
+- Los workers de Gemini (y los de OpenCode, Codex y dsh) se ven como los de Claude: pasos, tira de colores, tarjeta con reloj y la salida de cada comando.
+- El visor de imágenes se adapta al celular: la barra no se pisa, la imagen ocupa el ancho y las flechas van abajo.
+
 ## 0.3.13
 
 - Los modelos de Gemini vuelven a aparecer en el selector cuando agy los ofrece con un nombre que Trama todavía no conoce (pasaba en Windows: sólo salían Claude y GPT-OSS).

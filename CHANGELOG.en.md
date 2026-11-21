@@ -1,5 +1,12 @@
 # Changes
 
+## 0.3.14
+
+- Effort is picked with a slider: a thick track that changes color with the level, with sparkles in the fill and the level written on top. It opens from the effort chip; the mouse wheel over the chip raises or lowers it without opening. The model menu now lists only models.
+- Ultracode and Fast for Claude leaders: turn them on from the effort panel and they apply live, without reopening the chat. If Claude Code does not allow Ultracode, the panel says why. With Ultracode on, the chip and the panel fill with moving purple, pink and red squares.
+- Gemini workers (and OpenCode, Codex and dsh ones) look like Claude's: steps, color strip, card with a clock and each command's output.
+- The image viewer fits phones: the toolbar no longer overlaps, the image takes the width and the arrows sit at the bottom.
+
 ## 0.3.13
 
 - Gemini models show up again in the model picker when agy offers them under a name Trama does not know yet (it happened on Windows: only Claude and GPT-OSS appeared).
