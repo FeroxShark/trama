@@ -1,0 +1,265 @@
+/* Estilos del panel acoplable «Tablero»: lisos, oscuros y de poca densidad, como Cupo; sólo tokens de diseño.
+   Nada depende sólo del color: la sugerida lleva la palabra, lo ocupado queda deshabilitado, lo copiado cambia el ícono. */
+.panel-tablero {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+  color: var(--texto);
+  font-size: var(--letra-4);
+}
+
+.ptab-proy {
+  margin: 0;
+  padding: var(--esp-2) var(--esp-3);
+  border-bottom: 1px solid var(--borde-1);
+  color: var(--inactivo);
+  font-size: var(--letra-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ptab-aviso {
+  margin: 0;
+  padding: var(--esp-2) var(--esp-3);
+  border-bottom: 1px solid var(--borde-1);
+  color: var(--cupo-agotado-texto);
+  font-size: var(--letra-3);
+  overflow-wrap: anywhere;
+}
+
+.ptab-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  gap: var(--esp-4);
+  min-height: 0;
+  padding: var(--esp-3);
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-5) transparent;
+}
+
+.ptab-vacio {
+  margin: var(--esp-4) 0;
+  color: var(--inactivo);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+  text-wrap: balance;
+}
+
+.ptab-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+
+.ptab-grupo-tit {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin: 0;
+  color: var(--inactivo);
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+
+.ptab-grupo-cuenta {
+  min-width: 1.25rem;
+  padding: 0 var(--esp-1-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--texto);
+  font-size: var(--letra-3);
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ptab-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ptab-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  min-width: 0;
+  padding: var(--esp-2-5) var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+}
+.ptab-card[data-ocupado] {
+  opacity: 0.6;
+}
+
+.ptab-cab {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--esp-2);
+}
+
+.ptab-tit {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--letra-4);
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.ptab-cerrar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: calc(var(--esp-0-5) * -1) calc(var(--esp-1) * -1) 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--apagado);
+  cursor: pointer;
+  transition: background-color var(--t-snappy), color var(--t-snappy);
+}
+.ptab-cerrar:hover,
+.ptab-cerrar:focus-visible {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+.ptab-cerrar:disabled {
+  cursor: default;
+}
+
+.ptab-ctx,
+.ptab-estado {
+  margin: 0;
+  color: var(--inactivo);
+  font-size: var(--letra-3);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.ptab-estado {
+  color: var(--apagado);
+}
+
+.ptab-ops {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+}
+
+.ptab-op {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  min-height: 2.25rem;
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--r-sm);
+  background: var(--capa-tile);
+  color: var(--texto);
+  font: inherit;
+  font-size: var(--letra-4);
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-snappy), border-color var(--t-snappy);
+}
+.ptab-op:hover:not(:disabled),
+.ptab-op:focus-visible {
+  border-color: var(--borde-6);
+  background: var(--capa-hover);
+}
+.ptab-op:disabled {
+  cursor: default;
+}
+.ptab-op[data-sugerida] {
+  border-color: var(--acento);
+}
+
+.ptab-sug {
+  flex: none;
+  color: var(--acento-texto);
+  font-size: var(--letra-3);
+}
+
+.ptab-cmd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  min-width: 0;
+}
+.ptab-cmd-lbl {
+  color: var(--apagado);
+  font-size: var(--letra-3);
+}
+.ptab-cmd-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  min-width: 0;
+  padding: var(--esp-1-5) var(--esp-2);
+  border-radius: var(--r-sm);
+  background: var(--capa-tile);
+}
+.ptab-cmd-fila code {
+  min-width: 0;
+  color: var(--texto);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  overflow-wrap: anywhere;
+}
+
+.ptab-copiar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--apagado);
+  cursor: pointer;
+}
+.ptab-copiar:hover,
+.ptab-copiar:focus-visible {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+.ptab-copiar[data-copiado] {
+  color: var(--ok);
+}
+
+@media (pointer: coarse) {
+  .ptab-op {
+    min-height: 2.75rem;
+  }
+  .ptab-cerrar,
+  .ptab-copiar {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ptab-op,
+  .ptab-cerrar {
+    transition: none;
+  }
+}
