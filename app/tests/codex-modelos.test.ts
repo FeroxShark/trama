@@ -223,9 +223,9 @@ test("lector cae al respaldo sin tirar error si falta, está vacío, roto o sin 
 });
 
 test("rutaCodexCache resuelve CODEX_HOME y USERPROFILE en Windows", () => {
-  assert.equal(rutaCodexCache({}, "C:\\Users\\Ferox", "win32"), "C:\\Users\\Ferox\\.codex\\models_cache.json");
+  assert.equal(rutaCodexCache({}, "C:\\Users\\Ana", "win32"), "C:\\Users\\Ana\\.codex\\models_cache.json");
   assert.equal(
-    rutaCodexCache({ CODEX_HOME: "D:\\Datos\\codex" }, "C:\\Users\\Ferox", "win32"),
+    rutaCodexCache({ CODEX_HOME: "D:\\Datos\\codex" }, "C:\\Users\\Ana", "win32"),
     "D:\\Datos\\codex\\models_cache.json",
   );
   assert.equal(rutaCodexCache({ CODEX_HOME: codexConCache }, homeAislado), path.join(codexConCache, "models_cache.json"));
