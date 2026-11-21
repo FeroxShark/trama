@@ -38,6 +38,7 @@ export function grupoDeModelo(modelo: string | null | undefined): string | null 
  */
 export function cierreDe(entradas: readonly EntradaCierre[], sus: Suscripcion | null, cuenta?: string | null, grupo?: string | null): EntradaCierre | null {
   if (!sus) return null;
+  if (cuenta === "openai") cuenta = "chatgpt"; // reparto llama «openai» a la cuenta de ChatGPT; la señal la guarda como `chatgpt`
   const cs = entradas.filter(
     (e) => e.proveedor === sus && (!cuenta || e.cuenta === cuenta || (cuenta === sus && e.cuenta === sus)) && (!e.grupo || !grupo || e.grupo === grupo),
   );

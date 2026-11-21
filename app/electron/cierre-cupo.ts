@@ -69,7 +69,8 @@ export function lecturasDeUso(uso: UsoMin | null | undefined): LecturaCupo[] {
   if (uso.five_hour) out.push({ proveedor: "claude", cuenta: "claude", ventana: "5h", usado: uso.five_hour.pct, vuelve: uso.five_hour.resets_at });
   if (uso.seven_day) out.push({ proveedor: "claude", cuenta: "claude", ventana: "7d", usado: uso.seven_day.pct, vuelve: uso.seven_day.resets_at });
   for (const s of uso.suscripciones ?? []) {
-    const p = s.proveedor ?? s.id;
+    // `reparto --cupos` llama «openai» a ChatGPT (sin `proveedor`): para el cierre es `chatgpt`
+    const p = s.proveedor ?? (s.id === "openai" ? "chatgpt" : s.id);
     if (!esSuscripcion(p)) continue;
     const cuenta = s.cuenta || p;
     for (const v of s.ventanas ?? []) if (!v.deshabilitada) out.push({ proveedor: p, cuenta, ventana: v.id, usado: v.pct, vuelve: v.vuelve });
