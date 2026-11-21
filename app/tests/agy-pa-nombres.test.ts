@@ -8,10 +8,16 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-const HOOK = path.join(import.meta.dirname, "..", "..", "motor", "hooks", "agy-pa.mjs");
+const HOOKS = path.join(import.meta.dirname, "..", "..", "motor", "hooks");
+// Las dos variantes: la .sh es la que corre hoy en Linux (plugin de agy enlazado por instalar-producto.sh), la .mjs la de Windows.
+const tieneJq = spawnSync("jq", ["--version"]).status === 0;
+const VARIANTES: Array<[string, string, string[]]> = [
+  ["mjs", process.execPath, [path.join(HOOKS, "agy-pa.mjs")]],
+  ["sh", "bash", [path.join(HOOKS, "agy-pa.sh")]],
+];
 const RAIZ = "/work/wt";
 
-function conWorker(f: (pre: (nombre: string, args: Record<string, unknown>, extra?: Record<string, string>) => { reason?: string } | null) => void) {
+function conWorker(variante: [string, string, string[]], f: (pre: (nombre: string, args: Record<string, unknown>, extra?: Record<string, string>) => { reason?: string } | null) => void) {
   const dir = mkdtempSync(path.join(tmpdir(), "trama-agy-nombres-"));
   try {
     const base: NodeJS.ProcessEnv = {};
@@ -19,7 +25,7 @@ function conWorker(f: (pre: (nombre: string, args: Record<string, unknown>, extr
     const env = { ...base, HOME: "/home/trama-falso", USERPROFILE: "/home/trama-falso", PA_STATE: path.join(dir, "estado"), PA_AGY_HB: path.join(dir, "hb"), PA_AGY_RAIZ: RAIZ, PA_AGY_RAMA: "rama-x", PA_MAX_TURNS: "30" };
     f((nombre, args, extra = {}) => {
       const input = JSON.stringify({ toolCall: { name: nombre, args } });
-      const r = spawnSync(process.execPath, [HOOK, "pre"], { input, encoding: "utf8", env: { ...env, ...extra } });
+      const r = spawnSync(variante[1], [...variante[2], "pre"], { input, encoding: "utf8", env: { ...env, ...extra } });
       assert.equal(r.status, 0, r.stderr);
       return r.stdout ? JSON.parse(r.stdout) : null;
     });
@@ -28,8 +34,10 @@ function conWorker(f: (pre: (nombre: string, args: Record<string, unknown>, extr
   }
 }
 
-test("agy-pa: read_file / write_file / edit_file (Path) andan dentro del worktree y no fuera", () => {
-  conWorker((pre) => {
+for (const variante of VARIANTES) {
+  const skip = variante[0] === "sh" && !tieneJq ? "sin jq" : false;
+  test(`agy-pa: read_file / write_file / edit_file (Path) andan dentro del worktree y no fuera [${variante[0]}]`, { skip }, () => {
+  conWorker(variante, (pre) => {
     assert.equal(pre("read_file", { Path: `${RAIZ}/docs/reglas/tablero.md` }), null);
     assert.equal(pre("read_file", { Path: `${RAIZ}/a.ts`, StartLine: 10, EndLine: 40 }), null);
     assert.equal(pre("read_file", { Path: "app/src/a.ts" }), null);
@@ -48,26 +56,35 @@ test("agy-pa: read_file / write_file / edit_file (Path) andan dentro del worktre
     assert.equal(pre("manage_task", { Action: "status", TaskId: "a/task-300" }), null);
   });
 });
+}
 
-test("agy-pa: en --leer, read_file corre y write_file / edit_file no", () => {
-  conWorker((pre) => {
+for (const variante of VARIANTES) {
+  const skip = variante[0] === "sh" && !tieneJq ? "sin jq" : false;
+  test(`agy-pa: en --leer, read_file corre y write_file / edit_file no [${variante[0]}]`, { skip }, () => {
+  conWorker(variante, (pre) => {
     const leer = { PA_AGY_MODO: "leer" };
     assert.equal(pre("read_file", { Path: `${RAIZ}/a.ts` }, leer), null);
     assert.match(pre("write_file", { Path: `${RAIZ}/a.ts` }, leer)?.reason ?? "", /LECTURA.*'write_file'/);
     assert.match(pre("edit_file", { Path: `${RAIZ}/a.ts` }, leer)?.reason ?? "", /LECTURA.*'edit_file'/);
   });
 });
+}
 
-test("agy-pa: la herramienta `bash` pasa por las mismas guardias que run_command", () => {
-  conWorker((pre) => {
+for (const variante of VARIANTES) {
+  const skip = variante[0] === "sh" && !tieneJq ? "sin jq" : false;
+  test(`agy-pa: la herramienta 'bash' pasa por las mismas guardias que run_command [${variante[0]}]`, { skip }, () => {
+  conWorker(variante, (pre) => {
     assert.equal(pre("bash", { CommandLine: "cd app && sed -n 40,70p /tmp/pa.txt" }), null);
     assert.match(pre("bash", { CommandLine: "cat /etc/shadow" })?.reason ?? "", /privacidad/);
     assert.match(pre("bash", { CommandLine: "git push" })?.reason ?? "", /git push/);
   });
 });
+}
 
-test("agy-pa: un '/' o '~' de prosa o de código no es una ruta, pero las rutas sensibles siguen cerradas", () => {
-  conWorker((pre) => {
+for (const variante of VARIANTES) {
+  const skip = variante[0] === "sh" && !tieneJq ? "sin jq" : false;
+  test(`agy-pa: un '/' o '~' de prosa o de código no es una ruta, pero las rutas sensibles siguen cerradas [${variante[0]}]`, { skip }, () => {
+  conWorker(variante, (pre) => {
     // los comandos reales que se negaron: "/" suelto dentro de un echo
     const real1 = 'nl -ba app/src/barra/Barra.tsx | sed -n \'340,465p\'\necho "=== Barra.tsx liderNuevo / carpetaNueva ==="\nrg -n -C 5 "LIDER_NUEVO|nuevaEn" app/src/barra/Barra.tsx | head -n 60';
     assert.equal(pre("run_command", { CommandLine: real1 }), null);
@@ -104,3 +121,4 @@ test("agy-pa: un '/' o '~' de prosa o de código no es una ruta, pero las rutas 
     }
   });
 });
+}

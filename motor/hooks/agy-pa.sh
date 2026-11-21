@@ -34,7 +34,16 @@ negar() { jq -cn --arg r "$1" '{decision:"deny", reason:$r}'; exit 0; }
 campo() { printf '%s' "$entrada" | jq -r "$1 // empty" 2>/dev/null; }
 
 worker=0; [[ -n "${PA_AGY_HB:-}" ]] && worker=1
-herramienta="$(campo '.toolCall.name')"
+herramienta_cruda="$(campo '.toolCall.name')"
+# agy nuevo: read_file/write_file/edit_file (parámetro `Path`) en vez de view_file/write_to_file/replace_file_content, y `bash`
+# como alias de run_command (mismo `CommandLine`). Se normaliza a los nombres de siempre para que valgan todas las guardias.
+case "$herramienta_cruda" in
+  read_file) herramienta=view_file ;;
+  write_file) herramienta=write_to_file ;;
+  edit_file) herramienta=replace_file_content ;;
+  bash) herramienta=run_command ;;
+  *) herramienta="$herramienta_cruda" ;;
+esac
 cmd="$(campo '.toolCall.args.CommandLine')"
 
 # --- PostInvocation: tope de turnos -----------------------------------------------------------
@@ -61,6 +70,7 @@ fi
 # pasa a async y el modelo lo sigue con command_status, sin perder la corrida).
 archivo="$(campo '.toolCall.args.TargetFile')"
 [[ -z "$archivo" ]] && archivo="$(campo '.toolCall.args.AbsolutePath')"
+[[ -z "$archivo" ]] && archivo="$(campo '.toolCall.args.Path')"
 case "$herramienta" in
   run_command) nombre=Bash ;;
   write_to_file) nombre=Write ;;
@@ -102,10 +112,10 @@ escritura='write_to_file|replace_file_content|multi_replace_file_content|sed_fil
 web='search_web|read_url_content'   # internet: sólo en --leer (curl/wget siguen bloqueados por run_command)
 if (( leer )); then
   [[ "$herramienta" =~ ^($lectura|$web)$ ]] \
-    || negar "BLOQUEADO: estás en modo LECTURA (pa --leer): '$herramienta' no está permitida. Para leer: view_file, list_dir, find_by_name, grep_search, y run_command sólo con git de lectura. Para internet: search_web y read_url_content (nada de curl ni wget)."
+    || negar "BLOQUEADO: estás en modo LECTURA (pa --leer): '$herramienta_cruda' no está permitida. Para leer: view_file, list_dir, find_by_name, grep_search, y run_command sólo con git de lectura. Para internet: search_web y read_url_content (nada de curl ni wget)."
 else
   [[ "$herramienta" =~ ^($lectura|$escritura)$ ]] \
-    || negar "BLOQUEADO: '$herramienta' no está permitida en un worker de pa (ni navegador, ni MCP, ni subagentes, ni mensajes, ni tareas programadas). Hacé el trabajo con los archivos y la terminal; si de verdad hace falta, decilo en DECISION."
+    || negar "BLOQUEADO: '$herramienta_cruda' no está permitida en un worker de pa (ni navegador, ni MCP, ni subagentes, ni mensajes, ni tareas programadas). Hacé el trabajo con los archivos y la terminal; si de verdad hace falta, decilo en DECISION."
 fi
 
 # --- Privacidad: nada de leer fuera del worktree ni de salir a la red -------------------------
@@ -138,7 +148,7 @@ token_sale() {
   t="${t//\$\{HOME\}/\$HOME}"
   case "$t" in
     '~'|'~/'*) t="$HOME${t#\~}" ;;
-    '~'*) return 0 ;;                                   # ~otro_usuario
+    '~'*) return 0 ;;                                   # ~otro_usuario (comando_sale ya descartó los "~" de prosa o de código)
     '$HOME'|'$HOME/'*) t="$HOME${t#\$HOME}" ;;
     '$XDG_'*|'$PA_'*|'$OLDPWD'*) return 0 ;;
     '$PWD'|'$PWD/'*) t="$cwd${t#\$PWD}" ;;
@@ -165,14 +175,31 @@ token_sale() {
   p="$(realpath -ms -- "$p")"
   prohibida "$p"
 }
+# Tokens que por sí solos no nombran nada sensible: "/", "//", "/**" (división, comentarios, JSX, prosa), "~", "~algo" (markdown,
+# regex). Sólo cuentan si aparecen como PALABRA suelta del shell: fuera de comillas y fuera del cuerpo de un heredoc. Una ruta de
+# verdad (/etc/x, ~/.ssh/x, /home/…) siempre se mira, esté donde esté.
+ambiguo() { [[ "$1" =~ ^/[*/]*$ || "$1" == '~' || "$1" =~ ^~[A-Za-z_] ]]; }
+sin_texto() {   # $1 = comando: sin el cuerpo de los heredocs ni lo entrecomillado
+  awk '
+    salto != "" { l = $0; gsub(/^[ \t]+|[ \t]+$/, "", l); if (l == salto) salto = ""; next }
+    { print }
+    match($0, /<<-?[ \t]*["\047]?[A-Za-z_][A-Za-z0-9_]*/) {
+      id = substr($0, RSTART, RLENGTH); sub(/^<<-?[ \t]*["\047]?/, "", id); salto = id
+    }' <<<"$1" | sed -zE "s/\"([^\"\\\\]|\\\\.)*\"|'[^']*'/ /g"
+}
 # Todo token de un texto de comando que salga del worktree -> lo imprime (y devuelve 0).
 comando_sale() {   # $1 = comando, $2 = cwd
-  local c="$1" cwd="$2" tok
+  local c="$1" cwd="$2" tok suelto esc
+  suelto="$(sin_texto "$c")"
   # el mensaje de un commit puede nombrar rutas sin leerlas; sólo si no ejecuta nada adentro
   c="$(sed -E "s/(-m|--message)[[:space:]=]+(\"[^\"\$\`]*\"|'[^']*')/ /g" <<<"$c")"
   c="${c//\$\{HOME\}/\$HOME}"
   while IFS= read -r tok; do
     [[ -n "$tok" ]] || continue
+    if ambiguo "$tok"; then
+      esc="$(printf '%s' "$tok" | sed 's/[][\.*^$+?(){}|]/\\&/g')"
+      grep -qE -- "(^|[[:space:];&|(<>=])${esc}($|[[:space:];&|)<>])" <<<"$suelto" || continue
+    fi
     token_sale "$tok" "$cwd" && { printf '%s' "$tok"; return 0; }
   done < <(tr -s ' \t\n;|&<>()"'"'"'`=:,{}[]' '\n' <<<"$c")
   return 1
@@ -230,7 +257,7 @@ fi
 # Escrituras: sólo adentro del worktree (o del tree, con --aca), /tmp y el archivo del mapa.
 if [[ "$nombre" == Write || "$nombre" == Edit ]]; then
   raiz="${PA_AGY_RAIZ:-}"
-  [[ -n "$archivo" ]] || negar "BLOQUEADO: no se pudo saber qué archivo escribe '$herramienta'."
+  [[ -n "$archivo" ]] || negar "BLOQUEADO: no se pudo saber qué archivo escribe '$herramienta_cruda'."
   real="$(realpath -m -- "$archivo" 2>/dev/null)"
   ok=0
   [[ -n "$raiz" && ( "$real" == "$(realpath -m -- "$raiz")" || "$real" == "$(realpath -m -- "$raiz")"/* ) ]] && ok=1
