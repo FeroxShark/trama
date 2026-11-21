@@ -1,11 +1,11 @@
 // Descubrimiento dinámico de modelos de Codex desde models_cache.json y respaldo sin caché ni codex instalado.
-import { after } from "node:test";
+import { after, test } from "node:test";
+import { testPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { test } from "node:test";
 import {
   CODEX_RESPALDO,
   EFFORTS_CODEX_PA,
@@ -143,7 +143,15 @@ const homeAislado = path.join(tmp, "home-aislado");
 const paStateAislado = path.join(tmp, "pa-state");
 const repStateAislado = path.join(tmp, "rep-state");
 const sinBinariosDir = path.join(tmp, "sin-bin");
-for (const d of [homeAislado, paStateAislado, repStateAislado, sinBinariosDir]) mkdirSync(d, { recursive: true });
+const conCodexDir = path.join(tmp, "con-codex");
+for (const d of [homeAislado, paStateAislado, repStateAislado, sinBinariosDir, conCodexDir]) mkdirSync(d, { recursive: true });
+const fakeRepartoSh = path.join(tmp, "reparto-ts.sh");
+writeFileSync(fakeRepartoSh, `#!/bin/sh\nexec "${process.execPath}" "${REPARTO_TS}" "$@"\n`, "utf8");
+chmodSync(fakeRepartoSh, 0o755);
+writeFileSync(path.join(conCodexDir, "codex"), "#!/bin/sh\necho codex 1.0\n", "utf8");
+chmodSync(path.join(conCodexDir, "codex"), 0o755);
+writeFileSync(path.join(codexConCache, "auth.json"), '{"tokens":{}}', "utf8");
+writeFileSync(path.join(codexSinCache, "auth.json"), '{"tokens":{}}', "utf8");
 
 function envAislado(codexHome: string): NodeJS.ProcessEnv {
   const base = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(PA_|REPARTO_|TRAMA_|CODEX_)/.test(k) && k !== "STATE"));
@@ -163,7 +171,7 @@ function envAislado(codexHome: string): NodeJS.ProcessEnv {
     REPARTO_AA: aaVacio,
     REPARTO_DSH_FIJO: '{"ollama":[],"opencode":false,"deepseek":false}',
     REPARTO_AGY: "0",
-    PA_REPARTO: REPARTO_TS,
+    PA_REPARTO: fakeRepartoSh,
     PATH: sinBinariosDir,
   };
 }
@@ -275,37 +283,24 @@ test("reparto --tabla --json y --cupos --json listan codex:gpt-6.2-sol con cach�
     env: envAislado(codexConCache),
   });
   assert.equal(rTabla.status, 0, rTabla.stderr);
-  const tabla = JSON.parse(rTabla.stdout) as { familias: Array<{ id: string; familia: string; calidad: number; efforts_posibles?: string[]; origen?: string }> };
-  const sol62 = tabla.familias.find((f) => f.id === "codex:gpt-6.2-sol");
-  const sol61 = tabla.familias.find((f) => f.id === "codex:gpt-6.1-sol");
-  assert.ok(sol62, "falta codex:gpt-6.2-sol en --tabla");
-  assert.ok(sol61, "falta codex:gpt-6.1-sol en --tabla");
+  const tabla = JSON.parse(rTabla.stdout) as { modelos: Array<{ id: string; familia: string; calidad: number; efforts_posibles?: string[]; origen?: string }> };
+  const sol62 = tabla.modelos.find((f) => f.id === "codex:gpt-6.2-sol-high");
+  const sol61 = tabla.modelos.find((f) => f.id === "codex:gpt-6.1-sol-high");
+  assert.ok(sol62, `falta codex:gpt-6.2-sol-high en --tabla: ${tabla.modelos.map((m) => m.id).join(", ")}`);
+  assert.ok(sol61, "falta codex:gpt-6.1-sol-high en --tabla");
   assert.equal(sol62.calidad, sol61.calidad, "gpt-6.2-sol sin AA propio debe heredar la calidad de sol");
-  assert.ok(tabla.familias.some((f) => f.id === "codex:gpt-6.1-terra"));
-  assert.ok(!tabla.familias.some((f) => f.id.includes("gpt-reserve")));
-  assert.ok(!tabla.familias.some((f) => f.id.includes("codex-auto-review")));
-
-  const rCupos = spawnSync(process.execPath, [REPARTO_TS, "--cupos", "--json"], {
-    encoding: "utf8",
-    env: envAislado(codexConCache),
-  });
-  assert.equal(rCupos.status, 0, rCupos.stderr);
-  const cupos = JSON.parse(rCupos.stdout) as { suscripciones: Array<{ id: string; grupos?: Array<{ id: string; modelos: string[] }> }> };
-  const openai = cupos.suscripciones.find((s) => s.id === "openai");
-  const codexGrupo = openai?.grupos?.find((g) => g.id === "codex");
-  assert.ok(codexGrupo);
-  assert.ok(codexGrupo.modelos.includes("codex:gpt-6.2-sol-high"));
-  assert.ok(!codexGrupo.modelos.includes("codex:gpt-6.2-sol-ultra"));
-  assert.ok(!codexGrupo.modelos.includes("codex:gpt-6.2-sol-xhigh"));
+  assert.ok(tabla.modelos.some((f) => f.id === "codex:gpt-6.1-terra-high"));
+  assert.ok(!tabla.modelos.some((f) => f.id.includes("gpt-reserve")));
+  assert.ok(!tabla.modelos.some((f) => f.id.includes("codex-auto-review")));
 
   const rFallback = spawnSync(process.execPath, [REPARTO_TS, "--tabla", "--json"], {
     encoding: "utf8",
     env: envAislado(codexSinCache),
   });
   assert.equal(rFallback.status, 0, rFallback.stderr);
-  const tablaFb = JSON.parse(rFallback.stdout) as { familias: Array<{ id: string }> };
-  assert.ok(tablaFb.familias.some((f) => f.id === "codex:gpt-6.1-sol"));
-  assert.ok(!tablaFb.familias.some((f) => f.id === "codex:gpt-6.2-sol"));
+  const tablaFb = JSON.parse(rFallback.stdout) as { modelos: Array<{ id: string }> };
+  assert.ok(tablaFb.modelos.some((f) => f.id === "codex:gpt-6.1-sol-high"));
+  assert.ok(!tablaFb.modelos.some((f) => f.id.startsWith("codex:gpt-6.2-sol")));
 
   const prev = process.env.CODEX_HOME;
   process.env.CODEX_HOME = codexConCache;
@@ -320,15 +315,52 @@ test("reparto --tabla --json y --cupos --json listan codex:gpt-6.2-sol con cach�
   }
 });
 
-test("pa --modelos --json lista codex:gpt-6.2-sol con caché y usa respaldo sin caché ni codex instalado", () => {
+testPosix("reparto --cupos --json usa el catálogo dinámico para modelos y recorta efforts", () => {
+  const envCupos = (codexHome: string): NodeJS.ProcessEnv => {
+    const base = envAislado(codexHome);
+    delete base.REPARTO_CUPOS_FIJOS;
+    return {
+      ...base,
+      REPARTO_CLAUDE: "0",
+      REPARTO_AGY: "0",
+      REPARTO_DSH_FIJO: '{"ollama":[],"opencode":false,"deepseek":false}',
+      PATH: conCodexDir,
+    };
+  };
+  const rCupos = spawnSync(process.execPath, [REPARTO_TS, "--cupos", "--json"], {
+    encoding: "utf8",
+    env: envCupos(codexConCache),
+  });
+  assert.equal(rCupos.status, 0, rCupos.stderr);
+  const cupos = JSON.parse(rCupos.stdout) as { suscripciones: Array<{ id: string; grupos?: Array<{ id: string; modelos: string[] }> }> };
+  const openai = cupos.suscripciones.find((s) => s.id === "openai");
+  const codexGrupo = openai?.grupos?.find((g) => g.id === "codex");
+  assert.ok(codexGrupo, `falta grupo codex en --cupos: ${rCupos.stdout}`);
+  assert.ok(codexGrupo.modelos.includes("codex:gpt-6.2-sol-high"));
+  assert.ok(!codexGrupo.modelos.includes("codex:gpt-6.2-sol-ultra"));
+  assert.ok(!codexGrupo.modelos.includes("codex:gpt-6.2-sol-xhigh"));
+  assert.ok(!codexGrupo.modelos.includes("codex:gpt-6.1-terra-low"));
+
+  const rCuposFb = spawnSync(process.execPath, [REPARTO_TS, "--cupos", "--json"], {
+    encoding: "utf8",
+    env: envCupos(codexSinCache),
+  });
+  assert.equal(rCuposFb.status, 0, rCuposFb.stderr);
+  const fb = JSON.parse(rCuposFb.stdout) as { suscripciones: Array<{ id: string; grupos?: Array<{ id: string; modelos: string[] }> }> };
+  const codexFb = fb.suscripciones.find((s) => s.id === "openai")?.grupos?.find((g) => g.id === "codex");
+  assert.ok(codexFb?.modelos.includes("codex:gpt-6.1-sol-high"));
+  assert.ok(!codexFb?.modelos.includes("codex:gpt-6.2-sol-high"));
+});
+
+testPosix("pa --modelos --json lista codex:gpt-6.2-sol con caché y usa respaldo sin caché ni codex instalado", () => {
   const conCache = spawnSync(process.execPath, [PA_TS, "--modelos", "--json"], {
     encoding: "utf8",
     env: envAislado(codexConCache),
   });
   assert.equal(conCache.status, 0, conCache.stderr);
   const j1 = JSON.parse(conCache.stdout) as { inteligencia: Record<string, { calidad: number; permitido: boolean }> };
-  assert.ok("codex:gpt-6.2-sol" in j1.inteligencia, `inteligencia no trajo codex:gpt-6.2-sol: ${Object.keys(j1.inteligencia).join(", ")}`);
-  assert.ok(!("codex:gpt-reserve" in j1.inteligencia));
+  assert.ok("codex:gpt-6.2-sol-high" in j1.inteligencia, `inteligencia no trajo codex:gpt-6.2-sol-high: ${Object.keys(j1.inteligencia).join(", ")}`);
+  assert.ok(!Object.keys(j1.inteligencia).some((k) => k.includes("gpt-reserve")));
 
   const sinCache = spawnSync(process.execPath, [PA_TS, "--modelos", "--json"], {
     encoding: "utf8",
@@ -336,6 +368,6 @@ test("pa --modelos --json lista codex:gpt-6.2-sol con caché y usa respaldo sin 
   });
   assert.equal(sinCache.status, 0, sinCache.stderr);
   const j2 = JSON.parse(sinCache.stdout) as { inteligencia: Record<string, { calidad: number; permitido: boolean }> };
-  assert.ok("codex:gpt-6.1-sol" in j2.inteligencia);
-  assert.ok(!("codex:gpt-6.2-sol" in j2.inteligencia));
+  assert.ok("codex:gpt-6.1-sol-high" in j2.inteligencia);
+  assert.ok(!Object.keys(j2.inteligencia).some((k) => k.includes("gpt-6.2-sol")));
 });
