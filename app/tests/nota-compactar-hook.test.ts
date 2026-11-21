@@ -525,6 +525,20 @@ test("líderes (settingsCierreCupo y lider.nuevo): un solo JSON con cierre-cupo 
     const hooks2 = settingsDe(s2).find((x) => x.hooks)?.hooks as Record<string, { hooks: { command: string }[] }[]>;
     assert.match(hooks2.PreCompact![0]!.hooks[0]!.command, /--umbral 750000 --umbral-tarea 600000$/);
 
+    // 2b. Sin tope de Trama pero con `autoCompactWindow` en el settings de Claude Code: la nota se pide antes de ESA compactación.
+    mkdirSync(path.join(dir, "claude"), { recursive: true });
+    writeFileSync(path.join(dir, "claude", "settings.json"), JSON.stringify({ autoCompactWindow: 200_000 }));
+    const s2b = await lider.nuevo({ modelo: "claude-sonnet-5-5", effort: "high", texto: "hola" });
+    await esperarHasta(() => readFileSync(log, "utf8").includes(s2b), { tope: 8000 });
+    const hooks2b = settingsDe(s2b).find((x) => x.hooks)?.hooks as Record<string, { hooks: { command: string }[] }[]>;
+    assert.match(hooks2b.PreCompact![0]!.hooks[0]!.command, /--umbral 170000 --umbral-tarea 120000$/);
+    // El tope de Trama le gana al del settings.
+    writeFileSync(modelosF, JSON.stringify({ version: 1, autocompact_lider: { defecto: null, por_modelo: { sonnet: 400_000 } } }));
+    const s2c = await lider.nuevo({ modelo: "claude-sonnet-5-5", effort: "high", texto: "hola" });
+    await esperarHasta(() => readFileSync(log, "utf8").includes(s2c), { tope: 8000 });
+    const hooks2c = settingsDe(s2c).find((x) => x.hooks)?.hooks as Record<string, { hooks: { command: string }[] }[]>;
+    assert.match(hooks2c.PreCompact![0]!.hooks[0]!.command, /--umbral 340000 --umbral-tarea 240000$/);
+
     // 3. Con nota_compactar: false -> sólo cierre-cupo
     writeFileSync(modelosF, JSON.stringify({ version: 1, nota_compactar: false }));
     const s3 = await lider.nuevo({ modelo: "claude-opus-5-5", effort: "high", texto: "hola" });
