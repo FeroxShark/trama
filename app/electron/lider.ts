@@ -83,6 +83,7 @@ import { umbralesNota } from "./modelos-tipos.ts";
 import { VENTANA_GEMINI } from "./agy-stream.ts";
 import { cargarTextosNota, debeAutoCompactar, extraerNotaDeTexto, guardarNotaSiCambia, idiomaDeEstado, mtimeNota, textosNotaCargados, usoDeLineaStream, type UmbralesNota } from "./nota-compactar-main.ts";
 import { ventanaDe } from "./contexto-previa.ts";
+import { leerUmbralYa } from "./contexto.ts";
 import { parsearModelo } from "./dsh.ts";
 import { parsearModelo as parsearOpencode } from "./opencode.ts";
 import { pedidoDe } from "./cache.ts";
@@ -205,6 +206,8 @@ type Proc = {
   local?: Local;
   /** El `--autocompact` con que arrancó (`null`: nativo). Otro modelo con otro tope es relanzar (`cambiarEnVivo`). */
   tope?: number | null;
+  /** Sobre qué tope se pide la nota antes de compactar: `tope` o, sin él, el `autoCompactWindow` del settings de Claude Code. */
+  topeNota?: number | null;
   /** El `--advisor` con que arrancó (`null`: sin asesor). Otro modelo con otro asesor es relanzar (`cambiarEnVivo`). */
   asesor?: string | null;
   /** El id de la cuenta agregada de Claude con que corre; sin él, la de siempre (su uso es el de `anotarUso`). */
@@ -619,7 +622,7 @@ export function planAutoNotaCompactar(sid: string): { texto: string; modelo: str
   if (x.clase !== "claude" && x.clase !== "gemini") return null;
   const ventana = x.clase === "gemini" ? VENTANA_GEMINI : ventanaDe(x.modelo);
   const umbrales: UmbralesNota = umbralesNota({
-    tope: x.clase === "claude" ? (x.tope ?? null) : null,
+    tope: x.clase === "claude" ? (x.topeNota ?? x.tope ?? null) : null,
     ventana,
     pct: notaCompactarPctGuardado(),
     tareaPct: notaCompactarTareaPctGuardado(),
@@ -676,6 +679,9 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   const cuenta = clase === "claude" && !local && !extra.ollama ? cuentaDeLider(g) : undefined;
   // Antes de correrlo, que su carpeta comparta projects/plugins/skills… con ~/.claude (en Windows Claude las crea vacías y propias).
   if (cuenta) for (const a of asegurarCuenta(cuenta.id)) rastro(g.sid, "sin-motivo", a);
+  // La nota se pide antes de la compactación que de verdad va a pasar: sin tope de Trama manda el `autoCompactWindow` del settings de
+  // Claude Code (si no, el umbral salía de la ventana entera y Claude Code compactaba antes de que se pidiera).
+  const topeNota = tope ?? (clase === "claude" && !local && !extra.ollama ? leerUmbralYa(cuenta?.dir ?? process.env.CLAUDE_CONFIG_DIR ?? path.join(HOME, ".claude")) : null);
   const opciones = { ...base, ...(cuenta ? { env: entornoCuenta(base.env, cuenta.dir) } : {}), stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: hijoEnGrupo(), windowsHide: true };
   // Si la conversación venía de otro motor, lo hablado va aparte de los mensajes (prompt de sistema o prefacio): no ensucia el transcript.
   // (También el de una rama hecha con relevo o una vuelta atrás en un motor sin `--resume-session-at`: el archivo sólo existe si hace falta.)
@@ -719,7 +725,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
     if (hooks) {
       const u = hooksNota
         ? umbralesNota({
-            tope,
+            tope: topeNota,
             ventana: ventanaDe(g.modelo),
             pct: notaCompactarPctGuardado(),
             tareaPct: notaCompactarTareaPctGuardado(),
@@ -767,7 +773,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: [LINEA_CHAT, extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
       : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, cierreCupo, autocompact: tope, advisor: asesor, fast: g.fast, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
-  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ...(g.ultracode && oficial ? { ultracode: true } : {}), ...(g.fast && oficial ? { fast: true } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null, usoContexto: null, compactadoMs: 0, autoCompactEncolado: false, geminiNotaPedidaCiclo: false };
+  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, topeNota, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ...(g.ultracode && oficial ? { ultracode: true } : {}), ...(g.fast && oficial ? { fast: true } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null, usoContexto: null, compactadoMs: 0, autoCompactEncolado: false, geminiNotaPedidaCiclo: false };
   procs.set(g.sid, x);
   // Ultracode va tras el arranque, por el mismo canal que el cambio en vivo (el argv no lo lleva): si Claude Code no lo acepta, queda apagado.
   if (x.ultracode)
