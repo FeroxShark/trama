@@ -160,6 +160,7 @@ contextBridge.exposeInMainWorld("hilos", {
     parar: (sid: string): Promise<void> => invocar("lider:parar", sid),
     modo: (x: unknown): Promise<void> => invocar("lider:modo", x),
     cuenta: (x: unknown): Promise<void> => invocar("lider:cuenta", x),
+    extras: (x: unknown): Promise<unknown> => invocar("lider:extras", x),
     permiso: (x: unknown): Promise<void> => invocar("lider:permiso", x),
     pendientes: (sid: string): Promise<unknown> => invocar("lider:pendientes", sid),
     comandos: (): Promise<unknown> => invocar("lider:comandos"),

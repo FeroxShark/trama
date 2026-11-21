@@ -1519,8 +1519,8 @@ export function armarNucleo() {
     void avisarSl();
     cambioLider();
   });
-  manejar("lider:nuevo", (_e, x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown; auto?: unknown; cuenta?: unknown }) =>
-    lider.nuevo({ modelo: x?.modelo, effort: x?.effort, texto: x?.texto, imagenes: x?.imagenes, modo: x?.modo, rol: x?.rol, carpeta: x?.carpeta, auto: x?.auto, cuenta: x?.cuenta }),
+  manejar("lider:nuevo", (_e, x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown; auto?: unknown; cuenta?: unknown; ultracode?: unknown; fast?: unknown }) =>
+    lider.nuevo({ modelo: x?.modelo, effort: x?.effort, texto: x?.texto, imagenes: x?.imagenes, modo: x?.modo, rol: x?.rol, carpeta: x?.carpeta, auto: x?.auto, cuenta: x?.cuenta, ultracode: x?.ultracode, fast: x?.fast }),
   );
   // El cierre por cupo en cada chat (la tarjeta del chat): lo que hay, y el interruptor «Retomar solo cuando vuelva el cupo».
   manejar("lider:cierres", () => cierreChats.lista());
@@ -1621,6 +1621,7 @@ export function armarNucleo() {
   manejar("lider:modo", (_e, x: { sid: string; modo: string }) => lider.cambiarModo(String(x?.sid), x?.modo));
   // La cuenta de Claude de ese líder (la elige la persona; nunca cambia sola): se aplica en el próximo mensaje (`lider.cambiarCuenta`).
   manejar("lider:cuenta", (_e, x: { sid: string; cuenta: unknown }) => lider.cambiarCuenta(String(x?.sid), x?.cuenta));
+  manejar("lider:extras", (_e, x: { sid: string; ultracode?: unknown; fast?: unknown }) => lider.cambiarExtras(String(x?.sid), { ultracode: x?.ultracode, fast: x?.fast }));
   manejar("lider:permiso", (_e, x: { sid: string; id: string; ok: boolean; mensaje?: string; respuestas?: unknown }) =>
     lider.responderPermiso(String(x?.sid), String(x?.id), {
       ok: x?.ok === true,

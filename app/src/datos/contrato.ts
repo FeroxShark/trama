@@ -230,6 +230,9 @@ export type Lider = {
   modo?: string;
   /** La cuenta agregada de Claude con que corre un líder de la app (id); sin ella, la de siempre (o la de su motor). */
   cuenta?: string;
+  /** Ultracode (flujos de varios agentes de Claude Code) y Fast (modo rápido) prendidos en un líder de la app con un modelo oficial de Anthropic; sin venir, apagados. */
+  ultracode?: boolean;
+  fast?: boolean;
   /** El proyecto (slug) que nombra su primer mensaje: su carpeta mientras no tenga workers (B20). */
   inferido?: string | null;
   /** Es la sesión de Shark (su cwd es `$SHARK_HOME`): va a la carpeta `SHARK`. Sin venir, no. */

@@ -98,6 +98,7 @@ export const CANALES = [
   ["lider:parar", "invoke"],
   ["lider:modo", "invoke"],
   ["lider:cuenta", "invoke"],
+  ["lider:extras", "invoke"],
   ["lider:permiso", "invoke"],
   ["lider:pendientes", "invoke"],
   ["lider:comandos", "invoke"],

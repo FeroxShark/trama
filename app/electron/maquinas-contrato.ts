@@ -32,6 +32,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "lider:parar": "maquina",
   "lider:modo": "maquina",
   "lider:cuenta": "maquina",
+  "lider:extras": "maquina",
   "lider:permiso": "maquina",
   "lider:pendientes": "maquina",
   "lider:estilo": "maquina",
