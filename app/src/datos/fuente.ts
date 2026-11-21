@@ -192,6 +192,11 @@ export interface Fuente {
   liderModo(sid: string, modo: string): Promise<void>;
   /** La cuenta de Claude de un líder de la app (`""`: la de siempre). La elige la persona; se aplica en el próximo mensaje y nada la cambia sola. */
   liderCuenta(sid: string, cuenta: string): Promise<void>;
+  /**
+   * Prender o apagar Ultracode (flujos de varios agentes de Claude Code) y Fast (modo rápido) de un líder de la app con un modelo oficial de Anthropic.
+   * Con proceso vivo se aplican ya; si Claude Code no los acepta, `ok: false` con su motivo (puede venir vacío) y no cambia nada; dormido, valen desde el próximo arranque.
+   */
+  liderExtras(sid: string, x: { ultracode?: boolean; fast?: boolean }): Promise<ResultadoExtras>;
   /** Contestar un pedido de permiso (el plan de ExitPlanMode, o una herramienta fuera de bypass). */
   liderPermiso(sid: string, id: string, ok: boolean, mensaje?: string, respuestas?: Record<string, string>): Promise<void>;
   /** Los pedidos sin contestar de un líder de la app (para una vista recargada). */
@@ -675,7 +680,10 @@ function avisoProgramados(x: unknown): AvisoProgramados | null {
 
 /** `modo`: sólo para un líder nuevo (el chip de la caja); después se cambia con `liderModo`. */
 /** `maquina`: dónde nace un líder nuevo (el selector de la caja); sin él, esta máquina. */
-export type EnvioLider = { texto: string; imagenes?: Imagen[]; modelo: string; effort: string; modo?: string; rol?: "analista"; maquina?: string; carpeta?: string; /** Carpeta "Auto" de un líder nuevo: sin `carpeta`, el main de esa máquina elige el proyecto que nombra el mensaje (electron/carpeta-auto.ts). */ auto?: boolean; cuenta?: string; /** Sesión nueva con el relevo compacto, por caché vencida (electron/cache-pregunta.ts). */ empezar?: "resumen"; /** Sólo para la barra: el líder del que salió (resumen o rama), para dejarlo en su misma carpeta. No va al main. */ de?: string };
+/** Lo que contesta `fuente.liderExtras`. */
+export type ResultadoExtras = { ok: boolean; motivo?: string };
+
+export type EnvioLider = { texto: string; imagenes?: Imagen[]; modelo: string; effort: string; modo?: string; rol?: "analista"; maquina?: string; carpeta?: string; /** Carpeta "Auto" de un líder nuevo: sin `carpeta`, el main de esa máquina elige el proyecto que nombra el mensaje (electron/carpeta-auto.ts). */ auto?: boolean; cuenta?: string; /** Ultracode y Fast que se dejaron prendidos en la caja de un líder nuevo (sólo con un modelo oficial de Anthropic). */ ultracode?: boolean; fast?: boolean; /** Sesión nueva con el relevo compacto, por caché vencida (electron/cache-pregunta.ts). */ empezar?: "resumen"; /** Sólo para la barra: el líder del que salió (resumen o rama), para dejarlo en su misma carpeta. No va al main. */ de?: string };
 
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -2181,6 +2189,9 @@ const fija: Fuente = {
     emitir(sid, { tipo: "modo", modo });
   },
   async liderCuenta() {},
+  async liderExtras() {
+    return { ok: true };
+  },
   async liderPermiso(sid, id, ok) {
     emitir(sid, { tipo: "permisoFuera", id });
     if (id === "f-preguntas" || id === "f-preguntas-b") emitir(sid, { tipo: "estado", ocupado: false, vivo: true });
@@ -3079,6 +3090,13 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     await m.lider.cuenta({ sid, cuenta }).catch((e) => {
       throw new Error(mensaje(e));
     });
+  },
+  async liderExtras(sid, x) {
+    const r = await m.lider.extras({ sid, ...x }).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+    const o = r as { ok?: unknown; motivo?: unknown } | null;
+    return { ok: o?.ok === true, ...(typeof o?.motivo === "string" && o.motivo ? { motivo: o.motivo } : {}) };
   },
   async liderPermiso(sid, id, ok, msj, respuestas) {
     await m.lider.permiso({ sid, id, ok, mensaje: msj, respuestas }).catch((e) => {

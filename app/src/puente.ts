@@ -161,7 +161,7 @@ type Main = {
   /** Los líderes: los de la app se manejan desde acá; los de la terminal se leen (electron/lider.ts). */
   lider: {
     /** Un líder nuevo con su primer mensaje; devuelve su session_id. */
-    nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: Imagen[]; modo?: string; rol?: "analista"; carpeta?: string; auto?: boolean; cuenta?: string }): Promise<string>;
+    nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: Imagen[]; modo?: string; rol?: "analista"; carpeta?: string; auto?: boolean; cuenta?: string; ultracode?: boolean; fast?: boolean }): Promise<string>;
     /** `empezar: "resumen"`: sesión fresca con el relevo compacto (caché vencida); devuelve el sid del líder nuevo si lo hubo. */
     mandar(x: { sid: string; texto: string; imagenes?: Imagen[]; modelo: string; effort: string; empezar?: "resumen" }): Promise<string | null>;
     mandarYa(x: { sid: string; texto: string; imagenes?: Imagen[]; modelo: string; effort: string }): Promise<void>;
@@ -171,6 +171,8 @@ type Main = {
     /** Cambiar el modo de permisos (vivo: `set_permission_mode`; dormido: para el próximo `--resume`). */
     modo(x: { sid: string; modo: string }): Promise<void>;
     cuenta(x: { sid: string; cuenta: string }): Promise<void>;
+    /** Ultracode y Fast de un líder de la app (electron/lider.ts, `cambiarExtras`): `{ ok, motivo? }`, sin validar. */
+    extras(x: { sid: string; ultracode?: boolean; fast?: boolean }): Promise<unknown>;
     /** Contestar un pedido de permiso (`can_use_tool`): permitir, o negar con un mensaje para el modelo. */
     permiso(x: { sid: string; id: string; ok: boolean; mensaje?: string; respuestas?: Record<string, string> }): Promise<void>;
     /** Los pedidos sin contestar de un líder (una vista recargada no los vio llegar), sin validar. */

@@ -32,6 +32,8 @@ import {
   leerGuardados,
   lineaInicio,
   lineaEffort,
+  lineaAjustes,
+  lineaAjustesVigentes,
   lineaEstilo,
   estilosDe,
   lineaModelo,
@@ -86,6 +88,7 @@ import { guardada, igual, juntar, lecturaDe, oficialDe, type Lectura } from "./u
 import { errorT } from "./errores.ts";
 import { ESTADO, escribirAtomico, esperarEscrituras, PA_STATE } from "./pa.js";
 import { asegurarCuenta } from "./cli/cuentas.ts";
+import { esClaudeOficial } from "./esfuerzo-extras.ts";
 import { archivoUsoCuenta, cuentaConConversacion, cuentasClaude, entornoCuenta, preferidaClaude, usoParaReparto } from "./uso-cuentas.ts";
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
 import { log, silencio } from "./log.js";
@@ -203,6 +206,9 @@ type Proc = {
   asesor?: string | null;
   /** El id de la cuenta agregada de Claude con que corre; sin él, la de siempre (su uso es el de `anotarUso`). */
   cuenta?: string;
+  /** Ultracode prendido en esta sesión (se vuelve a mandar tras cada cambio de esfuerzo en vivo, que lo apaga) y Fast (con que arrancó o lo último que se le dijo). */
+  ultracode?: boolean;
+  fast?: boolean;
   ocupado: boolean;
   /** Los textos de "Mandar ya" que el CLI todavía no entregó (el eco con `isReplay` los saca de acá). */
   directos: string[];
@@ -222,7 +228,7 @@ type Proc = {
    */
   pedidos: Map<string, { input: unknown; tool_use_id: string | null; herramienta: string; preguntas: Pregunta[] | null; ev: EventoPedido }>;
   /** Los `control_request` de la app que esperan respuesta: request_id → quien la espera. */
-  controles: Map<string, (r: { ok: boolean; error?: string; contexto?: unknown }) => void>;
+  controles: Map<string, (r: { ok: boolean; error?: string; contexto?: unknown; ultracode?: boolean | null }) => void>;
   /** El `/output-style` pendiente que se le mandó al arrancar: la respuesta al initialize (anterior) no lo pisa. */
   estilo: string | null;
   /** El SIGINT de `parar` si el interrupt no contesta: se cancela al terminar el turno (si no, mata al siguiente). */
@@ -604,6 +610,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   if (!g.corriendo) g.corriendo = Math.floor(Date.now() / 1000);
   void guardar();
   const clase = claseDeModelo(g.modelo);
+  // Ultracode y Fast son de Claude Code con un modelo de Anthropic (no de uno local, de Ollama ni de otro motor).
+  const oficial = clase === "claude" && !local && !extra.ollama && esClaudeOficial(g.modelo);
   // «Contexto antes de compactar» de su familia (modelos.json, `PA_AUTOCOMPACT` pisa), como un worker de `pa`: al arrancar y al reanudar.
   const tope = clase === "claude" && !local && !extra.ollama ? topeDeLider(g.modelo) : null;
   // Advisor: el asesor que se eligió en Ajustes para su familia (sólo si anda en esta máquina; ver advisor.ts).
@@ -690,9 +698,18 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: [LINEA_CHAT, extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, cierreCupo, autocompact: tope, advisor: asesor, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
-  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
+      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, cierreCupo, autocompact: tope, advisor: asesor, fast: g.fast, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
+  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ...(g.ultracode && oficial ? { ultracode: true } : {}), ...(g.fast && oficial ? { fast: true } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
+  // Ultracode va tras el arranque, por el mismo canal que el cambio en vivo (el argv no lo lleva): si Claude Code no lo acepta, queda apagado.
+  if (x.ultracode)
+    void ajustarUltracode(x, true).then((r) => {
+      if (r.ok || r.sinRespuesta || procs.get(g.sid) !== x) return;
+      delete g.ultracode;
+      delete x.ultracode;
+      void guardar();
+      alCambio();
+    });
   p.stdout!.setEncoding("utf8");
   p.stdout!.on("data", (trozo: string) => {
     x.arranque = false;
@@ -881,7 +898,7 @@ export function terminar(x: Pick<Proc, "p">, graciaEofMs = GRACIA_EOF_MS): Promi
 }
 
 /** Manda un `control_request` y espera su respuesta; `null` si no contesta a tiempo. */
-function control(x: Proc, linea: (id: string) => string, ms = CONTROL_MS): Promise<{ ok: boolean; error?: string; contexto?: unknown } | null> {
+function control(x: Proc, linea: (id: string) => string, ms = CONTROL_MS): Promise<{ ok: boolean; error?: string; contexto?: unknown; ultracode?: boolean | null } | null> {
   const id = idPedido();
   return new Promise((ok) => {
     const t = setTimeout(() => {
@@ -1046,8 +1063,68 @@ async function cambiarEnVivo(x: Proc, modelo: string, effort: string, enTurno = 
     const r = await control(x, (id) => lineaEffort(id, effort));
     if (!r?.ok) return false;
     x.effort = effort;
+    // Un `effortLevel` apaga Ultracode (como `/effort <nivel>` en Claude Code): si estaba prendido, se vuelve a pedir.
+    if (x.ultracode) void ajustarUltracode(x, true);
   }
   return true;
+}
+
+/** Cómo salió pedirle a `claude` que prenda o apague Ultracode: `sinRespuesta` si no contestó a tiempo (no se sabe); `motivo` es lo que dijo `claude` (puede venir vacío). */
+type ResultadoAjuste = { ok: boolean; motivo?: string; sinRespuesta?: boolean };
+
+/**
+ * Prende o apaga Ultracode en la sesión viva y comprueba que quedó en vigor: `apply_flag_settings` contesta `success` también con un modelo que no lo
+ * soporta o con los flujos apagados, así que después se mira `get_settings` (`applied.ultracode`). Si no quedó, lo deja apagado también del lado de `claude`.
+ */
+async function ajustarUltracode(x: Proc, valor: boolean): Promise<ResultadoAjuste> {
+  const r = await control(x, (id) => lineaAjustes(id, { ultracode: valor }));
+  if (!r) return { ok: false, sinRespuesta: true };
+  if (!r.ok) return { ok: false, motivo: r.error ?? "" };
+  if (!valor) return { ok: true };
+  const v = await control(x, lineaAjustesVigentes);
+  // Una versión que no dice `applied` (`ultracode` ausente): se cree el `success`.
+  if (v?.ok && v.ultracode === false) {
+    await control(x, (id) => lineaAjustes(id, { ultracode: false }));
+    return { ok: false, motivo: "" };
+  }
+  return { ok: true };
+}
+
+/**
+ * Ultracode y Fast de un líder de la app (modelos oficiales de Anthropic). Con proceso, se aplican en vivo (`apply_flag_settings`) y, si `claude` no los
+ * acepta, no se guarda nada y se devuelve el motivo; sin proceso (dormido), sólo se guardan y valen desde el próximo arranque. Se pueden cambiar a mitad
+ * de un turno: valen desde su próximo pedido a la API.
+ */
+export async function cambiarExtras(sid: string, x: unknown): Promise<{ ok: boolean; motivo?: string }> {
+  const d = x as { ultracode?: unknown; fast?: unknown } | null;
+  const ultracode = typeof d?.ultracode === "boolean" ? d.ultracode : undefined;
+  const fast = typeof d?.fast === "boolean" ? d.fast : undefined;
+  if (ultracode === undefined && fast === undefined) throw errorT("main.extrasDato");
+  const g = (await lideresApp()).find((l) => l.sid === sid);
+  if (!g) throw errorT("main.noEsDeLaApp");
+  if (!esClaudeOficial(g.modelo) || claseDeModelo(g.modelo) !== "claude") throw errorT("main.extrasNoClaude");
+  const p = procs.get(sid);
+  const vivo = !!p && p.clase === "claude" && !p.local && p.p.exitCode === null && p.p.signalCode === null;
+  if (ultracode !== undefined && vivo) {
+    const r = await ajustarUltracode(p!, ultracode);
+    if (!r.ok) return { ok: false, motivo: r.sinRespuesta ? "" : (r.motivo ?? "") };
+  }
+  if (fast !== undefined && vivo) {
+    const r = await control(p!, (id) => lineaAjustes(id, { fast }));
+    if (!r?.ok) return { ok: false, motivo: r?.error ?? "" };
+  }
+  for (const [k, v] of [["ultracode", ultracode], ["fast", fast]] as const) {
+    if (v === undefined) continue;
+    if (v) g[k] = true;
+    else delete g[k];
+    if (p) {
+      if (v) p[k] = true;
+      else delete p[k];
+    }
+  }
+  await guardar();
+  alCambio();
+  return { ok: true };
 }
 
 /** ¿El tope o el asesor del proceso (van en su argv) no son los de su modelo? Pasa tras cambiar de familia a mitad de un turno. */
@@ -1174,7 +1251,7 @@ export async function carpetaDe(v: unknown, home = HOME): Promise<string | undef
  * Un líder nuevo con su primer mensaje. Carpeta: la que viene en `carpeta` (elegida a mano, manda siempre); si no viene y `auto` es
  * `true`, el proyecto que nombra el mensaje (`carpeta-auto.ts`, con el registry de esta máquina); si tampoco, `~`. Devuelve su session_id.
  */
-export async function nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown; auto?: unknown; cuenta?: unknown }): Promise<string> {
+export async function nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown; auto?: unknown; cuenta?: unknown; ultracode?: unknown; fast?: unknown }): Promise<string> {
   const imagenes = imagenesDe(x.imagenes);
   const texto = textoDe(x.texto, imagenes);
   const modo = modoDe(x.modo);
@@ -1199,6 +1276,9 @@ export async function nuevo(x: { modelo: string; effort: string; texto: string; 
     modo,
     ...(cwd ? { cwd } : {}),
     ...(cuenta ? { cuenta } : {}),
+    // Lo que se dejó prendido en la caja antes del primer mensaje (sólo con un modelo oficial de Anthropic).
+    ...(x.ultracode === true && esClaudeOficial(modelo) ? { ultracode: true } : {}),
+    ...(x.fast === true && esClaudeOficial(modelo) ? { fast: true } : {}),
     ...(x.rol === "analista" ? { rol: "analista" as const } : {}),
   };
   ls.push(g);

@@ -10,6 +10,7 @@ import { deDueno } from "./dueno.ts";
 import { cwdSeguro } from "./rutas.ts";
 import { BASE64_MAX, contenidoUsuario, imagenesDeContenido, type Imagen } from "./imagenes.ts";
 import { HERRAMIENTA_PREGUNTAS, preguntasDe, type Pregunta } from "./preguntas.ts";
+import { ajustesExtras, argvFast, ultracodeEnVigor } from "./esfuerzo-extras.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -70,6 +71,8 @@ export type ArmarLider = {
   autocompact?: number | null;
   /** El asesor del advisor de Claude Code (`--advisor <familia>`, ya resuelto por `asesorDeLider`); sin él, el líder arranca sin asesor. Un local u Ollama no lo lleva. */
   advisor?: string | null;
+  /** Fast prendido (`--fast-mode on`, sólo Opus y Fable): el modo rápido de Claude Code. Ultracode no va en el argv: se aplica tras el arranque (`lineaAjustes`). */
+  fast?: boolean;
 };
 
 /**
@@ -124,7 +127,7 @@ const ESASESOR = /^(haiku|sonnet|opus|fable)$/;
  * y los contesta la app. Sesión nueva: `--session-id` + `--name`; retomada:
  * `--resume` (el nombre ya está en el transcript).
  */
-export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo, lineaSistema, mcpConfig, apagados, cierreCupo, autocompact, advisor }: ArmarLider): string[] {
+export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo, lineaSistema, mcpConfig, apagados, cierreCupo, autocompact, advisor, fast }: ArmarLider): string[] {
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
   for (const u of [desde, rama?.de, rama?.hasta]) if (u !== undefined && !SID.test(u)) throw errorT("main.sesionRara", { v: u });
   if (!esModo(modo)) throw errorT("main.modoRaro", { v: String(modo) });
@@ -161,6 +164,8 @@ export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEF
     ...(autocompact && !local && !ollama ? ["--autocompact", String(autocompact)] : []),
     // Advisor de Claude Code: el asesor más fuerte que se eligió en Ajustes para este modelo (advisor.ts). Sólo un alias de familia.
     ...(advisor && !local && !ollama && ESASESOR.test(advisor) ? ["--advisor", advisor] : []),
+    // Fast (modo rápido): `--fast-mode on` sólo con un modelo que lo sirva. En vivo se cambia con `lineaAjustes`.
+    ...(local || ollama ? [] : argvFast(modelo, fast)),
   ];
   // Volver atrás y ramificar son del `claude` mismo (`--resume-session-at`, `--fork-session`): nunca se reescribe un transcript
   // ni se pasa por una compactación; el modelo recibe sólo la cadena hasta ese mensaje.
@@ -290,6 +295,16 @@ export const lineaModelo = (id: string, modelo: string) => pedido(id, { subtype:
  * Control). Ojo: con un nivel que no conoce contesta `success` igual; el filtro es la lista de la app.
  */
 export const lineaEffort = (id: string, effort: string) => pedido(id, { subtype: "apply_flag_settings", settings: { effortLevel: effort } });
+
+/**
+ * Ultracode y Fast de la sesión viva (`apply_flag_settings` con `ultracode` y `fastMode`, comprobado con claude 2.1.329: contesta `success` siempre,
+ * también con un modelo que no lo soporta; si quedó en vigor lo dice `lineaAjustesVigentes`). Ojo: un `effortLevel` posterior apaga Ultracode
+ * (como `/effort <nivel>` en Claude Code): quien cambia el esfuerzo lo vuelve a mandar.
+ */
+export const lineaAjustes = (id: string, x: { ultracode?: boolean; fast?: boolean }) => pedido(id, { subtype: "apply_flag_settings", settings: ajustesExtras(x) });
+
+/** Los ajustes en vigor de la sesión (`get_settings`: `applied.ultracode`, `ultracodeAvailable`…): sin turno ni interrupción. */
+export const lineaAjustesVigentes = (id: string) => pedido(id, { subtype: "get_settings" });
 
 /**
  * El output style (`/output-style`) por la vía de `/config`: `update_settings` en
@@ -475,7 +490,7 @@ export type Evento =
   /** El eco de un mensaje del usuario (`--replay-user-messages`): el CLI lo entregó al modelo. Sólo el texto; lo cruza `lider.ts` con lo que mandó. */
   | { tipo: "replay"; texto: string }
   /** La respuesta a un `control_request` de la app; `error`: el motivo, si no salió. */
-  | { tipo: "control"; id: string; ok: boolean; error?: string; contexto?: unknown }
+  | { tipo: "control"; id: string; ok: boolean; error?: string; contexto?: unknown; /** La respuesta a `get_settings`: `true`/`false` si Ultracode está en vigor; `null` si no lo dice. */ ultracode?: boolean | null }
   | { tipo: "hace"; hace: Hace }
   /** Tokens de salida del mensaje en curso; `nuevo` al empezar un mensaje (el anterior ya cuenta entero). */
   | { tipo: "tokens"; salida: number; nuevo: boolean }
@@ -813,6 +828,8 @@ export function parsearLinea(linea: string): Evento[] {
     const r = o.response.response ?? {};
     // La respuesta a `get_context_usage` (`lineaContexto`): va entera a quien la pidió (contexto-desglose.ts la lee).
     if (ok && Array.isArray(r.categories)) (out[0] as { contexto?: unknown }).contexto = r;
+    // La respuesta a `get_settings` (`lineaAjustesVigentes`): si Ultracode quedó en vigor.
+    if (ok && r.applied && typeof r.applied === "object") (out[0] as { ultracode?: boolean | null }).ultracode = ultracodeEnVigor(r);
     // `set_permission_mode` contesta `mode`; `initialize`, `current_permission_mode`.
     const modo = esModo(r.mode) ? r.mode : esModo(r.current_permission_mode) ? r.current_permission_mode : null;
     if (ok && modo) out.push({ tipo: "modo", modo });
@@ -878,6 +895,10 @@ export type Guardado = {
   cwd?: string;
   /** La cuenta agregada de Claude con que corre (id de `cuentas.json`); sin ella, la de siempre. Se elige al crearlo (la preferida de ese momento) y sólo la cambia la persona. */
   cuenta?: string;
+  /** Ultracode prendido (flujos de varios agentes de Claude Code): se aplica tras cada arranque y en vivo. Sin él, apagado. Sólo modelos oficiales de Anthropic. */
+  ultracode?: boolean;
+  /** Fast prendido (modo rápido de Claude Code, `--fast-mode on`): sólo Opus y Fable. Sin él, apagado. */
+  fast?: boolean;
   /** Al retomar con `--resume` salió «No conversation found» y la conversación está con otra cuenta: su id (`claude`, la de siempre). Lo borra el cambio de cuenta o un arranque bueno. */
   otraCuenta?: string;
   /** La cuenta de Claude que tenía antes del último cambio que hizo la persona (id; `claude`, la de siempre): el aviso de razonamiento de otra cuenta ofrece volver a ella. */
@@ -962,6 +983,8 @@ export function leerGuardados(texto: string): Guardado[] {
         ...(l.modo === "plan" && esModo(l.modoPrevio) && l.modoPrevio !== "plan" ? { modoPrevio: l.modoPrevio as Modo } : {}),
         ...(l.rol === "analista" ? { rol: "analista" as const } : {}),
         ...(typeof l.cwd === "string" && path.isAbsolute(l.cwd) ? { cwd: l.cwd } : {}),
+        ...(l.ultracode === true ? { ultracode: true } : {}),
+        ...(l.fast === true ? { fast: true } : {}),
         ...(Number(l.retomado) > 0 ? { retomado: Number(l.retomado) } : {}),
         ...(Number(l.murio) > 0 ? { murio: Number(l.murio) } : {}),
         ...(typeof l.motivo === "string" && l.motivo ? { motivo: l.motivo.slice(0, 300) } : {}),

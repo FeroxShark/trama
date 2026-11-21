@@ -22,7 +22,7 @@ import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo
 import { ArrowUp, Check, Clock, Cpu, FastForward, Folder, Paperclip, Pause, ScanSearch } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type PuntoControl, type Tokens, type Uso } from "../datos/contrato";
-import { fuente, type EnvioLider } from "../datos/fuente";
+import { fuente, type EnvioLider, type ResultadoExtras } from "../datos/fuente";
 import { fuentePaneles } from "../datos/paneles";
 import { ChipSubagentes } from "../barra/Fila";
 import { Reloj } from "../barra/piezas";
@@ -37,6 +37,8 @@ import { pintorCache } from "../tiempo";
 import { cacheAplica } from "../../electron/cache";
 import { BORRADOR_LIDER, cursorDe, escucharBorrador, guardarCursor, leerBorrador, ponerBorrador } from "./borradores";
 import { effortPara } from "./elegir";
+import { Esfuerzo } from "./Esfuerzo";
+import { esClaudeOficial, soportaFast } from "../../electron/esfuerzo-extras";
 import { esfuerzosDeRevisor, type PermitidosAjustes } from "./esfuerzo-revisor";
 import { effortsLeidos, leerEfforts, recordarEffort } from "./efforts";
 import { effortDe, effortsOpciones, MODELO_DEFAULT, MODELOS, modeloDe, modeloVigente, nombreModelo, useModelosVivos } from "./opciones";
@@ -109,9 +111,6 @@ import { aparecioTanda, contarPendientes, tandasPendientes } from "./preguntas-l
 import { ARCHIVO_MAX, BORRADOR_IMAGENES_BASE64, BORRADOR_IMAGENES_MAX, IMAGENES_MAX, type Imagen } from "../../electron/imagenes";
 import { separarAdjuntos } from "../../electron/adjunto";
 import { useAsentado, useEntradas } from "../movimiento";
-
-/** El esfuerzo en pocas letras para el chip fusionado ("medium" → "med"). */
-const abreviar = (e: string) => (e === "medium" ? "med" : e);
 
 /** Lo que tarda (como mucho) la caja de un líder nuevo en bajar antes de abrirlo. */
 const BAJAR_MS = 260;
@@ -385,6 +384,14 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       ? (effortsDe(modelo).find((e) => e !== effortDe(l.effort, modelo)) ?? "low")
       : (effortDe(l?.effort, modelo) ?? effortPara(modelo, effortsLeidos() ?? {})),
   );
+  // Ultracode y Fast (sólo modelos oficiales de Anthropic): los que dice el líder y, en uno nuevo, los que se dejan prendidos antes del primer mensaje.
+  const [ultracode, setUltracode] = useState(!!l?.ultracode || (MODO.captura === "esfuerzo" && MODO.variante !== undefined));
+  const [fast, setFast] = useState(!!l?.fast || (MODO.captura === "esfuerzo" && MODO.variante !== undefined));
+  const ultracodeServidor = !!l?.ultracode;
+  const fastServidor = !!l?.fast;
+  // (La captura `esfuerzo` con variante los deja prendidos para mostrarlos: no se pisan con lo del líder de muestra.)
+  useEffect(() => void (!(MODO.captura === "esfuerzo" && MODO.variante) && setUltracode(ultracodeServidor)), [ultracodeServidor, l?.id]);
+  useEffect(() => void (!(MODO.captura === "esfuerzo" && MODO.variante) && setFast(fastServidor)), [fastServidor, l?.id]);
   const tocado = useRef(!!l);
   // Un líder nuevo sigue a la tabla viva: sin tocar el modelo, pasa al default vigente (Fable 5.2 cuando la cuenta lo trae y la caja tenía el 5.1);
   // y si lo elegido ya no existe en la tabla, al vigente de su familia. Uno ya creado conserva el modelo que tiene.
@@ -1001,7 +1008,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     };
     // El de la terminal: también si ya hay algo esperando (no se le adelanta a lo que está en la cola).
     if (l && (ocupado || (!app && encolados.length > 0))) return aLaCola(l.id, l.nombre);
-    const e: EnvioLider = { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}), ...(l ? {} : { modo: modoNuevoYa ?? modoNuevo, ...(maquinaDe ? { maquina: maquinaDe } : {}), ...(cuentaNueva && familiaDe(modelo) === "claude" && !esLocal(modelo) ? { cuenta: cuentaNueva } : {}), ...carpetaDeEnvio(carpeta, carpetaAMano) }) };
+    const e: EnvioLider = { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}), ...(l ? {} : { modo: modoNuevoYa ?? modoNuevo, ...(maquinaDe ? { maquina: maquinaDe } : {}), ...(cuentaNueva && familiaDe(modelo) === "claude" && !esLocal(modelo) ? { cuenta: cuentaNueva } : {}), ...(ultracode && esClaudeOficial(modelo) ? { ultracode: true } : {}), ...(fast && soportaFast(modelo) ? { fast: true } : {}), ...carpetaDeEnvio(carpeta, carpetaAMano) }) };
     setEnviando(true);
     setErrorCaja(null);
     ponerBorrador(clave, { texto: crudo, error: null });
@@ -1237,6 +1244,15 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     setModelo(m);
     // Cada modelo tiene sus niveles: si el esfuerzo de ahora no existe en el nuevo, pasa al que le toca a ese modelo.
     setEffort((antes) => reajustarEffort(m, antes, effortsLeidos() ?? {}));
+  };
+  /** Ultracode o Fast: en un líder de la app se aplican ya (el main lo comprueba con Claude Code y, si lo rechaza, devuelve el motivo); en uno nuevo quedan para su arranque. */
+  const elegirExtra = async (cual: "ultracode" | "fast", v: boolean): Promise<ResultadoExtras> => {
+    if (l && app) {
+      const r = await fuente.liderExtras(l.id, { [cual]: v });
+      if (!r.ok) return r;
+    }
+    (cual === "ultracode" ? setUltracode : setFast)(v);
+    return { ok: true };
   };
   const elegirEffort = (x: string) => {
     tocado.current = true;
@@ -1545,26 +1561,26 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
                 alElegir={elegirModelo}
                 confirmar={datosCambio}
                 confirmando={MODO.captura === "lider-cambio-motor" && MODO.variante === "confirmar" && l ? MODELOS.find((m) => familiaDe(m.id) !== familiaDe(l.modelo))?.id : undefined}
-                sufijo={effortsDe(modelo).length ? abreviar(effort) : undefined}
-                // Con el modelo y el esfuerzo en un solo chip (nivel 2 o 3 de la barra), el esfuerzo se elige al pie de este menú.
-                esfuerzo={nivel >= 2 && effortsDe(modelo).length ? { etiqueta: tr("comun.esfuerzo"), opciones: effortsOpciones(modelo), valor: effort, alElegir: elegirEffort } : undefined}
-                // Con el esfuerzo en su propio botón, el renglón elegido de la lista lo lleva igual al lado (elegir un modelo cierra el menú).
-                esfuerzoAlLado={effortsDe(modelo).length ? { etiqueta: tr("comun.esfuerzo"), opciones: effortsOpciones(modelo), valor: effort, alElegir: elegirEffort } : undefined}
                 chip={<span className="chip" />}
                 columnas
                 pendiente={pend.modelo ? tr("selector.pendienteTip", { actual: nombreModelo(turnoModelo ?? modelo) }) : undefined}
-                pendienteCompacto={!pend.modelo && pend.effort ? tr("selector.pendienteTip", { actual: `${abreviar(effortDe(l?.effort, turnoModelo) ?? "")}` }) : undefined}
                 abierto={MODO.captura === "modelo" || (MODO.captura === "lider-cambio-motor" && MODO.variante === "menu")}
               />
               {/* Un modelo sin niveles (Ollama) no tiene qué elegir acá. */}
               {effortsDe(modelo).length ? (
-                <Selector
-                  etiqueta={tr("comun.esfuerzo")}
-                  opciones={effortsOpciones(modelo)}
+                // El chip con el nivel; abre un deslizador con Ultracode y Fast (sólo en los modelos de Anthropic que los traen). La rueda sobre el chip lo sube o lo baja.
+                <Esfuerzo
+                  modelo={nombreModelo(modelo).split(" · ")[0]!}
+                  niveles={effortsOpciones(modelo)}
                   valor={effort}
                   alElegir={elegirEffort}
                   pendiente={pend.effort ? tr("selector.pendienteTip", { actual: effortDe(l?.effort, turnoModelo) ?? "" }) : undefined}
+                  ultracode={ultracode}
+                  alUltracode={esClaudeOficial(modelo) && !esLocal(modelo) ? (v) => elegirExtra("ultracode", v) : undefined}
+                  fast={fast && soportaFast(modelo)}
+                  alFast={soportaFast(modelo) ? (v) => elegirExtra("fast", v) : undefined}
                   abierto={MODO.captura === "esfuerzo" || MODO.captura === "local-esfuerzo"}
+                  avisoInicial={MODO.captura === "esfuerzo" && MODO.variante === "rechazo" ? tr("esfuerzo.ultracodeNo") : undefined}
                 />
               ) : esOpencode(modelo) || esDsh(modelo) ? (
                 // Sin niveles que elegir: la píldora sigue, apagada y diciendo por qué (así no parece que falta algo).
