@@ -748,8 +748,14 @@ async function turno(m: Mensaje) {
       if (corte && !interrumpido) {
         for (const o of tr.cerrarAbiertas("El mensaje que mandaste a mitad del turno cortó este paso.")) salida(o);
         corte = false;
-        if (cliente && !cliente.activo) await asegurar();
+        await asegurar();
+        // Si dsh murió y la sesión se perdió (sesión nueva), el mensaje directo lleva el prefacio y lo hablado como cualquier primer prompt.
+        const previoCorte = faltaPrefacio ? hablado() : "";
         enviado = plegar(null, []); // dsh guarda el mensaje cortado: el nuevo va solo
+        if (faltaPrefacio) {
+          enviado = { ...enviado, texto: conPrefacio(enviado.texto, previoCorte) };
+          faltaPrefacio = false;
+        }
         continue;
       }
       if (motivo === "max_tokens") error = `${modelo} llegó al máximo de tokens de salida y cortó la respuesta.`;
