@@ -3065,7 +3065,9 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
       cand.duro = true;
     } else if (calidad < minimo) {
       cand.descartado_por = `calidad ${fn(calidad)} menor que la ${fn(minimo)} que pide ${tipo}`;
-      cand.duro = cand.duro_calidad = true;
+      cand.duro = true;
+      // sólo la calidad se puede relajar al final (`elegir`): un excluido, no disponible, enfriado o agotado no revive por eso
+      if (!x && !nd && !(mid.toLowerCase() in enfr) && !(gid in agot)) cand.duro_calidad = true;
     } else if (x) {
       cand.descartado_por = `excluido en modelos.json (excluir: ${x})`;
       cand.duro = true;
