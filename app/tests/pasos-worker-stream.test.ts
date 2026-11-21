@@ -31,9 +31,10 @@ const quieto = () => new Promise((r) => setTimeout(r, 200)); // espera-justifica
 
 writeFileSync(ruta, l({ type: "session", sessionId: "s-1" }) + dsh("antes de abrir"));
 
-test("mirar un worker sin transcript pero con stream: contesta sin pasos y lo que ya tenía no avisa", async () => {
+test("mirar un worker sin transcript pero con stream: contesta con los pasos del stream y lo que ya tenía no avisa", async () => {
   const v = await p.mirar("ventana", ID);
-  assert.equal(v.hay, false);
+  assert.equal(v.hay, true);
+  assert.deepEqual(v.pasos.map((x) => x.titulo), ["antes de abrir"]);
   await quieto();
   assert.deepEqual(avisos, []);
 });
@@ -73,7 +74,7 @@ test("una línea a medio escribir no avisa ni rompe; se procesa cuando se comple
 test("un stream que aparece después de abrir el worker se vigila cuando algo se mueve (faltantes)", async () => {
   const otro = "20261102-100100-222";
   const ruta2 = path.join(carpeta, `${otro}.stream.jsonl`);
-  assert.equal((await p.mirar("ventana", otro)).hay, false);
+  assert.equal((await p.mirar("ventana", otro)).hay, false, "sin stream todavía: la vista de siempre");
   avisos.length = 0;
   writeFileSync(ruta2, dsh("nace"));
   p.faltantes();
