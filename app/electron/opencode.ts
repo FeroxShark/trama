@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import type { Politica } from "./acp.ts";
 import { paraLanzar, resolverNpm } from "./binario.ts";
-import { caminoDe, type Plataforma, plataformaActual } from "./rutas.ts";
+import { caminoDe, configTrama, type Plataforma, plataformaActual } from "./rutas.ts";
 import { normal } from "./version.ts";
 
 type Env = Record<string, string | undefined>;
@@ -155,7 +155,7 @@ export const mensajeCuotaGo = (modelo: string): string =>
 
 /** Dónde está modelos.json (igual que `rutaModelos` de modelos-config.ts, que reparto y el runner también usan). */
 export function rutaModelosOc(env: Env = process.env, home: string = os.homedir()): string {
-  return env.TRAMA_MODELOS || env.HILOS_MODELOS || path.join(env.XDG_CONFIG_HOME || path.join(home, ".config"), "trama", "modelos.json");
+  return env.TRAMA_MODELOS || env.HILOS_MODELOS || path.join(configTrama(env, home), "modelos.json");
 }
 
 /** El plan de OpenCode que dice modelos.json; cualquier cosa rara (sin archivo, JSON roto, valor desconocido) es «gratis». */
