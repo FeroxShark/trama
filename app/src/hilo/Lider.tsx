@@ -42,7 +42,7 @@ import { esClaudeOficial, soportaFast } from "../../electron/esfuerzo-extras";
 import { esfuerzosDeRevisor, type PermitidosAjustes } from "./esfuerzo-revisor";
 import { effortsLeidos, leerEfforts, recordarEffort } from "./efforts";
 import { effortDe, effortsOpciones, MODELO_DEFAULT, MODELOS, modeloDe, modeloVigente, nombreModelo, useModelosVivos } from "./opciones";
-import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, reajustarEffort, sinWorkers } from "./modelos";
+import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, reajustarEffort, sinWorkers, TABLA } from "./modelos";
 import { ContextoLocal } from "./ContextoLocal";
 import { t as tr } from "../i18n";
 import { useCorrector } from "../paneles/ajustes-corrector";
@@ -61,11 +61,13 @@ import { cuentasClaude, ofertaDeCambio } from "../barra/cupos-riel-logica";
 import { opcionesEnTurno, pendienteDe } from "./pendiente";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import { DialogoCache } from "./DialogoCache";
+import { opcionCompactarCache } from "./cache-compactar";
 import { alCambiarCacheEleccion, cacheEleccion, cambiarCacheEleccion } from "./cache-eleccion";
 import { decidirCache, type EleccionCache, type VeredictoCache } from "../../electron/cache-pregunta";
 import { hayVarias, opcionesMaquina, useMaquinas } from "../maquinas";
 import { Contexto } from "./Contexto";
-import { transcriptLeido } from "./contextoVivo";
+import { tokensParaAviso } from "./contexto-logica";
+import { contextoDe, suscribirContexto, transcriptLeido } from "./contextoVivo";
 import { Avisos, HaceChat, textoAviso, useQuietoDesde } from "./Hace";
 import { latir } from "../barra/latido";
 import {
@@ -90,7 +92,7 @@ import { limpiarDebate, ponerDebate, useDebate } from "./debate-vivo";
 import { leerMensajeRevision, REVISOR_DEFECTO } from "../../electron/revision-plan-texto";
 import { leerMensajeDebate } from "../../electron/debate-texto";
 import { CarpetaDelChat, Texto } from "./Texto";
-import { Hora, pintorAviso, tokens, Turno } from "./Turno";
+import { Hora, pintorAviso, Turno } from "./Turno";
 import { PuntoTurno } from "./Punto";
 import { puntoDeTurno } from "./punto-logica";
 import { Marca } from "./Marca";
@@ -133,7 +135,7 @@ const MARGEN_PAGINA = 400;
 // Los eventos de un líder nuevo llegan antes que su sid: se escucha desde el arranque.
 escuchar();
 
-type Pagina = { mensajes: Mensaje[]; desde: number; total: number; usage: Tokens | null; transcript: string | null };
+type Pagina = { mensajes: Mensaje[]; desde: number; total: number; usage: Tokens | null; transcript: string | null; compactada?: boolean };
 
 type Props = {
   l: Lider | null;
@@ -229,6 +231,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const enEspera = ajeno && encolados.length > 0 && !errorCola;
 
   const [pag, setPag] = useState<Pagina | null>(null);
+  const vivoCtx = useSyncExternalStore(
+    useCallback((fn: () => void) => suscribirContexto(sid, fn), [sid]),
+    () => contextoDe(sid),
+  );
   const [error, setError] = useState<string | null>(null);
   const borrador = leerBorrador(clave);
   const [texto, setTexto] = useState(() => textoCaptura() ?? borrador.texto);
@@ -372,6 +378,20 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   // El cupo de cada modelo y de cada proveedor: el mismo dato que la tarjeta de cupos (sin cupo, con su hora; poco cupo, el punto ámbar).
   // La tabla de modelos cambia sin reiniciar (catálogo nuevo, Ajustes): lo armado con ella se rehace.
   const tablaModelos = useModelosVivos();
+  const [configModelos, setConfigModelos] = useState<{ excluir: string[]; permitidos: PermitidosAjustes }>({
+    excluir: [],
+    permitidos: null,
+  });
+  useEffect(() => {
+    let sigue = true;
+    void fuentePaneles.modelos().then(
+      (r) => sigue && setConfigModelos({ excluir: r.config.excluir ?? [], permitidos: r.config.efforts_permitidos ?? null }),
+      () => {},
+    );
+    return () => {
+      sigue = false;
+    };
+  }, [tablaModelos]);
   const cupos = useMemo(() => estadosCupoModelos(MODELOS.map((m) => m.id), uso, Date.now() / 1000), [uso, tablaModelos]);
   const cuposColumnas = useMemo(() => estadosCupoProveedores(uso, Date.now() / 1000), [uso]);
   const [senalModelo, setSenalModelo] = useState(0);
@@ -616,6 +636,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               total: r.total,
               usage: r.usage,
               transcript: r.transcript,
+              compactada: r.compactada,
             };
           });
           confirmar(sid, r.total, forzar);
@@ -971,8 +992,17 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   // Con la caché vencida y un contexto grande, el primer mensaje espera a que la persona elija (cache-pregunta.ts, DialogoCache.tsx).
   const eleccionCache = useSyncExternalStore(alCambiarCacheEleccion, cacheEleccion);
   const [preguntaCache, setPreguntaCache] = useState<{ veredicto: VeredictoCache; crudo: string; modoNuevoYa?: Modo } | null>(() =>
-    MODO.captura === "lider-cache" ? { veredicto: { accion: "preguntar", tokensSeguir: 128000, tokensResumen: 26000 }, crudo: "" } : null,
+    MODO.captura === "lider-cache" || MODO.captura === "lider-cache-compactar"
+      ? { veredicto: { accion: "preguntar", tokensSeguir: 128000, tokensResumen: 26000 }, crudo: "" }
+      : null,
   );
+  const [compactoCache, setCompactoCache] = useState<{
+    crudo: string;
+    modoNuevoYa?: Modo;
+    compactarCon: string;
+    destino: { modelo: string; effort: string };
+    restaurado?: boolean;
+  } | null>(null);
   const veredictoCache = (): VeredictoCache =>
     decidirCache({
       modelo: l?.modelo ?? modelo,
@@ -981,7 +1011,12 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       vence: l?.cache_vence ?? null,
       ttl: l?.cache_ttl_s ?? null,
       actividad: l?.actividad ?? 0,
-      tokens: tokens(pag?.usage ?? null),
+      tokens: tokensParaAviso({
+        pagUsage: pag?.usage,
+        vivoUsage: vivoCtx.usage,
+        compactada: Boolean(pag?.compactada || vivo.avisos.some((a) => a.clase === "compacto")),
+        mensajes: pag?.mensajes,
+      }),
       pref: eleccionCache,
       ahoraMs: Date.now(),
     });
@@ -992,6 +1027,26 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     if (!q) return;
     if (recordar) cambiarCacheEleccion(e);
     enviar(q.crudo, q.modoNuevoYa, e);
+  };
+  /** 3ª opción de caché vencida: compacta con un modelo barato (o mismo Gemini), restaura el elegido y recién ahí manda el mensaje. */
+  const compactarDesdeCache = (compactarCon: string) => {
+    const q = preguntaCache;
+    setPreguntaCache(null);
+    if (!q || !l || !app || !soportaCompactar(compactarCon) || cambioCompacto.fase === "compactando") return;
+    const destino = { modelo, effort };
+    const effortCompactar = effortPara(compactarCon, effortsLeidos() ?? {});
+    compactoBase.current = {
+      fines: vivo.fines,
+      compactos: vivo.avisos.filter((a) => a.clase === "compacto").length,
+    };
+    setCompactoCache({ crudo: q.crudo, modoNuevoYa: q.modoNuevoYa, compactarCon, destino, restaurado: false });
+    dispatchCambio({ tipo: "iniciar", destino });
+    aplicarModelo(compactarCon, effortCompactar || undefined);
+    const idDestino = l.id;
+    fuente.liderMandar(idDestino, { texto: "/compact", modelo: compactarCon, effort: effortCompactar }).then(
+      () => sidActual.current === idDestino && dispatchCambio({ tipo: "enviado" }),
+      (e) => sidActual.current === idDestino && dispatchCambio({ tipo: "fallo", motivo: mensaje(e) }),
+    );
   };
 
   const enviar = (crudo = texto, modoNuevoYa?: Modo, eleccion?: EleccionCache) => {
@@ -1335,6 +1390,27 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     dispatchCambio(ev);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cambioCompacto, compactandoAhora, vivo.fines, compactosVivos, vivo.fin?.estado, vivo.avisos]);
+  // Si compactó desde caché vencida: apenas vuelve el modelo destino y el líder queda libre, sale el mensaje esperando;
+  // si falló o venció, restaura el modelo elegido y deja el mensaje en la caja sin perder nada.
+  useEffect(() => {
+    if (!compactoCache) return;
+    if (cambioCompacto.fase === "reposo") {
+      setCompactoCache(null);
+      return;
+    }
+    if ((cambioCompacto.fase === "error" || cambioCompacto.fase === "vencido") && !compactoCache.restaurado) {
+      aplicarModelo(compactoCache.destino.modelo, compactoCache.destino.effort);
+      setCompactoCache((prev) => (prev ? { ...prev, restaurado: true } : null));
+      return;
+    }
+    if (cambioCompacto.fase === "hecho" && !ocupado && modelo === compactoCache.destino.modelo) {
+      const pend = compactoCache;
+      setCompactoCache(null);
+      dispatchCambio({ tipo: "reiniciar" });
+      enviar(pend.crudo, pend.modoNuevoYa, "seguir");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compactoCache, cambioCompacto, ocupado, modelo]);
   /** Ultracode o Fast: en un líder de la app se aplican ya (el main lo comprueba con Claude Code y, si lo rechaza, devuelve el motivo); en uno nuevo quedan para su arranque. */
   const elegirExtra = async (cual: "ultracode" | "fast", v: boolean): Promise<ResultadoExtras> => {
     if (l && app) {
@@ -1384,9 +1460,36 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     (l.cache_vence ?? 0) * 1000 > Date.now() &&
     modelo !== modeloAnterior &&
     cambioCompacto.fase === "reposo";
+  const tokensAviso = useMemo(
+    () =>
+      tokensParaAviso({
+        pagUsage: pag?.usage,
+        vivoUsage: vivoCtx.usage,
+        compactada: Boolean(pag?.compactada || compactosVivos > 0),
+        mensajes: pag?.mensajes,
+      }),
+    [pag?.usage, pag?.compactada, pag?.mensajes, vivoCtx.usage, compactosVivos],
+  );
   const aviso = useMemo(
-    () => (cambia && l ? pintorAviso(l.cache_vence ?? 0, modelo, tokens(pag?.usage ?? null)) : null),
-    [cambia, l, modelo, pag?.usage],
+    () => (cambia && l ? pintorAviso(l.cache_vence ?? 0, modelo, tokensAviso) : null),
+    [cambia, l, modelo, tokensAviso],
+  );
+  const opcionCache = useMemo(
+    () =>
+      preguntaCache
+        ? opcionCompactarCache({
+            modeloLider: l?.modelo ?? modelo,
+            modeloDestino: modelo,
+            modelos: TABLA,
+            excluir: configModelos.excluir,
+            effortsPermitidos: configModelos.permitidos,
+            tokens: preguntaCache.veredicto.tokensSeguir,
+            claudeConectado: TABLA.some((m) => m.empresa === "anthropic" && !m.sinConectar),
+            agyConectado: TABLA.some((m) => m.empresa === "google" && !m.sinConectar),
+            ventanas: vivoCtx.ventanas,
+          })
+        : null,
+    [preguntaCache, l?.modelo, modelo, tablaModelos, configModelos, vivoCtx.ventanas],
   );
 
   const alMedio = !l && !items.length && !partio;
@@ -1784,8 +1887,14 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         ) : null}
         {preguntaCache ? (
           <DialogoCache
-            datos={{ veredicto: preguntaCache.veredicto, nueva: !!l && familiaDe(l.modelo) === "claude" }}
+            datos={{
+              veredicto: preguntaCache.veredicto,
+              nueva: !!l && familiaDe(l.modelo) === "claude",
+              modeloNombre: nombreModelo(modelo),
+              compactar: opcionCache,
+            }}
             alElegir={elegirCache}
+            alCompactar={compactarDesdeCache}
             alCancelar={() => {
               setPreguntaCache(null);
               caja.current?.focus();
@@ -1822,7 +1931,14 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         {cambioCompacto.fase === "compactando" ? (
           <div className="caja-aviso" data-estado="compactando" role="status">
             <LoaderCircle className="gira" size={12} strokeWidth={2.2} aria-hidden="true" />
-            <span>{tr("aviso.compactandoCambio", { modelo: nombreCorto(cambioCompacto.destino.modelo) })}</span>
+            <span>
+              {compactoCache
+                ? tr(compactoCache.compactarCon !== cambioCompacto.destino.modelo ? "aviso.compactandoSeguir" : "aviso.compactandoSeguirMismo", {
+                    compactar: nombreCorto(compactoCache.compactarCon),
+                    modelo: nombreCorto(cambioCompacto.destino.modelo),
+                  })
+                : tr("aviso.compactandoCambio", { modelo: nombreCorto(cambioCompacto.destino.modelo) })}
+            </span>
           </div>
         ) : cambioCompacto.fase === "hecho" ? (
           <div className="caja-aviso" data-estado="hecho" role="status">
@@ -1832,12 +1948,20 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         ) : cambioCompacto.fase === "error" ? (
           <div className="caja-aviso" data-estado="error" role="alert">
             <TriangleAlert size={12} strokeWidth={2.2} aria-hidden="true" />
-            <span>{tr("ctxp.compactarError", { motivo: cambioCompacto.motivo })}</span>
+            <span>
+              {compactoCache
+                ? tr("aviso.compactarSeguirFallo", { motivo: cambioCompacto.motivo, modelo: nombreCorto(cambioCompacto.destino.modelo) })
+                : tr("ctxp.compactarError", { motivo: cambioCompacto.motivo })}
+            </span>
           </div>
         ) : cambioCompacto.fase === "vencido" ? (
           <div className="caja-aviso" data-estado="vencido" role="alert">
             <Clock size={12} strokeWidth={2.2} aria-hidden="true" />
-            <span>{tr("aviso.compactarVencido")}</span>
+            <span>
+              {compactoCache
+                ? tr("aviso.compactarSeguirVencido", { modelo: nombreCorto(cambioCompacto.destino.modelo) })
+                : tr("aviso.compactarVencido")}
+            </span>
           </div>
         ) : aviso && modeloAnterior ? (
           <div className="caja-aviso" role="status">

@@ -40,6 +40,7 @@ import { MODO } from "../modo";
 import { hora } from "./Hace";
 import { Boton } from "../ui/componentes";
 import { nombreModelo } from "./opciones";
+import { irANota } from "./nota-compactar";
 import type { AvisoTexto } from "../../electron/avisos-worker.ts";
 import type { ClaseTarjeta, EstadoFilaAviso, Linea, Sistema as S, Tarjeta } from "./sistema-logica";
 import { filasDeAviso, tonoDeEstado } from "./sistema-logica";
@@ -98,15 +99,38 @@ function horaDelCambio(ts: string | null): string {
   return f.toDateString() === new Date().toDateString() ? h : `${f.toLocaleDateString(locale(), { day: "numeric", month: "short" })} ${h}`;
 }
 
-function Divisor({ Icono, texto, crudo }: { Icono: LucideIcon; texto: string; crudo: string | null }) {
+function Divisor({ Icono, texto, crudo, notaKey }: { Icono: LucideIcon; texto: string; crudo: string | null; notaKey?: string }) {
   const [abierta, setAbierta] = useState(false);
+  const botonVer = notaKey ? (
+    <>
+      <span className="sis-div-sep" aria-hidden="true">·</span>
+      <button type="button" className="sis-div-ver" onClick={(e) => irANota(e.currentTarget, notaKey)}>
+        {t("sistema.verNota")}
+      </button>
+    </>
+  ) : null;
   if (!crudo?.trim())
     return (
       <div className="sis-div">
         <span className="sis-div-t">
           <Icono size={12} strokeWidth={2} />
           <span>{texto}</span>
+          {botonVer}
         </span>
+      </div>
+    );
+  if (notaKey)
+    return (
+      <div className="sis-div" data-abierta={abierta ? "" : undefined}>
+        <div className="sis-div-t">
+          <button type="button" className="sis-div-b" aria-expanded={abierta} onClick={() => setAbierta((v) => !v)}>
+            <Icono size={12} strokeWidth={2} />
+            <span>{texto}</span>
+            <ChevronRight className="sis-f" size={11} strokeWidth={2} />
+          </button>
+          {botonVer}
+        </div>
+        {abierta ? <pre>{crudo.trim()}</pre> : null}
       </div>
     );
   return (
@@ -330,7 +354,9 @@ export const Sistema = memo(function Sistema({ s, nombre, alAbrirHilo, alSeguir,
   if (s.tipo === "tarjeta") return <Tarjeta_ s={s} />;
   if (s.clase === "compacto") {
     const k = s.antes ? t("aviso.antes", { k: Math.max(1, Math.round(s.antes / 1000)) }) : "";
-    return <Divisor Icono={FoldVertical} texto={t(s.auto ? "sistema.compactadaAuto" : "sistema.compactada") + k} crudo={s.resumen ?? null} />;
+    const base = t(s.auto ? "sistema.compactadaAuto" : "sistema.compactada") + k;
+    const texto = s.nota ? `${base} · ${t("sistema.compactadaConNota")}` : base;
+    return <Divisor Icono={FoldVertical} texto={texto} crudo={s.resumen ?? null} notaKey={s.nota} />;
   }
   if (s.clase === "cambio") {
     const h = horaDelCambio(s.ts);

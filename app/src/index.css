@@ -4,6 +4,8 @@
 @import "./barra-atencion.css";
 @import "./hilo/tarjeta-frase.css";
 @import "./hilo/tarjeta-ruta.css";
+@import "./hilo/tarjeta-revision.css";
+@import "./hilo/tarjeta-nota.css";
 @import "./hilo/visor-imagen.css";
 
 /* Dirección visual: el estándar pulido (vidrio quieto, acento celeste, cápsulas, grilla de 4 px,
@@ -3428,6 +3430,77 @@ html[data-titulo-nativo] #root::after {
   color: var(--texto-3);
   font-size: var(--letra-4);
   line-height: 1.5;
+}
+.cache-op-comp {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  cursor: default;
+}
+.cache-op-comp:hover {
+  background: var(--sup-2);
+}
+.cache-op-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-3);
+  width: 100%;
+  padding: var(--esp-3);
+  border: 0;
+  border-radius: var(--radio-3);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cache-op-btn:hover {
+  background: var(--acento-tinte);
+}
+.cache-op-btn:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: -2px;
+}
+.cache-op-sel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--esp-1-5);
+  padding: var(--esp-2) var(--esp-3) var(--esp-2-5);
+  padding-left: calc(var(--esp-3) + 1.25rem + var(--esp-3));
+  border-top: 1px solid var(--sup-4);
+}
+.cache-op-sel-l {
+  color: var(--texto-3);
+  font-size: var(--letra-3);
+}
+.cache-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1);
+}
+.cache-chip {
+  padding: var(--esp-0-5) var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-pastilla);
+  background: var(--sup-2);
+  color: var(--apagado);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  cursor: pointer;
+}
+.cache-chip:hover {
+  color: var(--texto);
+  border-color: var(--acento);
+}
+.cache-chip[data-activo] {
+  border-color: var(--acento);
+  background: var(--acento-tinte);
+  color: var(--texto);
+}
+.cache-chip:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
 }
 .cache-recordar {
   display: flex;

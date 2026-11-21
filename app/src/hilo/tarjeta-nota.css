@@ -1,0 +1,104 @@
+/* Tarjeta de la nota para compactar (`TarjetaNota.tsx`): reutiliza la base `.rv` de `tarjeta-revision.css`
+   (solo tokens de `tokens.css`) y agrega el pliegue con `<details>` + la acción «Ver la nota» en el divisor. */
+
+.nota-comp {
+  margin: var(--esp-1) 0;
+}
+
+.nota-cab {
+  align-items: center;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.nota-cab::-webkit-details-marker {
+  display: none;
+}
+
+.nota-cab:focus-visible {
+  border-radius: var(--r-md);
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+.nota-cab .rv-txt {
+  flex: 1;
+  min-width: 0;
+}
+
+.nota-comp[open] .nota-cab {
+  margin-bottom: 0;
+}
+
+.nota-viva .rv-cab {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.nota-cab .nota-ch {
+  flex: none;
+  color: var(--inactivo);
+  transition: transform 0.15s ease-out, color 0.15s ease-out;
+}
+
+.nota-cab:hover .nota-ch,
+.nota-comp[open] .nota-cab .nota-ch {
+  color: var(--texto);
+}
+
+.nota-comp[open] .nota-ch {
+  transform: rotate(90deg);
+}
+
+.nota-cuerpo {
+  margin-top: var(--esp-2-5);
+  padding-top: var(--esp-2-5);
+  border-top: 1px solid var(--sup-4);
+  font-size: var(--letra-4);
+  line-height: 1.55;
+  color: var(--apagado);
+}
+
+.sis-div-b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.sis-div-b:focus-visible,
+.sis-div-ver:focus-visible {
+  border-radius: var(--radio-2);
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+.sis-div[data-abierta] .sis-f {
+  transform: rotate(90deg);
+}
+
+.sis-div-sep {
+  color: var(--inactivo);
+}
+
+.sis-div-ver {
+  padding: var(--esp-0-5) var(--esp-1-5);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: none;
+  color: var(--acento);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.14s ease-out, color 0.14s ease-out;
+}
+
+.sis-div-ver:hover {
+  background: var(--acento-tinte);
+  color: var(--texto);
+}

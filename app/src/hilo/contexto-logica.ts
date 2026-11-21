@@ -2,13 +2,47 @@
 // conversación (los tokens de entrada del último turno) contra su umbral: el de
 // autocompact (líder y worker). Puro: lo prueba
 // `tests/contexto.test.ts`.
-import type { Tokens } from "../datos/contrato";
+import type { Mensaje, Tokens } from "../datos/contrato";
 import type { Umbrales } from "../datos/fuente";
 import { topeAutocompact } from "../../electron/autocompact-tope.ts";
+import { sistemaDe } from "./sistema-logica.ts";
 
 /** Lo que pesa la conversación: la entrada del último turno, cacheada o no. */
 export const usados = (u: Tokens | null | undefined): number =>
   u ? (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) : 0;
+
+/**
+ * Indica si hubo una compactación después del último mensaje del asistente: en ese caso `pag.usage`
+ * todavía arrastra el uso previo y no sirve para mostrar cuántos tokens releería un cambio de modelo.
+ */
+export function compactadoDespuesDeUltimoTurno(mensajes: readonly Mensaje[]): boolean {
+  for (let i = mensajes.length - 1; i >= 0; i--) {
+    const m = mensajes[i];
+    if (m.compacto || sistemaDe(m)?.clase === "compacto") return true;
+    if (m.rol === "assistant") return false;
+  }
+  return false;
+}
+
+/**
+ * Tokens que estima releer al cambiar de modelo: si compactó después del último mensaje del asistente
+ * (en los mensajes, `compactada` del transcript o un aviso vivo posterior), usa sólo el conteo post-compactación
+ * vivo (`vivoUsage`) si existe, u omite el número (`0`) si todavía no hubo otro turno.
+ */
+export function tokensParaAviso({
+  pagUsage,
+  vivoUsage,
+  compactada = false,
+  mensajes = [],
+}: {
+  pagUsage: Tokens | null | undefined;
+  vivoUsage: Tokens | null | undefined;
+  compactada?: boolean;
+  mensajes?: readonly Mensaje[];
+}): number {
+  if (compactada || compactadoDespuesDeUltimoTurno(mensajes)) return usados(vivoUsage);
+  return usados(vivoUsage ?? pagUsage);
+}
 
 /**
  * La ventana del modelo cuando el stream no la dijo (`modelUsage.contextWindow`):

@@ -12,6 +12,8 @@ import { nombreModelo } from "./opciones";
 import { Tierno, useTiernos } from "./Tierno";
 import { Texto } from "./Texto";
 import { t } from "../i18n";
+import { partirNotaCompactar } from "./nota-compactar";
+import { TarjetaNota } from "./TarjetaNota";
 import { agrupar, type Uso } from "./herramientas";
 import { Llamada } from "./Llamada";
 import { IconosAccion } from "./IconoAccion";
@@ -239,11 +241,7 @@ function Lineal({ t: turno, vivo, enCurso = false, semilla, pensando = false, ra
           </span>
         </div>
       ) : null}
-      {turno.texto ? (
-        <div className="el">
-          <Texto texto={turno.texto} vivo={enCurso} />
-        </div>
-      ) : null}
+      {turno.texto ? <CuerpoTexto texto={turno.texto} vivo={enCurso} turnoKey={turno.key} /> : null}
       {/* Terminado: a qué hora contestó (el último mensaje del turno). */}
       {!vivo && !enCurso && turno.hasta !== null && (turno.texto || hayTrabajo) ? <Hora ts={turno.hasta} dura={dura} /> : null}
     </>
@@ -255,6 +253,38 @@ function textoFin(fin: FinVisto, resumen: string, dura: number | null) {
   const d = fin.dura ?? dura;
   const r = d !== null ? t("turno.resumenDura", { r: resumen, d: duracionFina(d) }) : resumen;
   return fin.estado === "parado" ? `${t("hz.f.parado")} · ${r}` : r;
+}
+
+function CuerpoTexto({
+  texto,
+  vivo,
+  turnoKey,
+  intermedio,
+}: {
+  texto: string;
+  vivo: boolean;
+  turnoKey: string;
+  intermedio?: "";
+}) {
+  const partida = partirNotaCompactar(texto, { vivo });
+  if (!partida) {
+    return (
+      <div className="el" data-intermedio={intermedio}>
+        <Texto texto={texto} vivo={vivo} />
+      </div>
+    );
+  }
+  return (
+    <>
+      {partida.antes ? (
+        <div className="el" data-intermedio={intermedio}>
+          <Texto texto={partida.antes} vivo={false} />
+        </div>
+      ) : null}
+      <TarjetaNota nota={partida} turnoKey={turnoKey} />
+      {partida.despues ? <CuerpoTexto texto={partida.despues} vivo={vivo} turnoKey={turnoKey} intermedio={intermedio} /> : null}
+    </>
+  );
 }
 
 /** Dos grupos de herramientas son el mismo si tienen las mismas llamadas con los mismos resultados (llegan después que la llamada). */
@@ -363,10 +393,12 @@ function Intercalado({ t: turno, vivo, enCurso = false, semilla, pensando = fals
       {orden.map((p, i) => (
         <Fragment key={i}>
           {p.texto ? (
-            <div className="el" data-intermedio={i < ultimo || p.usos.length ? "" : undefined}>
-              {/* Sigue llegando sólo el último texto, y si todavía no usó herramientas. */}
-              <Texto texto={p.texto} vivo={enCurso && i === ultimo && !p.usos.length} />
-            </div>
+            <CuerpoTexto
+              texto={p.texto}
+              vivo={enCurso && i === ultimo && !p.usos.length}
+              turnoKey={turno.key}
+              intermedio={i < ultimo || p.usos.length ? "" : undefined}
+            />
           ) : null}
           {p.usos.length ? <Grupo usos={p.usos} reloj={i === ultimo ? corre : null} semilla={sem} tierno={tierno} fin={i === ultimoGrupo ? fin : undefined} enCurso={enCurso && i === ultimo} /> : null}
         </Fragment>

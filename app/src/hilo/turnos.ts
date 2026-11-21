@@ -7,6 +7,7 @@ import type { Mensaje } from "../datos/contrato";
 import { agrupar, usosDe, type Uso } from "./herramientas.ts";
 import { sistemaDe, type Sistema } from "./sistema-logica.ts";
 import { dejadosDeMensaje, type RefDejado } from "./tablero-dejado.ts";
+import { turnoTieneNota } from "./nota-compactar.ts";
 
 /** Un renglón del trabajo: un texto suelto del worker y las herramientas que usó después (B19). */
 export type Paso = { texto: string; usos: Uso[] };
@@ -53,6 +54,16 @@ const epoch = (ts: string | null) => {
   return Number.isFinite(t) ? t : null;
 };
 
+/** Devuelve la key del último turno del asistente antes de compactar si trajo nota cerrada (`undefined` si no). */
+function notaPreviaCompacto(items: Item[]): string | undefined {
+  for (let k = items.length - 1; k >= 0; k--) {
+    const it = items[k];
+    if (it.tipo === "sistema" && it.s.tipo === "linea" && it.s.clase === "compacto") return undefined;
+    if (it.tipo === "turno") return turnoTieneNota(it) ? it.key : undefined;
+  }
+  return undefined;
+}
+
 /**
  * `transcript`: la ruta del transcript, para mostrar las rutas relativas al
  * proyecto (src/hilo/herramientas.ts, `relativa`).
@@ -67,10 +78,18 @@ export function turnos(mensajes: Mensaje[], transcript: string | null = null): I
     if (s) {
       // Compactó y siguió con el resumen: una sola raya, que se abre al resumen.
       const r = sis[i + 1];
-      if (s.tipo === "linea" && s.clase === "compacto" && r?.tipo === "tarjeta" && r.clase === "resumen") {
-        items.push({ tipo: "sistema", key: `m${m.i}`, s: { ...s, resumen: r.crudo } });
-        i += 2;
-        continue;
+      if (s.tipo === "linea" && s.clase === "compacto") {
+        const nota = notaPreviaCompacto(items);
+        if (r?.tipo === "tarjeta" && r.clase === "resumen") {
+          items.push({ tipo: "sistema", key: `m${m.i}`, s: { ...s, resumen: r.crudo, ...(nota ? { nota } : {}) } });
+          i += 2;
+          continue;
+        }
+        if (nota) {
+          items.push({ tipo: "sistema", key: `m${m.i}`, s: { ...s, nota } });
+          i++;
+          continue;
+        }
       }
       items.push({ tipo: "sistema", key: `m${m.i}`, s });
       i++;
