@@ -8,9 +8,10 @@ import { ahoraS, leerTexto } from "./corridas.ts";
 import { salir, conDueno, dondeSeBusco, type Pa } from "./entorno.ts";
 import { limiteDe } from "./lanzar.ts";
 import {
-  CODEX_MODELOS, DSH_MODELOS, GEMINI_MODELOS, OC_MODELOS, TIPOS_VALIDOS, calza, esCodex, esDsh, esGemini, esLocal, esOpencode,
+  DSH_MODELOS, GEMINI_MODELOS, OC_MODELOS, TIPOS_VALIDOS, calza, esCodex, esDsh, esGemini, esLocal, esOpencode,
   type Modelos, type Politica,
 } from "./modelos.ts";
+import { familiaCodexDeId, resolverCodexPedido, resumenCodexAceptados } from "../codex-modelos.ts";
 import type { Opciones } from "./opciones.ts";
 import { topeReparto, type Cuentas, type Reparto } from "./programas.ts";
 import { resolverRubrica, type Rubrica } from "./rubrica.ts";
@@ -169,8 +170,9 @@ export function geminiEquivalente(m: string): [string, string] {
 /** `codex_equivalente`. */
 export function codexEquivalente(m: string): [string, string] {
   const e = m.slice(m.lastIndexOf("-") + 1);
-  if (m.startsWith("codex:gpt-6-astra-")) return ["claude-opus-5-5", e];
-  if (m.startsWith("codex:gpt-6-luna-")) return ["claude-haiku-5-5", e === "low" ? "medium" : e === "medium" ? "high" : "xhigh"];
+  const fam = familiaCodexDeId(m);
+  if (fam === "astra") return ["claude-opus-5-5", e];
+  if (fam === "luna") return ["claude-haiku-5-5", e === "low" ? "medium" : e === "medium" ? "high" : "xhigh"];
   if (m.startsWith("codex:")) return ["claude-sonnet-5-5", e];
   return ["", ""];
 }
@@ -617,9 +619,10 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     } else l.motor = "agy";
   }
   if (l.lanza && esCodex(l.modelo)) {
-    if (!calza(CODEX_MODELOS, l.modelo.toLowerCase()))
-      corta(pa, 2, `pa: modelo '${l.modelo}' no va. Modelos de codex en pa: codex:{gpt-6.1-sol,gpt-6-sol,gpt-6-luna,gpt-6-astra}-{low,medium,high}.`);
-    l.modelo = l.modelo.toLowerCase();
+    const resCodex = resolverCodexPedido(l.modelo.toLowerCase(), { env: pa.env, home: pa.home });
+    if (!resCodex)
+      corta(pa, 2, `pa: modelo '${l.modelo}' no va. Modelos de codex en pa: ${resumenCodexAceptados({ env: pa.env, home: pa.home })}.`);
+    l.modelo = resCodex.id;
     if (l.esfuerzoFlag) corta(pa, 2, `pa: --effort no va con '${l.modelo}': en codex el effort es parte del nombre (…-low, …-medium, …-high).`);
     sacarEffort();
     noVan(l, pa, l.modelo, "codex");

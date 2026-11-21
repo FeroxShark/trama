@@ -7,7 +7,7 @@ export const REVISOR_DEFECTO = "gemini-4-neon";
 
 /** Los niveles de esfuerzo que conoce Ajustes > Modelos, de menor a mayor (los de `efforts_permitidos`). */
 const NIVELES = ["low", "medium", "high", "xhigh", "max"] as const;
-const FAMILIAS_EFFORT = ["fable", "opus", "sonnet", "haiku", "neon", "argon", "hydrogen", "gpt-oss", "astra", "sol", "luna"];
+const FAMILIAS_EFFORT = ["fable", "opus", "sonnet", "haiku", "neon", "argon", "hydrogen", "gpt-oss", "astra", "sol", "luna", "terra"];
 
 /**
  * Los esfuerzos que el dueño dejó prendidos en Ajustes > Modelos para ese modelo (`efforts_permitidos`, con la misma cuenta que `pa` y

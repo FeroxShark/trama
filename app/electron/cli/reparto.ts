@@ -33,6 +33,7 @@ import { configTrama, estadoHilos, estadoPa, plataformaActual, type Plataforma }
 import { lanzarSuelto, pidDeCorrida, pidDeRunning } from "./base/proc.ts";
 import { carpetaMotor } from "./pa/entorno.ts";
 import { datoDeFila } from "./pa/dato-medicion.ts";
+import { CODEX_RESPALDO, EFFORTS_CODEX_PA, aliasMasNuevosCodex, effortsCodexSoportados, familiaCodexDeId, leerCodexModelos, type CodexModelo } from "./codex-modelos.ts";
 import { canonico } from "./pa/modelo-canonico.ts";
 import {
   conFloat,
@@ -127,7 +128,7 @@ const COSTO_FLOAT = ["opus", "astra"]; // los 1.0 de COSTO (en JS no se distingu
 const RESERVA = null;
 const AVISO_USO = 0.85;
 const SIN_CUPO = ["otro", "esperar", "fallar"];
-const FAMILIAS_EXCLUIBLES = ["fable", "opus", "sonnet", "haiku", "neon", "argon", "hydrogen", "gpt-oss", "astra", "sol", "luna"];
+const FAMILIAS_EXCLUIBLES = ["fable", "opus", "sonnet", "haiku", "neon", "argon", "hydrogen", "gpt-oss", "astra", "sol", "luna", "terra"];
 const LLENA = 0.03;
 const MARGEN = 3.0;
 const PESO_SOBRA = 0.5;
@@ -184,8 +185,16 @@ const GRUPOS_GOOGLE: Grupo[] = [
 ];
 const EFFORTS_AGY = ["low", "medium", "high"];
 const EFFORTS_HYDROGEN = ["low", "medium", "high", "xhigh"];
-const GRUPOS_OPENAI: Grupo[] = [["codex", "Codex (ChatGPT)", ["5h", "7d"], ["codex:gpt-6.1-sol", "codex:gpt-6-luna", "codex:gpt-6-astra"]]];
-const EFFORTS_CODEX = ["low", "medium", "high"];
+const EFFORTS_CODEX = [...EFFORTS_CODEX_PA];
+function modelosCodexCatalogo(): CodexModelo[] {
+  return leerCodexModelos({ env: E, home: home() });
+}
+function gruposOpenai(): Grupo[] {
+  return [["codex", "Codex (ChatGPT)", ["5h", "7d"], modelosCodexCatalogo().map((m) => m.id)]];
+}
+function filasCodex(): Familia[] {
+  return modelosCodexCatalogo().map((m) => [m.id, m.familia, m.nombre, "openai", "codex", m.slug, effortsCodexSoportados(m)]);
+}
 const DSH_OPENCODE_GRATIS = ["big-pickle", "deepseek-v4.1-flash-free", "glm-5.3-flash-free", "flint-40b-free", "longcat-2.5-preview-free"];
 const DSH_DEEPSEEK = ["deepseek-v4-flash"];
 const DSH_GRUPOS: Obj = { ollama: "dsh-ollama", opencode: "dsh-opencode", deepseek: "dsh-deepseek", "opencode-prog": "opencode-free", "opencode-go": "opencode-go", nvidia: "nvidia-nim" };
@@ -208,7 +217,7 @@ const OC_GRATIS_CONOCIDOS = ["big-pickle", "beam-free", "deepseek-v4.1-flash-fre
 const COSTO_DSH_PAGO = 1.5;
 
 type Familia = [string, string, string, string, string | null, string | null, string[] | null];
-const FAMILIAS: Familia[] = [
+const FAMILIAS_BASE: Familia[] = [
   ["claude-fable-5-2", "fable", "Claude Fable 5.2", "claude", null, null, null],
   ["claude-opus-5-5", "opus", "Claude Opus 5.5", "claude", null, null, null],
   ["claude-sonnet-5-5", "sonnet", "Claude Sonnet 5.5", "claude", null, null, null],
@@ -219,10 +228,16 @@ const FAMILIAS: Familia[] = [
   ["gemini-4-neon", "neon", "Gemini 4 Neon", "google", "gemini", "gemini-4-neon", EFFORTS_HYDROGEN],
   ["gemini-4-argon", "argon", "Gemini 4 Argon", "google", "gemini-4-argon", "gemini-4-argon", EFFORTS_AGY],
   ["gemini-4-hydrogen", "hydrogen", "Gemini 4 Hydrogen", "google", "gemini", "gemini-4-hydrogen", EFFORTS_HYDROGEN],
-  ["codex:gpt-6.1-sol", "sol", "GPT-6.1 Sol (Codex)", "openai", "codex", "gpt-6.1-sol", EFFORTS_CODEX],
-  ["codex:gpt-6-astra", "astra", "GPT-6 Astra (Codex)", "openai", "codex", "gpt-6-astra", EFFORTS_CODEX],
-  ["codex:gpt-6-luna", "luna", "GPT-6 Luna (Codex)", "openai", "codex", "gpt-6-luna", EFFORTS_CODEX],
 ];
+function familiasTodas(): Familia[] {
+  return [...FAMILIAS_BASE, ...filasCodex()];
+}
+function familiasRespaldoAA(): Familia[] {
+  return [
+    ...FAMILIAS_BASE,
+    ...CODEX_RESPALDO.map((m): Familia => [m.id, m.familia, m.nombre, "openai", "codex", m.slug, effortsCodexSoportados(m)]),
+  ];
+}
 
 // --- utilidades de Python ----------------------------------------------------------------------------
 const esDict = (x: unknown): x is Obj => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -1028,24 +1043,30 @@ function cargarConfig(): Obj {
   for (const k of Object.keys(cfg.calidad)) cfg.origen[k] = cfg.calidad_usuario.has(k) ? "usuario" : "defecto";
   cfg.calidad_effort_usuario ??= {};
   cfg.calidad_ef = {};
+  cfg.calidad_modelo = {};
+  cfg.origen_modelo = {};
+  cfg.calidad_ef_modelo = {};
   if (aa) {
-    for (const [base, fam] of FAMILIAS) {
-      if (cfg.calidad_usuario.has(fam) || cfg.origen[fam] === "artificial-analysis") continue;
+    for (const [base, fam] of familiasTodas()) {
       const r = aaCalidad(aa, base);
-      if (r) {
+      if (!r) continue;
+      cfg.calidad_modelo[base] = r[0];
+      cfg.origen_modelo[base] = "artificial-analysis";
+      cfg.calidad_ef_modelo[base] = aaCalidadEfforts(aa, base);
+      if (!cfg.calidad_usuario.has(fam) && cfg.origen[fam] !== "artificial-analysis") {
         cfg.calidad[fam] = r[0];
         cfg.origen[fam] = "artificial-analysis";
-        cfg.calidad_ef[fam] = aaCalidadEfforts(aa, base);
+        cfg.calidad_ef[fam] = cfg.calidad_ef_modelo[base];
       }
     }
   }
   return cfg;
 }
 
-/** Los ids de FAMILIAS que ninguna fuente de Artificial Analysis (caché, foto del repo o suplemento) trae: quedarían con la calidad de fábrica sin que nadie se entere (lo controla `tests/reparto-familias-aa.test.ts`). */
+/** Los ids base que ninguna fuente de Artificial Analysis (caché, foto del repo o suplemento) trae: quedarían con la calidad de fábrica sin que nadie se entere (lo controla `tests/reparto-familias-aa.test.ts`). */
 export function familiasSinFilaAA(): string[] {
   const aa = aaCargar();
-  return FAMILIAS.filter(([base]) => !aaCalidad(aa, base)).map(([base]) => base);
+  return familiasRespaldoAA().filter(([base]) => !aaCalidad(aa, base)).map(([base]) => base);
 }
 
 function mapaEfforts(cfg: Obj, clave: string, mid: string | null = null): MapaEf {
@@ -1071,6 +1092,7 @@ function ventanaLlena(cfg: Obj, sus: string, gid: string | null, w: Obj): boolea
 function familiaDe(mid: unknown): string | null {
   const m = pyStr(mid || "").toLowerCase();
   for (const f of FAMILIAS_EXCLUIBLES) if (m.includes(f)) return f;
+  if (m.startsWith("codex:")) return familiaCodexDeId(m) || null;
   return null;
 }
 
@@ -1888,8 +1910,9 @@ function rateLimitsCodex(now: Date): Obj {
 function cuposOpenai(cfg: Obj, now: Date): Obj {
   const vs = rateLimitsCodex(now);
   const grupos: Obj[] = [];
-  for (const [gid, nombre, wids, bases] of GRUPOS_OPENAI) {
-    const modelos = bases.flatMap((b) => EFFORTS_CODEX.map((e) => `${b}-${e}`));
+  const efsPorId = new Map(modelosCodexCatalogo().map((m) => [m.id, effortsCodexSoportados(m)]));
+  for (const [gid, nombre, wids, bases] of gruposOpenai()) {
+    const modelos = bases.flatMap((b) => (efsPorId.get(b) ?? EFFORTS_CODEX).map((e) => `${b}-${e}`));
     const g: Obj = { id: gid, nombre, modelos, ventanas: wids.map((w) => vs[w] || ventana(w, null, null)) };
     const h = cfg.grupos_hasta[gid];
     if (verdad(h)) g.hasta = h;
@@ -2066,8 +2089,8 @@ export function grupoDeModelo(mid: unknown): string | null {
   if (m.startsWith(NVIDIA_PREFIJO)) return null; // NVIDIA NIM: límite por minuto y por modelo; se enfría ese modelo, no hay grupo
   if (m === "opencode-free" || m.startsWith("opencode:")) return "opencode-free";
   for (const [prov, gid] of Object.entries(DSH_GRUPOS)) if (prov !== "opencode-prog" && (m === gid || m.startsWith(`dsh:${prov}/`))) return gid;
-  if (m.startsWith("codex:gpt-6-sol")) return "codex";
-  for (const [gid, , , bases] of [...GRUPOS_GOOGLE, ...GRUPOS_OPENAI]) if (m === gid || bases.some((b) => m === b || m.startsWith(b + "-"))) return gid;
+  if (m.startsWith("codex:")) return "codex";
+  for (const [gid, , , bases] of [...GRUPOS_GOOGLE, ...gruposOpenai()]) if (m === gid || bases.some((b) => m === b || m.startsWith(b + "-"))) return gid;
   if (m.startsWith("agy:")) return idGrupo(m.slice(4)); // un modelo que esta cuenta de agy ofrece y la tabla no conoce: su grupo sale del nombre
   if (m === CLAUDE_OFICIAL || m.startsWith("claude-")) return CLAUDE_OFICIAL;
   return null;
@@ -2781,8 +2804,13 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     for (const w of get(cuentaS, "ventanas", []) || []) clVent[w.id] = w;
     const cuenta = cuentaDe(cuentaS);
     if (suf(cuenta)) nombre = `${nombre} · ${get(cuentaS, "nombre") || cuenta}`;
-    const calidadMejor = get(cfg.calidad, fam, 0);
-    const mapaEfx = mapaEfforts(cfg, fam);
+    const esOpenai = sus === "openai";
+    const usrModelo = esOpenai && Boolean(cfg.calidad_usuario?.has(base));
+    const aaModelo = esOpenai && !usrModelo && Boolean(cfg.calidad_modelo && base in cfg.calidad_modelo);
+    const calidadMejor = aaModelo ? cfg.calidad_modelo[base] : usrModelo ? cfg.calidad[base] : get(cfg.calidad, fam, 0);
+    const mapaEfx = aaModelo ? mapaEfforts(cfg, base, base) : usrModelo ? mapaEfforts(cfg, base) : mapaEfforts(cfg, fam);
+    const origenCand = aaModelo ? cfg.origen_modelo[base] : usrModelo ? get(cfg.origen, base, "usuario") : get(cfg.origen, fam, "estimada");
+    const tieneDato = usrModelo || aaModelo || fam in cfg.calidad;
     let notaEffort: string | null = null;
     let ePerm: string | null;
     let modelo: string;
@@ -2819,7 +2847,7 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
       efforts_posibles: hayMapa ? EFFORTS_AA.filter((x) => efs === null || efs.includes(x)) : [],
       cupo_libre: null, vuelve: null, puntaje: null, descartado_por: null,
       aviso: null, grupo: gid || "claude-oficial", cuenta, proveedor: sus,
-      estimada: fijoAgy || !(fam in cfg.calidad), origen: fijoAgy ? "estimada" : get(cfg.origen, fam, "estimada"), nota_effort: notaEffort,
+      estimada: fijoAgy || !tieneDato, origen: fijoAgy ? "estimada" : origenCand, nota_effort: notaEffort,
     };
     if (ePerm === null && notaEffort && !fijoAgy) {
       cand.descartado_por = `excluido en modelos.json (${notaEffort})`;
@@ -2972,14 +3000,14 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     out.push(cand);
   };
   // Fable es un candidato más (calidad 93, costo 2,5× Opus): entra por calidad y cupo y sólo sale si Ajustes lo excluye (`excluir: ["fable"]`).
-  for (const c of FAMILIAS) {
+  for (const c of familiasTodas()) {
     for (const cs of c[3] === "claude" ? claudes : c[3] === "openai" ? openais : googles) hacer(c, cs);
   }
   // Los modelos que el agy de la cuenta ofrece y FAMILIAS no conoce (p. ej. 'Claude Sonnet 4.6 (Thinking)'): entran con calidad estimada
   for (const cs of googles) {
     for (const m of (get(cs, "agy_modelos", []) || []) as { id: string; nombre: string }[]) {
       if (m.id.startsWith("gemini-")) continue;
-      if (FAMILIAS.some((f) => f[3] === "google" && m.id.startsWith(f[5] + "-") && f[6]!.includes(m.id.slice(f[5]!.length + 1)))) continue;
+      if (FAMILIAS_BASE.some((f) => f[3] === "google" && m.id.startsWith(f[5] + "-") && f[6]!.includes(m.id.slice(f[5]!.length + 1)))) continue;
       const mid = agyIdReparto(m.id);
       const fam = familiaDe(mid);
       hacer([mid, fam || "agy", `${m.nombre} (por Google)`, "google", idGrupo(m.nombre || m.id), m.id, []], cs);
@@ -3374,8 +3402,15 @@ function ventanasTxt(vs: Obj[], now: Date): string {
 export function resolver(mid: string): Obj | null {
   if (mid.startsWith("agy:")) return { motor: "agy", modelo: mid.slice(4), id: mid, nota: `agy --model ${mid.slice(4)}` };
   if (mid.startsWith("gemini-")) return { motor: "agy", modelo: mid, id: mid, nota: `agy --model ${mid}` };
+  const aliases = aliasMasNuevosCodex(modelosCodexCatalogo());
+  const soloAlias = aliases[mid.toLowerCase()];
+  if (soloAlias) return { motor: "codex", modelo: soloAlias.slug, id: soloAlias.id, nota: `codex exec -m ${soloAlias.slug}` };
   let m = /^codex:(.+)-(low|medium|high)$/s.exec(mid);
-  if (m) return { motor: "codex", modelo: m[1], effort: m[2], id: mid, nota: `codex exec -m ${m[1]} -c model_reasoning_effort=${m[2]}` };
+  if (m) {
+    const slug = aliases[m[1]!.toLowerCase()]?.slug ?? m[1]!;
+    const idResuelto = `codex:${slug}-${m[2]}`;
+    return { motor: "codex", modelo: slug, effort: m[2], id: idResuelto, nota: `codex exec -m ${slug} -c model_reasoning_effort=${m[2]}` };
+  }
   if (mid.startsWith("ollama:")) return { motor: "ollama", modelo: mid.slice(7), id: mid };
   m = /^dsh:(ollama|opencode|deepseek)\/(.+)$/s.exec(mid);
   if (m) return { motor: "dsh", modelo: m[2], proveedor: m[1], id: mid, nota: `pa -m ${mid} (motor/dsh/correr.mjs)` };
@@ -3650,6 +3685,7 @@ function paraQueSirve(f: Obj): string {
     hydrogen: "código e interfaz al nivel de Sonnet; cupo de Gemini",
     "gpt-oss": "mecánico simple; sigue poco el contrato",
     astra: "tareas grandes (ChatGPT); pa todavía no lo lanza", sol: "código medio (ChatGPT); pa todavía no lo lanza",
+    terra: "tareas grandes de investigación y datos (ChatGPT); pa todavía no lo lanza",
     luna: "tareas chicas (ChatGPT); pa todavía no lo lanza",
   };
   if (fam in porFamilia) return porFamilia[fam];
