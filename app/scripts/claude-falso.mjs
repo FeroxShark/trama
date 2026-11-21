@@ -181,9 +181,11 @@ const msToken = Number(process.env.TRAMA_FALSO_TOKEN_MS ?? 4);
 /** Lo que razona "pensá": un delta por palabra. */
 const RAZONA = "Ana pide algo corto. Pienso en cómo contestarlo y lo respondo sin vueltas.".match(/\s*\S+/g);
 
+let compactado = false;
 async function contestar(mid, resp, trozos = [resp.slice(0, 3), resp.slice(3, 8), resp.slice(8)], pausa = ms, razona = null) {
-  // El peso de la conversación (B16, el anillo de contexto): crece con cada mensaje.
-  const usage = { input_tokens: 3, cache_creation_input_tokens: 400, cache_read_input_tokens: 61_000 + 3_000 * mensajesN++, output_tokens: 1 };
+  // El peso de la conversación (B16, el anillo de contexto): crece con cada mensaje (o el fijado por TRAMA_FALSO_CONTEXTO).
+  const baseRead = process.env.TRAMA_FALSO_CONTEXTO && !compactado ? Number(process.env.TRAMA_FALSO_CONTEXTO) : 61_000 + 3_000 * mensajesN++;
+  const usage = { input_tokens: 3, cache_creation_input_tokens: 400, cache_read_input_tokens: baseRead, output_tokens: 1 };
   out({ type: "stream_event", parent_tool_use_id: null, event: { type: "message_start", message: { id: mid, usage } } });
   if (razona) {
     out({ type: "stream_event", parent_tool_use_id: null, event: { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } } });
@@ -234,11 +236,14 @@ async function turno(texto) {
   out({ type: "system", subtype: "status", status: "requesting" });
   usoDelPlan();
   if (/despacio/.test(texto)) await espera(1500);
-  if (/compactá/.test(texto)) {
+  if (/^\/compact(?:\s|$)|compactá/.test(texto)) {
+    compactado = true;
+    mensajesN = 0;
     out({ type: "system", subtype: "status", status: "compacting" });
     await espera(Number(process.env.TRAMA_FALSO_COMPACTA_MS ?? 2500));
-    out({ type: "system", subtype: "compact_boundary", compact_metadata: { trigger: "auto", pre_tokens: 167000 } });
+    out({ type: "system", subtype: "compact_boundary", compact_metadata: { trigger: /^\/compact/.test(texto) ? "manual" : "auto", pre_tokens: 167000 } });
     out({ type: "system", subtype: "status", status: "requesting" });
+    if (/^\/compact\s*$/.test(texto)) return contestar(mid, "compactado", ["compactado"]);
   }
   if (/reintento/.test(texto)) {
     out({ type: "system", subtype: "api_retry", attempt: 1, max_retries: 10, retry_delay_ms: 1200, error_status: 529, error: "overloaded" });

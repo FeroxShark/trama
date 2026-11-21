@@ -49,12 +49,15 @@ export const ARCHIVOS_NOTA_COMPACTAR = ["nota-compactar.mjs", "nota-compactar-te
 export type OpcionesNotaCompactar = OpcionesComando & {
   /** Umbral en tokens para pedir la nota (`--umbral <tokens>`). Sin él, la parte de «pedir» no corre. */
   umbral?: number | null;
+  /** Umbral suave en tokens para sugerir la nota al terminar una tarea (`--umbral-tarea <tokens>`). */
+  umbralTarea?: number | null;
 };
-/** Su comando: `node '<carpeta>/nota-compactar.mjs' --umbral <tokens>` (sin `--umbral` si no se pasa). */
+/** Su comando: `node '<carpeta>/nota-compactar.mjs' --umbral <tokens> [--umbral-tarea <tokens>]` (sin los flags si faltan). */
 export function comandoNotaCompactar(carpeta: string, o: OpcionesNotaCompactar = {}): string {
   const base = comandoHook("nota-compactar", "mjs", carpeta, o);
   const u = typeof o.umbral === "number" && Number.isFinite(o.umbral) && o.umbral > 0 ? Math.round(o.umbral) : null;
-  return u ? `${base} --umbral ${u}` : base;
+  const ut = typeof o.umbralTarea === "number" && Number.isFinite(o.umbralTarea) && o.umbralTarea > 0 ? Math.round(o.umbralTarea) : null;
+  return `${base}${u ? ` --umbral ${u}` : ""}${ut ? ` --umbral-tarea ${ut}` : ""}`;
 }
 
 export type OpcionesComando = {

@@ -21,6 +21,14 @@ import {
   GEMINI,
   GOOGLE_CODIGO_FABRICA,
   HOY,
+  NOTA_PCT_DEFECTO,
+  NOTA_PCT_MAX,
+  NOTA_PCT_MIN,
+  NOTA_TAREA_PCT_DEFECTO,
+  NOTA_TAREA_PCT_MAX,
+  NOTA_TAREA_PCT_MIN,
+  notaPctValido,
+  notaTareaPctValido,
   PERFILES,
   SIN_CUPO,
   TIPOS,
@@ -64,6 +72,14 @@ export type Borrador = {
   autocompact: AutocompactConfig;
   /** El de los líderes (`autocompact_lider`); `null` = igual que los workers (la clave no se escribe). */
   autocompactLider: AutocompactConfig | null;
+  /** Compactar con nota del modelo (`nota_compactar`); prendida por defecto. */
+  notaCompactar?: boolean;
+  /** Porcentaje (50..95) desde el cual se pide sí o sí la nota (`nota_compactar_pct`), como texto mientras se edita. */
+  notaCompactarPct?: string;
+  /** Si está prendida la sugerencia al terminar una tarea (`nota_compactar_tarea_pct !== 0`). */
+  notaCompactarTarea?: boolean;
+  /** Porcentaje (30..90) desde el cual se sugiere al terminar una tarea (`nota_compactar_tarea_pct`), como texto. */
+  notaCompactarTareaPct?: string;
   /** Advisor de Claude Code (`advisor` del archivo): familia del modelo → familia del asesor. Sin entradas la clave no se escribe. */
   advisor: AdvisorConfig;
   /** Cierre ordenado cuando se acaba el cupo (`cierre` del archivo): sólo lo que se tocó; lo demás vale `CIERRE_DEFECTO`. Sin campos la clave no se escribe. */
@@ -98,6 +114,12 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   efforts_permitidos: Object.fromEntries(Object.entries(e.config.efforts_permitidos ?? {}).map(([k, v]) => [k, [...v]])),
   autocompact: { defecto: e.config.autocompact?.defecto ?? null, por_modelo: { ...(e.config.autocompact?.por_modelo ?? {}) } },
   autocompactLider: e.config.autocompact_lider ? { defecto: e.config.autocompact_lider.defecto, por_modelo: { ...e.config.autocompact_lider.por_modelo } } : null,
+  notaCompactar: e.config.nota_compactar ?? true,
+  notaCompactarPct: String(e.config.nota_compactar_pct ?? NOTA_PCT_DEFECTO),
+  notaCompactarTarea: e.config.nota_compactar_tarea_pct !== 0,
+  notaCompactarTareaPct: String(
+    e.config.nota_compactar_tarea_pct && e.config.nota_compactar_tarea_pct > 0 ? e.config.nota_compactar_tarea_pct : NOTA_TAREA_PCT_DEFECTO,
+  ),
   advisor: { ...(e.config.advisor ?? {}) },
   cierre: { ...(e.config.cierre ?? {}) },
   ...(e.config.sin_cupo ? { sin_cupo: e.config.sin_cupo } : {}),
@@ -120,12 +142,29 @@ export function cupoDe(texto: string): number | null | "mal" {
   return n >= CUPO_MIN && n <= CUPO_MAX ? n : "mal";
 }
 
+function notaPctTexto(texto: string | undefined, defecto: number, min: number, max: number): number | "mal" {
+  if (texto === undefined) return defecto;
+  const s = texto.trim();
+  if (!/^\d{1,3}$/.test(s)) return "mal";
+  const n = Number(s);
+  return n >= min && n <= max ? n : "mal";
+}
+
 /** La config que se guardaría, o `null` si un tope escrito no vale. */
 export function configDe(b: Borrador): ConfigModelos | null {
   // Con el interruptor apagado lo escrito en los topes no cuenta (ni se valida); prendido y vacío vale el recomendado.
   const t5 = b.guardar ? (cupoDe(b.tope5) ?? TOPE_CLAUDE_DEFECTO) : null;
   const t7 = b.guardar ? (cupoDe(b.tope7) ?? TOPE_CLAUDE_DEFECTO) : null;
   if (t5 === "mal" || t7 === "mal") return null;
+  const notaActiva = b.notaCompactar ?? true;
+  const notaPct = notaActiva ? notaPctTexto(b.notaCompactarPct, NOTA_PCT_DEFECTO, NOTA_PCT_MIN, NOTA_PCT_MAX) : NOTA_PCT_DEFECTO;
+  const tareaActiva = b.notaCompactarTarea ?? true;
+  const notaTareaPct = !notaActiva
+    ? NOTA_TAREA_PCT_DEFECTO
+    : !tareaActiva
+      ? 0
+      : notaPctTexto(b.notaCompactarTareaPct, NOTA_TAREA_PCT_DEFECTO, NOTA_TAREA_PCT_MIN, NOTA_TAREA_PCT_MAX);
+  if (notaPct === "mal" || notaTareaPct === "mal") return null;
   const workers: ConfigModelos["workers"] = {};
   for (const t of TIPOS) if (b.workers[t]) workers[t] = { ...b.workers[t]! };
   return {
@@ -139,6 +178,9 @@ export function configDe(b: Borrador): ConfigModelos | null {
     ...(Object.keys(b.efforts_permitidos).length ? { efforts_permitidos: Object.fromEntries(Object.entries(b.efforts_permitidos).map(([k, v]) => [k, [...v]])) } : {}),
     ...(b.autocompact.defecto !== null || Object.keys(b.autocompact.por_modelo).length ? { autocompact: { defecto: b.autocompact.defecto, por_modelo: { ...b.autocompact.por_modelo } } } : {}),
     ...(b.autocompactLider ? { autocompact_lider: { defecto: b.autocompactLider.defecto, por_modelo: { ...b.autocompactLider.por_modelo } } } : {}),
+    nota_compactar: notaActiva,
+    ...(notaActiva && notaPctValido(notaPct) ? { nota_compactar_pct: notaPct } : {}),
+    ...(notaActiva && notaTareaPctValido(notaTareaPct) ? { nota_compactar_tarea_pct: notaTareaPct } : {}),
     ...(Object.keys(b.advisor).length ? { advisor: { ...b.advisor } } : {}),
     ...(Object.keys(b.cierre).length ? { cierre: { ...b.cierre } } : {}),
     gemini: {},
@@ -166,6 +208,9 @@ const huella = (c: ConfigModelos) =>
     c.autocompact?.defecto ?? null,
     Object.entries(c.autocompact?.por_modelo ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.autocompact_lider ? [c.autocompact_lider.defecto, Object.entries(c.autocompact_lider.por_modelo).sort(([a], [z]) => (a < z ? -1 : 1))] : null,
+    c.nota_compactar ?? true,
+    c.nota_compactar_pct ?? NOTA_PCT_DEFECTO,
+    c.nota_compactar_tarea_pct ?? NOTA_TAREA_PCT_DEFECTO,
     Object.entries(c.advisor ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     Object.entries(c.cierre ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.sin_cupo ?? null,

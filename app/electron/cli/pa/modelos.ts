@@ -10,6 +10,16 @@ import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { configTrama, homeDe, plataformaActual, type Plataforma } from "../../rutas.ts";
 import { CODEX_RESPALDO, CODEX_SLUGS_EXTRA_RESPALDO, familiaCodexDeSlug, leerCodexModelos, resolverCodexPedido } from "../codex-modelos.ts";
+import {
+  NOTA_PCT_DEFECTO,
+  NOTA_PCT_MAX,
+  NOTA_PCT_MIN,
+  NOTA_TAREA_PCT_DEFECTO,
+  NOTA_TAREA_PCT_MAX,
+  NOTA_TAREA_PCT_MIN,
+  notaPctValido,
+  notaTareaPctValido,
+} from "../../modelos-tipos.ts";
 import type { Env, Io } from "./entorno.ts";
 
 export const TIPOS_VALIDOS = "mecanico|lectura|codigo-acotado|codigo-multi|frontend|diseno|debug|final";
@@ -126,6 +136,10 @@ export function problemaModelos(c: Json, opts?: { env?: Env; home?: string; plat
   }
   if ("permitir_max" in c && typeof c.permitir_max !== "boolean") return `permitir_max ${tojson(c.permitir_max)} (true o false)`;
   if (!nulo(c.nota_compactar) && typeof c.nota_compactar !== "boolean") return `nota_compactar ${tojson(c.nota_compactar)} (true o false)`;
+  if (!nulo(c.nota_compactar_pct) && !notaPctValido(c.nota_compactar_pct))
+    return `nota_compactar_pct ${tojson(c.nota_compactar_pct)} (entero entre ${NOTA_PCT_MIN} y ${NOTA_PCT_MAX})`;
+  if (!nulo(c.nota_compactar_tarea_pct) && !notaTareaPctValido(c.nota_compactar_tarea_pct))
+    return `nota_compactar_tarea_pct ${tojson(c.nota_compactar_tarea_pct)} (0 o entero entre ${NOTA_TAREA_PCT_MIN} y ${NOTA_TAREA_PCT_MAX})`;
   if (!nulo(c.perfil) && !/^(equilibrado|ahorro|agresivo|rendimiento)$/.test(tostring(c.perfil))) return `perfil ${tojson(c.perfil)} (equilibrado, ahorro, agresivo o rendimiento)`;
   if (!nulo(c.reserva_lider) && (typeof c.reserva_lider !== "number" || c.reserva_lider < 0 || c.reserva_lider >= 1))
     return `reserva_lider ${tojson(c.reserva_lider)} (un número de 0 a 1 o null)`;
@@ -300,6 +314,18 @@ export class Modelos {
   notaCompactar(): boolean {
     const c = this.conf();
     return c && typeof c.nota_compactar === "boolean" ? c.nota_compactar : true;
+  }
+
+  /** `nota_compactar_pct` de modelos.json (entero 50..95, default 85). */
+  notaCompactarPct(): number {
+    const c = this.conf();
+    return c && notaPctValido(c.nota_compactar_pct) ? c.nota_compactar_pct : NOTA_PCT_DEFECTO;
+  }
+
+  /** `nota_compactar_tarea_pct` de modelos.json (`0` = apagado o entero 30..90, default 60). */
+  notaCompactarTareaPct(): number {
+    const c = this.conf();
+    return c && notaTareaPctValido(c.nota_compactar_tarea_pct) ? c.nota_compactar_tarea_pct : NOTA_TAREA_PCT_DEFECTO;
   }
 
   /** `modelos_reparto`: auto | fijo (PA_REPARTO=0 lo apaga, para los tests). */

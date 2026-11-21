@@ -26,6 +26,7 @@ import { ventanaDe } from "../../contexto-previa.ts";
 import { terminalAgentesGuardada } from "../../preferencias.ts";
 import { envTerminalAgentes } from "../../terminal-agentes.ts";
 import { Modelos } from "./modelos.ts";
+import { umbralesNota } from "../../modelos-tipos.ts";
 import { avisarFalta, conDueno, type Env, type Pa } from "./entorno.ts";
 import {
   campoJson,
@@ -258,6 +259,7 @@ export function settingsWorker(
     autocompact?: string;
     local?: boolean;
     umbralNota?: number | null;
+    umbralTareaNota?: number | null;
   },
 ): string {
   const variante = o.variante ?? (pa.plat === "win32" ? "mjs" : "sh");
@@ -272,16 +274,29 @@ export function settingsWorker(
   const modo = o.leer ? " leer" : "";
   // Cierre por cupo (motor/hooks/cierre-cupo.mjs): le avisa al worker, una vez por ventana, que cierre. Sin el archivo no se registra.
   const cierreCupo = existsSync(cam.join(hooks, "cierre-cupo.mjs")) ? [{ hooks: [{ type: "command", command: comandoCierreCupo(hooks, opc), timeout: 10 }] }] : [];
-  // Nota antes de compactar (motor/hooks/nota-compactar.mjs): pide la nota al 85 % del tope de compactación y la devuelve tras compactar.
+  // Nota antes de compactar (motor/hooks/nota-compactar.mjs): pide la nota al llegar al umbral configurado y la devuelve tras compactar.
   // Sólo para el `claude` oficial (no Ollama) y si `nota_compactar` en modelos.json está prendida (default: true).
-  const conNota = !o.local && existsSync(cam.join(hooks, "nota-compactar.mjs")) && new Modelos(pa.env, pa.io, pa.home, pa.plat).notaCompactar();
+  const mod = new Modelos(pa.env, pa.io, pa.home, pa.plat);
+  const conNota = !o.local && existsSync(cam.join(hooks, "nota-compactar.mjs")) && mod.notaCompactar();
   let umbralNota: number | null = null;
+  let umbralTareaNota: number | null = null;
   if (conNota) {
-    if (typeof o.umbralNota === "number" && Number.isFinite(o.umbralNota) && o.umbralNota > 0) umbralNota = Math.round(o.umbralNota);
-    else if (o.autocompact && /^[0-9]+$/.test(o.autocompact)) umbralNota = Math.round(Number(o.autocompact) * 0.85);
-    else if (o.modelo) umbralNota = Math.round(ventanaDe(o.modelo) * 0.85);
+    if (typeof o.umbralNota === "number" && Number.isFinite(o.umbralNota) && o.umbralNota > 0) {
+      umbralNota = Math.round(o.umbralNota);
+      umbralTareaNota = typeof o.umbralTareaNota === "number" && Number.isFinite(o.umbralTareaNota) && o.umbralTareaNota > 0 ? Math.round(o.umbralTareaNota) : null;
+    } else if (o.autocompact || o.modelo) {
+      const tope = o.autocompact && /^[0-9]+$/.test(o.autocompact) ? Number(o.autocompact) : null;
+      const u = umbralesNota({
+        tope,
+        ventana: o.modelo ? ventanaDe(o.modelo) : tope ?? 200_000,
+        pct: mod.notaCompactarPct(),
+        tareaPct: mod.notaCompactarTareaPct(),
+      });
+      umbralNota = u.fuerte;
+      umbralTareaNota = u.suave;
+    }
   }
-  const cmdNota = conNota ? comandoNotaCompactar(hooks, { ...opc, umbral: umbralNota }) : "";
+  const cmdNota = conNota ? comandoNotaCompactar(hooks, { ...opc, umbral: umbralNota, umbralTarea: umbralTareaNota }) : "";
   const porEventoNota: Record<string, Record<string, unknown>[]> = {};
   if (conNota) {
     for (const e of EVENTOS_NOTA_COMPACTAR) {

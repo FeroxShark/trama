@@ -30,6 +30,8 @@ export type Encolado = {
   nombre?: string;
   /** Un aviso automático de Trama (electron/avisos-worker.ts), no algo que escribió el usuario: va a la conversación como fila de sistema. */
   aviso?: true;
+  /** Va solo en su propio turno: no se agrupa con otros mensajes en `loteDe` (ej. `/compact`). */
+  solo?: true;
   /** Las claves (`<id>:<tipo>`) de los avisos de workers que lleva (electron/avisos-pendientes.ts): se marcan entregados sólo cuando de verdad salió. */
   avisos?: string[];
 };
@@ -124,11 +126,12 @@ export const RETENER_MS = 120_000;
 /** Imágenes por mensaje (el tope de `imagenesDe`): un lote que pasara de acá se parte en dos. */
 export const LOTE_IMAGENES_MAX = 20;
 
-/** Los que salen juntos: desde el primero de la cola, mientras sus imágenes entren en un mensaje (siempre sale al menos uno). */
+/** Los que salen juntos: desde el primero de la cola, mientras sus imágenes entren en un mensaje (un `solo` nunca se mezcla). */
 export function loteDe(lista: readonly Encolado[]): Encolado[] {
   const r: Encolado[] = [];
   let imgs = 0;
   for (const e of lista) {
+    if (r.length && (e.solo || r[0].solo)) break;
     imgs += e.imagenes?.length ?? 0;
     if (r.length && imgs > LOTE_IMAGENES_MAX) break;
     r.push(e);
@@ -605,6 +608,13 @@ export function crearCola(d: Deps) {
     encolar(sid: string, x: Omit<Encolado, "id">): Encolado {
       const e = { ...x, id: ++n };
       poner(sid, [...lista(sid), e]);
+      tocar(sid);
+      return e;
+    },
+    /** Igual que `encolar`, pero al frente de la cola (antes que mensajes del usuario que ya esperaban). */
+    encolarPrimero(sid: string, x: Omit<Encolado, "id">): Encolado {
+      const e = { ...x, id: ++n };
+      poner(sid, [e, ...lista(sid)]);
       tocar(sid);
       return e;
     },

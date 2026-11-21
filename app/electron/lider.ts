@@ -78,7 +78,10 @@ import { paraAcp, resueltos } from "./mcp-config.ts";
 import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { partirCodex } from "./codex-stream.ts";
 import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
-import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, notaCompactarGuardado, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
+import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, notaCompactarGuardado, notaCompactarPctGuardado, notaCompactarTareaPctGuardado, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
+import { umbralesNota } from "./modelos-tipos.ts";
+import { VENTANA_GEMINI } from "./agy-stream.ts";
+import { cargarTextosNota, debeAutoCompactar, extraerNotaDeTexto, guardarNotaSiCambia, idiomaDeEstado, mtimeNota, textosNotaCargados, tokensDeUso, usoDeLineaStream, type UmbralesNota } from "./nota-compactar-main.ts";
 import { ventanaDe } from "./contexto-previa.ts";
 import { parsearModelo } from "./dsh.ts";
 import { parsearModelo as parsearOpencode } from "./opencode.ts";
@@ -238,6 +241,14 @@ type Proc = {
    * (nadie le pidió nada): queda dormido, y su próximo mensaje lo relanza y muestra el error si sigue fallando.
    */
   arranque?: boolean;
+  /** Último peso del contexto reportado por el stream (input + cache), para auto-compactar al terminar el turno. */
+  usoContexto?: number | null;
+  /** Timestamp (ms) de la última compactación vista en el stream (`0` si nunca compactó en este proceso). */
+  compactadoMs?: number;
+  /** Si ya se encoló `/compact` automático en este ciclo. */
+  autoCompactEncolado?: boolean;
+  /** En Gemini (sin hooks de Claude): si ya se mandó el pedido de nota en este ciclo. */
+  geminiNotaPedidaCiclo?: boolean;
 };
 
 const procs = new Map<string, Proc>();
@@ -600,6 +611,43 @@ function cuentaPedida(v: unknown): string | undefined {
   return v;
 }
 
+/** Estado y planificación de «nota-compactar» para un líder vivo (sin tocar procesos locales ni motores sin compactación). */
+export function planAutoNotaCompactar(sid: string): { texto: string; modelo: string; effort: string } | null {
+  if (!notaCompactarGuardado()) return null;
+  const x = procs.get(sid);
+  if (!x || x.local) return null;
+  if (x.clase !== "claude" && x.clase !== "gemini") return null;
+  const ventana = x.clase === "gemini" ? VENTANA_GEMINI : ventanaDe(x.modelo);
+  const umbrales: UmbralesNota = umbralesNota({
+    tope: x.clase === "claude" ? (x.tope ?? null) : null,
+    ventana,
+    pct: notaCompactarPctGuardado(),
+    tareaPct: notaCompactarTareaPctGuardado(),
+  });
+  const uso = x.usoContexto ?? null;
+  const compactadoMs = x.compactadoMs ?? 0;
+  const notaMs = mtimeNota(ESTADO, sid);
+  const yaEncolado = Boolean(x.autoCompactEncolado);
+  if (debeAutoCompactar({ uso, umbrales, notaMs, compactadoMs, yaEncolado })) {
+    x.autoCompactEncolado = true;
+    return { texto: "/compact", modelo: x.modelo, effort: x.effort };
+  }
+  if (
+    x.clase === "gemini" &&
+    !x.geminiNotaPedidaCiclo &&
+    !yaEncolado &&
+    uso !== null &&
+    uso >= umbrales.fuerte &&
+    (notaMs === null || notaMs <= compactadoMs)
+  ) {
+    const pedido = textosNotaCargados()?.textoPedidoNota({ idioma: idiomaDeEstado(ESTADO) });
+    if (!pedido) return null;
+    x.geminiNotaPedidaCiclo = true;
+    return { texto: pedido, modelo: x.modelo, effort: x.effort };
+  }
+  return null;
+}
+
 function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}): Proc {
   // Vuelve a tener proceso: ya no está muerto. Y queda `corriendo` hasta que `fin` vea que terminó (`marcarCortados`).
   if (g.murio) {
@@ -660,15 +708,29 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
     silencio("apagados-lanzar")(e);
   }
   // Los hooks del motor (cierre por cupo y nota antes de compactar) en UN solo `--settings` para un líder de Claude oficial (ni locales ni Ollama).
+  const hooksBase = carpetaHooksNota();
+  if (hooksBase) void cargarTextosNota(hooksBase).catch(() => {});
   let cierreCupo: string | undefined;
   try {
     const deVerdad = clase === "claude" && !local && !extra.ollama;
     const hooksCierre = deVerdad ? carpetaHooksCierre() : null;
-    const hooksNota = deVerdad && notaCompactarGuardado() ? carpetaHooksNota() : null;
+    const hooksNota = deVerdad && notaCompactarGuardado() ? hooksBase : null;
     const hooks = hooksCierre ?? hooksNota;
     if (hooks) {
-      const umbralNota = hooksNota ? Math.round((tope ?? ventanaDe(g.modelo)) * 0.85) : null;
-      cierreCupo = settingsCierreCupo(hooks, { plataforma: plat, umbralNota, conCierre: Boolean(hooksCierre) });
+      const u = hooksNota
+        ? umbralesNota({
+            tope,
+            ventana: ventanaDe(g.modelo),
+            pct: notaCompactarPctGuardado(),
+            tareaPct: notaCompactarTareaPctGuardado(),
+          })
+        : null;
+      cierreCupo = settingsCierreCupo(hooks, {
+        plataforma: plat,
+        umbralNota: u?.fuerte ?? null,
+        umbralTareaNota: u?.suave ?? null,
+        conCierre: Boolean(hooksCierre),
+      });
     }
   } catch (e) {
     silencio("cierre-cupo-lanzar")(e);
@@ -705,7 +767,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: [LINEA_CHAT, extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
       : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, cierreCupo, autocompact: tope, advisor: asesor, fast: g.fast, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
-  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ...(g.ultracode && oficial ? { ultracode: true } : {}), ...(g.fast && oficial ? { fast: true } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
+  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ...(g.ultracode && oficial ? { ultracode: true } : {}), ...(g.fast && oficial ? { fast: true } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null, usoContexto: null, compactadoMs: 0, autoCompactEncolado: false, geminiNotaPedidaCiclo: false };
   procs.set(g.sid, x);
   // Ultracode va tras el arranque, por el mismo canal que el cambio en vivo (el argv no lo lleva): si Claude Code no lo acepta, queda apagado.
   if (x.ultracode)
@@ -722,6 +784,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
     const c = cortar(x.resto, trozo);
     x.resto = c.resto;
     for (const l of c.lineas) {
+      const usoLinea = usoDeLineaStream(l);
+      if (usoLinea !== null) x.usoContexto = usoLinea;
       // Cada pedido contestado renueva el caché: a mitad de un turno la barra no espera al `fin`.
       const pd = pedidoDe(l);
       if (pd) {
@@ -737,6 +801,26 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
       const lu = lecturaDe(l, Math.floor(Date.now() / 1000)) ?? oficialDe(l, Math.floor(Date.now() / 1000));
       if (lu && !x.cuenta) anotarUso(lu);
       for (const e of parsearLinea(l)) {
+        if (e.tipo === "contexto" && e.usage) {
+          const tok = tokensDeUso(e.usage);
+          if (tok !== null) x.usoContexto = tok;
+        }
+        if (e.tipo === "aviso" && e.aviso.clase === "compacto") {
+          x.compactadoMs = Date.now();
+          x.usoContexto = null;
+          x.autoCompactEncolado = false;
+          x.geminiNotaPedidaCiclo = false;
+        }
+        if (e.tipo === "mensaje" && e.texto && (clase === "claude" || clase === "gemini") && !local && !extra.ollama && notaCompactarGuardado()) {
+          const nota = extraerNotaDeTexto(e.texto);
+          if (nota) {
+            try {
+              guardarNotaSiCambia(ESTADO, g.sid, nota);
+            } catch (err) {
+              silencio("nota-compactar-guardar")(err);
+            }
+          }
+        }
         if (e.tipo === "replay") {
           // El eco de todo mensaje del usuario: sólo importa el de un "Mandar ya" (el resto no es noticia).
           const k = x.directos.indexOf(e.texto.trim());

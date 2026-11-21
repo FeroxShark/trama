@@ -42,9 +42,10 @@ function idiomaDeLaApp(hilos = estadoHilos()) {
   return /^en/i.test(env.LC_ALL || env.LANG || "") ? "en" : "es";
 }
 
-/** Parsea `--umbral <tokens>` de argv; `null` si falta o no es un entero positivo. */
+/** Parsea `--umbral <tokens>` y `--umbral-tarea <tokens>` de argv; `null` si falta o no es un entero positivo. */
 export function parsearArgs(argv = process.argv.slice(2)) {
   let umbral = null;
+  let umbralTarea = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--umbral" && i + 1 < argv.length) {
@@ -53,9 +54,31 @@ export function parsearArgs(argv = process.argv.slice(2)) {
     } else if (typeof a === "string" && a.startsWith("--umbral=")) {
       const n = Number(a.slice("--umbral=".length));
       if (Number.isFinite(n) && n > 0) umbral = Math.floor(n);
+    } else if (a === "--umbral-tarea" && i + 1 < argv.length) {
+      const n = Number(argv[++i]);
+      if (Number.isFinite(n) && n > 0) umbralTarea = Math.floor(n);
+    } else if (typeof a === "string" && a.startsWith("--umbral-tarea=")) {
+      const n = Number(a.slice("--umbral-tarea=".length));
+      if (Number.isFinite(n) && n > 0) umbralTarea = Math.floor(n);
     }
   }
-  return { umbral };
+  return { umbral, umbralTarea };
+}
+
+const rutaEsSubagente = (ruta) => typeof ruta === "string" && /(?:^|[\\/])subagents[\\/]/.test(ruta);
+
+function ultimaLineaEsSubagente(lineas) {
+  for (let i = lineas.length - 1; i >= 0; i--) {
+    let o;
+    try {
+      o = JSON.parse(lineas[i]);
+    } catch {
+      continue;
+    }
+    if (!o || typeof o !== "object") continue;
+    return o.isSidechain === true;
+  }
+  return false;
 }
 
 /** Lee sólo los últimos `maxBytes` del transcript y descarta la primera línea si quedó cortada por el offset. */
@@ -242,10 +265,12 @@ export async function decidir({
   sesion,
   transcript,
   umbral = null,
+  umbralTarea = null,
   hilos = estadoHilos(),
   ahoraMs = Date.now(),
   idioma,
   tailBytes = TAIL_BYTES,
+  esSubagente = false,
 }) {
   if (!SESION_OK.test(sesion || "")) return null;
   if (evento === "SessionStart" && source !== "compact") return null;
@@ -253,26 +278,50 @@ export async function decidir({
 
   const dirNotas = path.join(hilos, "notas");
   const archivoMarca = path.join(dirNotas, `${sesion}.pedida`);
+  const archivoSugerida = path.join(dirNotas, `${sesion}.sugerida`);
   const archivoNota = path.join(dirNotas, `${sesion}.md`);
-
-  if (evento === "SessionStart") {
+  const archivoDevuelta = path.join(dirNotas, `${sesion}.devuelta.md`);
+  const limpiarMarcas = () => {
     try {
       rmSync(archivoMarca, { force: true });
     } catch {
       /* nada */
     }
+    try {
+      rmSync(archivoSugerida, { force: true });
+    } catch {
+      /* nada */
+    }
+  };
+
+  if (evento === "SessionStart") {
+    limpiarMarcas();
     let nota = "";
     let minutos = null;
     let archivo = "";
     try {
       const guardada = readFileSync(archivoNota, "utf8").trim();
+      let mtime = null;
+      try {
+        mtime = statSync(archivoNota).mtimeMs;
+      } catch {
+        mtime = null;
+      }
       if (guardada) {
         nota = guardada;
-        archivo = archivoNota;
+        minutos = mtime !== null ? Math.max(0, Math.floor((ahoraMs - mtime) / 60_000)) : null;
         try {
-          minutos = Math.max(0, Math.floor((ahoraMs - statSync(archivoNota).mtimeMs) / 60_000));
+          rmSync(archivoDevuelta, { force: true });
+          renameSync(archivoNota, archivoDevuelta);
+          archivo = archivoDevuelta;
         } catch {
-          minutos = null;
+          archivo = archivoNota;
+        }
+      } else {
+        try {
+          rmSync(archivoNota, { force: true });
+        } catch {
+          /* nada */
         }
       }
     } catch {
@@ -302,6 +351,9 @@ export async function decidir({
     };
   }
 
+  // El `PostToolUse` de un subagente no debe copiar notas ajenas ni gastar `.pedida`/`.sugerida`.
+  if (esSubagente || rutaEsSubagente(transcript)) return null;
+
   const lineas = leerColaTranscript(transcript, tailBytes);
   const hallada = ultimaNotaDeLineas(lineas);
   if (hallada) {
@@ -312,35 +364,63 @@ export async function decidir({
     }
   }
   if (evento === "PreCompact") return null;
+  if (evento === "PostToolUse" && ultimaLineaEsSubagente(lineas)) return null;
 
-  if (typeof umbral !== "number" || !Number.isFinite(umbral) || umbral <= 0) return null;
+  const conFuerte = typeof umbral === "number" && Number.isFinite(umbral) && umbral > 0;
+  const conSuave = typeof umbralTarea === "number" && Number.isFinite(umbralTarea) && umbralTarea > 0;
+  if (!conFuerte && !conSuave) return null;
+
   const uso = ultimoUsoDeLineas(lineas);
-  if (uso.compactada || (uso.tokens !== null && uso.tokens < umbral / 2)) {
-    try {
-      rmSync(archivoMarca, { force: true });
-    } catch {
-      /* nada */
-    }
+  if (
+    uso.compactada ||
+    (uso.tokens !== null && ((conFuerte && uso.tokens < umbral / 2) || (conSuave && uso.tokens < umbralTarea / 2)))
+  ) {
+    limpiarMarcas();
     return null;
   }
-  if (uso.tokens === null || uso.tokens < umbral) return null;
-  try {
-    mkdirSync(dirNotas, { recursive: true });
-    writeFileSync(archivoMarca, `${Math.floor(ahoraMs / 1000)}\n`, { flag: "wx", mode: 0o600 });
-  } catch {
-    return null; // ya pedida en este ciclo (o sin dónde marcar: no repetir en cada turno)
+  if (uso.tokens === null) return null;
+
+  const idiomaFinal = idioma ?? idiomaDeLaApp(hilos);
+  const hookEventName = evento === "UserPromptSubmit" ? "UserPromptSubmit" : "PostToolUse";
+
+  if (conFuerte && uso.tokens >= umbral) {
+    try {
+      mkdirSync(dirNotas, { recursive: true });
+      writeFileSync(archivoMarca, `${Math.floor(ahoraMs / 1000)}\n`, { flag: "wx", mode: 0o600 });
+    } catch {
+      return null; // ya pedida en este ciclo (o sin dónde marcar: no repetir en cada turno)
+    }
+    const { textoPedidoNota } = await cargarTextos();
+    return {
+      hookSpecificOutput: {
+        hookEventName,
+        additionalContext: textoPedidoNota({ idioma: idiomaFinal }),
+      },
+    };
   }
-  const { textoPedidoNota } = await cargarTextos();
-  return {
-    hookSpecificOutput: {
-      hookEventName: evento === "UserPromptSubmit" ? "UserPromptSubmit" : "PostToolUse",
-      additionalContext: textoPedidoNota({ idioma: idioma ?? idiomaDeLaApp(hilos) }),
-    },
-  };
+
+  if (conSuave && uso.tokens >= umbralTarea) {
+    try {
+      mkdirSync(dirNotas, { recursive: true });
+      writeFileSync(archivoSugerida, `${Math.floor(ahoraMs / 1000)}\n`, { flag: "wx", mode: 0o600 });
+    } catch {
+      return null;
+    }
+    const pct = conFuerte ? Math.min(99, Math.max(1, Math.round((uso.tokens * 85) / umbral))) : null;
+    const { textoPedidoNotaSuave } = await cargarTextos();
+    return {
+      hookSpecificOutput: {
+        hookEventName,
+        additionalContext: textoPedidoNotaSuave({ idioma: idiomaFinal, pct }),
+      },
+    };
+  }
+
+  return null;
 }
 
 function main() {
-  const { umbral } = parsearArgs();
+  const { umbral, umbralTarea } = parsearArgs();
   let doc = {};
   try {
     doc = JSON.parse(readFileSync(0, "utf8"));
@@ -348,12 +428,15 @@ function main() {
     return;
   }
   if (!doc || typeof doc !== "object") return;
+  const esSubagente = Boolean(doc.agent_id || doc.parent_tool_use_id || rutaEsSubagente(doc.transcript_path));
   return decidir({
     evento: doc.hook_event_name,
     source: doc.source,
     sesion: doc.session_id,
     transcript: doc.transcript_path,
     umbral,
+    umbralTarea,
+    esSubagente,
   }).then((r) => {
     if (r) process.stdout.write(JSON.stringify(r) + "\n");
   });
