@@ -1086,6 +1086,48 @@ const AVISO_OCHO =
   "[Aviso automático de Trama] Terminaron los 8 workers que lanzaste, 1 con falla:\n- «migración del índice» (8): terminó.\n- «tests del cauce» (9): falló: el proceso se cortó sin dejar mensaje.\n- «revisar el contrato» (10): terminó pidiendo una decisión.\n- «docs del cauce» (11): terminó sin resumen.\n- «integrar atlas» (12): terminó.\n- «decidir la cuota» (13): terminó pidiendo una decisión.\n- «humo del cauce» (14): terminó.\n- «limpiar ramas viejas» (15): terminó.\nRevisá cada uno con `pa --hilo <id>`.";
 
 /** El chat de un líder con una muestra de cada cosa de sistema (captura `lider-sistema`): con los campos del transcript. */
+export function charlaNotaCompactar(sid: string): Mensaje[] {
+  const l = LIDERES.lideres.find((x) => x.id === sid);
+  if (!l) return [];
+  const ts = (s: number) => new Date((l.actividad - s) * 1000).toISOString();
+  const m = l.modelo;
+  const nota = [
+    "## Objetivo",
+    "Implementar las tarjetas plegables de `[[nota-compactar]]` y arreglar el conteo post-compactación de `pintorAviso`.",
+    "",
+    "## Decisiones",
+    "- Reusar el estilo `.rv` de `TarjetaRevision` y el resaltado con `data-resalta`.",
+    "- Elegir en `DialogoCache` el Claude más barato habilitado donde entre la conversación.",
+    "",
+    "## Próximo paso",
+    "Verificar los screenshots con `captura.sh` y correr `npm run check:changed`.",
+  ].join("\n");
+  const crudos: Omit<Mensaje, "i" | "ts">[] = [
+    { rol: "user", texto: "Dejá una nota clara antes de compactar así seguimos directo con la parte visual.", herramientas: [], modelo: null, origen: "human" },
+    {
+      rol: "assistant",
+      texto: `Dejé el resumen estructurado para retomar sin perder contexto.\n\n[[nota-compactar]]\n${nota}\n[[/nota-compactar]]`,
+      herramientas: [],
+      modelo: m,
+    },
+    { rol: "assistant", texto: "", herramientas: [], modelo: null, compacto: { auto: false, antes: 142_000 } },
+    {
+      rol: "user",
+      texto: "Summary:\n1. Tarjeta plegable y parser listos.\n2. Falta correr capturas y tests.",
+      herramientas: [],
+      modelo: null,
+      resumen: true,
+    },
+    {
+      rol: "assistant",
+      texto: "Retomo desde la nota: los cambios quedaron integrados y listos para probar en las capturas.",
+      herramientas: [],
+      modelo: m,
+    },
+  ];
+  return crudos.map((c, i) => ({ ...c, i, ts: ts(300 - i * 45) }));
+}
+
 export function charlaSistema(sid: string, ocho = false): Mensaje[] {
   const l = LIDERES.lideres.find((x) => x.id === sid);
   if (!l) return [];

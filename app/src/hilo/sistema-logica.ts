@@ -26,8 +26,8 @@ export type Linea =
   /** Un sintético que no es error ("No response requested."). */
   | { tipo: "linea"; clase: "nota"; texto: string }
   | { tipo: "linea"; clase: "interrumpido"; texto: string }
-  /** Compactó (B19: una raya); `resumen`: el texto con que siguió, si vino justo después (lo junta `turnos()`). */
-  | { tipo: "linea"; clase: "compacto"; auto: boolean | null; antes: number | null; resumen?: string }
+  /** Compactó (B19: una raya); `resumen`: el texto con que siguió, si vino justo después (lo junta `turnos()`); `nota`: key del último turno del asistente antes de compactar, si trajo `[[nota-compactar]]`. */
+  | { tipo: "linea"; clase: "compacto"; auto: boolean | null; antes: number | null; resumen?: string; nota?: string }
   /** Trama destrabó al modelo (repetía `que`); `agotado`: lo intentó 2 veces y paró. */
   | { tipo: "linea"; clase: "destrabo"; que: string; agotado: boolean }
   /** La conversación siguió con un modelo de otro motor (una sesión nueva, con lo hablado como relevo); `ts`: cuándo, ISO. */

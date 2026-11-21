@@ -126,6 +126,10 @@ const CAPTURAS = [
   // Imágenes en el globo y en la caja.
   "lider-imagenes",
   "lider-cache",
+  // Caché vencida con opción de compactar antes con un modelo más barato (+ selector del modelo barato).
+  "lider-cache-compactar",
+  // Nota para no perder al compactar: tarjeta plegada + divisor con "con nota" y "Ver la nota".
+  "lider-nota-compactar",
   // Un pedido propio abierto para editar: el campo con sus capturas y su archivo.
   "lider-editar",
   // La tarjeta del revisor de un plan (el mensaje con la marca `[[revision-de-plan …]]`; `lider-plan` + `HILOS_VARIANTE=revisar` deja abierto el selector del revisor).
