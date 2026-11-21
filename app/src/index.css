@@ -4,6 +4,8 @@
 @import "./barra-atencion.css";
 @import "./hilo/tarjeta-frase.css";
 @import "./hilo/tarjeta-ruta.css";
+@import "./hilo/tarjeta-revision.css";
+@import "./hilo/tarjeta-nota.css";
 @import "./hilo/visor-imagen.css";
 
 /* Dirección visual: el estándar pulido (vidrio quieto, acento celeste, cápsulas, grilla de 4 px,

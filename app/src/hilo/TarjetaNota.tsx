@@ -7,8 +7,6 @@ import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { suscribirAbrirNota, type NotaCompactar } from "./nota-compactar.ts";
 import { Texto } from "./Texto";
-import "./tarjeta-revision.css";
-import "./tarjeta-nota.css";
 
 function textoResumen(secciones: number, palabras: number): string {
   const pal = palabras === 1 ? t("nota.unaPalabra") : t("nota.palabras", { n: palabras });
