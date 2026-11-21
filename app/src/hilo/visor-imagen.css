@@ -228,6 +228,44 @@
   }
 }
 
+/* Celular: la barra pasa a filas que no se pisan (el archivo arriba; el zoom y las acciones debajo, y si no entran, en otra fila),
+   la imagen usa casi todo el ancho y las flechas bajan a las esquinas de abajo para no taparla. */
+@media (max-width: 37.5rem) {
+  .visor-img {
+    background: var(--fondo);
+  }
+  .visor-img-barra {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--esp-1) var(--esp-2);
+    padding-left: calc(var(--esp-2) + env(safe-area-inset-left, 0px));
+    padding-right: calc(var(--esp-2) + env(safe-area-inset-right, 0px));
+  }
+  .visor-img-info {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .visor-img-grupo,
+  .visor-img-acciones {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+  .visor-img-sep {
+    display: none;
+  }
+  .visor-img-escena {
+    padding: var(--esp-2);
+  }
+  .visor-img-nav {
+    top: auto;
+    bottom: calc(var(--esp-4) + env(safe-area-inset-bottom, 0px));
+    transform: none;
+  }
+}
+
 /* Con el dedo, los botones llegan a 44 px. */
 @media (pointer: coarse) {
   .visor-img-ib {
