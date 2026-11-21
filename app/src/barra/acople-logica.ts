@@ -1,11 +1,11 @@
-// Lógica pura del acomodo de paneles acoplables (Chats, Contexto y Cupo en las zonas izquierda, derecha y abajo).
+// Lógica pura del acomodo de paneles acoplables (Chats, Contexto, Cupo y Tablero en las zonas izquierda, derecha y abajo).
 // Sin React, DOM ni localStorage: lo prueba `tests/acople-logica.test.ts`.
 
 /** Clave de almacenamiento del acomodo en localStorage. */
 export const CLAVE_ACOPLE = "hilos:acople";
 
 export type Zona = "izq" | "der" | "abajo";
-export type PanelId = "chats" | "contexto" | "cupo";
+export type PanelId = "chats" | "contexto" | "cupo" | "tablero";
 
 export type Acople = {
   zonas: Record<Zona, PanelId[]>;
@@ -37,12 +37,13 @@ export type Destino = {
 };
 
 export const ZONAS: readonly Zona[] = ["izq", "der", "abajo"];
-export const PANELES: readonly PanelId[] = ["chats", "contexto", "cupo"];
+export const PANELES: readonly PanelId[] = ["chats", "contexto", "cupo", "tablero"];
 
 const ZONA_FABRICA: Record<PanelId, Zona> = {
   chats: "izq",
   contexto: "der",
   cupo: "der",
+  tablero: "der",
 };
 
 const TAM_DEFECTO: Record<Zona, number> = {
@@ -62,7 +63,7 @@ const acotar = (v: number, min: number, max: number): number => Math.max(min, Ma
 
 const esZona = (x: unknown): x is Zona => x === "izq" || x === "der" || x === "abajo";
 
-const esPanelId = (x: unknown): x is PanelId => x === "chats" || x === "contexto" || x === "cupo";
+const esPanelId = (x: unknown): x is PanelId => x === "chats" || x === "contexto" || x === "cupo" || x === "tablero";
 
 const esObjeto = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
 
@@ -89,10 +90,10 @@ export function zonaDe(a: Acople, panel: PanelId): Zona | null {
 /** Acomodo inicial de fábrica. */
 export function acopleDeFabrica(): Acople {
   return {
-    zonas: { izq: ["chats"], der: ["contexto", "cupo"], abajo: [] },
+    zonas: { izq: ["chats"], der: ["contexto", "cupo", "tablero"], abajo: [] },
     tam: { ...TAM_DEFECTO },
     partes: {},
-    plegados: ["cupo"],
+    plegados: ["cupo", "tablero"],
     cerrados: {},
   };
 }
@@ -243,6 +244,8 @@ export function normalizar(x: unknown): Acople {
     }
   }
 
+  // Un acomodo guardado antes de que existiera «Tablero»: aparece plegado (sólo su encabezado), sin comerle lugar a los demás.
+  const tableroNuevo = !vistos.has("tablero");
   for (const p of PANELES) {
     if (!vistos.has(p)) {
       zonas[ZONA_FABRICA[p]].push(p);
@@ -282,6 +285,7 @@ export function normalizar(x: unknown): Acople {
         vistosPleg.add(item);
       }
     }
+    if (tableroNuevo && !vistosPleg.has("tablero")) plegados.push("tablero");
   } else {
     plegados = [...base.plegados];
   }

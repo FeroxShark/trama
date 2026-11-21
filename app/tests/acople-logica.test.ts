@@ -69,10 +69,15 @@ describe("drag.mjs: los 19 casos traducidos a funciones puras", () => {
     let e = congelarProfundo(acopleDeFabrica());
 
     // 1. Arranque: chats izq, contexto+cupo der
-    assert.deepEqual(e.zonas, { izq: ["chats"], der: ["contexto", "cupo"], abajo: [] });
+    assert.deepEqual(e.zonas, { izq: ["chats"], der: ["contexto", "cupo", "tablero"], abajo: [] });
     assert.deepEqual(e.tam, { izq: 320, der: 400, abajo: 340 });
-    assert.deepEqual(e.plegados, ["cupo"]);
+    assert.deepEqual(e.plegados, ["cupo", "tablero"]);
     assert.deepEqual(e.cerrados, {});
+
+    // El recorrido sigue con los tres paneles de siempre: «Tablero» se cierra (y se reabre al final).
+    e = congelarProfundo(cerrar(e, "tablero"));
+    assert.deepEqual(e.zonas, { izq: ["chats"], der: ["contexto", "cupo"], abajo: [] });
+    assert.equal(e.cerrados.tablero, "der");
 
     // 2. El arrastre calcula un destino válido sobre derecha (equivale al estado 'moviendo' durante el gesto)
     const geo1: GeoDestino = {
@@ -204,7 +209,7 @@ describe("drag.mjs: los 19 casos traducidos a funciones puras", () => {
     // 15. Reabrir Chats desde Paneles (vuelve a su zona al final)
     e = congelarProfundo(abrir(e, "chats"));
     assert.deepEqual(e.zonas, { izq: ["contexto", "chats"], der: ["cupo"], abajo: [] });
-    assert.deepEqual(e.cerrados, {});
+    assert.deepEqual(e.cerrados, { tablero: "der" });
 
     // 16. Esc cancela el arrastre: sin aplicar `mover`, el estado previo queda intacto
     const antesEsc = e;
@@ -217,7 +222,7 @@ describe("drag.mjs: los 19 casos traducidos a funciones puras", () => {
 
     // 18. Restablecer vuelve al acomodo de fábrica
     const fab = congelarProfundo(acopleDeFabrica());
-    assert.deepEqual(fab.zonas, { izq: ["chats"], der: ["contexto", "cupo"], abajo: [] });
+    assert.deepEqual(fab.zonas, { izq: ["chats"], der: ["contexto", "cupo", "tablero"], abajo: [] });
 
     // 19. Soltar sobre el chat (centro, fuera de zonas) devuelve null y no mueve nada
     const geoCentro: GeoDestino = {
@@ -237,7 +242,7 @@ describe("drag.mjs: los 19 casos traducidos a funciones puras", () => {
       },
     };
     assert.equal(destino(congelarProfundo(geoCentro), 1000, 400), null);
-    assert.deepEqual(fab.zonas, { izq: ["chats"], der: ["contexto", "cupo"], abajo: [] });
+    assert.deepEqual(fab.zonas, { izq: ["chats"], der: ["contexto", "cupo", "tablero"], abajo: [] });
   });
 });
 
@@ -277,11 +282,12 @@ describe("normalizar: total ante cualquier entrada rota", () => {
       plegados: ["cupo", "cupo", "nada"],
       cerrados: { chats: "abajo", cupo: "arriba" },
     });
-    assert.deepEqual(res.zonas, { izq: ["chats"], der: ["contexto"], abajo: [] });
+    assert.deepEqual(res.zonas, { izq: ["chats"], der: ["contexto", "tablero"], abajo: [] });
     assert.deepEqual(res.cerrados, { cupo: "der" });
     assert.deepEqual(res.tam, { izq: 240, der: 520, abajo: 160 });
     assert.deepEqual(res.partes, { chats: 200 });
-    assert.deepEqual(res.plegados, ["cupo"]);
+    // «Tablero» no estaba en lo guardado: aparece plegado.
+    assert.deepEqual(res.plegados, ["cupo", "tablero"]);
   });
 });
 
@@ -408,7 +414,7 @@ describe("inmutabilidad y casos límite de funciones puras", () => {
 
     const m = mover(base, "cupo", "izq", 0);
     assert.notEqual(m, base);
-    assert.deepEqual(base.zonas, { izq: ["chats"], der: ["contexto", "cupo"], abajo: [] });
+    assert.deepEqual(base.zonas, { izq: ["chats"], der: ["contexto", "cupo", "tablero"], abajo: [] });
 
     const c = cerrar(base, "chats");
     assert.notEqual(c, base);
@@ -424,8 +430,8 @@ describe("inmutabilidad y casos límite de funciones puras", () => {
     assert.equal(movCerrado.cerrados.chats, undefined);
 
     const pl = alternarPlegado(base, "cupo");
-    assert.deepEqual(pl.plegados, []);
-    assert.deepEqual(base.plegados, ["cupo"]);
+    assert.deepEqual(pl.plegados, ["tablero"]);
+    assert.deepEqual(base.plegados, ["cupo", "tablero"]);
 
     const rd = redimensionar(base, "abajo", 999, 450);
     assert.equal(rd.tam.abajo, 450);
@@ -456,9 +462,9 @@ describe("inmutabilidad y casos límite de funciones puras", () => {
   test("mover reordena dentro de la misma zona", () => {
     const base = congelarProfundo(acopleDeFabrica());
     const reordenado = mover(base, "cupo", "der", 0);
-    assert.deepEqual(reordenado.zonas.der, ["cupo", "contexto"]);
+    assert.deepEqual(reordenado.zonas.der, ["cupo", "contexto", "tablero"]);
     const alFinal = mover(congelarProfundo(reordenado), "cupo", "der", 1);
-    assert.deepEqual(alFinal.zonas.der, ["contexto", "cupo"]);
+    assert.deepEqual(alFinal.zonas.der, ["contexto", "cupo", "tablero"]);
   });
 
   test("redimensionar abajo con límite menor a 160 acota a 160", () => {
