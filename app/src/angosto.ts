@@ -1,7 +1,7 @@
 // El celular: Trama por el navegador, unos 400 px de ancho y con el dedo. Dos preguntas
 // distintas: si la ventana es angosta (se ve una cosa a la vez, la lista o lo abierto) y si se
 // maneja con el dedo (no hay hover ni atajos). El CSS de las dos está al final de src/index.css.
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 /** La misma consulta que el bloque angosto de src/index.css (35rem de media query: 560 px, sea cual sea la letra). */
 const ANGOSTO = "(max-width: 35rem)";
@@ -50,8 +50,34 @@ export function useAtras(abierto: boolean, volver: () => void) {
   useEffect(() => {
     if (!abierto) return;
     if (history.state?.trama !== MARCA) history.pushState({ trama: MARCA }, "");
-    addEventListener("popstate", volver);
-    return () => removeEventListener("popstate", volver);
+    // Si después del atrás seguimos en la entrada propia, el atrás era de algo abierto encima (el visor): no se vuelve.
+    const alVolver = () => {
+      if (history.state?.trama !== MARCA) volver();
+    };
+    addEventListener("popstate", alVolver);
+    return () => removeEventListener("popstate", alVolver);
   }, [abierto, volver]);
   return useCallback(() => (history.state?.trama === MARCA ? history.back() : volver()), [volver]);
+}
+
+const MARCA_VISOR = "visor";
+
+/**
+ * El visor (una foto o un archivo a pantalla completa) lleva su propia entrada en el historial, encima de la del chat:
+ * el atrás del celular (gesto o botón) lo cierra a él y deja el chat como estaba, en vez de irse de Trama.
+ * Devuelve el cerrar de la app (botón, Esc, tocar afuera), que va por el mismo camino.
+ */
+export function useAtrasVisor(cerrar: () => void) {
+  const ref = useRef(cerrar);
+  ref.current = cerrar;
+  useEffect(() => {
+    // Una sola entrada aunque el efecto corra dos veces (StrictMode en desarrollo).
+    if (history.state?.trama !== MARCA_VISOR) history.pushState({ trama: MARCA_VISOR }, "");
+    const alVolver = () => {
+      if (history.state?.trama !== MARCA_VISOR) ref.current();
+    };
+    addEventListener("popstate", alVolver);
+    return () => removeEventListener("popstate", alVolver);
+  }, []);
+  return useCallback(() => (history.state?.trama === MARCA_VISOR ? history.back() : ref.current()), []);
 }

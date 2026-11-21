@@ -1,6 +1,7 @@
 // Los archivos que una herramienta lee, escribe o edita (la actividad de un worker, de un subagente o de un líder) o que nombra
 // un mensaje: una imagen abre el visor propio; PDF, markdown, texto, código, audio y video abren la hoja. Lo que ya no está dice
 // "Archivo ya no disponible". Los bytes los lee el main por `archivo:ver` (electron/archivo-ver.ts), nunca `file://`.
+import { useAtrasVisor } from "../angosto";
 import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronLeft, ChevronRight, Copy, Download, Eye, FileAudio, FileText, FileVideo, FolderOpen, ImageIcon, Link2, Maximize, RotateCcw, RotateCw, SquareArrowOutUpRight, X, ZoomIn, ZoomOut } from "lucide-react";
@@ -647,6 +648,8 @@ function Hoja({ a, v, linea, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVi
 
 /* El archivo abierto: una imagen, en el visor propio (con las otras imágenes del chat, para pasar de una a otra); lo demás, en la hoja. */
 export function VerArchivo({ a, linea, alCerrar }: { a: ArchivoDeHerramienta; linea?: number | null; alCerrar: () => void }) {
+  // El atrás del celular cierra el visor (y no la app): todo cierre pasa por acá.
+  const cerrar = useAtrasVisor(alCerrar);
   const [ruta, setRuta] = useState(a.ruta);
   // Las del chat se juntan al abrir (con todo el chat ya dibujado: por eso no al crear el estado): lo que llegue después no mueve el lugar de la que se está mirando.
   const [rutas, setRutas] = useState([a.ruta]);
@@ -662,9 +665,9 @@ export function VerArchivo({ a, linea, alCerrar }: { a: ArchivoDeHerramienta; li
       return j === null ? null : () => setRuta(rutas[j]);
     };
     const galeria = rutas.length > 1 && i >= 0 ? { n: i + 1, total: rutas.length, anterior: salto(-1), siguiente: salto(1) } : null;
-    return <VisorImagen a={actual} v={v} alCerrar={alCerrar} galeria={galeria} />;
+    return <VisorImagen a={actual} v={v} alCerrar={cerrar} galeria={galeria} />;
   }
-  return <Hoja a={a} v={v} linea={linea} alCerrar={alCerrar} />;
+  return <Hoja a={a} v={v} linea={linea} alCerrar={cerrar} />;
 }
 
 /*
