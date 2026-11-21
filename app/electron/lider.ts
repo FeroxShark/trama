@@ -1509,7 +1509,8 @@ export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: 
   const texto = textoDe(x.texto, imagenes);
   p.directos.push(texto.trim());
   // El puente de Gemini lo entrega en el próximo límite de paso de agy (corta a agy y sigue en la misma conversación) y devuelve el eco.
-  p.p.stdin!.write(lineaUsuario(texto, imagenes, p.clase === "gemini" || p.clase === "dsh" || p.clase === "opencode"));
+  // El de Codex no corta el turno: lo pone primero en el que sigue y ahí devuelve el eco.
+  p.p.stdin!.write(lineaUsuario(texto, imagenes, p.clase === "gemini" || p.clase === "dsh" || p.clase === "opencode" || p.clase === "codex"));
 }
 
 /**
