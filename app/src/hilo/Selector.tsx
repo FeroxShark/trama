@@ -5,7 +5,7 @@
 // Inicio/Fin, Enter o Espacio para elegir; Esc, Tab o clic afuera lo cierran.
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Ban, Check, ChevronRight, ChevronUp, Clock, Search } from "lucide-react";
+import { Ban, Check, ChevronUp, Clock, Search } from "lucide-react";
 import { t } from "../i18n";
 import { Reserva } from "../i18n/Fijo";
 import { cuandoFuturo } from "../tiempo";
@@ -13,7 +13,7 @@ import { ChipLocal } from "./Logos";
 import { alTocar } from "./conectar";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import type { EstadoCupo } from "./cupo-modelos.ts";
-import { filtrar, moverEsfuerzo, repartir, type Flecha } from "./selector-columnas";
+import { filtrar, repartir } from "./selector-columnas";
 import { filtrarLista, moverResaltada } from "./selector-lista.ts";
 
 export type Opcion = {
@@ -84,8 +84,6 @@ type Props = {
   columnas?: boolean;
   /** Si elegir esta opción pide confirmación (otro motor): los datos del diálogo, que se abre sobre el menú abierto; el valor no cambia hasta confirmar. */
   confirmar?: (id: string) => DatosCambio | null;
-  /** Lo que se suma al nombre cuando la barra se compacta ("· med": el esfuerzo fusionado en el chip); lo muestra el CSS. */
-  sufijo?: string;
   /** El cupo de cada modelo, por id (`cupo-modelos.ts`): sin cupo se ve atenuado con su hora; poco cupo lleva un punto ámbar. Sin esto, ninguno lleva marca. */
   cupos?: ReadonlyMap<string, EstadoCupo>;
   /** Lo mismo por proveedor (la clave de su pestaña): sin cupo lleva el ícono en el riel. */
@@ -102,19 +100,7 @@ type Props = {
    * color) y el texto de acá como tooltip y en el nombre accesible del botón. El selector sigue abierto: nunca se bloquea por un turno.
    */
   pendiente?: string;
-  /** Lo mismo para algo que este botón no muestra de entrada (el esfuerzo, cuando la barra lo fusiona en el chip del modelo): la marca sólo se ve con la barra compacta. */
-  pendienteCompacto?: string;
   enteras?: boolean;
-  /**
-   * El esfuerzo del modelo, cuando la barra lo fusiona en el chip (`sufijo`): el menú del modelo lo trae al pie, para elegirlo ahí. Con esto,
-   * elegir un modelo no cierra el menú (el esfuerzo se elige en él); se cierra al elegir el esfuerzo, al tocar afuera o con Esc o Tab.
-   */
-  esfuerzo?: { etiqueta: string; opciones: Opcion[]; valor: string; alElegir: (id: string) => void };
-  /**
-   * Lo mismo pero con el esfuerzo en su propio botón de la barra: en la lista compacta el renglón elegido lleva igual su esfuerzo al lado (una píldora
-   * que despliega los niveles debajo), pero elegir un modelo cierra el menú como siempre.
-   */
-  esfuerzoAlLado?: { etiqueta: string; opciones: Opcion[]; valor: string; alElegir: (id: string) => void };
   /**
    * Con esto el menú de una sola lista trae un buscador arriba: el texto es su placeholder y su nombre accesible. Filtra por nombre y
    * descripción (sin mayúsculas ni tildes); las flechas mueven la resaltada, Enter elige y Esc cierra. No aplica en columnas.
@@ -139,7 +125,7 @@ const MARGEN = 8;
 const SEPARACION = 6;
 
 /** Pone el menú pegado al botón: arriba si entra, si no abajo (el lado con más lugar), con el alto topado al lugar que hay. */
-function colocar(boton: HTMLElement, menu: HTMLElement) {
+export function colocar(boton: HTMLElement, menu: HTMLElement) {
   const r = boton.getBoundingClientRect();
   const vw = document.documentElement.clientWidth;
   const vh = window.innerHeight;
@@ -169,7 +155,7 @@ function colocar(boton: HTMLElement, menu: HTMLElement) {
 /** Desde cuántas opciones el menú en columnas trae la búsqueda. */
 const CON_BUSQUEDA = 8;
 
-export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, cupos, cuposColumnas, pie, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto, enteras = false, esfuerzo, esfuerzoAlLado, buscar, busquedaInicial, "data-guia": dataGuia }: Props) {
+export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, cupos, cuposColumnas, pie, confirmando, senalAbrir = 0, pestana = null, pendiente, enteras = false, buscar, busquedaInicial, "data-guia": dataGuia }: Props) {
   const [abierto, setAbierto] = useState(deEntrada || !!confirmando);
   const [pend, setPend] = useState<{ id: string; datos: DatosCambio } | null>(() => {
     const d = confirmando && confirmar ? confirmar(confirmando) : null;
@@ -180,9 +166,6 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const [resaltada, setResaltada] = useState(0);
   // El proveedor al que se lleva la lista al abrir (el «Cambiar de modelo» de un error); sin esto, el del modelo elegido.
   const [tab, setTab] = useState<string | null>(null);
-  // Los niveles de esfuerzo desplegados debajo del renglón elegido (con el esfuerzo fusionado en el chip nacen abiertos).
-  const [esfAbierta, setEsfAbierta] = useState(!!esfuerzo);
-  const esf = esfuerzo ?? esfuerzoAlLado;
   // La opción de un proveedor sin conectar que se tocó: el valor no cambia; el menú ofrece «Conectar».
   const [conectando, setConectando] = useState<string | null>(null);
   useEffect(() => {
@@ -193,9 +176,6 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const buscador = useRef<HTMLInputElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  // El submenú del esfuerzo, al costado del menú (fuera de él: el menú recorta lo que se sale).
-  const fly = useRef<HTMLDivElement>(null);
-  const [flyPos, setFlyPos] = useState<{ top: number; left: number } | null>(null);
   const id = useId();
   // Sin opciones (los proyectos todavía no llegaron) el botón dice "…".
   const actual = opciones.find((o) => o.id === valor) ?? opciones[0] ?? { id: "", nombre: "…", desc: "" };
@@ -233,30 +213,6 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const idOpcion = (i: number) => `${id}-${i}`;
   const visibles = useMemo(() => (enColumnas ? filtrar(opciones, busqueda) : opciones), [enColumnas, opciones, busqueda]);
   const reparto = useMemo(() => repartir(visibles), [visibles]);
-  // El submenú del esfuerzo: sólo en la lista compacta, con el modelo elegido a la vista y abierto (mouse, clic o →).
-  const conFly = abierto && enColumnas && !!esf && esf.opciones.length > 0 && esfAbierta && visibles.some((o) => o.id === actual.id);
-  // Al costado del renglón elegido: a la derecha del menú si entra en la ventana; si no, a la izquierda.
-  const ubicarFly = () => {
-    const ancla = menu.current?.querySelector<HTMLElement>(".op-fila[data-esf-ancla]");
-    const m = menu.current?.getBoundingClientRect();
-    const f = fly.current;
-    if (!ancla || !m || !f) return setFlyPos(null);
-    const r = ancla.getBoundingClientRect();
-    const lista = menu.current?.querySelector<HTMLElement>(".mc-lista")?.getBoundingClientRect();
-    // El renglón se fue de la vista al desplazar la lista: el submenú se esconde hasta que vuelva.
-    if (lista && (r.bottom < lista.top || r.top > lista.bottom)) return setFlyPos(null);
-    const sep = 4;
-    const left = m.right + sep + f.offsetWidth <= window.innerWidth - 8 ? m.right + sep : Math.max(8, m.left - sep - f.offsetWidth);
-    const top = Math.max(8, Math.min(r.top - 5, window.innerHeight - f.offsetHeight - 8));
-    setFlyPos((p) => (p && p.top === top && p.left === left ? p : { top, left }));
-  };
-  useLayoutEffect(() => {
-    if (!conFly) return setFlyPos(null);
-    ubicarFly();
-    // El menú se ubica (y lleva la lista al elegido) en su propio efecto: se vuelve a medir en el cuadro siguiente.
-    const k = requestAnimationFrame(ubicarFly);
-    return () => cancelAnimationFrame(k);
-  }, [conFly, valor, esf?.valor]); // eslint-disable-line react-hooks/exhaustive-deps
   const buscando = busqueda.trim() !== "";
   const claveDe = (o: Opcion) => o.col ?? o.grupo;
   // El proveedor «activo» (el de la pestaña pedida o, si no, el del modelo elegido): a él lleva la lista al abrir y de él es el pie.
@@ -321,7 +277,6 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     setBusqueda("");
     setTab(null);
     setConectando(null);
-    setEsfAbierta(!!esfuerzo);
     if (conFoco) boton.current?.focus();
   };
 
@@ -334,10 +289,9 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     alElegirOpcion(o.id);
   };
 
-  // Con el esfuerzo al pie del menú, elegir un modelo lo deja abierto: el esfuerzo se elige ahí.
   const alElegirOpcion = (id: string) => {
     alElegir(id);
-    if (!esfuerzo) cerrar();
+    cerrar();
   };
 
   const teclaBoton =(e: KeyboardEvent) => {
@@ -348,46 +302,6 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
 
   /** Las opciones de la lista (de todos los proveedores, o de los que coinciden con la búsqueda). */
   const filas = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-lista [role="option"]:not(:disabled)') ?? [])];
-  /** Los niveles de la fila de esfuerzo (al pie del menú). */
-  const niveles = () => [menu.current, fly.current].flatMap((r) => [...(r?.querySelectorAll<HTMLElement>('.mc-esf [role="radio"]') ?? [])]);
-  /** Los niveles ya desplegados, el elegido (o el primero) con foco. `false` si no hay fila. */
-  const irAEsfuerzo = () => {
-    const r = niveles();
-    (r.find((x) => x.getAttribute("aria-checked") === "true") ?? r[0])?.focus();
-    return r.length > 0;
-  };
-  /** Arriba de la fila de esfuerzo vuelve a la lista: a la opción elegida, o a la última si no está a la vista. */
-  const volverALista = () => {
-    const ops = items();
-    (ops.find((o) => o.getAttribute("aria-selected") === "true") ?? ops[ops.length - 1])?.focus();
-  };
-
-  /** Las teclas dentro de la fila de esfuerzo: flechas y Inicio/Fin recorren los niveles; Enter o Espacio (el clic) elige y cierra. */
-  const teclaEsfuerzo = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      return cerrar();
-    }
-    if (e.key === "Tab") return cerrar();
-    if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
-    e.preventDefault();
-    const r = niveles();
-    // En el submenú del costado: arriba y abajo recorren, izquierda vuelve al renglón del modelo y lo cierra.
-    if (fly.current?.contains(document.activeElement)) {
-      const i = r.indexOf(document.activeElement as HTMLElement);
-      if (e.key === "ArrowLeft") {
-        setEsfAbierta(false);
-        return volverALista();
-      }
-      if (e.key === "ArrowRight") return;
-      const k = e.key === "Home" ? 0 : e.key === "End" ? r.length - 1 : Math.max(0, Math.min(r.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)));
-      return r[k]?.focus();
-    }
-    const k = moverEsfuerzo(r.length, r.indexOf(document.activeElement as HTMLElement), e.key as Flecha);
-    if (k === null) return volverALista();
-    r[k]?.focus();
-  };
-
   const teclaColumnas = (e: KeyboardEvent) => {
     const enBuscador = e.target === buscador.current;
     if (e.key === "Escape") {
@@ -412,29 +326,12 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
       }
       return;
     }
-    // La píldora del esfuerzo vive al lado del renglón elegido: izquierda vuelve a él, y arriba y abajo cuentan desde él.
-    const enPildora = !!activo?.classList.contains("mc-esf-pill");
-    const fila = enPildora ? activo!.parentElement?.querySelector<HTMLElement>('[role="option"]') ?? null : activo;
-    if (enPildora && e.key === "ArrowLeft") {
-      e.preventDefault();
-      return fila?.focus();
-    }
-    const i = fila ? op.indexOf(fila) : -1;
+    const i = activo ? op.indexOf(activo) : -1;
     if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
       e.preventDefault();
       if (i < 0) return op[0]?.focus();
       if (e.key === "ArrowUp" && i === 0) return buscador.current?.focus();
       op[e.key === "Home" ? 0 : e.key === "End" ? op.length - 1 : Math.max(0, Math.min(op.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))]?.focus();
-      return;
-    }
-    if (e.key === "ArrowRight" && !enPildora) {
-      // De la elegida abre su esfuerzo al costado (si lo trae) y pasa ahí.
-      const p = fila?.parentElement?.querySelector<HTMLElement>(".mc-esf-pill");
-      if (p) {
-        e.preventDefault();
-        setEsfAbierta(true);
-        requestAnimationFrame(() => irAEsfuerzo());
-      }
       return;
     }
     // Escribir estando en una opción lleva a la búsqueda (la letra queda escrita ahí).
@@ -464,7 +361,6 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   };
 
   const teclaMenu = (e: KeyboardEvent) => {
-    if (esf && niveles().includes(document.activeElement as HTMLElement)) return teclaEsfuerzo(e);
     if (enColumnas) return teclaColumnas(e);
     if (buscable) return teclaBuscar(e);
     const ops = items();
@@ -475,7 +371,6 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     };
     switch (e.key) {
       case "ArrowDown":
-        if (i === ops.length - 1 && irAEsfuerzo()) return e.preventDefault();
         return ir(i + 1);
       case "ArrowUp":
         return ir(i - 1);
@@ -570,35 +465,8 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     );
   };
 
-  /**
-   * Un renglón de la lista compacta. El elegido, si hay esfuerzo, lleva al lado el nivel de hoy («high ›»): pasar el mouse por el renglón,
-   * tocarlo o → abre los niveles en un submenú al costado. Es un botón aparte (no puede ir adentro del renglón, que ya es un botón).
-   */
-  const renglon = (o: Opcion, colNombre: string) => {
-    const nivel = esf && o.id === actual.id && esf.opciones.length ? esf.opciones.find((x) => x.id === esf.valor) : undefined;
-    // Todos los renglones van en el mismo envoltorio: así elegir otro modelo no remonta el botón (y no le saca el foco, que con Esc cerraría la vista).
-    return (
-      <Fragment key={o.id}>
-        <div className="op-fila" data-esf-ancla={nivel !== undefined ? "" : undefined} onMouseEnter={esf ? () => setEsfAbierta(nivel !== undefined) : undefined}>
-          {opcionCompacta(o, colNombre)}
-          {esf && nivel !== undefined ? (
-            <button
-              type="button"
-              className="mc-esf-pill"
-              tabIndex={-1}
-              aria-expanded={esfAbierta}
-              aria-label={`${esf.etiqueta}: ${nivel.nombre}`}
-              title={esf.etiqueta}
-              onClick={() => setEsfAbierta((a) => !a)}
-            >
-              <span>{nivel.nombre}</span>
-              <ChevronRight className="mc-esf-chev" size={12} strokeWidth={2} aria-hidden="true" />
-            </button>
-          ) : null}
-        </div>
-      </Fragment>
-    );
-  };
+  /** Un renglón de la lista compacta (el esfuerzo no se elige acá: tiene su propio chip en la barra, `Esfuerzo.tsx`). */
+  const renglon = (o: Opcion, colNombre: string) => opcionCompacta(o, colNombre);
 
   /** Lo que sale al tocar un modelo sin conectar: dice por qué no se eligió y ofrece «Conectar» (cierra el menú y abre Ajustes en ese proveedor). */
   const porConectar = conectando ? opciones.find((o) => o.id === conectando && o.sinConectar) : undefined;
@@ -619,37 +487,6 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     </div>
   ) : null;
 
-  // La fila del esfuerzo (debajo del renglón elegido, o al pie del menú de una sola lista): un nivel por botón, el elegido con tilde y en negrita (no sólo con el color).
-  const filaEsfuerzo = esf ? (
-    <div className="mc-esf" role="radiogroup" aria-label={esf.etiqueta}>
-      <span className="mh mc-esf-t" aria-hidden="true">
-        {esf.etiqueta}
-      </span>
-      {esf.opciones.map((o) => {
-        const elegida = o.id === esf.valor;
-        return (
-          <button
-            key={o.id}
-            type="button"
-            role="radio"
-            className="mc-esf-op"
-            tabIndex={-1}
-            aria-checked={elegida}
-            title={o.desc}
-            onClick={() => {
-              esf.alElegir(o.id);
-              cerrar();
-            }}
-          >
-            {o.marca}
-            <span className="mc-esf-n">{o.nombre}</span>
-            {elegida ? <Check size={13} strokeWidth={2.2} aria-hidden="true" /> : null}
-          </button>
-        );
-      })}
-    </div>
-  ) : null;
-
   return (
     <div className="pick" data-guia={dataGuia}>
       <button
@@ -660,8 +497,8 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         aria-haspopup="listbox"
         aria-expanded={abierto}
         aria-controls={abierto ? id : undefined}
-        aria-label={`${etiqueta}: ${actual.nombre}${cupoActual?.sin ? `, ${textoSinCupo(cupoActual)}` : ""}${pendiente || pendienteCompacto ? `, ${t("selector.pendienteEtiqueta")}` : ""}`}
-        data-tip={[cupoActual?.sin ? textoSinCupo(cupoActual) : null, pendiente ?? pendienteCompacto].filter(Boolean).join(" · ") || undefined}
+        aria-label={`${etiqueta}: ${actual.nombre}${cupoActual?.sin ? `, ${textoSinCupo(cupoActual)}` : ""}${pendiente ? `, ${t("selector.pendienteEtiqueta")}` : ""}`}
+        data-tip={[cupoActual?.sin ? textoSinCupo(cupoActual) : null, pendiente].filter(Boolean).join(" · ") || undefined}
         data-agotada={cupoActual?.sin ? "" : undefined}
         data-pendiente={pendiente ? "" : undefined}
         onClick={() => setAbierto((a) => !a)}
@@ -674,13 +511,8 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
           nombreDe(actual)
         )}
         {cupoActual?.sin ? <Ban className="pbtn-cupo" size={12} strokeWidth={2.2} aria-hidden="true" /> : null}
-        {sufijo ? (
-          <span className="pbtn-suf" aria-hidden="true">
-            · {sufijo}
-          </span>
-        ) : null}
-        {pendiente || pendienteCompacto ? (
-          <span className="pbtn-pend" data-compacto={pendiente ? undefined : ""} aria-hidden="true">
+        {pendiente ? (
+          <span className="pbtn-pend" aria-hidden="true">
             <Clock size={11} strokeWidth={2.2} />
             <span className="pbtn-pend-t">{t("selector.proximo")}</span>
           </span>
@@ -741,7 +573,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                         </label>
                       ) : null}
                     </div>
-                    <div className="mc-lista" role="listbox" id={id} aria-label={etiqueta} onScroll={conFly ? ubicarFly : undefined}>
+                    <div className="mc-lista" role="listbox" id={id} aria-label={etiqueta}>
                       {!buscando && reparto.arriba.length ? <div className="mc-arriba">{reparto.arriba.map((o) => renglon(o, ""))}</div> : null}
                       {reparto.columnas.map((c) => {
                         const sinConectar = c.ops.every((o) => o.sinConectar);
@@ -817,20 +649,9 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                       </Fragment>
                     ))}
                     {avisoConectar}
-                    {esfuerzo ? filaEsfuerzo : null}
                   </>
                 )}
               </div>
-              {conFly ? (
-                <div
-                  ref={fly}
-                  className="mc-fly"
-                  style={flyPos ? { top: flyPos.top, left: flyPos.left } : { visibility: "hidden" }}
-                  onKeyDown={teclaMenu}
-                >
-                  {filaEsfuerzo}
-                </div>
-              ) : null}
             </>,
             document.body,
           )
