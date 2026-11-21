@@ -72,6 +72,8 @@ export type Opciones = {
   sid: string;
   /** El modelo que se dice en cada mensaje (el que se pidió: `codex:gpt-6.1-sol`). */
   modelo: string;
+  /** Lo que pesaba el contexto al terminar el turno anterior: lo que se muestra hasta que codex dice el de este (llega recién en `turn.completed`). */
+  contextoPrevio?: number | null;
 };
 
 /**
@@ -94,6 +96,7 @@ export class Traductor {
   constructor(o: Opciones) {
     this.o = o;
     this.ventana = ventanaCodex(o.modelo);
+    this.contexto = o.contextoPrevio && o.contextoPrevio > 0 ? o.contextoPrevio : 0;
   }
 
   private base() {
@@ -109,7 +112,7 @@ export class Traductor {
   }
 
   private mensaje(id: string, content: Obj[]): Obj {
-    return { type: "assistant", message: { id, role: "assistant", model: this.o.modelo, content }, ...this.base() };
+    return { type: "assistant", message: { id, role: "assistant", model: this.o.modelo, content, ...(this.contexto ? { usage: { input_tokens: this.contexto, output_tokens: 0 } } : {}) }, ...this.base() };
   }
 
   /** Un evento de codex → las líneas de Claude. */
@@ -205,7 +208,9 @@ export class Traductor {
     // `input_tokens` de codex es lo que entró en el turno (con lo cacheado incluido): es el contexto de ahora.
     this.contexto = num(u.input_tokens) ?? this.contexto;
     this.usoTurno = { input_tokens: this.contexto, output_tokens: (num(u.output_tokens) ?? 0) + (num(u.reasoning_output_tokens) ?? 0) };
-    return this.cerrar(null);
+    // El medidor de la ventana se mueve con el `message_start`: sin esto marcaría el turno anterior (o 0) hasta el que sigue.
+    const vivo = this.contexto ? [this.ev({ type: "message_start", message: { id: this.idDe("msg_codex_u", ""), usage: { input_tokens: this.contexto, output_tokens: 0 } } })] : [];
+    return [...vivo, ...this.cerrar(null)];
   }
 
   /** codex se fue sin `turn.completed` (se cayó, o lo cortaron): el turno termina igual, con el motivo. */

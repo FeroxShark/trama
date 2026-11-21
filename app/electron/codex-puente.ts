@@ -316,13 +316,13 @@ async function turno(m: Mensaje) {
   const lado = leerLado();
   const previo = hablado();
   anotar({ type: "user", message: { role: "user", content: m.texto } });
-  const tr = new Traductor({ sid, modelo });
+  const tr = new Traductor({ sid, modelo, contextoPrevio: lado.contexto });
   tr.conversacion = lado.thread_id;
   const v = await correrCodex(lado.thread_id ? m.texto : conPrefacio(m.texto, previo), lado.thread_id, imagenes, tr);
   let ultimo = tr;
   if (v.sinConversacion && !interrumpido) {
     // codex no encontró la conversación: una nueva con lo hablado.
-    ultimo = new Traductor({ sid, modelo });
+    ultimo = new Traductor({ sid, modelo, contextoPrevio: lado.contexto });
     await correrCodex(conPrefacio(m.texto, previo), null, imagenes, ultimo);
   }
   if (ultimo.conversacion && ultimo.contexto) guardarLado(ultimo.conversacion, ultimo.contexto);
