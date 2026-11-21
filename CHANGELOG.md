@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.3.17
+
+- Los workers de Gemini vuelven a poder leer, escribir y editar archivos en su carpeta de trabajo: el agy nuevo cambió los nombres de esas herramientas y Trama las bloqueaba. Tampoco se frena un comando sólo porque el código que escribe tiene una barra o un `~`.
+
 ## 0.3.16
 
 - En el celular, el gesto o el botón de atrás cierra la foto o el archivo abierto y vuelve al chat, en vez de salir de Trama.

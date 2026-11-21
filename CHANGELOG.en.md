@@ -1,5 +1,9 @@
 # Changes
 
+## 0.3.17
+
+- Gemini workers can read, write and edit files in their work folder again: the new agy renamed those tools and Trama was blocking them. A command is no longer stopped just because the code it writes has a slash or a `~`.
+
 ## 0.3.16
 
 - On the phone, the back gesture or button closes the open photo or file and returns to the chat, instead of leaving Trama.
