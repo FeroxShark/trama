@@ -69,8 +69,11 @@ function runnings(state: string, filtro: (nombre: string) => boolean = () => tru
 /** `lock_de_puesto`: el lock del puesto k (`lock/<slug>`, `lock/<slug>@k`, `lock/<slug>@aca`). */
 export const lockDePuesto = (x: Proyecto, k: string) => path.join(x.pa.lockdir, `${x.slug}${sufPuesto(k)}`);
 
-/** `puesto_libre`: nadie tiene el lock del puesto (sondeo que no toma nada ni estorba a otro sondeo). */
-export const puestoLibre = async (x: Proyecto, k: string) => !(await probar(lockDePuesto(x, k), { plat: x.pa.plat, env: x.pa.env }));
+const runDePuesto = (x: Proyecto, k: string) => path.join(x.pa.state, `${x.slug}${sufPuesto(k)}.running`);
+
+/** `puesto_libre`: nadie tiene el lock del puesto ni un proceso vivo en su `.running` (sondeo que no toma nada ni estorba a otro sondeo). */
+export const puestoLibre = async (x: Proyecto, k: string) =>
+  !(await probar(lockDePuesto(x, k), { plat: x.pa.plat, env: x.pa.env })) && !runningVivo(runDePuesto(x, k));
 
 /** `otros_writers`: los otros writers vivos del proyecto (`<slug>.running` y `<slug>@*.running`), sin la corrida propia. */
 export function otrosWriters(x: Proyecto, tsPropio: string): { id: string; puesto: string; jefe: string; tarea: string }[] {
@@ -424,6 +427,11 @@ export class Admision {
           tocar(lockDePuesto(x, k));
           const l = await tomar(lockDePuesto(x, k), { ...this.lockOpc(), alMensaje: this.o.alMensaje });
           if (l) {
+            // Si el pa anterior murió sin soltar el lock pero su worker sigue vivo, no pisar ni borrar su .running.
+            if (runningVivo(runDePuesto(x, k))) {
+              await l.liberar();
+              continue;
+            }
             this.puestoLock = l;
             this.puesto = k;
             break;
