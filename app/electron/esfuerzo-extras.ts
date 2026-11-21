@@ -100,6 +100,13 @@ export function ajustesExtras(x: { ultracode?: boolean; fast?: boolean }): Recor
 /** Los argumentos de arranque de Fast: `--fast-mode on`, sólo con un modelo que lo sirva (con otro, Claude Code lo ignora igual). Ultracode va por `apply_flag_settings` tras el arranque. */
 export const argvFast = (modelo: string, fast: boolean | undefined): string[] => (fast && soportaFast(modelo) ? ["--fast-mode", "on"] : []);
 
+/**
+ * ¿Hay que relanzar para apagar Fast? El `--fast-mode on` del arranque queda en el argv y Claude Code lo vuelve a aplicar cada vez que
+ * relee sus ajustes: apagarlo en vivo (`apply_flag_settings`) no dura, y el chat sigue pidiendo en modo rápido (y avisando «Fast mode
+ * disabled · Out of usage credits» sin créditos). Prenderlo en vivo sí dura: sin la opción en el argv no hay nada que lo pise.
+ */
+export const fastDesfasado = (x: { fastArgv?: boolean; fast?: boolean }): boolean => x.fastArgv === true && !x.fast;
+
 /** ¿El `get_settings` de `claude` dice que Ultracode quedó en vigor? (`applied.ultracode`); `null` si la respuesta no lo dice (una versión vieja). */
 export function ultracodeEnVigor(respuesta: unknown): boolean | null {
   const a = (respuesta as { applied?: { ultracode?: unknown } } | null | undefined)?.applied;
