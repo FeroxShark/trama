@@ -1,5 +1,10 @@
 # Changes
 
+## 0.3.18
+
+- The model switch notice («Switching to X rereads the whole conversation») has two buttons: «Back to» the previous model and «Compact and switch», which compacts with the current model and only then switches. If compaction fails or doesn't start, it says so and doesn't switch on its own. «Compact and switch» shows on Claude and Gemini.
+- On Windows, Gemini workers are no longer stopped by `C:\…` paths that are inside their work folder.
+
 ## 0.3.17
 
 - Gemini workers can read, write and edit files in their work folder again: the new agy renamed those tools and Trama was blocking them. A command is no longer stopped just because the code it writes has a slash or a `~`.

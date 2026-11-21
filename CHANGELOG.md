@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.3.18
+
+- El aviso de cambio de modelo («Cambiar a X relee toda la conversación») trae dos botones: «Volver a» el modelo anterior y «Compactar y cambiar», que compacta con el modelo de ahora y recién después cambia. Si la compactación falla o no arranca, lo dice y no cambia solo. «Compactar y cambiar» sale en Claude y Gemini.
+- En Windows, los workers de Gemini ya no se frenan por rutas `C:\…` que están dentro de su carpeta de trabajo.
+
 ## 0.3.17
 
 - Los workers de Gemini vuelven a poder leer, escribir y editar archivos en su carpeta de trabajo: el agy nuevo cambió los nombres de esas herramientas y Trama las bloqueaba. Tampoco se frena un comando sólo porque el código que escribe tiene una barra o un `~`.
