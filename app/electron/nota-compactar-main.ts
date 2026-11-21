@@ -50,8 +50,8 @@ export function tokensDeUso(u: unknown): number | null {
   return num(r.input_tokens) + num(r.cache_read_input_tokens) + num(r.cache_creation_input_tokens);
 }
 
-/** Tokens de contexto de una línea `stream-json` del líder (ignora subagentes y mensajes sintéticos). */
-export function usoDeLineaStream(linea: string): number | null {
+/** Tokens de contexto de una línea `stream-json` del líder (ignora subagentes y mensajes sintéticos). `conResultado`: también el `result` (sólo motores cuyo `result` trae el contexto y no la suma del turno). */
+export function usoDeLineaStream(linea: string, conResultado = false): number | null {
   let o: Record<string, any>;
   try {
     o = JSON.parse(linea);
@@ -64,7 +64,9 @@ export function usoDeLineaStream(linea: string): number | null {
     if (o.isApiErrorMessage === true || o.message?.model === "<synthetic>") return null;
     return tokensDeUso(o.message?.usage);
   }
-  if (o.type === "result") return tokensDeUso(o.usage);
+  // El `usage` del `result` de `claude` es la suma de todas las llamadas del turno, no lo que pesa el contexto: no se mira.
+  // El puente de Gemini sí pone ahí lo último que entró (agy-stream.ts): con `conResultado` vale.
+  if (conResultado && o.type === "result") return tokensDeUso(o.usage);
   return null;
 }
 
