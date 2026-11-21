@@ -236,7 +236,7 @@ async function elegir(zona, i, opcion) {
   await en((zona, i) => document.querySelectorAll(`${zona} .pick > .pbtn`)[i]?.click(), zona, i);
   await hasta(() => !!document.querySelector('[role="option"]'), "menú abierto");
   const elegida = await clic('[role="option"]', opcion);
-  // El menú del modelo no se cierra al elegir (trae la fila de esfuerzo al pie): se cierra con Esc para que el próximo selector abra limpio.
+  // Si el menú sigue abierto, se cierra con Esc para que el próximo selector abra limpio.
   if (await en(() => !!document.querySelector('[role="option"]'))) {
     await tecla("Escape");
     await hasta(() => !document.querySelector('[role="option"]'), "menú cerrado");
@@ -565,7 +565,16 @@ try {
   const effortBtn = (z) => document.querySelectorAll(`${z} .pick > .pbtn`)[1].textContent;
   ok((await en(effortBtn, zonaLider)) === "high", "Opus arranca en high (default de la tabla)");
   ok(await elegir(zonaLider, 0, "Sonnet"), "se elige Sonnet");
-  ok(await elegir(zonaLider, 1, "medium"), "Sonnet en medium");
+  // El esfuerzo tiene su propio deslizador: no ofrece opciones de un menú como el modelo.
+  await clic(`${zonaLider} [data-esf-chip] > .pbtn`);
+  ok(
+    await hasta(() => document.activeElement?.matches('.esf-pop [role="slider"][aria-valuetext="high"]'), "deslizador con foco"),
+    "el esfuerzo abre el deslizador en high, con el foco",
+  );
+  await tecla("ArrowDown");
+  ok(await hasta(() => document.querySelector('.esf-pop [role="slider"]')?.getAttribute("aria-valuetext") === "medium", "esfuerzo medium"), "Sonnet en medium");
+  await tecla("Escape");
+  ok(await hasta(() => !document.querySelector(".esf-pop"), "deslizador cerrado"), "Esc cierra el deslizador de esfuerzo");
   ok(await elegir(zonaLider, 0, "Opus"), "se vuelve a Opus");
   ok((await en(effortBtn, zonaLider)) === "high", "Opus vuelve con high");
   ok(await elegir(zonaLider, 0, "Sonnet"), "otra vez Sonnet");
@@ -573,11 +582,11 @@ try {
   ok(await elegir(zonaLider, 0, "Haiku"), "el selector ofrece Haiku (la app no prohíbe)");
   ok(await elegir(zonaLider, 0, "Opus"), "Opus para lanzar");
   let prefs = null;
-  for (let i = 0; i < 30 && !prefs?.effort; i++) {
+  for (let i = 0; i < 30 && prefs?.effort?.["claude-sonnet-5-5"] !== "medium"; i++) {
     try {
       prefs = JSON.parse(readFileSync(path.join(tmp, "hilos", "preferencias.json"), "utf8"));
     } catch {}
-    if (!prefs?.effort) await espera(100);
+    if (prefs?.effort?.["claude-sonnet-5-5"] !== "medium") await espera(100);
   }
   ok(prefs?.effort?.["claude-sonnet-5-5"] === "medium", `preferencias.json guarda el esfuerzo por modelo: ${JSON.stringify(prefs)}`);
   ok(prefs?.idioma === "es", `guardar el esfuerzo no pisa el idioma: ${JSON.stringify(prefs)}`);
