@@ -1,5 +1,9 @@
 # Changes
 
+## 0.3.15
+
+- «Board» panel next to the chat, along with Quota and Context: it shows the questions, waits and to-dos of the open chat's project. Questions with options are answered with one tap and each item can be closed from there; the header says how many are waiting for you. It starts collapsed: open it from its title.
+
 ## 0.3.14
 
 - Effort is picked with a slider: a thick track that changes color with the level, with sparkles in the fill and the level written on top. It opens from the effort chip; the mouse wheel over the chip raises or lowers it without opening. The model menu now lists only models.

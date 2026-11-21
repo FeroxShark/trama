@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.3.15
+
+- Panel «Tablero» al costado del chat, junto a Cupo y Contexto: muestra las preguntas, esperas y pendientes del proyecto del chat abierto. Las preguntas con opciones se contestan con un toque y cada cosa se cierra desde ahí; el encabezado dice cuántas te esperan. Viene plegado: se abre desde su título.
+
 ## 0.3.14
 
 - El esfuerzo se elige con un deslizador: un carril grueso que cambia de color con el nivel, con chispitas en el relleno y el nivel escrito arriba. Se abre desde el chip del esfuerzo; la rueda del mouse sobre el chip lo sube o lo baja sin abrirlo. El menú del modelo quedó sólo con modelos.
