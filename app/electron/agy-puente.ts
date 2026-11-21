@@ -159,8 +159,18 @@ function leerLado(): { conversation_id: string | null; contexto: number | null }
 
 /** `contexto`: lo que pesaba la conversación al terminar el último turno (el "antes" de un `/compact`). */
 function guardarLado(id: string, contexto: number | null = leerLado().contexto) {
+  const texto = JSON.stringify({ version: 1, sid, conversation_id: id, modelo, ...(contexto ? { contexto } : {}) }) + "\n";
   try {
-    writeFileSync(LADO, JSON.stringify({ version: 1, sid, conversation_id: id, modelo, ...(contexto ? { contexto } : {}) }) + "\n");
+    // Entero o nada: el main lo lee mientras el puente lo escribe, y un archivo a medias (vacío) se leía como «sin conversación».
+    const tmp = `${LADO}.${process.pid}.tmp`;
+    try {
+      writeFileSync(tmp, texto);
+      renameSync(tmp, LADO);
+    } catch {
+      // Windows no deja renombrar encima de un archivo que otro tiene abierto: se escribe directo.
+      rmSync(tmp, { force: true });
+      writeFileSync(LADO, texto);
+    }
   } catch {
     /* se pierde la continuidad por agy: la próxima vez se repite lo hablado */
   }
