@@ -3131,7 +3131,7 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
   const cierres = cierresVigentes(estadoPaPlat(), Math.floor(now.getTime() / 1000));
   if (cierres.length) {
     for (const c of cands) {
-      const e = c.descartado_por ? null : cierreDe(cierres, suscripcionDeProveedor(get(c, "proveedor")), get(c, "cuenta"));
+      const e = c.descartado_por ? null : cierreDe(cierres, suscripcionDeProveedor(get(c, "proveedor")), get(c, "cuenta"), get(c, "proveedor") === "google" ? get(c, "grupo") : null);
       if (!e) continue;
       c.descartado_por = textoSinCupo(e, now.getTime() / 1000);
       if (e.vuelve !== null) c.vuelve = iso(new Date(e.vuelve * 1000));
