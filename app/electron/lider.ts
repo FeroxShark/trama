@@ -78,7 +78,6 @@ import { paraAcp, resueltos } from "./mcp-config.ts";
 import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { partirCodex } from "./codex-stream.ts";
 import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
-import { familiaAdvisor, parValido } from "./advisor.js";
 import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, notaCompactarGuardado, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
 import { ventanaDe } from "./contexto-previa.ts";
 import { parsearModelo } from "./dsh.ts";
@@ -1056,10 +1055,8 @@ async function cambiarEnVivo(x: Proc, modelo: string, effort: string, enTurno = 
   // (`--resume`). A mitad de un turno no se puede relanzar: el modelo cambia ya, el turno termina con el tope y el asesor de antes y el
   // próximo mensaje relanza (`desfasado`).
   if (!enTurno && x.modelo !== modelo && desfasado({ ...x, modelo })) return false;
-  // Pero el asesor que queda tiene que seguir siendo de una familia más fuerte que el modelo nuevo (Opus → Sonnet con Fable de asesor, sí;
-  // Sonnet → Opus con Opus de asesor, no): si no, el cambio espera al próximo mensaje, que relanza con el que corresponde.
-  const base = familiaAdvisor(modelo);
-  if (enTurno && x.modelo !== modelo && x.asesor && !(base && parValido(base, x.asesor))) return false;
+  // El asesor que queda puede no ser más fuerte que el modelo nuevo (Opus → Fable con Fable de asesor): `claude` lo acepta igual
+  // (probado con un `claude` real, 2026-11-21) y el turno sigue con el modelo nuevo; el próximo mensaje relanza con el asesor que corresponde.
   if (x.modelo !== modelo) {
     const r = await control(x, (id) => lineaModelo(id, modelo));
     if (!r || (!r.ok && !r.error)) return false;
@@ -1224,7 +1221,8 @@ async function cambiarYa(sid: string, s: { modelo: string; effort: string }): Pr
   // Ocioso también (esperando una tarea de fondo, que puede retomar sola): con las reglas de siempre, sin relanzar; lo que no se pueda en
   // vivo va con el próximo mensaje.
   if (!p || (p.modelo === s.modelo && p.effort === s.effort)) return false;
-  const ok = await cambiarEnVivo(p, s.modelo, s.effort, p.ocupado).catch(() => false);
+  // Siempre como «en turno»: ocioso puede estar esperando una tarea de fondo que lo retoma sin mensaje nuevo (y relanzar la perdería).
+  const ok = await cambiarEnVivo(p, s.modelo, s.effort, true).catch(() => false);
   // Aunque sólo haya entrado una parte (el modelo sí, el esfuerzo no), lo guardado sigue al proceso: la vista deja de marcarlo pendiente.
   const g = guardados?.find((l) => l.sid === sid);
   if (g && procs.get(sid) === p && (g.modelo !== p.modelo || g.effort !== p.effort)) {
