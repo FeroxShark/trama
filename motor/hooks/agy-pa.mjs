@@ -85,7 +85,11 @@ function campo(...claves) {
 
 const HOME = process.platform === "win32" ? env.USERPROFILE || env.HOME || homedir() : env.HOME || homedir();
 const worker = !!env.PA_AGY_HB;
-const herramienta = campo("toolCall", "name");
+// agy nuevo: read_file/write_file/edit_file (parámetro `Path`) en vez de view_file/write_to_file/replace_file_content, y `bash`
+// como alias de run_command (mismo `CommandLine`). Se normaliza a los nombres de siempre para que valgan todas las guardias.
+const ALIAS = { read_file: "view_file", write_file: "write_to_file", edit_file: "replace_file_content", bash: "run_command" };
+const herramientaCruda = campo("toolCall", "name");
+const herramienta = Object.hasOwn(ALIAS, herramientaCruda) ? ALIAS[herramientaCruda] : herramientaCruda;
 const cmd = campo("toolCall", "args", "CommandLine");
 
 /** Corre una guardia (.mjs con node, lo demás con bash). Devuelve {status, stdout, stderr}. */
@@ -124,6 +128,7 @@ if (fase === "inv") {
 // 120 s que la guardia de timeout de latido previene.
 let archivo = campo("toolCall", "args", "TargetFile");
 if (!archivo) archivo = campo("toolCall", "args", "AbsolutePath");
+if (!archivo) archivo = campo("toolCall", "args", "Path");
 const NOMBRES = {
   run_command: "Bash",
   write_to_file: "Write",
@@ -166,10 +171,10 @@ const escritura = "write_to_file|replace_file_content|multi_replace_file_content
 const web = "search_web|read_url_content";
 if (leer) {
   if (!new RegExp(`^(${lectura}|${web})$`).test(herramienta)) {
-    negar(`BLOQUEADO: estás en modo LECTURA (pa --leer): '${herramienta}' no está permitida. Para leer: view_file, list_dir, find_by_name, grep_search, y run_command sólo con git de lectura. Para internet: search_web y read_url_content (nada de curl ni wget).`);
+    negar(`BLOQUEADO: estás en modo LECTURA (pa --leer): '${herramientaCruda}' no está permitida. Para leer: view_file, list_dir, find_by_name, grep_search, y run_command sólo con git de lectura. Para internet: search_web y read_url_content (nada de curl ni wget).`);
   }
 } else if (!new RegExp(`^(${lectura}|${escritura})$`).test(herramienta)) {
-  negar(`BLOQUEADO: '${herramienta}' no está permitida en un worker de pa (ni navegador, ni MCP, ni subagentes, ni mensajes, ni tareas programadas). Hacé el trabajo con los archivos y la terminal; si de verdad hace falta, decilo en DECISION.`);
+  negar(`BLOQUEADO: '${herramientaCruda}' no está permitida en un worker de pa (ni navegador, ni MCP, ni subagentes, ni mensajes, ni tareas programadas). Hacé el trabajo con los archivos y la terminal; si de verdad hace falta, decilo en DECISION.`);
 }
 
 // --- Privacidad: nada de leer fuera del worktree ni de salir a la red -------------------------
@@ -218,7 +223,7 @@ function tokenSale(t, cwd) {
   t = t.replaceAll("${HOME}", "$HOME");
   const casa = posix(HOME);
   if (t === "~" || t.startsWith("~/")) t = casa + t.slice(1);
-  else if (t.startsWith("~")) return true; // ~otro_usuario
+  else if (t.startsWith("~")) return true; // ~otro_usuario (comandoSale ya descartó los "~" de prosa o de código)
   else if (t === "$HOME" || t.startsWith("$HOME/")) t = casa + t.slice("$HOME".length);
   else if (t.startsWith("$XDG_") || t.startsWith("$PA_") || t.startsWith("$OLDPWD")) return true;
   else if (t === "$PWD" || t.startsWith("$PWD/")) t = cwd + t.slice("$PWD".length);
@@ -241,8 +246,21 @@ function tokenSale(t, cwd) {
   else return false;
   return prohibida(lex(p));
 }
+/**
+ * Tokens que por sí solos no nombran nada sensible: "/", "//", "/**" (división, comentarios, JSX, prosa), "~", "~algo" (markdown,
+ * regex). Sólo cuentan si aparecen como PALABRA suelta del shell: fuera de comillas y fuera del cuerpo de un heredoc.
+ * Una ruta de verdad (/etc/x, ~/.ssh/x, /home/…) siempre se mira, esté donde esté.
+ */
+const ambiguo = (t) => /^\/[*/]*$/.test(t) || t === "~" || /^~[A-Za-z_]/.test(t);
+function sinTexto(c) {
+  return c
+    .replace(/(<<-?\s*(['"]?)([A-Za-z_]\w*)\2[^\n]*\n)[\s\S]*?\n[ \t]*\3[ \t]*(?=\n|$)/g, "$1")
+    .replace(/"(?:[^"\\]|\\[\s\S])*"|'[^']*'/g, " ");
+}
+const escRe = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Todo token de un texto de comando que salga del worktree -> lo devuelve (o null). */
 function comandoSale(c, cwd) {
+  const suelto = sinTexto(c);
   // el mensaje de un commit puede nombrar rutas sin leerlas; sólo si no ejecuta nada adentro (sed trabaja línea por línea)
   c = c
     .split("\n")
@@ -251,6 +269,7 @@ function comandoSale(c, cwd) {
   c = c.replaceAll("${HOME}", "$HOME");
   for (const tok of c.split(/[ \t\n;|&<>()"'`=:,{}[\]]+/)) {
     if (!tok) continue;
+    if (ambiguo(tok) && !new RegExp(`(^|[\\s;&|(<>=])${escRe(tok)}($|[\\s;&|)<>])`).test(suelto)) continue;
     if (tokenSale(tok, cwd)) return tok;
   }
   return null;
@@ -327,7 +346,7 @@ if (worker) {
 // Escrituras: sólo adentro del worktree (o del tree, con --aca), /tmp y el archivo del mapa.
 if (nombre === "Write" || nombre === "Edit") {
   const raiz = env.PA_AGY_RAIZ || "";
-  if (!archivo) negar(`BLOQUEADO: no se pudo saber qué archivo escribe '${herramienta}'.`);
+  if (!archivo) negar(`BLOQUEADO: no se pudo saber qué archivo escribe '${herramientaCruda}'.`);
   const real = realpathM(archivo);
   let ok = false;
   if (raiz && (real === realpathM(raiz) || real.startsWith(`${realpathM(raiz)}/`))) ok = true;
