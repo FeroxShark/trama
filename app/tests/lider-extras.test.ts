@@ -102,6 +102,26 @@ test("un cambio de esfuerzo en vivo apaga Ultracode en Claude Code: la app lo vu
   assert.equal((await guardado(sid))?.ultracode, true);
 });
 
+test("apagar Fast en un líder que arrancó con --fast-mode on: el próximo mensaje relanza sin la opción; prenderlo en vivo no relanza", { timeout: 20_000 }, async () => {
+  const sid = await lider.nuevo({ ...OPUS, texto: "hola", fast: true });
+  await esperarHasta(() => lider.procDe(sid)?.ocupado === false, { tope: 8000 });
+  const arranques = () => lineas().filter((l) => l.args?.includes(sid));
+  assert.equal(arranques().length, 1);
+  assert.ok(arranques()[0]!.args!.join(" ").includes("--fast-mode on"));
+  // El argv del proceso vivo sigue diciendo `on`: Claude Code lo vuelve a aplicar al releer sus ajustes, así que apagarlo en vivo no alcanza.
+  assert.deepEqual(await lider.cambiarExtras(sid, { fast: false }), { ok: true });
+  await lider.mandar({ sid, texto: "seguí", ...OPUS });
+  await esperarHasta(() => arranques().length === 2, { tope: 8000 });
+  assert.ok(arranques()[1]!.args!.includes("--resume"), "se relanza retomando la conversación");
+  assert.ok(!arranques()[1]!.args!.includes("--fast-mode"), "sin Fast en el argv");
+  await esperarHasta(() => lider.procDe(sid)?.ocupado === false, { tope: 8000 });
+  // Prenderlo en vivo no deja nada en el argv que lo pise: no hace falta relanzar.
+  assert.deepEqual(await lider.cambiarExtras(sid, { fast: true }), { ok: true });
+  await lider.mandar({ sid, texto: "otra", ...OPUS });
+  await esperarHasta(() => lider.procDe(sid)?.ocupado === false, { tope: 8000 });
+  assert.equal(arranques().length, 2);
+});
+
 test("sin proceso (dormido) sólo se guarda: vale desde el próximo arranque", { timeout: 20_000 }, async () => {
   const sid = await lider.nuevo({ ...OPUS, texto: "hola" });
   await esperarHasta(() => lider.procDe(sid)?.ocupado === false, { tope: 8000 });

@@ -5,6 +5,7 @@ import {
   acumularRueda,
   ajustesExtras,
   argvFast,
+  fastDesfasado,
   cabeceraEsfuerzo,
   colorNivel,
   esClaudeOficial,
@@ -126,6 +127,12 @@ test("arranque: Fast va en el argv (--fast-mode on) sólo con un modelo que lo s
   assert.deepEqual(argvFast("claude-sonnet-5-5", true), []);
   assert.deepEqual(argvFast("claude-opus-5-5", false), []);
   assert.deepEqual(argvFast("claude-opus-5-5", undefined), []);
+  // Arrancó con `--fast-mode on` y se apagó: hay que relanzar. Prenderlo en vivo no deja nada en el argv.
+  assert.equal(fastDesfasado({ fastArgv: true, fast: false }), true);
+  assert.equal(fastDesfasado({ fastArgv: true }), true);
+  assert.equal(fastDesfasado({ fastArgv: true, fast: true }), false);
+  assert.equal(fastDesfasado({ fast: true }), false);
+  assert.equal(fastDesfasado({}), false);
   const con = argvLider({ modelo: "claude-opus-5-5", effort: "high", sid: SID, nombre: "trama-0a1b", resume: false, fast: true });
   assert.ok(con.join(" ").includes("--fast-mode on"));
   assert.ok(!con.includes("--settings"));
