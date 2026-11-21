@@ -138,7 +138,7 @@ test("modelo elegido a mitad de un turno: set_model ya; A → B → A seguidos t
   assert.equal(lanzados().length, antes + 1, "el mismo proceso todo el tiempo");
 });
 
-test("cambio de familia a mitad de un turno con asesor: sólo si el asesor sigue siendo más fuerte; el próximo mensaje relanza con el suyo", { timeout: 30_000 }, async () => {
+test("cambio de familia a mitad de un turno con asesor: cambia ya aunque el asesor no sea más fuerte; el próximo mensaje relanza con el suyo", { timeout: 30_000 }, async () => {
   const conf = path.join(tmp, "modelos-asesor.json");
   writeFileSync(conf, JSON.stringify({ version: 1, advisor: { opus: "fable", sonnet: "opus" } }));
   const previo = process.env.TRAMA_MODELOS;
@@ -146,16 +146,21 @@ test("cambio de familia a mitad de un turno con asesor: sólo si el asesor sigue
   try {
     const asesor = (x: { args: string[] }) => x.args[x.args.indexOf("--advisor") + 1];
     const S = { modelo: "claude-sonnet-5-5", effort: "high" };
-    // Sonnet (asesor Opus) → Opus en turno: el asesor no sería más fuerte; queda para el próximo mensaje.
+    // Sonnet (asesor Opus) → Opus en turno: cambia ya (el turno sigue con Opus y el asesor de antes); el próximo mensaje relanza con Fable de asesor.
     let fin0 = fines();
     let n = lanzados().length;
     const uno = await lider.nuevo({ ...S, texto: "muchos pasos" });
     // El falso anota su arranque al rato de lanzarse.
     await hasta(() => lanzados().length === n + 1);
     assert.equal(asesor(lanzados().at(-1)), "opus");
-    assert.equal(await lider.cambiarEnTurno(uno, M), false);
-    assert.equal((await lider.lideresApp()).find((l) => l.sid === uno)?.modelo, "claude-sonnet-5-5");
+    n += 1;
+    assert.equal(await lider.cambiarEnTurno(uno, M), true);
+    assert.equal((await lider.lideresApp()).find((l) => l.sid === uno)?.modelo, "claude-opus-5-5", "la vista deja de marcarlo «próx.»");
     await hasta(() => fines() === fin0 + 1);
+    await lider.mandar({ sid: uno, texto: "hola", ...M });
+    await hasta(() => fines() === fin0 + 2);
+    await hasta(() => lanzados().length === n + 1);
+    assert.equal(asesor(lanzados().at(-1)), "fable", "relanzó con el asesor de Opus");
     // Opus (asesor Fable) → Sonnet en turno: sí; el turno termina con Fable y el próximo mensaje relanza con Opus de asesor.
     fin0 = fines();
     n = lanzados().length;
