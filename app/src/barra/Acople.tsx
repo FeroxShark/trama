@@ -29,6 +29,9 @@ export type PanelDef = {
   titulo: string;
   icono: ReactNode;
   contenido: ReactNode;
+  /** Un número en el encabezado (lo que espera a la persona); sin él o en 0 no se muestra. `contadorEtiqueta` lo dice con palabras. */
+  contador?: number;
+  contadorEtiqueta?: string;
 };
 
 export type AcopleProps = {
@@ -594,6 +597,11 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
             {def.icono}
           </span>
           <h2 className="acople-panel-tit">{def.titulo}</h2>
+          {def.contador ? (
+            <span className="acople-panel-cuenta" role="img" aria-label={def.contadorEtiqueta ?? String(def.contador)}>
+              {def.contador}
+            </span>
+          ) : null}
           <span className="acople-esp" />
           <button
             ref={(el) => {
@@ -673,6 +681,11 @@ export function Acople({ paneles, vivos, centro, control }: AcopleProps) {
             {def.icono}
           </span>
           <h2 className="acople-panel-tit">{def.titulo}</h2>
+          {def.contador ? (
+            <span className="acople-panel-cuenta" role="img" aria-label={def.contadorEtiqueta ?? String(def.contador)}>
+              {def.contador}
+            </span>
+          ) : null}
           <span className="acople-esp" />
           <button
             type="button"
