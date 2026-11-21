@@ -2750,7 +2750,7 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
   const openais = subs.filter((s) => get(s, "id") === "openai");
 
   const ofertasDsh = dshOfertas(cfg, now);
-  if (ofertasDsh.length && !claudeInstalado()) claudes = [];
+  if (!claudeInstalado()) claudes = [];
 
   const carga = cargaPorGrupo(now);
   const rinde = rindeDeModelos(now);

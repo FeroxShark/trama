@@ -62,3 +62,9 @@ test("un gratis de OpenCode con el grupo agotado no se revive por calidad baja",
   const s = elegir("debug", { REPARTO_OPENCODE: "1", REPARTO_OPENCODE_FIJO: '["opencode/beam-free"]', REPARTO_STATE: estado });
   assert.notEqual(s.modelo, "opencode:opencode/beam-free", String(s.modelo));
 });
+
+// A01 (REPARTO-CUPOS-4)
+test("sin ningún proveedor disponible (Claude apagado y nada más) no ofrece un Claude inexistente", () => {
+  const s = elegir("codigo-acotado", {});
+  assert.equal(s.modelo, null, String(s.modelo));
+});
