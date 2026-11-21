@@ -124,8 +124,8 @@ function crearRespaldo(slug: string, nombre: string, priority: number): CodexMod
 /** Catálogo fijo de respaldo cuando `models_cache.json` falta, está vacío o no se puede leer. */
 export const CODEX_RESPALDO: readonly CodexModelo[] = [
   crearRespaldo("gpt-6.1-sol", "GPT-6.1 Sol (Codex)", 1),
-  crearRespaldo("gpt-6-astra", "GPT-6 Astra (Codex)", 2),
-  crearRespaldo("gpt-6-luna", "GPT-6 Luna (Codex)", 3),
+  crearRespaldo("gpt-6-luna", "GPT-6 Luna (Codex)", 2),
+  crearRespaldo("gpt-6-astra", "GPT-6 Astra (Codex)", 3),
 ];
 
 /** Alias históricos aceptados por `pa` en respaldo cuando no hay `models_cache.json`. */
