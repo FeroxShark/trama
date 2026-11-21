@@ -21,6 +21,7 @@ import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync
 import { createInterface } from "node:readline";
 import path from "node:path";
 import os from "node:os";
+import { aliasMasNuevosCodex, leerCodexModelos } from "./cli/codex-modelos.ts";
 import { entornoAgy, paraLanzar, resolverCodex } from "./binario.ts";
 import { argsCodex, partirCodex, sandboxDe, Traductor } from "./codex-stream.ts";
 import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
@@ -43,7 +44,12 @@ function arg(nombre: string): string | null {
 
 const sid = arg("sid") ?? "";
 const nombre = arg("nombre") ?? "";
-const pedido = arg("modelo") ?? "codex:gpt-6.1-sol";
+function modeloCodexPorDefecto(): string {
+  const modelos = leerCodexModelos();
+  return aliasMasNuevosCodex(modelos).sol?.id ?? modelos[0]!.id;
+}
+
+const pedido = arg("modelo") ?? modeloCodexPorDefecto();
 const { modelo: modeloCodex, effort } = partirCodex(pedido, arg("effort"));
 /** Lo que se dice en cada mensaje (el modelo del líder, con el prefijo de Trama). */
 const modelo = `codex:${modeloCodex}`;

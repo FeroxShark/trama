@@ -80,7 +80,7 @@ export const AYUDA: readonly string[] = [
   "                                       default de pa: claude-sonnet-5-5 high, claude-haiku-5-5 xhigh para",
   "                                       --tipo mecanico). -m acepta claude-…, gemini-4-neon-{low,medium,high,xhigh}, gemini-4-argon-{low,medium,high}, gemini-4-hydrogen-{low,medium,high,xhigh},",
   "                                       agy:{claude-{opus,sonnet}-5-5-{low,medium,high},gpt-oss-120b-medium},",
-  "                                       codex:{gpt-6.1-sol,gpt-6-sol,gpt-6-luna,gpt-6-astra}-{low,medium,high} (ChatGPT) y",
+  "                                       codex:<modelo>-{low,medium,high} (ChatGPT, según models_cache.json de Codex) y",
   "                                       ollama:<modelo> (sin effort; servidor caído o sin el modelo → sale 95) y",
   "                                       dsh:{ollama,opencode,deepseek}/<modelo> (DeepSeek Harness: modelos gratis de OpenCode u",
   "                                       Ollama, o DeepSeek; sin effort; keys en el entorno o en ~/.config/trama/claves.env;",

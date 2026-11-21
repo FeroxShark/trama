@@ -3,12 +3,16 @@
 // gemini_equivalente, es_codex, CODEX_MODELOS, codex_equivalente, es_dsh, es_opencode, DSH_MODELOS, OC_MODELOS, dsh_proveedor,
 // dsh_modelo_de, dsh_gratis, opencode_gratis, es_local, proveedor_de_modelo, proveedor_cuenta_de y los rechazos del armado).
 
+import { homeDe, plataformaActual, type Plataforma } from "../../../rutas.ts";
+import { CODEX_RESPALDO, CODEX_SLUGS_EXTRA_RESPALDO, familiaCodexDeId, resolverCodexPedido, resumenCodexAceptados } from "../../codex-modelos.ts";
+import type { Env } from "../entorno.ts";
+
 /** El programa que corre al worker. `dsh` cubre también a opencode (runner node, stream NDJSON, sin --seguir). */
 export type Motor = "claude" | "agy" | "codex" | "dsh" | "ollama";
 export type Proveedor = "claude" | "google" | "chatgpt" | "opencode" | "";
 
 export const GEMINI_MODELOS = "gemini-4-neon-(low|medium|high|xhigh)|gemini-4-argon-(low|medium|high)|gemini-4-hydrogen-(low|medium|high|xhigh)|agy:(claude-(opus|sonnet)-5-5-(low|medium|high)|gpt-oss-120b-medium)";
-export const CODEX_MODELOS = "codex:(gpt-6\\.1-sol|gpt-6-sol|gpt-6-luna|gpt-6-astra)-(low|medium|high)";
+export const CODEX_MODELOS = `codex:(${[...CODEX_RESPALDO.map((m) => m.slug), ...CODEX_SLUGS_EXTRA_RESPALDO].map((s) => s.replace(/\./g, "\\.")).join("|")})-(low|medium|high)`;
 /** `[^[:space:]]` del bash: sin blancos ASCII. */
 const NO_BLANCO = "[^ \\t\\n\\v\\f\\r]";
 export const DSH_MODELOS = `dsh:(ollama|opencode|deepseek)/${NO_BLANCO}+`;
@@ -110,8 +114,9 @@ export function geminiEquivalente(m: string): string {
 /** `"modelo effort"` del Claude oficial al que cae un modelo de codex. */
 export function codexEquivalente(m: string): string {
   const e = m.slice(m.lastIndexOf("-") + 1);
-  if (m.startsWith("codex:gpt-6-astra-")) return `claude-opus-5-5 ${e}`;
-  if (m.startsWith("codex:gpt-6-luna-")) return `claude-haiku-5-5 ${e === "low" ? "medium" : e === "medium" ? "high" : "xhigh"}`;
+  const fam = familiaCodexDeId(m);
+  if (fam === "astra") return `claude-opus-5-5 ${e}`;
+  if (fam === "luna") return `claude-haiku-5-5 ${e === "low" ? "medium" : e === "medium" ? "high" : "xhigh"}`;
   if (m.startsWith("codex:")) return `claude-sonnet-5-5 ${e}`;
   return "";
 }
@@ -139,7 +144,13 @@ const noVa = (m: string, que: string) => `pa: ${que} no va con '${m}'. Sacalo, o
  * La validación del `-m` de un modelo que no es Claude y de los flags que ese motor no tiene (los `exit 2` del bash, en el mismo
  * orden). No mira la privacidad ni si el programa está: eso es `chequear` (motores/chequeo.ts). `null`: es un Claude.
  */
-export function validarOtroMotor(modelo: string, f: FlagsLanzar = {}): Validacion | null {
+export function validarOtroMotor(
+  modelo: string,
+  f: FlagsLanzar = {},
+  env: Env = process.env,
+  home: string = homeDe(env),
+  plat: Plataforma = plataformaActual(),
+): Validacion | null {
   const err = (error: string): Validacion => ({ ok: false, error });
   if (esGemini(modelo)) {
     if (!calza(GEMINI_MODELOS, min(modelo)))
@@ -153,9 +164,10 @@ export function validarOtroMotor(modelo: string, f: FlagsLanzar = {}): Validacio
     return { ok: true, modelo: m, motor: "agy" };
   }
   if (esCodex(modelo)) {
-    if (!calza(CODEX_MODELOS, min(modelo)))
-      return err(`pa: modelo '${modelo}' no va. Modelos de codex en pa: codex:{gpt-6.1-sol,gpt-6-sol,gpt-6-luna,gpt-6-astra}-{low,medium,high}.`);
-    const m = min(modelo);
+    const resuelto = resolverCodexPedido(min(modelo), { env, home, plat });
+    if (!resuelto)
+      return err(`pa: modelo '${modelo}' no va. Modelos de codex en pa: ${resumenCodexAceptados({ env, home, plat })}.`);
+    const m = resuelto.id;
     if (f.esfuerzoFlag) return err(`pa: --effort no va con '${m}': en codex el effort es parte del nombre (…-low, …-medium, …-high).`);
     if (f.seguir) return err(noVa(m, "--seguir (codex no retoma una sesión de pa)"));
     if (f.aca) return err(noVa(m, "--aca/--sucio-mio (un worker de codex trabaja siempre en su worktree)"));

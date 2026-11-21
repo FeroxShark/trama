@@ -9,17 +9,21 @@
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { configTrama, homeDe, plataformaActual, type Plataforma } from "../../rutas.ts";
+import { CODEX_RESPALDO, CODEX_SLUGS_EXTRA_RESPALDO, familiaCodexDeSlug, leerCodexModelos, resolverCodexPedido } from "../codex-modelos.ts";
 import type { Env, Io } from "./entorno.ts";
 
 export const TIPOS_VALIDOS = "mecanico|lectura|codigo-acotado|codigo-multi|frontend|diseno|debug|final";
 export const GEMINI_MODELOS =
   "gemini-4-neon-(low|medium|high|xhigh)|gemini-4-argon-(low|medium|high)|gemini-4-hydrogen-(low|medium|high|xhigh)|agy:(claude-(opus|sonnet)-5-5-(low|medium|high)|gpt-oss-120b-medium)";
-export const CODEX_MODELOS = "codex:(gpt-6\\.1-sol|gpt-6-sol|gpt-6-luna|gpt-6-astra)-(low|medium|high)";
+export const CODEX_MODELOS = `codex:(${[...CODEX_RESPALDO.map((m) => m.slug), ...CODEX_SLUGS_EXTRA_RESPALDO].map((s) => s.replace(/\./g, "\\.")).join("|")})-(low|medium|high)`;
 export const DSH_MODELOS = "dsh:(ollama|opencode|deepseek)/\\S+";
 export const OC_MODELOS = "opencode:[A-Za-z0-9][A-Za-z0-9._-]*/\\S+";
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 /** Familias que se reconocen dentro de un id (excluir y efforts_permitidos; la misma lista que reparto). */
-const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "neon", "argon", "hydrogen", "gpt-oss", "astra", "sol", "luna"];
+const FAMILIAS_BASE = ["fable", "opus", "sonnet", "haiku", "neon", "argon", "hydrogen", "gpt-oss", "astra", "sol", "luna", "terra"];
+const familiasCodex = (env?: Env, home?: string, plat?: Plataforma) => [
+  ...new Set([...FAMILIAS_BASE, ...leerCodexModelos({ env, home, plat }).map((m) => familiaCodexDeSlug(m.slug))]),
+];
 
 /** `[[ x =~ ^(re)$ ]]` del bash. */
 export const calza = (re: string, x: string) => new RegExp(`^(${re})$`).test(x);
@@ -45,7 +49,7 @@ const campoOpcional = (x: Json, k: string): { hay: boolean; v?: Json } =>
   esObjeto(x) ? { hay: true, v: x[k] } : x === null || x === undefined ? { hay: true, v: null } : { hay: false };
 
 /** El primer problema de un modelos.json ya parseado, en el orden del jq de modelos_cargar ("" = vale). */
-export function problemaModelos(c: Json): string {
+export function problemaModelos(c: Json, opts?: { env?: Env; home?: string; plat?: Plataforma }): string {
   if (!esObjeto(c)) return "no es un objeto JSON";
   const L = Array.isArray(c.locales) ? c.locales : [];
   const ids = L.filter(esObjeto).map((l) => l.id).filter((x): x is string => typeof x === "string");
@@ -54,7 +58,7 @@ export function problemaModelos(c: Json): string {
     (/^claude-[a-z0-9][a-z0-9.-]*$/.test(m) ||
       /^agy:[a-z0-9][a-z0-9.-]*$/.test(m) || // un modelo que ofrece el agy de la cuenta (el catálogo cambia): si no existe, agy lo rechaza al lanzar y pa relanza
       calza(GEMINI_MODELOS, m) ||
-      calza(CODEX_MODELOS, m) ||
+      (m === m.toLowerCase() && resolverCodexPedido(m, opts) !== null) ||
       calza(DSH_MODELOS, m) ||
       calza(OC_MODELOS, m) ||
       (m.startsWith("ollama:") && ids.includes(m)));
@@ -144,10 +148,14 @@ export class Modelos {
   private leido: { conf: Record<string, Json> | null; err: string } | null = null;
   private env: Env;
   private io: Io;
+  private home: string;
+  private plat: Plataforma;
 
   constructor(env: Env, io: Io, home: string = homeDe(env), plat: Plataforma = plataformaActual()) {
     this.env = env;
     this.io = io;
+    this.home = home;
+    this.plat = plat;
     this.archivo = env.TRAMA_MODELOS || path.join(configTrama(env, home, plat), "modelos.json");
   }
 
@@ -174,7 +182,7 @@ export class Modelos {
     } catch {
       return (this.leido = { conf: null, err: "no es JSON válido" });
     }
-    const err = problemaModelos(c);
+    const err = problemaModelos(c, { env: this.env, home: this.home, plat: this.plat });
     return (this.leido = err ? { conf: null, err } : { conf: c as Record<string, Json>, err: "" });
   }
 
@@ -222,7 +230,7 @@ export class Modelos {
       if (typeof p !== "string") continue;
       const q = asciiMinus(p).replace(/^\s+|\s+$/g, "");
       if (!q) continue;
-      const atrapa = q.endsWith("*") ? m.startsWith(q.slice(0, -1)) : FAMILIAS.includes(q) ? m.includes(q) : m === q || m.startsWith(`${q}-`);
+      const atrapa = q.endsWith("*") ? m.startsWith(q.slice(0, -1)) : familiasCodex(this.env, this.home, this.plat).includes(q) ? m.includes(q) : m === q || m.startsWith(`${q}-`);
       if (atrapa) return p;
     }
     return null;
@@ -235,7 +243,7 @@ export class Modelos {
     const ep = esObjeto(c.efforts_permitidos) ? c.efforts_permitidos : {};
     const m = modelo.toLowerCase();
     const base = m.replace(/-(low|medium|high|xhigh|max)$/, "");
-    const f = FAMILIAS.find((x) => m.includes(x));
+    const f = familiasCodex(this.env, this.home, this.plat).find((x) => m.includes(x));
     const k = [m, base, f].find((x) => x !== undefined && x in ep);
     if (k === undefined) return null;
     const lista = ep[k] as Json[];

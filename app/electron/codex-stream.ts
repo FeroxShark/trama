@@ -14,7 +14,9 @@
 //   turn.failed     { error: { message } }
 //   error           { message }
 
-/** La ventana de contexto de los modelos de ChatGPT que corre codex (lo que dice el medidor del chat). */
+import { EFFORTS_CODEX_PA, aliasMasNuevosCodex, leerCodexModelos, ventanaCodex } from "./cli/codex-modelos.ts";
+
+/** La ventana de contexto de respaldo de los modelos de ChatGPT que corre codex (lo que dice el medidor del chat). */
 export const VENTANA_CODEX = 400_000;
 
 type Obj = Record<string, any>;
@@ -86,9 +88,11 @@ export class Traductor {
   /** Lo que pesaba el contexto en lo último que contestó el modelo (0: este turno no contestó nada). */
   contexto = 0;
   private readonly o: Opciones;
+  private readonly ventana: number;
 
   constructor(o: Opciones) {
     this.o = o;
+    this.ventana = ventanaCodex(o.modelo);
   }
 
   private base() {
@@ -220,7 +224,7 @@ export class Traductor {
         result: error ?? this.textos.at(-1) ?? "",
         num_turns: 1,
         usage: this.usoTurno,
-        modelUsage: { [this.o.modelo]: { contextWindow: VENTANA_CODEX } },
+        modelUsage: { [this.o.modelo]: { contextWindow: this.ventana } },
         ...this.base(),
       },
     ];
@@ -229,10 +233,12 @@ export class Traductor {
 
 /** `codex:gpt-6.1-sol` (+ `high`) o `codex:gpt-6.1-sol-high` → el modelo de `codex -m` y el esfuerzo (`model_reasoning_effort`). */
 export function partirCodex(modelo: string, effort?: string | null): { modelo: string; effort: string } {
-  const base = modelo.replace(/^codex:/, "");
-  const m = /^(.+?)-(low|medium|high)$/.exec(base);
-  if (m) return { modelo: m[1]!, effort: m[2]! };
-  return { modelo: base, effort: effort && ["low", "medium", "high"].includes(effort) ? effort : "medium" };
+  const base0 = modelo.replace(/^codex:/, "");
+  const m = /^(.+?)-(low|medium|high)$/.exec(base0);
+  const raw = m ? m[1]! : base0;
+  const e0 = m ? m[2]! : effort && (EFFORTS_CODEX_PA as readonly string[]).includes(effort) ? effort : "medium";
+  const alias = aliasMasNuevosCodex(leerCodexModelos())[raw.toLowerCase()];
+  return { modelo: alias ? alias.slug : raw, effort: e0 };
 }
 
 /** El sandbox de codex para el modo de permisos del líder. */
