@@ -212,7 +212,8 @@ export function Esfuerzo({ modelo, niveles, valor, alElegir, pendiente, ultracod
               <button type="button" className="fondo" tabIndex={-1} aria-label={t("comun.cerrarMenu")} onClick={() => cerrar(false)} />
               <div ref={menu} className="menu esf-pop" data-ultra={ultracode ? "" : undefined} role="dialog" aria-label={etiqueta} style={{ ["--esf-color" as string]: color }} onKeyDown={teclaMenu}>
                 <div className="esf-cab" aria-live="polite">
-                  {cabecera}
+                  {/* El modelo fuerte y el resto (nivel, Ultracode, Fast) apagado, como «Opus 5.5 High». */}
+                  <span className="esf-cab-m">{cabecera.split(" · ")[0]}</span> <span className="esf-cab-r">{cabecera.split(" · ").slice(1).join(" · ")}</span>
                 </div>
                 {/* La zona entera (carril y nombres) es el blanco del clic y del arrastre; la perilla es lo único que recibe el foco. */}
                 <div
@@ -225,7 +226,9 @@ export function Esfuerzo({ modelo, niveles, valor, alElegir, pendiente, ultracod
                 >
                   <div ref={carril} className="esf-carril">
                     <div className="esf-pista" aria-hidden="true">
-                      <div className="esf-relleno" style={{ width: pos(i) }} />
+                      <div className="esf-relleno" style={{ width: `calc(${pos(i)} + var(--esf-pulgar) / 2)` }}>
+                        <span className="esf-chispas" />
+                      </div>
                     </div>
                     {niveles.map((n, k) => (
                       <span key={n.id} className="esf-punto" data-lleno={k <= i ? "" : undefined} style={{ left: pos(k) }} aria-hidden="true" />
@@ -245,13 +248,6 @@ export function Esfuerzo({ modelo, niveles, valor, alElegir, pendiente, ultracod
                       onKeyDown={teclaPulgar}
                     />
                   </div>
-                  <div className="esf-nombres" aria-hidden="true">
-                    {niveles.map((n, k) => (
-                      <span key={n.id} className="esf-nombre" data-actual={k === i ? "" : undefined} style={{ left: pos(k) }}>
-                        {n.nombre}
-                      </span>
-                    ))}
-                  </div>
                 </div>
                 {alUltracode || alFast ? (
                   <div className="esf-pie">
@@ -263,9 +259,8 @@ export function Esfuerzo({ modelo, niveles, valor, alElegir, pendiente, ultracod
                     ) : null}
                     <span className="esp" />
                     {alFast ? (
-                      <button type="button" className="esf-tog" data-tipo="fast" aria-pressed={fast} aria-busy={ocupado || undefined} title={t("esfuerzo.fastTip")} onClick={() => void cambiar("fast")}>
-                        <Zap size={12} strokeWidth={2} aria-hidden="true" />
-                        {t("esfuerzo.fast")}
+                      <button type="button" className="esf-tog esf-tog-ico" data-tipo="fast" aria-pressed={fast} aria-busy={ocupado || undefined} aria-label={t("esfuerzo.fast")} title={t("esfuerzo.fastTip")} onClick={() => void cambiar("fast")}>
+                        <Zap size={16} strokeWidth={2} aria-hidden="true" />
                       </button>
                     ) : null}
                   </div>

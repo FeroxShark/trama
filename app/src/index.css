@@ -2381,7 +2381,7 @@ html[data-titulo-nativo] #root::after {
   }
 }
 .menu.esf-pop {
-  --esf-pulgar: 1.125rem;
+  --esf-pulgar: 1.625rem;
   width: 16.25rem;
   min-width: 0;
   max-height: none;
@@ -2394,44 +2394,82 @@ html[data-titulo-nativo] #root::after {
   font-size: var(--letra-5);
   font-weight: 600;
 }
+.esf-cab-r {
+  color: var(--texto-5);
+  font-weight: 400;
+}
 .esf-zona {
-  margin-top: var(--esp-1);
+  margin-top: var(--esp-3);
   cursor: pointer;
   touch-action: none;
   user-select: none;
 }
+/* Un carril grueso como píldora: el relleno del color del nivel abraza la perilla blanca, que va adentro. */
 .esf-carril {
   position: relative;
-  height: 2.25rem;
+  height: calc(var(--esf-pulgar) + 0.375rem);
 }
 .esf-pista {
   position: absolute;
-  inset: 50% 0 auto;
-  height: 0.25rem;
-  transform: translateY(-50%);
+  inset: 0;
+  overflow: hidden;
   border-radius: var(--r-cap);
   background: var(--capa-track);
 }
 .esf-relleno {
+  position: relative;
   height: 100%;
+  overflow: hidden;
   border-radius: var(--r-cap);
   background: var(--esf-color);
   transition:
     width var(--t-snappy) ease-out,
     background-color var(--t-smooth);
 }
+/* Chispitas dentro del relleno: puntos claros que titilan y se corren despacio (quietas con movimiento reducido). */
+.esf-chispas {
+  position: absolute;
+  inset: -50% 0;
+  background:
+    radial-gradient(circle, var(--texto-1) 0 1px, transparent 1.5px) 0.6rem 0.9rem / 2.3rem 1.6rem,
+    radial-gradient(circle, var(--texto-1) 0 1.2px, transparent 1.7px) 1.7rem 0.3rem / 3.1rem 1.9rem,
+    radial-gradient(circle, var(--texto-1) 0 0.8px, transparent 1.3px) 0.2rem 0.5rem / 1.7rem 1.3rem;
+  opacity: 0.55;
+  animation:
+    esf-chispas-corren 9s linear infinite,
+    esf-chispas-titilan 2.2s ease-in-out infinite alternate;
+}
+@keyframes esf-chispas-corren {
+  to {
+    transform: translate(2.3rem, -1.6rem);
+  }
+}
+@keyframes esf-chispas-titilan {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 0.7;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .esf-chispas {
+    animation: none;
+  }
+}
 .esf-punto {
   position: absolute;
   top: 50%;
-  width: 0.3125rem;
-  height: 0.3125rem;
+  width: 0.25rem;
+  height: 0.25rem;
   border-radius: 50%;
   background: var(--texto-6);
+  opacity: 0.6;
   transform: translate(-50%, -50%);
 }
-/* Los puntos que ya cubre el relleno van en un tono más hondo del mismo color: se cuentan los niveles también en lo lleno, sin cortar el relleno. */
 .esf-punto[data-lleno] {
-  background: color-mix(in srgb, var(--esf-color) 45%, var(--sup-1));
+  background: var(--texto-1);
+  opacity: 0.45;
 }
 .esf-pulgar {
   position: absolute;
@@ -2441,8 +2479,8 @@ html[data-titulo-nativo] #root::after {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--esf-color);
-  box-shadow: 0 0 0 0.125rem var(--vidrio-opaco);
+  background: var(--texto-1);
+  box-shadow: 0 0.125rem 0.375rem var(--sombra);
   transform: translate(-50%, -50%);
   cursor: grab;
   transition:
@@ -2480,8 +2518,14 @@ html[data-titulo-nativo] #root::after {
   align-items: center;
   gap: var(--esp-2);
   margin-top: var(--esp-3);
-  padding-top: var(--esp-3);
-  border-top: 1px solid var(--borde-2);
+}
+/* ⚡ Fast: un cuadrado con el ícono solo (el nombre va en la etiqueta y, prendido, en la cabecera). */
+.esf-tog.esf-tog-ico {
+  width: 2.5rem;
+  height: 2.5rem;
+  justify-content: center;
+  padding: 0;
+  border-radius: var(--r-md);
 }
 .esf-tog {
   display: inline-flex;
