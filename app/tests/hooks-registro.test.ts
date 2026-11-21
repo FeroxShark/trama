@@ -6,7 +6,19 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { apoyoDeHooks, archivoHook, comandoHook, entreComillas, hooksJsonAgy, registrarEnAjustes, registrarEnArchivo, type OpcionesRegistro } from "../electron/cli/hooks.ts";
+import {
+  apoyoDeHooks,
+  archivoHook,
+  ARCHIVOS_NOTA_COMPACTAR,
+  comandoHook,
+  comandoNotaCompactar,
+  entreComillas,
+  EVENTOS_NOTA_COMPACTAR,
+  hooksJsonAgy,
+  registrarEnAjustes,
+  registrarEnArchivo,
+  type OpcionesRegistro,
+} from "../electron/cli/hooks.ts";
 import { soloPosix } from "./plataforma.ts";
 
 const MOTOR = path.join(import.meta.dirname, "..", "..", "motor");
@@ -33,6 +45,22 @@ test("comandoHook: bash para .sh, node para .mjs, la ruta siempre entre comillas
   assert.equal(archivoHook("agy-pa", "mjs"), "agy-pa.mjs");
   assert.deepEqual(apoyoDeHooks("sh"), ["docker-guard.py"]);
   assert.deepEqual(apoyoDeHooks("mjs"), ["docker-guard.mjs"]);
+});
+
+test("comandoNotaCompactar y EVENTOS_NOTA_COMPACTAR: con y sin --umbral, en Linux y Windows", () => {
+  assert.equal(comandoNotaCompactar(HOOKS, { umbral: 255_000, plataforma: "linux" }), `node '${HOOKS}/nota-compactar.mjs' --umbral 255000`);
+  assert.equal(comandoNotaCompactar(HOOKS, { plataforma: "linux" }), `node '${HOOKS}/nota-compactar.mjs'`);
+  assert.equal(
+    comandoNotaCompactar("C:\\Users\\trama-falso\\hooks", { plataforma: "win32", node: "C:\\Program Files\\trama\\node.exe", umbral: 850_000 }),
+    `'C:/Program Files/trama/node.exe' 'C:/Users/trama-falso/hooks/nota-compactar.mjs' --umbral 850000`,
+  );
+  assert.deepEqual(EVENTOS_NOTA_COMPACTAR, [
+    { evento: "PostToolUse" },
+    { evento: "UserPromptSubmit" },
+    { evento: "PreCompact" },
+    { evento: "SessionStart", matcher: "compact" },
+  ]);
+  assert.deepEqual(ARCHIVOS_NOTA_COMPACTAR, ["nota-compactar.mjs", "nota-compactar-textos.mjs"]);
 });
 
 test("hooksJsonAgy: la variante sh es exactamente el hooks.json del plugin", () => {

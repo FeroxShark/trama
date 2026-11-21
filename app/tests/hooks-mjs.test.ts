@@ -35,7 +35,7 @@ const conTemporal = (f: (dir: string) => void) => {
 };
 
 test("hooks .mjs: todos pasan node --check", () => {
-  for (const n of ["latido", "destructive-guard", "statusline-espejo", "agy-pa", "docker-guard"]) {
+  for (const n of ["latido", "destructive-guard", "statusline-espejo", "agy-pa", "docker-guard", "cierre-cupo", "cierre-cupo-textos", "nota-compactar", "nota-compactar-textos"]) {
     const r = spawnSync(process.execPath, ["--check", hook(n)], { encoding: "utf8" });
     assert.equal(r.status, 0, `${n}.mjs: ${r.stderr}`);
   }

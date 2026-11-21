@@ -14,7 +14,7 @@ import path from "node:path";
 import { escribirAtomicoSync } from "./base/archivo.ts";
 
 export type VarianteHook = "sh" | "mjs";
-export type NombreHook = "latido" | "destructive-guard" | "statusline-espejo" | "agy-pa" | "cierre-cupo";
+export type NombreHook = "latido" | "destructive-guard" | "statusline-espejo" | "agy-pa" | "cierre-cupo" | "nota-compactar";
 
 /** Los hooks que `instalar-producto.sh` enlaza en `~/.claude/hooks`. */
 export const HOOKS_DE_CLAUDE: readonly NombreHook[] = ["latido", "destructive-guard", "statusline-espejo"];
@@ -34,6 +34,28 @@ export const EVENTOS_CIERRE_CUPO = ["PostToolUse", "UserPromptSubmit"] as const;
 export const ARCHIVOS_CIERRE_CUPO = ["cierre-cupo.mjs", "cierre-cupo-textos.mjs"] as const;
 /** Su comando: `node '<carpeta>/cierre-cupo.mjs'`. */
 export const comandoCierreCupo = (carpeta: string, o: OpcionesComando = {}): string => comandoHook("cierre-cupo", "mjs", carpeta, o);
+
+/**
+ * Nota antes de compactar (`nota-compactar.mjs`, con sus textos en `nota-compactar-textos.mjs`): pide una nota al pasar el umbral,
+ * la copia antes de compactar y la devuelve tras compactar (`SessionStart` con matcher `compact`). Sólo existe en Node.
+ */
+export const EVENTOS_NOTA_COMPACTAR = [
+  { evento: "PostToolUse" },
+  { evento: "UserPromptSubmit" },
+  { evento: "PreCompact" },
+  { evento: "SessionStart", matcher: "compact" },
+] as const;
+export const ARCHIVOS_NOTA_COMPACTAR = ["nota-compactar.mjs", "nota-compactar-textos.mjs"] as const;
+export type OpcionesNotaCompactar = OpcionesComando & {
+  /** Umbral en tokens para pedir la nota (`--umbral <tokens>`). Sin él, la parte de «pedir» no corre. */
+  umbral?: number | null;
+};
+/** Su comando: `node '<carpeta>/nota-compactar.mjs' --umbral <tokens>` (sin `--umbral` si no se pasa). */
+export function comandoNotaCompactar(carpeta: string, o: OpcionesNotaCompactar = {}): string {
+  const base = comandoHook("nota-compactar", "mjs", carpeta, o);
+  const u = typeof o.umbral === "number" && Number.isFinite(o.umbral) && o.umbral > 0 ? Math.round(o.umbral) : null;
+  return u ? `${base} --umbral ${u}` : base;
+}
 
 export type OpcionesComando = {
   /** El intérprete de la variante `.mjs` (default `node`; el instalador de Windows pasa el `node.exe` empaquetado). */

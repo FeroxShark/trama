@@ -121,6 +121,7 @@ export function problemaModelos(c: Json): string {
     if (!ok) return `efforts_permitidos ${tojson(ep)} (un objeto familia o id → lista de low, medium, high, xhigh, max)`;
   }
   if ("permitir_max" in c && typeof c.permitir_max !== "boolean") return `permitir_max ${tojson(c.permitir_max)} (true o false)`;
+  if (!nulo(c.nota_compactar) && typeof c.nota_compactar !== "boolean") return `nota_compactar ${tojson(c.nota_compactar)} (true o false)`;
   if (!nulo(c.perfil) && !/^(equilibrado|ahorro|agresivo|rendimiento)$/.test(tostring(c.perfil))) return `perfil ${tojson(c.perfil)} (equilibrado, ahorro, agresivo o rendimiento)`;
   if (!nulo(c.reserva_lider) && (typeof c.reserva_lider !== "number" || c.reserva_lider < 0 || c.reserva_lider >= 1))
     return `reserva_lider ${tojson(c.reserva_lider)} (un número de 0 a 1 o null)`;
@@ -285,6 +286,12 @@ export class Modelos {
     const k = [m, f].find((x) => x !== null && x in por);
     const v = k !== undefined ? por[k!] : typeof a.defecto === "number" ? a.defecto : f === "haiku" ? 300000 : null;
     return typeof v === "number" ? String(v) : "";
+  }
+
+  /** `nota_compactar` de modelos.json: booleana, por defecto prendida (`true`). */
+  notaCompactar(): boolean {
+    const c = this.conf();
+    return c && typeof c.nota_compactar === "boolean" ? c.nota_compactar : true;
   }
 
   /** `modelos_reparto`: auto | fijo (PA_REPARTO=0 lo apaga, para los tests). */

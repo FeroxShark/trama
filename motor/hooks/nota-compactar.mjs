@@ -1,0 +1,368 @@
+#!/usr/bin/env node
+// nota-compactar.mjs — hook de Claude Code para líderes de la app y workers de `pa`:
+//   - PostToolUse / UserPromptSubmit («pedir»): si el contexto pasó `--umbral <tokens>`, pide UNA vez por ciclo (marca
+//     `<estado>/notas/<session_id>.pedida` creada con `wx`) que el modelo escriba su nota entre `[[nota-compactar]]` y
+//     `[[/nota-compactar]]`. Si el uso bajó de la mitad del umbral y la marca existe, la borra.
+//   - PostToolUse / UserPromptSubmit / PreCompact («copiar»): guarda el último bloque `[[nota-compactar]]…[[/nota-compactar]]`
+//     del asistente en `<estado>/notas/<session_id>.md` (modo 0600) si difiere de lo guardado.
+//   - SessionStart con `source === "compact"` («devolver»): devuelve la nota (de `.md` o, si falta, de la cola del transcript)
+//     recortada a 12 000 caracteres y borra `.pedida`. Otros `source`: no hace nada.
+// Barato (lee sólo los últimos ~256 KB del transcript), ignora subagentes (`isSidechain`), nunca bloquea y siempre sale con 0.
+import { chmodSync, closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const env = process.env;
+export const TAIL_BYTES = 256 * 1024;
+export const SESION_OK = /^[A-Za-z0-9._-]{1,128}$/;
+
+/** Estado de la app (`HILOS_STATE` o el default por plataforma; misma regla que `cierre-cupo.mjs` / `rutas.ts`). */
+export function estadoHilos(e = env, plat = process.platform) {
+  if (e.HILOS_STATE) return e.HILOS_STATE;
+  const win = plat === "win32";
+  const casa = win ? e.USERPROFILE || e.HOME || homedir() : e.HOME || homedir();
+  return win
+    ? path.win32.join(e.LOCALAPPDATA || path.win32.join(casa, "AppData", "Local"), "trama", "estado", "hilos")
+    : path.posix.join(casa, ".local", "state", "hilos");
+}
+
+const leerJson = (f) => {
+  try {
+    return JSON.parse(readFileSync(f, "utf8"));
+  } catch {
+    return null;
+  }
+};
+
+/** El idioma de la app (`preferencias.json` de su estado); sin él, el de la terminal; por defecto `es`. */
+function idiomaDeLaApp(hilos = estadoHilos()) {
+  const p = leerJson(path.join(hilos, "preferencias.json"));
+  if (p && (p.idioma === "es" || p.idioma === "en")) return p.idioma;
+  return /^en/i.test(env.LC_ALL || env.LANG || "") ? "en" : "es";
+}
+
+/** Parsea `--umbral <tokens>` de argv; `null` si falta o no es un entero positivo. */
+export function parsearArgs(argv = process.argv.slice(2)) {
+  let umbral = null;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--umbral" && i + 1 < argv.length) {
+      const n = Number(argv[++i]);
+      if (Number.isFinite(n) && n > 0) umbral = Math.floor(n);
+    } else if (typeof a === "string" && a.startsWith("--umbral=")) {
+      const n = Number(a.slice("--umbral=".length));
+      if (Number.isFinite(n) && n > 0) umbral = Math.floor(n);
+    }
+  }
+  return { umbral };
+}
+
+/** Lee sólo los últimos `maxBytes` del transcript y descarta la primera línea si quedó cortada por el offset. */
+export function leerColaTranscript(ruta, maxBytes = TAIL_BYTES) {
+  if (typeof ruta !== "string" || !ruta) return [];
+  let fd;
+  try {
+    fd = openSync(ruta, "r");
+    const size = fstatSync(fd).size;
+    if (size <= 0) return [];
+    const start = Math.max(0, size - maxBytes);
+    const len = size - start;
+    const buf = Buffer.allocUnsafe(len);
+    let off = 0;
+    while (off < len) {
+      const n = readSync(fd, buf, off, len - off, start + off);
+      if (n <= 0) break;
+      off += n;
+    }
+    let texto = buf.subarray(0, off).toString("utf8");
+    if (start > 0) {
+      const nl = texto.indexOf("\n");
+      texto = nl >= 0 ? texto.slice(nl + 1) : "";
+    }
+    return texto.split("\n").filter(Boolean);
+  } catch {
+    return [];
+  } finally {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {
+        /* nada */
+      }
+    }
+  }
+}
+
+const num = (x) => (typeof x === "number" && Number.isFinite(x) && x >= 0 ? x : 0);
+
+/**
+ * Tokens de contexto del último mensaje del asistente (sin subagentes ni sintéticos):
+ * `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`.
+ * Si después de él hay un `compact_boundary`, el uso quedó viejo y devuelve `{ tokens: null, compactada: true }`.
+ */
+export function ultimoUsoDeLineas(lineas) {
+  for (let i = lineas.length - 1; i >= 0; i--) {
+    let o;
+    try {
+      o = JSON.parse(lineas[i]);
+    } catch {
+      continue;
+    }
+    if (!o || typeof o !== "object" || o.isSidechain === true) continue;
+    if (o.type === "system" && o.subtype === "compact_boundary") return { tokens: null, compactada: true };
+    if (o.type !== "assistant") continue;
+    if (o.isApiErrorMessage === true || o.message?.model === "<synthetic>") continue;
+    const u = o.message?.usage;
+    if (!u || typeof u !== "object") continue;
+    const tiene = ["input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"].some(
+      (k) => typeof u[k] === "number" && Number.isFinite(u[k]) && u[k] >= 0,
+    );
+    if (!tiene) continue;
+    return {
+      tokens: num(u.input_tokens) + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens),
+      compactada: false,
+    };
+  }
+  return { tokens: null, compactada: false };
+}
+
+const textoDeContenido = (c) =>
+  typeof c === "string"
+    ? c
+    : Array.isArray(c)
+      ? c
+          .filter((b) => b && b.type === "text" && typeof b.text === "string")
+          .map((b) => b.text)
+          .join("\n")
+      : "";
+
+/** Extrae el último bloque no vacío entre `[[nota-compactar]]` y `[[/nota-compactar]]` de un texto. */
+export function extraerNotaDeTexto(texto) {
+  if (typeof texto !== "string" || !texto.includes("[[nota-compactar]]")) return null;
+  let hallada = null;
+  for (const m of texto.matchAll(/\[\[nota-compactar\]\]([\s\S]*?)\[\[\/nota-compactar\]\]/g)) {
+    const limpio = m[1].trim();
+    if (limpio) hallada = limpio;
+  }
+  return hallada;
+}
+
+const tsDe = (o) => {
+  const t = typeof o?.timestamp === "string" ? Date.parse(o.timestamp) : NaN;
+  return Number.isFinite(t) ? t : null;
+};
+
+/**
+ * Última nota escrita por el asistente en la cola del transcript (ignora subagentes y sintéticos).
+ * `trasCompact`: en `SessionStart(compact)`, el `compact_boundary` de esta compactación ya está al final y se salta una vez.
+ */
+export function ultimaNotaDeLineas(lineas, { trasCompact = false } = {}) {
+  let vioCompact = false;
+  let idActual = null;
+  let acum = "";
+  let tsActual = null;
+  const revisarAcum = () => {
+    const n = extraerNotaDeTexto(acum);
+    return n ? { texto: n, tsMs: tsActual } : null;
+  };
+  for (let i = lineas.length - 1; i >= 0; i--) {
+    let o;
+    try {
+      o = JSON.parse(lineas[i]);
+    } catch {
+      continue;
+    }
+    if (!o || typeof o !== "object" || o.isSidechain === true) continue;
+    if (o.type === "system" && o.subtype === "compact_boundary") {
+      const r = revisarAcum();
+      if (r) return r;
+      idActual = null;
+      acum = "";
+      tsActual = null;
+      if (trasCompact && !vioCompact) {
+        vioCompact = true;
+        continue;
+      }
+      return null;
+    }
+    if (o.type !== "assistant" || o.isApiErrorMessage === true || o.message?.model === "<synthetic>") continue;
+    const t = textoDeContenido(o.message?.content);
+    if (!t) continue;
+    const mid = typeof o.message?.id === "string" && o.message.id ? o.message.id : null;
+    if (mid !== null && mid === idActual) {
+      acum = `${t}\n${acum}`;
+      tsActual ??= tsDe(o);
+    } else {
+      const r = revisarAcum();
+      if (r) return r;
+      idActual = mid;
+      acum = t;
+      tsActual = tsDe(o);
+    }
+  }
+  return revisarAcum();
+}
+
+function guardarNota(dirNotas, archivoNota, nota) {
+  let actual = null;
+  try {
+    actual = readFileSync(archivoNota, "utf8");
+  } catch {
+    actual = null;
+  }
+  if (actual === nota) return false;
+  mkdirSync(dirNotas, { recursive: true });
+  const tmp = path.join(dirNotas, `.tmp-${process.pid}-${Math.random().toString(36).slice(2, 8)}`);
+  try {
+    writeFileSync(tmp, nota, { mode: 0o600 });
+    try {
+      chmodSync(tmp, 0o600);
+    } catch {
+      /* en Windows el modo POSIX no aplica */
+    }
+    renameSync(tmp, archivoNota);
+  } catch (e) {
+    try {
+      rmSync(tmp, { force: true });
+    } catch {
+      /* nada */
+    }
+    throw e;
+  }
+  return true;
+}
+
+const cargarTextos = () => import(pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), "nota-compactar-textos.mjs")).href);
+
+/** Lógica principal separada para tests (sin stdin ni salida del proceso). */
+export async function decidir({
+  evento,
+  source,
+  sesion,
+  transcript,
+  umbral = null,
+  hilos = estadoHilos(),
+  ahoraMs = Date.now(),
+  idioma,
+  tailBytes = TAIL_BYTES,
+}) {
+  if (!SESION_OK.test(sesion || "")) return null;
+  if (evento === "SessionStart" && source !== "compact") return null;
+  if (!["PostToolUse", "UserPromptSubmit", "PreCompact", "SessionStart"].includes(evento)) return null;
+
+  const dirNotas = path.join(hilos, "notas");
+  const archivoMarca = path.join(dirNotas, `${sesion}.pedida`);
+  const archivoNota = path.join(dirNotas, `${sesion}.md`);
+
+  if (evento === "SessionStart") {
+    try {
+      rmSync(archivoMarca, { force: true });
+    } catch {
+      /* nada */
+    }
+    let nota = "";
+    let minutos = null;
+    let archivo = "";
+    try {
+      const guardada = readFileSync(archivoNota, "utf8").trim();
+      if (guardada) {
+        nota = guardada;
+        archivo = archivoNota;
+        try {
+          minutos = Math.max(0, Math.floor((ahoraMs - statSync(archivoNota).mtimeMs) / 60_000));
+        } catch {
+          minutos = null;
+        }
+      }
+    } catch {
+      /* sin archivo: cae al transcript */
+    }
+    if (!nota) {
+      const lineas = leerColaTranscript(transcript, tailBytes);
+      const hallada = ultimaNotaDeLineas(lineas, { trasCompact: true });
+      if (!hallada) return null;
+      nota = hallada.texto;
+      let refMs = hallada.tsMs;
+      if (refMs === null && typeof transcript === "string" && transcript) {
+        try {
+          refMs = statSync(transcript).mtimeMs;
+        } catch {
+          refMs = null;
+        }
+      }
+      minutos = refMs !== null ? Math.max(0, Math.floor((ahoraMs - refMs) / 60_000)) : null;
+    }
+    const { textoDevolucionNota } = await cargarTextos();
+    return {
+      hookSpecificOutput: {
+        hookEventName: "SessionStart",
+        additionalContext: textoDevolucionNota({ idioma: idioma ?? idiomaDeLaApp(hilos), nota, minutos, archivo }),
+      },
+    };
+  }
+
+  const lineas = leerColaTranscript(transcript, tailBytes);
+  const hallada = ultimaNotaDeLineas(lineas);
+  if (hallada) {
+    try {
+      guardarNota(dirNotas, archivoNota, hallada.texto);
+    } catch {
+      /* mejor esfuerzo */
+    }
+  }
+  if (evento === "PreCompact") return null;
+
+  if (typeof umbral !== "number" || !Number.isFinite(umbral) || umbral <= 0) return null;
+  const uso = ultimoUsoDeLineas(lineas);
+  if (uso.compactada || (uso.tokens !== null && uso.tokens < umbral / 2)) {
+    try {
+      rmSync(archivoMarca, { force: true });
+    } catch {
+      /* nada */
+    }
+    return null;
+  }
+  if (uso.tokens === null || uso.tokens < umbral) return null;
+  try {
+    mkdirSync(dirNotas, { recursive: true });
+    writeFileSync(archivoMarca, `${Math.floor(ahoraMs / 1000)}\n`, { flag: "wx", mode: 0o600 });
+  } catch {
+    return null; // ya pedida en este ciclo (o sin dónde marcar: no repetir en cada turno)
+  }
+  const { textoPedidoNota } = await cargarTextos();
+  return {
+    hookSpecificOutput: {
+      hookEventName: evento === "UserPromptSubmit" ? "UserPromptSubmit" : "PostToolUse",
+      additionalContext: textoPedidoNota({ idioma: idioma ?? idiomaDeLaApp(hilos) }),
+    },
+  };
+}
+
+function main() {
+  const { umbral } = parsearArgs();
+  let doc = {};
+  try {
+    doc = JSON.parse(readFileSync(0, "utf8"));
+  } catch {
+    return;
+  }
+  if (!doc || typeof doc !== "object") return;
+  return decidir({
+    evento: doc.hook_event_name,
+    source: doc.source,
+    sesion: doc.session_id,
+    transcript: doc.transcript_path,
+    umbral,
+  }).then((r) => {
+    if (r) process.stdout.write(JSON.stringify(r) + "\n");
+  });
+}
+
+// Como programa corre; importado (los tests) no hace nada.
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  Promise.resolve()
+    .then(main)
+    .catch(() => {})
+    .finally(() => process.exit(0));
+}

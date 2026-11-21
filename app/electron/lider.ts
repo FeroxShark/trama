@@ -71,7 +71,7 @@ import { barrerEtiqueta, nuevaEtiqueta, VARIABLE } from "./huerfanos.js";
 import { arranqueDe } from "./local.js";
 import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts";
 import { fragmentoVigente } from "./apagados.ts";
-import { carpetaHooksCierre, settingsCierreCupo } from "./cierre-cupo-texto.ts";
+import { carpetaHooksCierre, carpetaHooksNota, settingsCierreCupo } from "./cierre-cupo-texto.ts";
 import { conClaves } from "./claves.ts";
 import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTramaApp, tramaParaAcp } from "./mcp.ts";
 import { paraAcp, resueltos } from "./mcp-config.ts";
@@ -79,7 +79,8 @@ import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { partirCodex } from "./codex-stream.ts";
 import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
 import { familiaAdvisor, parValido } from "./advisor.js";
-import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
+import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, notaCompactarGuardado, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
+import { ventanaDe } from "./contexto-previa.ts";
 import { parsearModelo } from "./dsh.ts";
 import { parsearModelo as parsearOpencode } from "./opencode.ts";
 import { pedidoDe } from "./cache.ts";
@@ -659,11 +660,17 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   } catch (e) {
     silencio("apagados-lanzar")(e);
   }
-  // El aviso de cierre por cupo (motor/hooks/cierre-cupo.mjs) para un líder de Claude de verdad; sin los hooks del motor, nada.
+  // Los hooks del motor (cierre por cupo y nota antes de compactar) en UN solo `--settings` para un líder de Claude oficial (ni locales ni Ollama).
   let cierreCupo: string | undefined;
   try {
-    const hooks = clase === "claude" && !local && !extra.ollama ? carpetaHooksCierre() : null;
-    if (hooks) cierreCupo = settingsCierreCupo(hooks, { plataforma: plat });
+    const deVerdad = clase === "claude" && !local && !extra.ollama;
+    const hooksCierre = deVerdad ? carpetaHooksCierre() : null;
+    const hooksNota = deVerdad && notaCompactarGuardado() ? carpetaHooksNota() : null;
+    const hooks = hooksCierre ?? hooksNota;
+    if (hooks) {
+      const umbralNota = hooksNota ? Math.round((tope ?? ventanaDe(g.modelo)) * 0.85) : null;
+      cierreCupo = settingsCierreCupo(hooks, { plataforma: plat, umbralNota, conCierre: Boolean(hooksCierre) });
+    }
   } catch (e) {
     silencio("cierre-cupo-lanzar")(e);
   }

@@ -65,7 +65,7 @@ export type ArmarLider = {
   mcpConfig?: string;
   /** El pedazo de settings del apagado global de Trama (`apagados.ts`): `--settings <archivo>`. Un líder local u Ollama no lo lleva (ya va con `--bare` o sin MCP). */
   apagados?: string;
-  /** El `--settings` con el hook de cierre por cupo (`cierre-cupo-texto.ts`, `settingsCierreCupo`). Mismo criterio que `apagados`. */
+  /** El `--settings` con los hooks del líder (`cierre-cupo-texto.ts`, `settingsCierreCupo`: cierre por cupo y nota antes de compactar). Mismo criterio que `apagados`. */
   cierreCupo?: string;
   /** «Contexto antes de compactar» de la familia del modelo, en tokens (`--autocompact`, como un worker de `pa`); sin él (`null`) compacta Claude Code a su manera. Un líder local u Ollama no lo lleva (su ventana va en el entorno). */
   autocompact?: number | null;

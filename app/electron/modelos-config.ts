@@ -332,6 +332,16 @@ export function autocompactLiderGuardado(): TopeConf | null {
   }
 }
 
+/** ¿El hook `nota-compactar` está prendido en `modelos.json`? Booleana, por defecto prendida (`true`): sin archivo, roto o sin la clave vale `true`. */
+export function notaCompactarGuardado(): boolean {
+  try {
+    const { obj } = analizar(readFileSync(rutaModelos(), "utf8"), "");
+    return obj ? leerConfig(obj).nota_compactar !== false : true;
+  } catch {
+    return true;
+  }
+}
+
 /** `cierre` del archivo guardado con lo de fábrica en lo que falte (sin archivo o roto: de fábrica). Lo lee el vigilante (cierre-cupo-disco.ts). */
 export function cierreGuardado(): AjustesCierre {
   try {

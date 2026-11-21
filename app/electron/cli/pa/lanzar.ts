@@ -17,13 +17,15 @@ import { esEjecutable } from "../base/buscar.ts";
 import { paraLanzar, resolverClaude } from "../../binario.ts";
 import { tomar } from "../base/lock.ts";
 import { matarArbol } from "../base/proc.ts";
-import { comandoCierreCupo, comandoHook, entreComillas, type VarianteHook } from "../hooks.ts";
+import { comandoCierreCupo, comandoHook, comandoNotaCompactar, entreComillas, EVENTOS_NOTA_COMPACTAR, type VarianteHook } from "../hooks.ts";
 import { CIERRE_TAREA, CIERRE_TURNOS, SIN_JEFE, conJefe } from "./contrato.ts";
 import { contratoActualizar } from "./auditar.ts";
 import { caminoDe, configTrama } from "../../rutas.ts";
 import { sumarFragmento } from "../../apagados.ts";
+import { ventanaDe } from "../../contexto-previa.ts";
 import { terminalAgentesGuardada } from "../../preferencias.ts";
 import { envTerminalAgentes } from "../../terminal-agentes.ts";
+import { Modelos } from "./modelos.ts";
 import { avisarFalta, conDueno, type Env, type Pa } from "./entorno.ts";
 import {
   campoJson,
@@ -242,10 +244,21 @@ export function guardEnSettings(configClaude: string): boolean {
   }
 }
 
-/** El JSON de `--settings` del worker: latido y guardia como hooks, el plugin caveman apagado y el deny del espejo. */
+/** El JSON de `--settings` del worker: latido, guardia, cierre por cupo, nota-compactar, el plugin caveman apagado y el deny del espejo. */
 export function settingsWorker(
   pa: Pa,
-  o: { hb: string; leer: boolean; espejo?: string; variante?: VarianteHook; node?: string; configClaude?: string },
+  o: {
+    hb: string;
+    leer: boolean;
+    espejo?: string;
+    variante?: VarianteHook;
+    node?: string;
+    configClaude?: string;
+    modelo?: string;
+    autocompact?: string;
+    local?: boolean;
+    umbralNota?: number | null;
+  },
 ): string {
   const variante = o.variante ?? (pa.plat === "win32" ? "mjs" : "sh");
   const cam = caminoDe(pa.plat);
@@ -259,6 +272,23 @@ export function settingsWorker(
   const modo = o.leer ? " leer" : "";
   // Cierre por cupo (motor/hooks/cierre-cupo.mjs): le avisa al worker, una vez por ventana, que cierre. Sin el archivo no se registra.
   const cierreCupo = existsSync(cam.join(hooks, "cierre-cupo.mjs")) ? [{ hooks: [{ type: "command", command: comandoCierreCupo(hooks, opc), timeout: 10 }] }] : [];
+  // Nota antes de compactar (motor/hooks/nota-compactar.mjs): pide la nota al 85 % del tope de compactación y la devuelve tras compactar.
+  // Sólo para el `claude` oficial (no Ollama) y si `nota_compactar` en modelos.json está prendida (default: true).
+  const conNota = !o.local && existsSync(cam.join(hooks, "nota-compactar.mjs")) && new Modelos(pa.env, pa.io, pa.home, pa.plat).notaCompactar();
+  let umbralNota: number | null = null;
+  if (conNota) {
+    if (typeof o.umbralNota === "number" && Number.isFinite(o.umbralNota) && o.umbralNota > 0) umbralNota = Math.round(o.umbralNota);
+    else if (o.autocompact && /^[0-9]+$/.test(o.autocompact)) umbralNota = Math.round(Number(o.autocompact) * 0.85);
+    else if (o.modelo) umbralNota = Math.round(ventanaDe(o.modelo) * 0.85);
+  }
+  const cmdNota = conNota ? comandoNotaCompactar(hooks, { ...opc, umbral: umbralNota }) : "";
+  const porEventoNota: Record<string, Record<string, unknown>[]> = {};
+  if (conNota) {
+    for (const e of EVENTOS_NOTA_COMPACTAR) {
+      const matcher = "matcher" in e ? { matcher: e.matcher } : {};
+      (porEventoNota[e.evento] ??= []).push({ ...matcher, hooks: [{ type: "command", command: cmdNota, timeout: 10 }] });
+    }
+  }
   let deny: string[] = [];
   if (o.espejo) {
     const d = cam.dirname(o.espejo);
@@ -276,8 +306,10 @@ export function settingsWorker(
         ...(guardOtro ? [] : [{ matcher: "Bash", hooks: [{ type: "command", command: guard }] }]),
         { hooks: [{ type: "command", command: `${latido} ${hb} pre${modo}` }] },
       ],
-      PostToolUse: [{ hooks: [{ type: "command", command: `${latido} ${hb} post` }] }, ...cierreCupo],
-      UserPromptSubmit: cierreCupo,
+      PostToolUse: [{ hooks: [{ type: "command", command: `${latido} ${hb} post` }] }, ...cierreCupo, ...(porEventoNota.PostToolUse ?? [])],
+      UserPromptSubmit: [...cierreCupo, ...(porEventoNota.UserPromptSubmit ?? [])],
+      ...(porEventoNota.PreCompact ? { PreCompact: porEventoNota.PreCompact } : {}),
+      ...(porEventoNota.SessionStart ? { SessionStart: porEventoNota.SessionStart } : {}),
     },
   };
   if (deny.length) s.permissions = { deny };
@@ -535,7 +567,17 @@ export function envDeLaLlamada(pa: Pa, c: Corrida): Env {
 export function armarLanzamiento(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): Lanzamiento {
   const dir = path.join(pa.state, c.slug);
   const { run, hb } = rastroDe(pa, c);
-  const settings = settingsWorker(pa, { hb, leer: c.leer, espejo: c.espejo, variante: o.hooks?.variante, node: o.hooks?.node, configClaude: configClaudeDe(pa, c) });
+  const settings = settingsWorker(pa, {
+    hb,
+    leer: c.leer,
+    espejo: c.espejo,
+    variante: o.hooks?.variante,
+    node: o.hooks?.node,
+    configClaude: configClaudeDe(pa, c),
+    modelo: c.modelo,
+    autocompact: c.autocompact,
+    local: Boolean(c.local) || c.motor === "ollama",
+  });
   const contrato = contratoClaude(pa, c);
   const nombre = nombreWorker(c);
   return {
@@ -963,6 +1005,17 @@ export async function lanzarClaude(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): 
   // sin cupo al arrancar: lo decide quien tenga reparto (hasta 3 veces)
   for (let i = 1; i <= 3 && g.relanzarPorCupo && fallo(rc); i++) {
     if (!(await g.relanzarPorCupo(l, i))) break;
+    l.settings = settingsWorker(pa, {
+      hb: l.hb,
+      leer: l.c.leer,
+      espejo: l.c.espejo,
+      variante: o.hooks?.variante,
+      node: o.hooks?.node,
+      configClaude: configClaudeDe(pa, l.c),
+      modelo: l.c.modelo,
+      autocompact: l.c.autocompact,
+      local: Boolean(l.c.local) || l.c.motor === "ollama",
+    });
     l.args = argsClaude(pa, l.c, { contrato: l.contrato, settings: l.settings, nombre: l.nombreWorker });
     escribirRunning(l);
     rc = await correr();

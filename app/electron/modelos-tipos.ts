@@ -123,6 +123,11 @@ export type ConfigModelos = {
    * vacía, usan la suya (vacía = lo de fábrica: Haiku 300 000, el resto nativo). `pa` no la lee.
    */
   autocompact_lider?: AutocompactConfig;
+  /**
+   * Hook «nota-compactar» (motor/hooks/nota-compactar.mjs): pide al modelo una nota al llegar al 85 % del tope de compactación y se la
+   * devuelve tras compactar. Booleana; sin la clave vale `true` (prendida). Apagada (`false`), no se registra en líderes ni en workers.
+   */
+  nota_compactar?: boolean;
   /** Advisor de Claude Code: por familia del modelo principal, la del asesor (`--advisor`). Sin entradas la clave no se escribe (ver advisor.ts). */
   advisor?: AdvisorConfig;
   /**
@@ -282,6 +287,7 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
     if (a.defecto !== null || Object.keys(a.por_modelo).length) c.autocompact = a;
   }
   if (esObj(j.autocompact_lider)) c.autocompact_lider = leerTope(j.autocompact_lider);
+  if (typeof j.nota_compactar === "boolean") c.nota_compactar = j.nota_compactar;
   if (esObj(j.advisor)) {
     const ad: AdvisorConfig = {};
     for (const [k, v] of Object.entries(j.advisor)) if (esFamiliaAdvisor(k) && parValido(k, v)) ad[k] = v as FamiliaAdvisor;
@@ -332,7 +338,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "advisor", "cierre", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h", "planes"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "nota_compactar", "advisor", "cierre", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h", "planes"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -404,6 +410,10 @@ export function validarConfig(x: unknown): ConfigModelos {
   }
   // Presente aunque vacía: los líderes tienen su propio tope (vacía = lo de fábrica).
   if (x.autocompact_lider !== undefined && x.autocompact_lider !== null) c.autocompact_lider = validarTope(x.autocompact_lider);
+  if (x.nota_compactar !== undefined && x.nota_compactar !== null) {
+    if (typeof x.nota_compactar !== "boolean") throw errorT("main.modelosForma");
+    c.nota_compactar = x.nota_compactar;
+  }
   if (x.advisor !== undefined && x.advisor !== null) {
     if (!esObj(x.advisor)) throw errorT("main.modelosForma");
     const ad: AdvisorConfig = {};
@@ -573,6 +583,9 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   // `autocompact_lider` es de Trama: presente (aunque vacía) = los líderes tienen su propio tope; ausente = usan el de los workers.
   if (c.autocompact_lider) base.autocompact_lider = { defecto: c.autocompact_lider.defecto, por_modelo: { ...c.autocompact_lider.por_modelo } };
   else delete base.autocompact_lider;
+  // `nota_compactar` es booleana (default true): `false` se escribe; `true` vuelve al default y sale; `undefined` deja lo que hubiera.
+  if (c.nota_compactar === false) base.nota_compactar = false;
+  else if (c.nota_compactar === true) delete base.nota_compactar;
   // `advisor` lo leen Trama (líderes) y `pa` (workers): sin entradas la clave sale (sin asesor).
   if (c.advisor && Object.keys(c.advisor).length) base.advisor = { ...c.advisor };
   else delete base.advisor;

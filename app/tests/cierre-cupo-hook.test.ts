@@ -103,10 +103,22 @@ test("el aviso por la cola va sólo a líderes de otro motor, de esa suscripció
   assert.match(cola[0]!.texto, /\/r\/a\.md/);
 });
 
-test("el --settings del líder registra el hook en los dos eventos", () => {
+test("el --settings del líder registra el hook en los dos eventos y suma nota-compactar en un solo JSON si se pide", () => {
   const s = JSON.parse(settingsCierreCupo("/m/hooks", { plataforma: "linux" })) as { hooks: Record<string, { hooks: { command: string }[] }[]> };
   assert.deepEqual(Object.keys(s.hooks).sort(), ["PostToolUse", "UserPromptSubmit"]);
   assert.equal(s.hooks.PostToolUse![0]!.hooks[0]!.command, "node '/m/hooks/cierre-cupo.mjs'");
+
+  const ambos = JSON.parse(settingsCierreCupo("/m/hooks", { plataforma: "linux", umbralNota: 255000 })) as {
+    hooks: Record<string, { matcher?: string; hooks: { command: string }[] }[]>;
+  };
+  assert.deepEqual(Object.keys(ambos.hooks).sort(), ["PostToolUse", "PreCompact", "SessionStart", "UserPromptSubmit"]);
+  assert.equal(ambos.hooks.PostToolUse!.length, 2);
+  assert.equal(ambos.hooks.PostToolUse![0]!.hooks[0]!.command, "node '/m/hooks/cierre-cupo.mjs'");
+  assert.equal(ambos.hooks.PostToolUse![1]!.hooks[0]!.command, "node '/m/hooks/nota-compactar.mjs' --umbral 255000");
+  assert.equal(ambos.hooks.UserPromptSubmit!.length, 2);
+  assert.equal(ambos.hooks.PreCompact![0]!.hooks[0]!.command, "node '/m/hooks/nota-compactar.mjs' --umbral 255000");
+  assert.equal(ambos.hooks.SessionStart![0]!.matcher, "compact");
+  assert.equal(ambos.hooks.SessionStart![0]!.hooks[0]!.command, "node '/m/hooks/nota-compactar.mjs' --umbral 255000");
 });
 
 test("pa y reparto: lectura de la señal, suscripción de un modelo y mensaje", () => {

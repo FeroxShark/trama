@@ -5,7 +5,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { comandoCierreCupo, EVENTOS_CIERRE_CUPO } from "./cli/hooks.ts";
+import { comandoCierreCupo, comandoNotaCompactar, EVENTOS_CIERRE_CUPO, EVENTOS_NOTA_COMPACTAR } from "./cli/hooks.ts";
 import { resolverMotor } from "./cli/pa/entorno.ts";
 import { suscripcionDeModelo, type EntradaCierre } from "./cierre-cupo.ts";
 
@@ -24,6 +24,16 @@ export function carpetaHooksCierre(env: NodeJS.ProcessEnv = process.env): string
   }
 }
 
+/** La carpeta de los hooks del motor si tiene el de nota antes de compactar; `null` si no. */
+export function carpetaHooksNota(env: NodeJS.ProcessEnv = process.env): string | null {
+  try {
+    const dir = resolverMotor(env).hooks;
+    return existsSync(path.join(dir, "nota-compactar.mjs")) && existsSync(path.join(dir, "nota-compactar-textos.mjs")) ? dir : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Los textos, cargados del motor (una vez por carpeta). */
 const cargados = new Map<string, Promise<Textos>>();
 export function cargarTextos(hooks: string): Promise<Textos> {
@@ -36,10 +46,39 @@ export function cargarTextos(hooks: string): Promise<Textos> {
   return p;
 }
 
-/** El pedazo de settings (`--settings`) que registra el hook en un líder de Claude de la app: sin esto dependería del settings del usuario. */
-export function settingsCierreCupo(hooks: string, o: { node?: string; plataforma?: NodeJS.Platform } = {}): string {
-  const cmd = comandoCierreCupo(hooks, o);
-  return JSON.stringify({ hooks: Object.fromEntries(EVENTOS_CIERRE_CUPO.map((e) => [e, [{ hooks: [{ type: "command", command: cmd, timeout: 10 }] }]])) });
+export type OpcionesSettingsHooks = {
+  node?: string;
+  plataforma?: NodeJS.Platform;
+  /** Umbral en tokens para `nota-compactar.mjs` (`--umbral <tokens>`). Si falta o es `null`, no se agrega `nota-compactar` (salvo `notaSinUmbral`). */
+  umbralNota?: number | null;
+  /** Agregar `nota-compactar.mjs` sin `--umbral` (sólo copiar/devolver). */
+  notaSinUmbral?: boolean;
+  /** Incluir `cierre-cupo.mjs` (default `true`). */
+  conCierre?: boolean;
+};
+
+/**
+ * El pedazo de settings (`--settings`) que registra los hooks en un líder de Claude de la app (cierre por cupo y, si se pide,
+ * `nota-compactar` en un solo JSON para no pisarse): sin esto dependería del settings del usuario.
+ */
+export function settingsCierreCupo(hooks: string, o: OpcionesSettingsHooks = {}): string {
+  const porEvento: Record<string, Record<string, unknown>[]> = {};
+  const sumar = (evento: string, entrada: Record<string, unknown>) => {
+    (porEvento[evento] ??= []).push(entrada);
+  };
+  if (o.conCierre !== false) {
+    const cmd = comandoCierreCupo(hooks, o);
+    for (const e of EVENTOS_CIERRE_CUPO) sumar(e, { hooks: [{ type: "command", command: cmd, timeout: 10 }] });
+  }
+  const conUmbral = typeof o.umbralNota === "number" && Number.isFinite(o.umbralNota) && o.umbralNota > 0;
+  if (conUmbral || o.notaSinUmbral) {
+    const cmd = comandoNotaCompactar(hooks, { ...o, umbral: conUmbral ? o.umbralNota : null });
+    for (const e of EVENTOS_NOTA_COMPACTAR) {
+      const matcher = "matcher" in e ? { matcher: e.matcher } : {};
+      sumar(e.evento, { ...matcher, hooks: [{ type: "command", command: cmd, timeout: 10 }] });
+    }
+  }
+  return JSON.stringify({ hooks: porEvento });
 }
 
 /** Un líder con proceso de la app, como lo ve el aviso. */
