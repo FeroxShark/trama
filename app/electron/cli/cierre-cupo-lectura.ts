@@ -20,18 +20,34 @@ export function cierresVigentes(estadoPa: string, ahora = Math.floor(Date.now() 
 export const suscripcionDeProveedor = (p: unknown): Suscripcion | null => (p === "claude" ? "claude" : p === "google" ? "google" : p === "openai" || p === "chatgpt" ? "chatgpt" : null);
 
 /**
- * La entrada que cierra esa suscripción (y esa cuenta, si se sabe cuál; sin cuenta vale cualquiera de la suscripción). Con varias
- * ventanas cerradas gana la que vuelve más tarde (`null`: no se sabe, la más tarde de todas).
+ * El grupo de cupo de un modelo de Google como lo escribe `pa -m`, con los ids de `reparto --cupos`: Argon tiene su ventana, Claude y
+ * GPT por agy la suya y el resto es Gemini. `null` si el modelo no es de Google.
  */
-export function cierreDe(entradas: readonly EntradaCierre[], sus: Suscripcion | null, cuenta?: string | null): EntradaCierre | null {
+export function grupoDeModelo(modelo: string | null | undefined): string | null {
+  if (suscripcionDeModelo(modelo) !== "google") return null;
+  const m = (modelo ?? "").toLowerCase();
+  if (m.includes("argon")) return "gemini-4-argon";
+  if (m.includes("claude") || m.includes("gpt")) return "claude-gpt";
+  return "gemini";
+}
+
+/**
+ * La entrada que cierra esa suscripción (y esa cuenta, si se sabe cuál; sin cuenta vale cualquiera de la suscripción). Con varias
+ * ventanas cerradas gana la que vuelve más tarde (`null`: no se sabe, la más tarde de todas). Una entrada con `grupo` (Google) sólo
+ * cierra a los modelos de ese grupo: que se acabe Gemini no frena a Argon ni a Claude por agy. Sin saber el grupo del modelo, cierra a todos.
+ */
+export function cierreDe(entradas: readonly EntradaCierre[], sus: Suscripcion | null, cuenta?: string | null, grupo?: string | null): EntradaCierre | null {
   if (!sus) return null;
-  const cs = entradas.filter((e) => e.proveedor === sus && (!cuenta || e.cuenta === cuenta || (cuenta === sus && e.cuenta === sus)));
+  const cs = entradas.filter(
+    (e) => e.proveedor === sus && (!cuenta || e.cuenta === cuenta || (cuenta === sus && e.cuenta === sus)) && (!e.grupo || !grupo || e.grupo === grupo),
+  );
   if (!cs.length) return null;
   return cs.reduce((a, b) => ((b.vuelve ?? Infinity) > (a.vuelve ?? Infinity) ? b : a));
 }
 
 /** Lo mismo para un modelo como lo escribe `pa -m`. */
-export const cierreDeModelo = (entradas: readonly EntradaCierre[], modelo: string, cuenta?: string | null): EntradaCierre | null => cierreDe(entradas, suscripcionDeModelo(modelo), cuenta);
+export const cierreDeModelo = (entradas: readonly EntradaCierre[], modelo: string, cuenta?: string | null): EntradaCierre | null =>
+  cierreDe(entradas, suscripcionDeModelo(modelo), cuenta, grupoDeModelo(modelo));
 
 const dos = (n: number) => String(n).padStart(2, "0");
 /** `HH:MM` local (con `dd/mm` si no es de hoy). */
