@@ -421,6 +421,8 @@ lector.on("line", (linea) => {
     const m = mensajeDeUsuario(o);
     if (!m.texto.trim() && !m.imagenes.length) return;
     if (!ocupado) void turnoSeguro(m);
+    // codex exec no se corta a mitad de turno: el «Mandar ya» entra primero en el turno que sigue (y ahí devuelve su eco).
+    else if (m.directo) cola.splice(cola.findLastIndex((x) => x.directo) + 1, 0, m); // detrás de otros directos: conservan su orden
     else cola.push(m);
   }
 });
