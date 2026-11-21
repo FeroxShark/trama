@@ -181,7 +181,6 @@ const msToken = Number(process.env.TRAMA_FALSO_TOKEN_MS ?? 4);
 /** Lo que razona "pensá": un delta por palabra. */
 const RAZONA = "Ana pide algo corto. Pienso en cómo contestarlo y lo respondo sin vueltas.".match(/\s*\S+/g);
 
-let mensajesN = 0;
 let compactado = false;
 async function contestar(mid, resp, trozos = [resp.slice(0, 3), resp.slice(3, 8), resp.slice(8)], pausa = ms, razona = null) {
   // El peso de la conversación (B16, el anillo de contexto): crece con cada mensaje (o el fijado por TRAMA_FALSO_CONTEXTO).
