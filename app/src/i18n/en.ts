@@ -149,6 +149,12 @@ export const en = {
   "hz.d.enCarpeta": "in {e}",
   "aviso.cambiar": "Switching to {modelo} rereads the whole conversation",
   "aviso.tokens": ": ~{k} k tokens of your limit",
+  "aviso.volver": "Back to {modelo}",
+  "aviso.compactarYCambiar": "Compact and switch",
+  "aviso.compactandoCambio": "Compacting… then switching to {modelo}",
+  "aviso.compactadoCambio": "Compacted · next message uses {modelo}",
+  "aviso.compactarVencido": "Compaction didn't start in time. Try again.",
+  "aviso.compactarDetenido": "Compaction stopped. Model wasn't switched.",
 
   // Nueva tarea
 

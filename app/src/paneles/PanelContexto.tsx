@@ -15,10 +15,9 @@ import type { VistaPrevia } from "../../electron/contexto-previa";
 import type { SubagenteGasto } from "../../electron/subagentes-gasto";
 import { fuenteContexto, type Quien } from "../datos/contexto";
 import { crearRefresco, mismoDesglose } from "./contexto-refresco";
-import { fuente } from "../datos/fuente";
 import { tareaDe, tipoDe } from "../barra/piezas";
-import { effortDe, MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo, useModelosVivos } from "../hilo/opciones";
-import { useCompactando } from "../hilo/compactando";
+import { MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo, useModelosVivos } from "../hilo/opciones";
+import { useCompactar } from "../hilo/compactar";
 import { useGastoSubagentes } from "../hilo/gasto-sub";
 import { claveEstadoSub, ordenSubs, pctContexto, tipoEstadoSub } from "../hilo/gasto-sub-logica";
 import { useAngosto } from "../angosto";
@@ -387,80 +386,6 @@ function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: bo
 
 const motivoDe = (d: Desglose) =>
   d.fuente !== "sin-desglose" && d.motivo === null ? null : t(d.motivo === "sin-transcript" ? "ctxp.sinDesglose.sinTranscript" : d.motivo === "sin-uso" ? "ctxp.sinDesglose.sinUso" : "ctxp.sinDesglose.motor");
-
-/** Cuántos segundos se espera a que el líder empiece a compactar antes de decir que no lo hizo. */
-const ESPERA_COMPACTAR_S = 30;
-
-type FaseCompactar = "reposo" | "preguntando" | "enviando" | "esperando" | "compactando" | "midiendo";
-
-/**
- * El flujo de Compactar del líder: pregunta en una línea, manda `/compact`, mira si empezó a compactar (`useCompactando`), y al terminar
- * vuelve a medir y dice de cuántos a cuántos tokens quedó. Un worker no recibe comandos: ahí sólo se explica por qué no.
- */
-function useCompactar(lider: Lider | null, d: Desglose, alRefrescar: () => void) {
-  const [fase, setFase] = useState<FaseCompactar>("reposo");
-  const [nota, setNota] = useState<{ ok: boolean; texto: string } | null>(null);
-  const antes = useRef<{ usado: number | null; d: Desglose } | null>(null);
-  const desde = useCompactando(lider?.id ?? null);
-  const compactando = desde !== null;
-  const vio = useRef(false);
-  const puede = !!lider && lider.origen === "app" && !lider.ocupado && fase === "reposo";
-  const porque = !lider ? t("ctxp.compactarWorker") : lider.origen !== "app" ? t("ctxp.compactarTerminal") : lider.ocupado && fase === "reposo" ? t("ctxp.compactarOcupado") : t("ctxp.compactarTip");
-
-  const pedir = useCallback(() => {
-    if (puede) {
-      setNota(null);
-      setFase("preguntando");
-    }
-  }, [puede]);
-  const cancelar = useCallback(() => setFase("reposo"), []);
-  const confirmar = useCallback(() => {
-    if (!lider) return;
-    const modelo = modeloDe(lider.modelo) ?? lider.modelo ?? MODELO_DEFAULT;
-    antes.current = { usado: d.usado, d };
-    vio.current = false;
-    setFase("enviando");
-    fuente.liderMandar(lider.id, { texto: "/compact", modelo, effort: effortDe(lider.effort, modelo) ?? lider.effort ?? "" }).then(
-      () => setFase("esperando"),
-      (e) => {
-        setFase("reposo");
-        setNota({ ok: false, texto: t("ctxp.compactarError", { motivo: mensaje(e) }) });
-      },
-    );
-  }, [lider, d]);
-
-  // Empezó a compactar → compactando; dejó de hacerlo → vuelve a medir.
-  useEffect(() => {
-    if (compactando) {
-      vio.current = true;
-      if (fase === "esperando") setFase("compactando");
-    } else if (vio.current && (fase === "compactando" || fase === "esperando")) {
-      vio.current = false;
-      setFase("midiendo");
-      alRefrescar();
-    }
-  }, [compactando, fase, alRefrescar]);
-  // Nunca arrancó: no se queda esperando para siempre.
-  useEffect(() => {
-    if (fase !== "esperando") return;
-    const x = setTimeout(() => {
-      if (vio.current) return;
-      setFase("reposo");
-      setNota({ ok: false, texto: t("ctxp.compactarNada") });
-    }, ESPERA_COMPACTAR_S * 1000);
-    return () => clearTimeout(x);
-  }, [fase]);
-  // La medición nueva llegó: se dice el antes y el después.
-  useEffect(() => {
-    if (fase !== "midiendo" || !antes.current || d === antes.current.d) return;
-    const a = antes.current.usado;
-    setNota({ ok: true, texto: a !== null && d.usado !== null ? t("ctxp.compactado", { antes: miles(a), despues: miles(d.usado) }) : t("ctxp.compactadoSin") });
-    antes.current = null;
-    setFase("reposo");
-  }, [fase, d]);
-
-  return { fase, nota, puede, porque, pedir, cancelar, confirmar };
-}
 
 /** La fila de Compactar bajo el título de Mensajes: botón, confirmación de una línea y el resultado. */
 function FilaCompactar({ c, sinLider }: { c: ReturnType<typeof useCompactar>; sinLider: boolean }) {

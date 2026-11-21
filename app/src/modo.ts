@@ -51,6 +51,7 @@ const CAPTURAS = [
   // El árbol líder → workers con los pliegues abiertos.
   "arbol",
   "aviso",
+  "lider-aviso-cambio",
   // Los paneles del pie.
   "ajustes",
   "ajustes-tema",

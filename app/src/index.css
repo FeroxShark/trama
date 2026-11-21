@@ -3260,13 +3260,55 @@ html[data-titulo-nativo] #root::after {
   white-space: pre-line;
 }
 .caja-aviso {
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1-5) var(--esp-2);
   padding: var(--esp-2) var(--esp-1) 0;
   color: var(--texto-4);
   font-size: var(--letra-4);
+  line-height: 1.5;
 }
-.caja-aviso:empty {
+.caja-aviso:empty,
+.caja-aviso:has(> .caja-aviso-t:empty) {
   display: none;
+}
+.caja-aviso > svg {
+  flex: none;
+}
+.caja-aviso[data-estado="hecho"] {
+  color: var(--ok);
+}
+.caja-aviso[data-estado="error"] {
+  color: var(--rojo);
+}
+.caja-aviso[data-estado="vencido"] {
+  color: var(--aviso);
+}
+.caja-aviso-acc {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.caja-aviso-b.btn2 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  height: var(--alto-chip);
+  padding: 0 var(--esp-2-5);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+  color: var(--texto-2);
+  font-size: var(--letra-3);
+  font-weight: 500;
+}
+.caja-aviso-b.btn2:hover {
+  background: var(--capa-tile);
+  color: var(--texto);
+}
+.caja-aviso-b.btn2 svg {
+  flex: none;
 }
 /* Lo que dijo un comando de la app (/output-style: cuándo se aplica). */
 .caja-nota {
@@ -6366,6 +6408,7 @@ summary.sis-div-t:hover,
   }
   .caja-carpeta input,
   .btn2,
+  .caja-aviso-b.btn2,
   .pbtn,
   .cl-num,
   .cl-rango,

@@ -144,6 +144,12 @@ export const es: { [K in keyof typeof en]: string } = {
   "hz.d.enCarpeta": "en {e}",
   "aviso.cambiar": "Cambiar a {modelo} relee toda la conversación",
   "aviso.tokens": ": ~{k} k tokens de tu límite",
+  "aviso.volver": "Volver a {modelo}",
+  "aviso.compactarYCambiar": "Compactar y cambiar",
+  "aviso.compactandoCambio": "Compactando… después cambio a {modelo}",
+  "aviso.compactadoCambio": "Compactado · próximo mensaje con {modelo}",
+  "aviso.compactarVencido": "No empezó a compactar a tiempo. Probá de nuevo.",
+  "aviso.compactarDetenido": "Se detuvo la compactación. No se cambió el modelo.",
 
 
   "modelo.opus": "Escribe código y decide",

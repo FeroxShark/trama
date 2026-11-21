@@ -18,8 +18,8 @@
 // B26: imágenes como en Claude Code: pegadas, soltadas sobre el chat o con el
 // clip; miniaturas con × en la caja (src/hilo/adjuntos.ts) y en el globo.
 import { es } from "../atajos";
-import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowUp, Check, Clock, Cpu, FastForward, Folder, Paperclip, Pause, ScanSearch } from "lucide-react";
+import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { ArrowUp, Check, Clock, Cpu, FastForward, Folder, LoaderCircle, Minimize2, Paperclip, Pause, ScanSearch, TriangleAlert, Undo2 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type PuntoControl, type Tokens, type Uso } from "../datos/contrato";
 import { fuente, type EnvioLider, type ResultadoExtras } from "../datos/fuente";
@@ -66,7 +66,17 @@ import { decidirCache, type EleccionCache, type VeredictoCache } from "../../ele
 import { hayVarias, opcionesMaquina, useMaquinas } from "../maquinas";
 import { Contexto } from "./Contexto";
 import { transcriptLeido } from "./contextoVivo";
-import { Avisos, HaceChat, useQuietoDesde } from "./Hace";
+import { Avisos, HaceChat, textoAviso, useQuietoDesde } from "./Hace";
+import { latir } from "../barra/latido";
+import {
+  debeEsperarInicio,
+  ESPERA_COMPACTAR_S,
+  evaluarProgreso,
+  REPOSO,
+  siguienteCambio,
+  soportaCompactar,
+  type EstadoCambioCompactado,
+} from "./cambio-compactado";
 import type { AvisoVisto } from "./avisos";
 import { SeguirCon } from "./SeguirCon";
 import { RevisionVista } from "./RevisionVista";
@@ -159,6 +169,18 @@ const NO_TRAE: Record<Exclude<MotivoTraer, "trabajando">, "lider.noTraer" | "lid
 /** El texto de la caja con que arranca una captura (`lider-comandos`: el menú de "/" abierto; `lider-valores`, el de /output-style). */
 const textoCaptura = () =>
   MODO.captura === "lider-comandos" ? "/" : MODO.captura === "programar" ? "Seguí con el paso 2 y avisame cuando termine" : MODO.captura === "lider-valores" ? "/output-style " : MODO.captura === "lider-nuevo-proyecto" ? "Revisá el build de atlas" : null;
+
+const nombreCorto = (id: string) => nombreModelo(id).split(" · ")[0]!;
+
+function estadoInicialCambio(): EstadoCambioCompactado {
+  if (MODO.captura !== "lider-aviso-cambio") return REPOSO;
+  const destino = { modelo: "claude-sonnet-5-5", effort: "high" };
+  if (MODO.variante === "compactando") return { fase: "compactando", destino, enviando: false, vioInicio: true };
+  if (MODO.variante === "error") return { fase: "error", destino, motivo: "claude: could not resume the session" };
+  if (MODO.variante === "vencido") return { fase: "vencido", destino };
+  if (MODO.variante === "hecho") return { fase: "hecho", destino };
+  return REPOSO;
+}
 
 export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrirHilo, integrar, mirar = true, alRespuesta, mostrar, archivar }: Props) {
   const corrige = useCorrector();
@@ -370,6 +392,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       : // Captura `lider-trabajando` con `HILOS_VARIANTE=pendiente-modelo`: otro modelo del mismo motor elegido con el turno en curso.
     MODO.captura === "lider-trabajando" && MODO.variante === "pendiente-modelo" && l
       ? (MODELOS.find((m) => m.id !== modeloDe(l.modelo) && familiaDe(m.id) === familiaDe(l.modelo))?.id ?? MODELO_DEFAULT)
+      : MODO.captura === "lider-aviso-cambio" && (!MODO.variante || MODO.variante === "sin-compactar") && l
+      ? (MODELOS.find((m) => m.id !== modeloDe(l.modelo) && m.id === "claude-sonnet-5-5")?.id ?? MODELOS.find((m) => m.id !== modeloDe(l.modelo))?.id ?? MODELO_DEFAULT)
       : MODO.captura === "aviso" && l
       ? (MODELOS.find((m) => m.id !== modeloDe(l.modelo))?.id ?? MODELO_DEFAULT)
       : MODO.captura === "lider-comandos" && MODO.variante === "agy"
@@ -404,6 +428,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     setEffort((antes) => reajustarEffort(nuevo, antes, effortsLeidos() ?? {}));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tablaModelos]);
+  const [cambioCompacto, dispatchCambio] = useReducer(siguienteCambio, undefined, estadoInicialCambio);
+  const compactoBase = useRef<{ fines: number; compactos: number }>({ fines: 0, compactos: 0 });
+  const sidActual = useRef(sid);
+  sidActual.current = sid;
   // El modelo del líder cambió del otro lado (otro motor confirmado en otra ventana o el celular, /model): la caja lo sigue.
   // Sin esto quedaba el de cuando se abrió la conversación, y Volver/Editar mandaba ese (un DeepSeek después de pasar a Opus).
   const modeloServidor = l ? modeloDe(l.modelo) : undefined;
@@ -414,7 +442,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     vistoServidor.current = modeloServidor;
     setModelo(modeloServidor);
     setEffort(effortDe(effortServidor, modeloServidor) ?? effortPara(modeloServidor, effortsLeidos() ?? {}));
-  }, [modeloServidor, effortServidor]);
+    if (cambioCompacto.fase === "hecho" && modeloServidor === cambioCompacto.destino.modelo) dispatchCambio({ tipo: "reiniciar" });
+  }, [modeloServidor, effortServidor, cambioCompacto]);
   // Con un turno en curso los selectores siguen abiertos: lo elegido del mismo motor lo toma el turno ya (desde su próximo pedido a la
   // API, `cambiarEnTurno`); lo que no se puede en vivo va con el próximo mensaje. Mientras difiere de lo que usa el turno, se marca en el selector.
   const turnoModelo = modeloDe(l?.modelo);
@@ -550,8 +579,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     if (z && aparecioTanda(tandaVista.current, tandaId)) bajar(z, seg);
     tandaVista.current = tandaId;
   }, [tandaId, seg]);
-  // Uno de terminal: que compacta lo dice la marca del hook (uno de la app lo dice en su stream, HaceChat).
-  const compacta = useCompactando(l && !app && !l.caido ? l.id : null);
+  // Uno de terminal: que compacta lo dice la marca del hook (uno de la app lo dice en su stream, HaceChat); la caja mira el hook también para «Compactar y cambiar».
+  const compactaHook = useCompactando(l && !l.caido ? l.id : null);
+  const compacta = !app ? compactaHook : null;
+  const compactandoAhora = compactaHook !== null || vivo.ind.hace?.que === "compactando";
   const id = useId();
 
   useEffect(() => {
@@ -970,6 +1001,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     const imgs = imagenesDe(adjuntos);
     const imagenes = imgs.length ? imgs : undefined;
     if ((!t && !imagenes) || enviando || !puede) return;
+    if (cambioCompacto.fase !== "compactando" && cambioCompacto.fase !== "reposo") dispatchCambio({ tipo: "reiniciar" });
     // Volver acá: lo que se escribe sigue desde ese mensaje.
     if (l && volver) {
       const antes = adjuntos;
@@ -1223,6 +1255,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
 
   /** Del selector (que ya confirmó lo que había que confirmar) o de un cambio dentro del mismo motor. */
   const elegirModelo = (m: string) => {
+    dispatchCambio({ tipo: "reiniciar" });
     const d = datosCambio(m);
     aplicarModelo(m);
     // Un salto de motor ya confirmado: un aviso chico de que ya pasó.
@@ -1237,14 +1270,71 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       setCruce(m);
       return;
     }
+    dispatchCambio({ tipo: "reiniciar" });
     aplicarModelo(m);
   };
-  const aplicarModelo = (m: string) => {
+  const aplicarModelo = (m: string, ef?: string) => {
     tocado.current = true;
     setModelo(m);
     // Cada modelo tiene sus niveles: si el esfuerzo de ahora no existe en el nuevo, pasa al que le toca a ese modelo.
-    setEffort((antes) => reajustarEffort(m, antes, effortsLeidos() ?? {}));
+    setEffort((antes) => (ef && effortsDe(m).includes(ef) ? ef : reajustarEffort(m, antes, effortsLeidos() ?? {})));
   };
+  const compactarYCambiar = () => {
+    if (!l || !app || !soportaCompactar(l.modelo) || cambioCompacto.fase === "compactando") return;
+    const vigente = modeloDe(l.modelo) ?? l.modelo ?? MODELO_DEFAULT;
+    const effortVigente = effortDe(l.effort, vigente) ?? l.effort ?? "";
+    const destino = { modelo, effort };
+    compactoBase.current = {
+      fines: vivo.fines,
+      compactos: vivo.avisos.filter((a) => a.clase === "compacto").length,
+    };
+    dispatchCambio({ tipo: "iniciar", destino });
+    // Vuelve la selección al modelo vigente para mandar `/compact` con lo que corre ahora.
+    aplicarModelo(vigente, effortDe(l.effort, vigente) ?? undefined);
+    const idDestino = l.id;
+    fuente.liderMandar(idDestino, { texto: "/compact", modelo: vigente, effort: effortVigente }).then(
+      () => sidActual.current === idDestino && dispatchCambio({ tipo: "enviado" }),
+      (e) => sidActual.current === idDestino && dispatchCambio({ tipo: "fallo", motivo: mensaje(e) }),
+    );
+  };
+  useEffect(() => {
+    if (!debeEsperarInicio(cambioCompacto)) return;
+    const t = setTimeout(() => dispatchCambio({ tipo: "vencio" }), ESPERA_COMPACTAR_S * 1000);
+    return () => clearTimeout(t);
+  }, [cambioCompacto]);
+  useEffect(() => {
+    if (cambioCompacto.fase === "compactando") latir();
+  }, [cambioCompacto.fase]);
+  const compactosVivos = vivo.avisos.filter((a) => a.clase === "compacto").length;
+  useEffect(() => {
+    if (cambioCompacto.fase !== "compactando") return;
+    const ultimoError = [...vivo.avisos].reverse().find((a) => a.clase === "error" || a.clase === "salio");
+    const errorTexto = ultimoError ? textoAviso(ultimoError).texto : null;
+    const ev = evaluarProgreso(cambioCompacto, {
+      compactandoAhora,
+      fines: vivo.fines,
+      finesBase: compactoBase.current.fines,
+      compactos: compactosVivos,
+      compactosBase: compactoBase.current.compactos,
+      finEstado: vivo.fin?.estado ?? null,
+      errorTexto,
+    });
+    if (!ev) return;
+    if (ev.tipo === "compacto") {
+      aplicarModelo(cambioCompacto.destino.modelo, cambioCompacto.destino.effort);
+      dispatchCambio(ev);
+      return;
+    }
+    if (ev.tipo === "fallo" && !ev.motivo) {
+      dispatchCambio({
+        tipo: "fallo",
+        motivo: tr(vivo.fin?.estado === "parado" ? "aviso.compactarDetenido" : "aviso.compactarVencido"),
+      });
+      return;
+    }
+    dispatchCambio(ev);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cambioCompacto, compactandoAhora, vivo.fines, compactosVivos, vivo.fin?.estado, vivo.avisos]);
   /** Ultracode o Fast: en un líder de la app se aplican ya (el main lo comprueba con Claude Code y, si lo rechaza, devuelve el motivo); en uno nuevo quedan para su arranque. */
   const elegirExtra = async (cual: "ultracode" | "fast", v: boolean): Promise<ResultadoExtras> => {
     if (l && app) {
@@ -1285,7 +1375,15 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   };
   // Abierto en otro lado se puede reintentar (cerrándolo allá); sin conversación o sin carpeta, no.
   const sinVuelta = noRetoma !== null && noRetoma !== "abierto";
-  const cambia = !!l && puede && !ocupado && (l.cache_vence ?? 0) * 1000 > Date.now() && modelo !== modeloDe(l.modelo);
+  const modeloAnterior = l ? modeloDe(l.modelo) : null;
+  const cambia =
+    !!l &&
+    !!modeloAnterior &&
+    puede &&
+    !ocupado &&
+    (l.cache_vence ?? 0) * 1000 > Date.now() &&
+    modelo !== modeloAnterior &&
+    cambioCompacto.fase === "reposo";
   const aviso = useMemo(
     () => (cambia && l ? pintorAviso(l.cache_vence ?? 0, modelo, tokens(pag?.usage ?? null)) : null),
     [cambia, l, modelo, pag?.usage],
@@ -1721,7 +1819,51 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
             {tr(imagenesSinGuardar(adjuntos) === 1 ? "adjunto.sinGuardar" : "adjunto.sinGuardarVarias", { n: imagenesSinGuardar(adjuntos), max: BORRADOR_IMAGENES_MAX, mb: BORRADOR_IMAGENES_BASE64 / 1024 / 1024 })}
           </div>
         ) : null}
-        {aviso ? <Reloj pintor={aviso} className="caja-aviso" /> : null}
+        {cambioCompacto.fase === "compactando" ? (
+          <div className="caja-aviso" data-estado="compactando" role="status">
+            <LoaderCircle className="gira" size={12} strokeWidth={2.2} aria-hidden="true" />
+            <span>{tr("aviso.compactandoCambio", { modelo: nombreCorto(cambioCompacto.destino.modelo) })}</span>
+          </div>
+        ) : cambioCompacto.fase === "hecho" ? (
+          <div className="caja-aviso" data-estado="hecho" role="status">
+            <Check size={12} strokeWidth={2.2} aria-hidden="true" />
+            <span>{tr("aviso.compactadoCambio", { modelo: nombreCorto(cambioCompacto.destino.modelo) })}</span>
+          </div>
+        ) : cambioCompacto.fase === "error" ? (
+          <div className="caja-aviso" data-estado="error" role="alert">
+            <TriangleAlert size={12} strokeWidth={2.2} aria-hidden="true" />
+            <span>{tr("ctxp.compactarError", { motivo: cambioCompacto.motivo })}</span>
+          </div>
+        ) : cambioCompacto.fase === "vencido" ? (
+          <div className="caja-aviso" data-estado="vencido" role="alert">
+            <Clock size={12} strokeWidth={2.2} aria-hidden="true" />
+            <span>{tr("aviso.compactarVencido")}</span>
+          </div>
+        ) : aviso && modeloAnterior ? (
+          <div className="caja-aviso" role="status">
+            <Reloj pintor={aviso} className="caja-aviso-t" />
+            <span className="caja-aviso-acc">
+              <button
+                type="button"
+                className="btn2 caja-aviso-b"
+                onClick={() => aplicarModelo(modeloAnterior)}
+              >
+                <Undo2 size={12} strokeWidth={2} aria-hidden="true" />
+                {tr("aviso.volver", { modelo: nombreCorto(modeloAnterior) })}
+              </button>
+              {app && soportaCompactar(l?.modelo) ? (
+                <button
+                  type="button"
+                  className="btn2 caja-aviso-b"
+                  onClick={compactarYCambiar}
+                >
+                  <Minimize2 size={12} strokeWidth={2} aria-hidden="true" />
+                  {tr("aviso.compactarYCambiar")}
+                </button>
+              ) : null}
+            </span>
+          </div>
+        ) : null}
         {/* Un líder local corre en la GPU de esta máquina, sin pa ni subagentes: que se sepa antes de pedirle una tarea grande. */}
         {puede && sinWorkers(modelo) ? (
           <div className="caja-local" role="status">
