@@ -236,7 +236,10 @@ test("flujo Gemini (solo Gemini, agy-falso): al pasar umbral fuerte pide nota, e
     assert.equal(existsSync(path.join(estadoDir, "notas", `${sid}.md`)), true);
 
     await lider.mandar({ sid, modelo: "gemini-4-neon-high", effort: "high", texto: "después del compact" });
-    await esperarHasta(() => existsSync(path.join(estadoDir, "notas", `${sid}.devuelta.md`)), { tope: 8_000 });
+    await esperarHasta(
+      () => existsSync(path.join(estadoDir, "notas", `${sid}.devuelta.md`)) && existsSync(logF) && readFileSync(logF, "utf8").includes("después del compact"),
+      { tope: 8_000 },
+    );
     const logs = readFileSync(logF, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { prompt: string });
     const conNota = logs.find((l) => l.prompt.includes("después del compact"));
     assert.ok(conNota);
