@@ -29,7 +29,7 @@ import {
   usdPorExito,
   type Fila,
 } from "./reparto-costo.ts";
-import { estadoHilos, estadoPa, plataformaActual, type Plataforma } from "../rutas.ts";
+import { configTrama, estadoHilos, estadoPa, plataformaActual, type Plataforma } from "../rutas.ts";
 import { lanzarSuelto, pidDeCorrida, pidDeRunning } from "./base/proc.ts";
 import { carpetaMotor } from "./pa/entorno.ts";
 import { datoDeFila } from "./pa/dato-medicion.ts";
@@ -540,8 +540,7 @@ const suf = (cuenta: unknown) => (!cuenta || PROVEEDORES.includes(cuenta as stri
 
 // --- configuración -----------------------------------------------------------------------------------
 function rutaModelos(): string {
-  const xdg = E.XDG_CONFIG_HOME || path.join(home(), ".config");
-  return E.TRAMA_MODELOS || path.join(xdg, "trama", "modelos.json");
+  return E.TRAMA_MODELOS || path.join(configTrama(E, home()), "modelos.json");
 }
 
 const TOPES_USO_PROVEEDORES = ["google", "openai"];
@@ -1536,8 +1535,7 @@ const dshBin = () => binDe("dsh", "HILOS_DSH", [path.join(home(), ".local", "bin
 function dshClave(nombre: string): string | null {
   if (nombre !== "OPENCODE_API_KEY" && nombre !== "DEEPSEEK_API_KEY" && nombre !== "NVIDIA_API_KEY") return null;
   if (E[nombre]) return E[nombre]!;
-  const xdg = E.XDG_CONFIG_HOME || path.join(home(), ".config");
-  const f = E.TRAMA_CLAVES || path.join(xdg, "trama", "claves.env");
+  const f = E.TRAMA_CLAVES || path.join(configTrama(E, home()), "claves.env");
   let v: string | null = null;
   let texto: string;
   try {
