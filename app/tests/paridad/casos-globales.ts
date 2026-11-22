@@ -181,7 +181,7 @@ function escenarioQuieto(c: Contexto) {
 }
 
 /** Divergencia a propósito de --hilos --json (el bash está congelado). */
-const RC_TS = "el TS suma `rc` (el código de salida durable de .listo/.entregado) a cada fila de --hilos --json y manda a «entregado» lo que falló (B081); el bash congelado no.";
+const RC_TS = "el TS suma `rc` (el código de salida durable de .listo/.entregado) a cada fila de --hilos --json y manda a «entregado» lo que falló (B081), con `fallo: true` (B149); el bash congelado no.";
 const hilos = (nombre: string, args: string[], extra: Partial<Caso> = {}): Caso => ({ herramienta: "pa-cli", nombre: `globales: hilos ${nombre}`, args, rc: 0, ...extra });
 
 // ---------------------------------------------------------------- --hilo: un transcript con de todo
