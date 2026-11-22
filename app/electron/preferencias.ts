@@ -195,8 +195,13 @@ export function aparienciaGuardada(): Apariencia {
 
 const guardar = (p: Preferencias) => escribirAtomico(ARCHIVO, JSON.stringify({ version: VERSION, ...p })).catch(silencio("preferencias"));
 
+/** Largo máximo de un modelo o un esfuerzo guardado. */
+const TOPE_CLAVE = 100;
+
 export async function guardarEffort(modelo: string, effort: string) {
   if (typeof modelo !== "string" || typeof effort !== "string" || !modelo || !effort) return;
+  // Un cliente de la tailnet no puede hacer crecer preferencias.json con claves o valores enormes.
+  if (modelo.length > TOPE_CLAVE || effort.length > TOPE_CLAVE) return;
   const p = await leerPreferencias();
   if (p.effort[modelo] === effort) return;
   p.effort[modelo] = effort;

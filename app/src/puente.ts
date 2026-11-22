@@ -618,4 +618,4 @@ export const esVentana = (): boolean => typeof navigator !== "undefined" && /\bE
  * el mensaje, traducido si el main lo mandó como clave (`textoMain`).
  */
 export const mensaje = (e: unknown) =>
-  textoMain(String((e as Error)?.message ?? e).replace(/^Error invoking remote method '[^']*': (?:Error: )?/, ""));
+  textoMain(String((e as Error)?.message ?? e).replace(/^Error invoking remote method '[^']*': (?:\w*Error: )?/, ""));

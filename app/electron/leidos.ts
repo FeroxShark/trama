@@ -12,6 +12,8 @@ const VERSION = 1;
 /** Las marcas más viejas que esto se tiran al guardar. */
 const OLVIDO_S = 60 * 86400;
 const DEBOUNCE_MS = 300;
+/** Largo máximo de un id de hilo: un cliente de la tailnet no puede hacer crecer leidos.json con claves enormes. */
+const TOPE_ID = 200;
 
 let leidos: Record<string, number> | null = null;
 let timer: NodeJS.Timeout | null = null;
@@ -29,7 +31,7 @@ export async function leerLeidos(): Promise<Record<string, number>> {
 
 export async function marcarLeido(id: string, ts: number) {
   const l = await leerLeidos();
-  if (typeof id !== "string" || !Number.isFinite(ts)) return;
+  if (typeof id !== "string" || !Number.isFinite(ts) || id.length > TOPE_ID) return;
   l[id] = ts;
   if (timer) clearTimeout(timer);
   timer = setTimeout(guardar, DEBOUNCE_MS);
