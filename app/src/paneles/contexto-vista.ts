@@ -115,7 +115,7 @@ export type Item = {
   cortados: number | null;
   /** Está apagada y la medición ya no la trae (el líder la dejó afuera): se muestra para poder prenderla. */
   fantasma: boolean;
-  /** Skills: la clave de otra skill con el mismo nombre que se usa más (la que se queda); `null`: no está duplicada. */
+  /** Skills: la otra skill con el mismo nombre que se usa más (la que se queda), con su origen: «workers (user)»; `null`: no está duplicada. */
   duplicadaCon: string | null;
 };
 
@@ -179,7 +179,8 @@ function marcarDuplicadas(items: Item[]): Item[] {
     // El historial de 30 días cuenta por nombre (lo comparten las dos): a igual uso, la de esta sesión más usada y después la que no es de un plugin.
     const propia = (i: Item) => Number(i.clave === i.nombre);
     const [quedan, ...otras] = [...g].sort((a, b) => usoDe(b) - usoDe(a) || (b.usos ?? 0) - (a.usos ?? 0) || propia(b) - propia(a) || a.clave.localeCompare(b.clave));
-    for (const o of otras) o.duplicadaCon = quedan.clave;
+    // Con su origen (o plugin), como se ve en la fila: «workers (user)»; la clave sola se lee igual que la duplicada.
+    for (const o of otras) o.duplicadaCon = quedan.detalle ? `${quedan.nombre} (${quedan.detalle})` : quedan.clave;
   }
   return items;
 }

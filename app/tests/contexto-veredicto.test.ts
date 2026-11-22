@@ -89,7 +89,7 @@ test("skills del mismo nombre: se queda la más usada y la otra queda duplicada 
   const it = itemsDe(d, "skills", [], { recientes: USOS_FALSOS });
   const duplicada = it.find((x) => x.nombre === "workers" && x.duplicadaCon)!;
   assert.equal(duplicada.clave, "oficina:workers");
-  assert.equal(duplicada.duplicadaCon, "workers");
+  assert.equal(duplicada.duplicadaCon, "workers (user)");
   assert.equal(it.find((x) => x.clave === "workers")!.duplicadaCon, null);
   assert.equal(veredictoDe({ ...duplicada, cat: "skills" })!.veredicto, "sobra");
 });
