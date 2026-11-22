@@ -191,6 +191,7 @@ export function iniciarDebate(x: { sid: string; plan: string; participantes: rea
     const vivo: VivoDebate = { texto: "", pasos: [] };
     p.vivo = vivo;
     let ultimoAviso = 0;
+    emitir(null); // la columna pasa a «escribiendo» ya, sin esperar el primer avance (en Gemini puede tardar)
     const avance: OpcionesCorrida["avance"] = (a) => {
       d.avance?.(p.modelo, a);
       if (a.paso) vivo.pasos = [...vivo.pasos.filter((x) => x.k !== a.paso!.k || x.v !== a.paso!.v), a.paso].slice(-PASOS_VIVOS_MAX);

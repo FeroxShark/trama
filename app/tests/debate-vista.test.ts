@@ -85,6 +85,17 @@ test("columnas: postura del turno dicho, escribiendo con lo leído, espera, sali
   assert.deepEqual(espera.map((c) => c.estado), ["espera", "espera"]);
 });
 
+test("columnas: quien escribe la conclusión se ve «escribiendo» aunque ya haya dicho su turno de esa ronda (B032)", () => {
+  const e = base({
+    fase: "concluyendo",
+    ronda: 2,
+    participantes: [part("a", "A", { vivo: { texto: "", pasos: [] } }), part("b", "B")],
+    lineas: [lin(1, { modelo: "a", ronda: 2, postura: "acuerdo", argumento: "Va." }), lin(2, { modelo: "b", ronda: 2, postura: "acuerdo", argumento: "Va." })],
+  });
+  assert.deepEqual(columnasDebate(e, 2).map((c) => c.estado), ["escribiendo", "acuerdo"]);
+  assert.deepEqual(columnasDebate({ ...e, lineas: [lin(1, { modelo: "a", ronda: 1, postura: "acuerdo", argumento: "Va." })] }, 1).map((c) => c.estado)[0], "acuerdo", "en una ronda ya pasada se ve lo que dijo");
+});
+
 test("renglones y aporte: viñetas, párrafo o nada", () => {
   assert.deepEqual(renglones("- Uno\n- Dos\nsuelto"), ["Uno", "Dos"]);
   assert.deepEqual(renglones("1. Uno\n2) Dos"), ["Uno", "Dos"]);

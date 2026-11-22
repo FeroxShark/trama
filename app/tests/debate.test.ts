@@ -86,6 +86,13 @@ test("el mensaje del debate con secciones vacías vuelve vacío, no con el liter
   assert.deepEqual([l.acuerdos, l.desacuerdos, l.plan], ["- A", "", ""]);
 });
 
+test("al empezar un turno se avisa enseguida que el modelo está escribiendo, sin esperar su primer avance (B032)", async () => {
+  const { d, hecho } = armar({ a: [turno("acuerdo"), CONCLUSION], b: [turno("acuerdo")] });
+  await iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a"), P("b")], rondas: 1 }, d).terminado;
+  // El guion no emite avances: el único aviso con un participante «vivo» es el del arranque del turno.
+  assert.ok(hecho.eventos.some((e) => e.estado.fase === "corriendo" && e.estado.participantes.some((p) => p.vivo)));
+});
+
 test("acuerdo total en la ronda 1 corta: no hay ronda 2, concluye y entrega al líder", async () => {
   const { d, hecho } = armar({ a: [turno("acuerdo"), CONCLUSION], b: [turno("acuerdo")] });
   const deb = iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a", "low"), P("b", "xhigh")], rondas: 3 }, d);

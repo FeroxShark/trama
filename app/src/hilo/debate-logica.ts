@@ -89,8 +89,9 @@ export function columnasDebate(e: Pick<EstadoDebate, "fase" | "ronda" | "partici
   return e.participantes.map((p) => {
     const l = e.lineas.find((x) => x.tipo === "turno" && x.modelo === p.modelo && x.ronda === ronda);
     const nombre = { modelo: p.modelo, nombre: p.nombre, effort: p.effort, inicial: [...p.nombre.trim()][0]?.toUpperCase() ?? "?" };
-    if (l) return { ...nombre, estado: l.postura ?? "cambio", texto: l.argumento, ...pasosDe(l, undefined), leyendo: null, plan: l.plan };
+    // Quien escribe la conclusión está «escribiendo» aunque ya tenga su turno de esa ronda (si no, la columna nunca lo muestra).
     const concluye = e.fase === "concluyendo" && p.vivo !== undefined;
+    if (l && !(concluye && ronda === e.ronda)) return { ...nombre, estado: l.postura ?? "cambio", texto: l.argumento, ...pasosDe(l, undefined), leyendo: null, plan: l.plan };
     if (p.vivo && (concluye || ronda === e.ronda)) {
       const { leyo, uso } = pasosDe(undefined, p.vivo.pasos);
       const ultimo = p.vivo.pasos.filter((x) => x.k !== "otro").at(-1) ?? null;
