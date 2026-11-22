@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { argvLider } from "../electron/lider-arma.ts";
-import { envTerminalAgentes, esTerminalAgentes, LINEA_CHAT, LINEA_POWERSHELL, lineaSistemaLider, lineaTerminalAgentes, TERMINAL_AGENTES_DEFAULT } from "../electron/terminal-agentes.ts";
+import { envTerminalAgentes, esTerminalAgentes, LINEA_CHAT, LINEA_POWERSHELL, lineaChat, lineaSistemaLider, lineaTerminalAgentes, TERMINAL_AGENTES_DEFAULT } from "../electron/terminal-agentes.ts";
 
 const SID = "8f3c2a10-1b2c-4d5e-9f00-112233445566";
 
@@ -46,7 +46,17 @@ test("argv del líder: la línea va como --append-system-prompt sólo cuando se 
 test("lineaSistemaLider: todo líder sabe cómo poner una imagen en su lugar; en Windows con PowerShell, también lo de la terminal", () => {
   assert.equal(lineaSistemaLider("linux", "powershell"), LINEA_CHAT);
   assert.match(LINEA_CHAT, /!\[descripción\]\(ruta absoluta/);
-  assert.equal(lineaSistemaLider("win32", "powershell"), `${LINEA_CHAT} ${LINEA_POWERSHELL}`);
-  assert.equal(lineaSistemaLider("win32", "gitbash"), LINEA_CHAT);
+  assert.equal(lineaSistemaLider("win32", "powershell"), `${lineaChat("win32")} ${LINEA_POWERSHELL}`);
+  assert.equal(lineaSistemaLider("win32", "gitbash"), lineaChat("win32"));
   assert.ok(!/[\r\n]/.test(lineaSistemaLider("win32", "powershell")), "una línea: en Windows puede pasar por cmd.exe");
+});
+
+test("lineaChat: en Linux sigue pidiendo rutas con / o ~/; en Windows, con la unidad (C:\\) o ~\\", () => {
+  assert.equal(lineaChat("linux"), LINEA_CHAT);
+  assert.match(LINEA_CHAT, /empieza con \/ o ~\//);
+  const w = lineaChat("win32");
+  assert.doesNotMatch(w, /empieza con \/ o ~\//);
+  assert.match(w, /la unidad, como `C:\\Users\\\.\.\.`/);
+  assert.match(w, /!\[descripción\]\(ruta absoluta/);
+  assert.ok(!/[\r\n]/.test(w), "una línea: en Windows puede pasar por cmd.exe");
 });

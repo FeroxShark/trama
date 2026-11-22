@@ -103,7 +103,7 @@ import { temaDe, tituloLider } from "./tema.js";
 import { titulosFijos } from "./titulo-fijo.js";
 import { resumenDeTranscript } from "./resumen-traspaso.ts";
 import { terminalAgentesGuardada } from "./preferencias.js";
-import { envTerminalAgentes, LINEA_CHAT, lineaSistemaLider } from "./terminal-agentes.ts";
+import { envTerminalAgentes, lineaChat, lineaSistemaLider } from "./terminal-agentes.ts";
 import { anotarCarpeta, anotarCarpetas } from "./proyectos-auto.ts";
 import { carpetaAuto } from "./carpeta-auto.ts";
 import { plataformaActual } from "./rutas.ts";
@@ -754,7 +754,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           process.execPath,
           [PUENTE_CODEX, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--effort", g.effort, "--cwd", base.cwd, "--modo", g.modo ?? MODO_DEFAULT],
           // Como el de Gemini: el Electron del motor como Node pelado. codex usa su login de ChatGPT (el puente saca OPENAI_API_KEY); el prefacio va por el entorno.
-          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_CODEX_PREFACIO: [LINEA_CHAT, extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_CODEX_RELEVO: relevo } : {}) } },
+          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_CODEX_PREFACIO: [lineaChat(plataformaActual()), extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_CODEX_RELEVO: relevo } : {}) } },
         )
       : clase === "opencode"
       ? spawn(
@@ -776,7 +776,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           process.execPath,
           [PUENTE_AGY, "--sid", g.sid, "--nombre", g.nombre, "--modelo", idAgy(g.modelo, g.effort), "--cwd", base.cwd],
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
-          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: [LINEA_CHAT, extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
+          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: [lineaChat(plataformaActual()), extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
       : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, cierreCupo, autocompact: tope, advisor: asesor, fast: g.fast, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
   const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, topeNota, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ...(g.ultracode && oficial ? { ultracode: true } : {}), ...(g.fast && oficial ? { fast: true } : {}), ...(clase === "claude" && !local && !extra.ollama && argvFast(g.modelo, g.fast).length ? { fastArgv: true } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null, usoContexto: null, compactadoMs: 0, autoCompactEncolado: false, geminiNotaPedidaCiclo: false };
