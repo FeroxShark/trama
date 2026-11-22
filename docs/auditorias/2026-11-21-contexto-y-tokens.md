@@ -3,7 +3,7 @@
 Base: `main` en `d77f89d9`. Las citas `archivo:línea` de CTX-1 a CTX-36 son de ese commit, no de los informes de origen (que apuntaban a commits anteriores, con las líneas corridas). CTX-37 a CTX-60 citan las líneas que dan sus informes.
 Insumos: los informes por área de la auditoría (uno por motor o tema, cada uno de un modelo distinto, sin verificar de origen) y la medición real de 53 sesiones de 7 días.
 Convención: «medido» sale de los transcripts; «estimado, caracteres/4» es una cuenta sobre el texto (Trama usa además 3 en `contexto-local.ts` y 3,5 en `contexto-sesion.ts`, así que no es una vara única).
-Peso «input equivalente»: leído de caché x0,1, creado x1,25, salida x5.
+Peso «input equivalente»: leído de caché x0,1, creado x1,25, salida x5. Ojo (medido el 2026-11-22, CTX-62): en esta cuenta toda la caché creada es de 1 h, que cuesta x2 y no x1,25; las cifras de creación de abajo están subestimadas en esa proporción.
 
 Alcance: **60 hallazgos unificados** (`CTX-1` a `CTX-60`): 36 de las áreas de Claude, Gemini, Codex, DeepSeek, relevo y llamadas, 11 de cuentas y ventanas (`CTX-37` a `CTX-47`) y 13 de Windows contra Linux (`CTX-48` a `CTX-60`).
 Resultado: **25 confirmados, 2 refutados, 6 dudosos, 27 sin verificar.** Los dos informes nuevos sólo tienen un segundo lector en CTX-48, CTX-49 y CTX-50; el resto de CTX-37 a CTX-60 hay que comprobarlo antes de arreglar.
@@ -33,7 +33,7 @@ Verificado en `main` (tsc ×2, vite, `npm test` y paridad 1361/1361 en cada tand
 | Hallazgo | Estado | Commit |
 |---|---|---|
 | CTX-12 (bloque variable repetido en `--resume` de workers Claude) | ARREGLADO | `0aa0b14a` |
-| CTX-13 (`argsCierre` sin `--exclude-dynamic-system-prompt-sections`) | ARREGLADO (el efecto en caché sigue sin medir) | `0aa0b14a` |
+| CTX-13 (`argsCierre` sin `--exclude-dynamic-system-prompt-sections`) | ARREGLADO. Medido antes del arreglo en 25 cierres reales (24/10 a 21/11): el primer pedido del cierre ya leía de caché el contexto previo; se creaba sólo la cola (mediana 10,6 % del pedido, 168 k tokens en los 25). El ahorro posible era esa cola, no el contexto entero. Después del arreglo todavía no hubo cierres reales para comparar | `0aa0b14a` |
 | CTX-17 (caché fría con 55 min plano en `orquesta.ts`) | ARREGLADO (usa el TTL del transcript como `hilos.ts`; 55 min de respaldo; respeta `PA_CACHE_FRIO_MIN`) | `54abcca2`, integrado |
 | CTX-20 (regex de modelo sin `:` en `dsh.ts`) | ARREGLADO (acepta `:`; en Windows los `:` se rechazan por ADS de NTFS) | `54abcca2`, integrado |
 | CTX-4 (MCP y skills en workers de otros motores) | A MEDIAS: las skills se sincronizan sólo si el motor las usa y el MCP `trama` no se registra con `--strict-mcp-config`; un motor igual puede cargar lo que ya tenga en su propia configuración global. CERRADO (decisión 2026-11-22): lo que queda es la configuración global de cada motor, que es de la persona; el registro del MCP `trama` (≈550 tokens) queda después de la primera corrida y, si la persona lo apaga en ese motor, se respeta | `592d4212` |
@@ -78,10 +78,11 @@ Verificado en `main` (tsc ×2, vite, `npm test` y paridad 1361/1361 en cada tand
 | CTX-22 (el relevo no se borra tras consumirlo) | REFUTADO, es a propósito: el relevo va en `--append-system-prompt-file` (`lider-arma.ts:179`) y el prompt de sistema no queda en el transcript, así que cada `--resume` lo vuelve a pasar. Borrarlo cambiaría el prompt de sistema entre arranques y rompería la caché de todo lo que sigue (peor que los hasta 10 000 tokens). Los cambios de motor, vueltas atrás y ramas lo reescriben (`rm` + escribir, `lider.ts:1641`, `:1845`) | este cierre |
 | CTX-24 (`cambiarYa` con `enTurno = true`) | REFUTADO, es a propósito: `enTurno` sólo saltea el `desfasado` (relanzar por otro tope o asesor); `mandar` (`lider.ts:1571`) relanza en el próximo mensaje si el proceso quedó desfasado, y lo guardado sigue al proceso (`lider.ts:1318-1324`), así que la vista no queda con un cambio pendiente. Cubierto por `tests/cola-lider.test.ts` | este cierre |
 | CTX-47 (26 000 tokens del resumen) | ARREGLADO: `TOKENS_RESUMEN` pasa a 33 000 (sistema medido 22 751 más el relevo de unos 10 000); la cifra la ve la persona en el diálogo de caché vencida, y la respuesta obvia era mostrar lo medido | `cache-pregunta.ts` |
+| CTX-62 (caché de 1 h en todo, workers incluidos) | MEDIDO, se deja como está. En 7 días el 100 % de la caché creada fue de 1 h (152,7 M tokens, 38 669 pedidos, 341 de 364 sesiones con desglose): Claude Code usa 1 h con suscripción. Con precios de API, forzar 5 min (`FORCE_PROMPT_CACHING_5M=1` o `CLAUDE_CODE_PROMPT_CACHE_TTL`, variables del binario 2.1.330) en los workers ahorraría 16,3 M al crear y perdería 10,6 M en 73 pausas de 5 a 60 min: neto 5,8 M por semana. En los líderes costaría 31,4 M más (420 pausas de 5 a 60 min con 59,4 M leídos). No se cambia: no se sabe si la suscripción cuenta la escritura de 1 h al doble, y si no lo hace forzar 5 min sólo agrega pérdidas. Si se confirma que sí, el cambio va sólo en `settingsWorker`/entorno del worker | — |
 
 Paquetes del plan:
 
-- P5 (workers Claude): hecho, salvo la medición del efecto de CTX-13.
+- P5 (workers Claude): hecho. CTX-13 medido antes del arreglo (ver la tabla).
 - P7 (menores): hecho (CTX-17 y CTX-20). Verificado: `npm test` 4223/4223, tsc ×2 OK, `check:changed` verde.
 - P3 (workers de otros motores) y P8 (ventanas y medidores): hechos e integrados. Verificado: tsc ×2, vite, `npm test` 4236/4236, paridad 1361/1361.
 - P1, P2, P4 y P6: hechos e integrados. Ferox dejó la elección de paquetes en manos del líder.
@@ -357,13 +358,13 @@ Windows contra Linux (CTX-48 a 60): 9 confirmados, 2 refutados, 2 dudosos. Nada 
 ## Qué falta auditar
 
 - Medir en Windows (sin máquina aquí): CTX-48 a 60 quedan con veredicto de código; las pruebas de DUDOSO y de «sin verificar» se listan arriba.
-- Medir en ejecución: CTX-41 (efecto de la caché 1h). CTX-38 y CTX-43 quedaron confirmados (abajo).
-- Cerrar sin leer: CTX-43 (`autoCompact` del worker), CTX-46 (prefacios de otros motores), CTX-52 (escritor del mapa), CTX-56 (`hilos.ts:445,451`), CTX-60 (`ramas.ts:400`), CTX-59 (`CHARS_POR_TOKEN`).
+- Medir en ejecución: CTX-41 (efecto de la caché de 1 h) y CTX-13 después del arreglo (todavía no hubo cierres reales). Necesitan corridas reales, no lectura de código; el script de la medición de CTX-13 busca en los transcripts el pedido «Te quedaste sin turnos» y compara la caché leída y creada del primer pedido del cierre.
+- Cerrado leyendo código (2026-11-22): CTX-43, CTX-46, CTX-52, CTX-56, CTX-59 y CTX-60 (ver la tabla de estado).
 - Resuelto (2026-11-22): el `prompt_snapshot` no es contexto extra. Es la copia en disco que deja Claude Code del prompt de sistema y de las herramientas de cada pedido (lo que ya se manda igual); Trama lo cuenta una sola vez (`historial-parser.ts`, `contexto-sesion.ts`). Los 144 × 6 530 tokens de la medición eran esa copia sumada por cada pedido, no tokens enviados de más.
 - Resuelto (2026-11-22): los casos de caché perdido con pausa menor a 5 min, el mismo modelo y sin compactar son todos el primer `ToolSearch` de una sesión. Ese pedido cambia el bloque `tools` (el `DeferredToolPlaceholder` se reemplaza por las herramientas cargadas; 13 a 21 entradas en el caso medido) y, como las herramientas van antes que el sistema y los mensajes, se reescribe toda la caché una vez: 12 804 leídos y 28 834 escritos en el pedido 1, 14 686 leídos y 32 108 escritos en el 2, y de ahí en adelante se lee entero. Pasó 17 veces en 14 días (workers de `canto-estudio` que cargan las herramientas del navegador), unos 32 000 tokens escritos cada vez. Es cómo funciona la búsqueda diferida de Claude Code; cargar todo de entrada costaría más en cada pedido (Notion sola trae 70 herramientas). No se arregla en Trama. El resto de los casos de la lista son compactaciones.
-- CTX-38 CONFIRMADO con datos reales: el `turn.completed` de un worker de Codex trajo `input_tokens` 3 770 243 (acumulado del turno) mientras el último pedido tenía 127 650 en una ventana de 475 000 (`token_count.last_token_usage` del rollout de Codex). Arreglo en curso (leer el contexto del rollout).
-- CTX-43 CONFIRMADO leyendo el código: el anillo del worker usa `umbralDe(autoCompact, ventana)` del settings global y no el `--autocompact` de la corrida; el panel divide por la ventana física (`fraccionUsada`) y avisa a 85/95 %. Arreglo en curso.
-- Paquetes: P1 a P8 hechos; P9 hecho en código salvo la parte de guardias y hooks (en curso). Todo lo de Windows sigue sin correr en una máquina con Windows.
+- CTX-38 CONFIRMADO con datos reales: el `turn.completed` de un worker de Codex trajo `input_tokens` 3 770 243 (acumulado del turno) mientras el último pedido tenía 127 650 en una ventana de 475 000 (`token_count.last_token_usage` del rollout de Codex). ARREGLADO (`20a53d1d`, ver la tabla).
+- CTX-43 CONFIRMADO leyendo el código: el anillo del worker usa `umbralDe(autoCompact, ventana)` del settings global y no el `--autocompact` de la corrida; el panel divide por la ventana física (`fraccionUsada`) y avisa a 85/95 %. ARREGLADO (ver la tabla).
+- Paquetes: P1 a P9 hechos e integrados (versiones 0.3.20 y 0.3.21). Todo lo de Windows sigue sin correr en una máquina con Windows: lo cubre el CI de Windows (tests unitarios), no Claude Code ni los workers reales.
 
 ## Lo refutado
 
