@@ -107,3 +107,12 @@ test("PUENTES-9: el puente avisa «requesting» al arrancar el mensaje que esper
   const tipos = p.lineas.map((l) => (l.type === "result" ? "result" : l.type === "system" && l.status === "requesting" ? "requesting" : "")).filter(Boolean);
   assert.deepEqual(tipos, ["result", "requesting", "result"]);
 });
+
+test("PUENTES-10: si opencode no trae la opción `model` en configOptions, el puente igual le pide el modelo", { timeout: 60_000 }, async () => {
+  const p = new Puente("sin-modelo");
+  p.mandar("hola");
+  await hasta(() => p.resultados.length === 1, 30_000, `el turno no terminó; stderr: ${p.stderr.slice(-400)}`);
+  const cambios = p.pedidos("session/set_config_option").filter((x) => x.params.configId === "model");
+  assert.equal(cambios.length, 1, JSON.stringify(p.pedidos().map((x) => x.method)));
+  assert.equal(cambios[0].params.value, "falso/fake-model");
+});

@@ -608,6 +608,14 @@ async function levantar(): Promise<void> {
     const quiero = oc ? oc.valor : valorModeloAcp(prov!.proveedor, prov!.modelo);
     const actualOpt = opciones.find((o) => o?.id === "model")?.currentValue;
     if (actualOpt !== undefined && actualOpt !== quiero) opciones = (await c.configurar(acpSid, "model", quiero)).configOptions;
+    // opencode sin la opción `model` (o sin su valor actual) en `configOptions`: no se sabe con qué modelo quedó la sesión, se lo elige igual
+    // (si lo rechaza se avisa por stderr y el turno sigue). dsh no: lleva el modelo fijo en su `--patch`.
+    else if (actualOpt === undefined && oc) {
+      opciones = await c.configurar(acpSid, "model", quiero).then(
+        (r) => r.configOptions,
+        (e) => (process.stderr.write(`opencode: modelo «${quiero}» no aplicado (${String((e as Error)?.message ?? e).slice(0, 200)})\n`), opciones),
+      );
+    }
     // opencode: el esfuerzo es el `variant` del modelo; va DESPUÉS de elegir el modelo (si no, se aplica al de antes). Un modelo que no razona lo
     // rechaza: se avisa por stderr y el turno sigue sin esfuerzo (nunca falla por esto).
     if (oc) {
