@@ -29,9 +29,10 @@ registerHooks({
 // `pa --hilos` contesta un JSON sin `version`.
 const leer = async () => ({ n: 1, datos: { hilos: [] } });
 const sinSoltar = () => () => {};
+const trama: { avisoVuelta?: () => Promise<unknown> } = {};
 Object.assign(globalThis, {
   location: { search: "?fixtures=0" },
-  window: { hilos: { hilos: { leer, guardados: async () => null, alCambiar: sinSoltar, alEvento: sinSoltar } } },
+  window: { hilos: { hilos: { leer, guardados: async () => null, alCambiar: sinSoltar, alEvento: sinSoltar }, trama } },
 });
 
 const { fuente, planDiaValido } = await import("../src/datos/fuente.ts");
@@ -43,6 +44,24 @@ const { t } = await import("../src/i18n/index.ts");
 test("pa --hilos sin version: el error previsto, también al volver a pedir", async () => {
   await assert.rejects(fuente.hilos(), { message: t("error.sinVersion") });
   await assert.rejects(fuente.hilos(), { message: t("error.sinVersion") });
+});
+
+test("AvisoVuelta vuelve a pedir el aviso al remontar tras un rechazo del puente", async (t) => {
+  const { leerAvisoVuelta } = await import("../src/barra/AvisoVuelta.tsx");
+  const aviso = { de: "0.2.26", a: "0.2.25", motivo: "lento" };
+  let llamadas = 0;
+  trama.avisoVuelta = async () => {
+    if (++llamadas === 1) throw new Error("fallo transitorio");
+    return aviso;
+  };
+  t.after(() => {
+    delete trama.avisoVuelta;
+  });
+
+  assert.equal(await leerAvisoVuelta(), null);
+  assert.deepEqual(await leerAvisoVuelta(), aviso);
+  assert.deepEqual(await leerAvisoVuelta(), aviso);
+  assert.equal(llamadas, 2);
 });
 
 test("planDiaValido: conserva fechas ISO YYYY-MM-DD en ausente y descarta formatos inválidos", () => {
