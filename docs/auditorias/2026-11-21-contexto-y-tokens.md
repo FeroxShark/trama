@@ -26,6 +26,31 @@ Los hallazgos de los dos informes nuevos que ya estaban como CTX-n no se copiaro
 - Windows contra Linux: en Windows las guardias y el recorte de salidas sólo miran la herramienta `Bash`, y la terminal por defecto es PowerShell (CTX-48); `--resume` entre árboles perdía la sesión (CTX-49, arreglado en la 0.3.19); el instalador nativo no registra la nota ni el resumen de modelos (CTX-50). Es lectura de código: no se corrió nada en Windows.
 - Del carril de `nota-compactar` ya se arregló en `main` (662a943c) que el líder use el `autoCompactWindow` del settings; sigue sin hacerlo el worker (CTX-2) y Gemini subestima su contexto porque descarta el caché leído (CTX-3).
 
+## Estado al 2026-11-22 (manda sobre el plan de abajo)
+
+Verificado en `main` (tsc ×2 y `npm test` 4221 pasan, `check:changed` verde en cada arreglo):
+
+| Hallazgo | Estado | Commit |
+|---|---|---|
+| CTX-12 (bloque variable repetido en `--resume` de workers Claude) | ARREGLADO | `0aa0b14a` |
+| CTX-13 (`argsCierre` sin `--exclude-dynamic-system-prompt-sections`) | ARREGLADO (el efecto en caché sigue sin medir) | `0aa0b14a` |
+| CTX-17 (caché fría con 55 min plano en `orquesta.ts`) | En worker Codex (`20261122-030113-1531213`) | pendiente |
+| CTX-20 (regex de modelo sin `:` en `dsh.ts`) | En worker Codex (`20261122-030113-1531213`) | pendiente |
+
+Paquetes del plan:
+
+- P5 (workers Claude): hecho, salvo la medición del efecto de CTX-13.
+- P7 (menores): en curso.
+- P1 (podas del líder), P2 (nota y medidor), P3 (workers de otros motores), P4 (MCP y avisos), P6 (suscripciones), P8 (ventanas y medidores), P9 (paridad con Windows): sin empezar. Cambian lo que ve la persona en P1, P2, P3, P4, P6 y P8 y necesitan decisión de Ferox; P9 necesita correr en Windows.
+
+Prueba del worker Codex (`20261122-025216-1422372`, hilo-lider): funciona. Commit automático de `pa` (`37bc0262`), tests de cola 22/22. Lo que quedó «NO ARREGLADO» en ese reporte son HILO-LIDER-1, 2, 3 y 14: el brief prohibía tocar `app/src/` (interfaz) y los cuatro arreglos son de interfaz y traducciones. Falta un brief que sí permita `app/src/`:
+- HILO-LIDER-1: una confirmación tardía pisa la elección de modelo en la caja.
+- HILO-LIDER-2: al repintar el selector de revisión se vuelve a consultar cuentas y se reinicia la fila resaltada.
+- HILO-LIDER-3: al terminar de compactar se envía el borrador anterior.
+- HILO-LIDER-14: unificar «lead» y «leader»; hay que editar traducciones que hoy están excluidas del chequeo.
+
+Windows: sigue sin medición; los hallazgos CTX-48 a CTX-60 son lectura de código.
+
 ## A dónde van los tokens hoy
 
 **Carga fija por modelo.** Ver las cifras del resumen. El líder carga ~29 mil tokens más que un worker del mismo modelo: no pasa `--disallowedTools` (`app/electron/lider-arma.ts`, `argvLider`), ni `--exclude-dynamic-system-prompt-sections`, ni `ENABLE_TOOL_SEARCH`, mientras que el worker sí (`app/electron/cli/pa/lanzar.ts:497-520` y `:544`, `:576`). El comentario de `lanzar.ts` mide 20 531 tokens de `cache_creation` contra 9 740 al apagar las 13 herramientas. El líder no puede copiar esa lista porque usa `Agent`, `Workflow` y `Cron`.
