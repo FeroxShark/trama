@@ -98,7 +98,8 @@ test("lanzador y app descartan una pantalla absoluta vieja y respetan la existen
     const predicado = '[() { if test "$1" = "!" && test "$2" = "-S"; then test "$3" != "$SOCKET_PRUEBA"; elif test "$1" = "-S"; then test "$2" = "$SOCKET_PRUEBA"; else command [ "$@"; fi; };\n';
     for (const pantalla of [socket, path.join(dir, "viejo")]) {
       const env = { ...process.env, XDG_RUNTIME_DIR: dir, WAYLAND_DISPLAY: pantalla, SOCKET_PRUEBA: socket };
-      const r = spawnSync("sh", ["-c", `${predicado}${bloque}\nprintf '%s' "$WAYLAND_DISPLAY"`], { env, encoding: "utf8" });
+      // bash, no sh: en Ubuntu sh es dash y no acepta una función llamada «[».
+      const r = spawnSync("bash", ["-c", `${predicado}${bloque}\nprintf '%s' "$WAYLAND_DISPLAY"`], { env, encoding: "utf8" });
       assert.equal(r.status, 0, r.stderr);
       assert.equal(r.stdout, resolverWayland(env, 1000, () => ["wayland-0"], (ruta) => ruta === socket).waylandDisplay);
     }
