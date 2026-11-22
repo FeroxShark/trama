@@ -2825,22 +2825,6 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     return r;
   };
 
-  const claudeDeGoogleOk = (google: Obj): boolean => {
-    const porId = new Map<unknown, Obj>();
-    for (const g of get(google, "grupos", []) || []) porId.set(get(g, "id"), g);
-    const agyClaude = porId.get("claude-gpt");
-    if (!agyClaude || verdad(get(agyClaude, "agotado"))) return false;
-    const hf = hastaFin(hastaDe(cfg, "claude-gpt", agyClaude));
-    const vigente = hf === null || now < hf;
-    const conocidasG = (get(agyClaude, "ventanas", []) as Obj[]).filter((w) => get(w, "usado") !== null);
-    let ok = vigente && !conocidasG.some((w) => ventanaLlena(cfg, "google", "claude-gpt", w));
-    const w5 = (get(agyClaude, "ventanas", []) as Obj[]).find((w) => get(w, "id") === "5h" && get(w, "usado") !== null);
-    if (w5 !== undefined && 1 - w5.usado < cfg.agy_min_libre_5h && tipoEn(tipo, cfg.agy_min_libre_tipos)) ok = false;
-    return ok;
-  };
-
-  const agyClaudeOk = googles.some((g) => claudeDeGoogleOk(g));
-
   // El costo real medido (medicion.tsv): null si no hay medición.
   const ctxCosto = contextoCosto(tipo, now);
 
@@ -3020,7 +3004,9 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     let rt: Obj | null = null;
     let urg7: number | null = null;
     for (const w of vents) {
-      if (sus === "claude" && w.id === "5h" && agyClaudeOk) continue;
+      // Ninguna ventana se salta: la urgencia es el MÍNIMO entre ventanas (manda la que más limita), así que sacar una sólo puede subirla.
+      // Antes la 5 h del Claude oficial se salteaba cuando había Claude por agy ("no gasta su 5h por urgencia"); con la 5 h al 90 % y la
+      // semana por reiniciar eso le regalaba puntos justo sobre la ventana de las sesiones de la persona. El python congelado la sigue saltando.
       let topeW = topeH;
       if (w.id === "7d" && !sinRitmo) {
         rt = ritmoVentana(w, now, plan, sus === "claude" ? resLider || 0.0 : 0.0);
