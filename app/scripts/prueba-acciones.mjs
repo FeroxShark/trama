@@ -472,8 +472,8 @@ try {
   ok(await hasta(() => document.querySelectorAll(".vuelo .v-nota").length >= 2, "detalle de cupos"), "el detalle trae las dos ventanas");
   let cab = await en(cabecera);
   ok(cab.logo && cab.usos === 2 && cab.botones === 1, `el riel trae la marca y los dos anillos de uso en un botón: ${JSON.stringify(cab)}`);
-  // La regla: verde con tilde si va bien, ámbar desde 80 %, rojo sólo sin cupo. 74 % va bien; 93 % va en ámbar.
-  ok(cab.niveles === "ok,ambar", `74 % va bien y 93 % en ámbar: ${cab.niveles}`);
+  // La regla: verde con tilde si va bien, ámbar desde 80 %, rojo sólo sin cupo; el aro más apretado va primero. 93 % en ámbar, 74 % va bien.
+  ok(cab.niveles === "ambar,ok", `93 % en ámbar primero y 74 % va bien: ${cab.niveles}`);
   ok(!cab.desborda.length && /23 h (49|50) min/.test(cab.texto), `a 18 px el uso entra entero: ${JSON.stringify(cab)}`);
   await teclaTirador("ArrowLeft", 40); // el divisor de la zona izquierda del acople (el `.tirador` es sólo del modo angosto)
   await espera(100);
@@ -489,7 +489,7 @@ try {
     );
     ok(await hasta(() => document.querySelectorAll('.cupos-riel .an[data-nivel="rojo"]').length === 1, "semana sin cupo"), "100 % sin cupo va en rojo");
     cab = await en(cabecera);
-    ok(cab.niveles === "ok,rojo" && /sin cupo, vuelve en 23 h (49|50) min/.test(cab.texto), `sin cupo: rojo y con la palabra: ${cab.niveles} · ${cab.texto}`);
+    ok(cab.niveles === "rojo,ok" && /sin cupo, vuelve en 23 h (49|50) min/.test(cab.texto), `sin cupo: rojo y con la palabra: ${cab.niveles} · ${cab.texto}`);
     ok(!cab.desborda.length, `sin cupo tampoco desborda con la barra en su mínimo: ${JSON.stringify(cab.desborda)}`);
   }
   await teclaTirador("ArrowRight", 40);
@@ -605,7 +605,7 @@ try {
     await hasta(() => document.querySelectorAll(".conv .yo, .conv .el").length > 0, "conversación"),
     "la conversación de pa --hilo se pinta",
   );
-  ok(lineas().some((l) => l.endsWith(" --hilo 20261003-100300-44444 --json -n 50")), "pa --hilo <id> --json -n 50");
+  ok(lineas().some((l) => l.endsWith(" --hilo 20261003-100300-44444 --json --tope 0 -n 50")), "pa --hilo <id> --json --tope 0 -n 50");
   let desde = acciones().length;
   ok(await clic(".pie-worker [data-parar]", "Parar"), "hay Parar, al medio del pie");
   let a = await nuevas(desde);
@@ -636,7 +636,7 @@ try {
     "abre Nuevo líder con la caja llena (id, DECISION, pedido)",
   );
   ok(await en(() => document.querySelector(".migas .ruta b")?.textContent.includes("Nuevo líder")), "es un líder nuevo");
-  ok(lineas().some((l) => l.endsWith(" --hilo 20261003-100400-55555 --json -n 6")), "el main leyó el final entero con pa --hilo -n 6");
+  ok(lineas().some((l) => l.endsWith(" --hilo 20261003-100400-55555 --json --tope 0 -n 6")), "el main leyó el final entero con pa --hilo -n 6");
 
   // --- Integrar / Archivar: sólo lo que no cuelga de un líder; con rama integra -----------------------
   await buscar("ana-prueba");
