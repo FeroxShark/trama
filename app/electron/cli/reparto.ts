@@ -14,7 +14,7 @@ import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readd
 import os from "node:os";
 import path from "node:path";
 import { envSinNavegador, hallarAgy, hallarClaude, hallarCodex } from "../binario.ts";
-import { haySesionClaude } from "../credenciales-claude.ts";
+import { haySesionClaude, hayEntradaAlternativaClaude } from "../credenciales-claude.ts";
 import { hijoEnGrupo, matarArbol } from "../procesos.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
@@ -1864,11 +1864,14 @@ function claudeInstalado(): boolean {
   return hallarClaude(E, home(), accesoX) !== null || [path.join(home(), ".local", "bin", "claude"), path.join(home(), ".claude", "local", "claude")].some(accesoX);
 }
 
-/** ¿La Claude «de siempre» tiene sesión? Hay un `.credentials.json` con `claudeAiOauth` en su carpeta, o una clave/token en el entorno (sólo se mira que exista). */
-function claudeConSesion(): boolean {
+/**
+ * ¿La Claude «de siempre» tiene sesión? Hay un `.credentials.json` con `claudeAiOauth` en su carpeta, o otra forma de entrar (CTX-9): clave o
+ * token de auth en el entorno, Bedrock, Vertex, Foundry, o un `apiKeyHelper`/`env` en su `settings.json`. Sólo se mira que exista.
+ */
+export function claudeConSesion(): boolean {
   if (E.REPARTO_CUPOS_FIJOS || E.REPARTO_CLAUDE === "1") return true; // cupos de prueba: no se mira el disco
-  if (E.ANTHROPIC_API_KEY || E.CLAUDE_CODE_OAUTH_TOKEN) return true;
-  return haySesionClaude(E.CLAUDE_CONFIG_DIR || path.join(home(), ".claude"));
+  const dir = E.CLAUDE_CONFIG_DIR || path.join(home(), ".claude");
+  return hayEntradaAlternativaClaude(E, dir) || haySesionClaude(dir);
 }
 
 function rateLimitsCodex(now: Date): Obj {
