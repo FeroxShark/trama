@@ -34,3 +34,9 @@ test("lo que el contrato reserva a la ventana y la carcasa no atiende es sólo l
   const faltan = json.soloVentana.filter((c) => !json.ventana.includes(c)).sort();
   assert.deepEqual(faltan, ["borradores:guardar", "borradores:imagen", "borradores:leer", "consumo:mirar", "consumo:soltar"]);
 });
+
+test("main.js: los canales que actúan (asistente:* salvo pasos, actualizar:instalar/buscar, restos:*) pasan por `protegido`", () => {
+  const main = src("main.js");
+  const debenIr = ["asistente:avanzar", "asistente:conectar", "asistente:saltarLogin", "asistente:continuarLogin", "asistente:cuentas", "asistente:saltarOllama", "actualizar:instalar", "actualizar:buscar", "restos:plan", "restos:quitar"];
+  for (const c of debenIr) assert.match(main, new RegExp(`ipcMain\\.handle\\("${c}", protegido\\(`), `${c} no pasa por protegido`);
+});

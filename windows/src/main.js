@@ -420,16 +420,16 @@ ipcMain.handle("ventana:titulo", (e, t) => {
   if (v && !v.isDestroyed() && process.platform === "win32") v.setTitleBarOverlay(overlayDesde(t?.simbolo));
 });
 ipcMain.handle("asistente:pasos", () => asistente.PASOS);
-ipcMain.handle("asistente:avanzar", () => correrAsistente());
-ipcMain.handle("asistente:conectar", (_e, proveedor) => (guardiaFoco.consolaAbierta(), asistente.conectar(proveedor)).then(() => ({}), (e) => ({ error: e.message })));
-ipcMain.handle("asistente:saltarLogin", (_e, proveedor) => void asistente.saltarLogin(proveedor));
-ipcMain.handle("asistente:continuarLogin", () => asistente.continuarLogin().then(() => ({}), (e) => ({ error: e.message })));
-ipcMain.handle("asistente:cuentas", () => asistente.cuentas().then((c) => c, (e) => ({ error: e.message })));
-ipcMain.handle("asistente:saltarOllama", () => void asistente.saltarOllama());
+ipcMain.handle("asistente:avanzar", protegido(() => correrAsistente()));
+ipcMain.handle("asistente:conectar", protegido((proveedor) => (guardiaFoco.consolaAbierta(), asistente.conectar(proveedor)).then(() => ({}), (e) => ({ error: e.message }))));
+ipcMain.handle("asistente:saltarLogin", protegido((proveedor) => void asistente.saltarLogin(proveedor)));
+ipcMain.handle("asistente:continuarLogin", protegido(() => asistente.continuarLogin().then(() => ({}), (e) => ({ error: e.message }))));
+ipcMain.handle("asistente:cuentas", protegido(() => asistente.cuentas().then((c) => c, (e) => ({ error: e.message }))));
+ipcMain.handle("asistente:saltarOllama", protegido(() => void asistente.saltarOllama()));
 ipcMain.handle("app:abrir", (_e, url) => (ENLACES_OK.has(url) ? shell.openExternal(url) : undefined));
 ipcMain.handle("app:version", () => app.getVersion());
 ipcMain.handle("actualizar:estado", () => ultimaActualizacion);
-ipcMain.handle("actualizar:instalar", () => actualizador.instalar());
+ipcMain.handle("actualizar:instalar", protegido(() => actualizador.instalar()));
 ipcMain.handle("actualizar:buscar", protegido(() => actualizador.buscar()));
 // Quitar restos de versiones anteriores (Ajustes > Acerca de): primero el plan, la persona confirma, después se quita.
 ipcMain.handle("restos:plan", protegido(() => limpieza.planificar({ modo: "restos" }).catch(textoError)));
