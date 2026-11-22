@@ -39,7 +39,7 @@ if (modo === "falso") {
   p.stdout.resume(); p.stderr.resume();
   p.on("exit", () => process.exit(0));
 } else {
-  const repo = path.resolve(resto[0] ?? ".");
+  const repo = path.resolve(modo ?? ".");
   for (const d of ["home", "estado", "proj", "shim", "demo"]) fs.mkdirSync(path.join(T, d), { recursive: true });
   const git = (...a) => execFileSync("git", ["-C", path.join(T, "demo"), "-c", "user.email=a@b", "-c", "user.name=x", ...a], { windowsHide: true });
   git("init", "-q", "-b", "main");
