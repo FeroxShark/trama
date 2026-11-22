@@ -4,7 +4,7 @@
 import { spawnSync, type SpawnSyncOptions, type SpawnSyncReturns } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { envSinNavegador, hallarAgy, hallarCodex, paraLanzar } from "../../../binario.ts";
+import { carpetasNpm as carpetasNpmApp, envSinNavegador, hallarAgy, hallarCodex, paraLanzar } from "../../../binario.ts";
 import { caminoDe, carpetaApp, configTrama, homeDe, plataformaActual, type Plataforma } from "../../../rutas.ts";
 import { enPath, esEjecutable } from "../../base/buscar.ts";
 import { instalarPluginAgy } from "../../plugin-agy.ts";
@@ -69,11 +69,16 @@ export function dirsDsh(env: Env, home: string, plat: Plataforma = plataformaAct
 }
 /** El binario dsh: HILOS_DSH, el PATH y `dirsDsh`. "" si no está. */
 export const dshBin = (env: Env, plat: Plataforma = plataformaActual()) => binario("dsh", env.HILOS_DSH, dirsDsh(env, homeDe(env, plat), plat), env, plat);
-/** El binario opencode: HILOS_OPENCODE, el PATH, ~/.opencode/bin (su instalador), y los de dsh. "" si no está. */
-export const opencodeBin = (env: Env, plat: Plataforma = plataformaActual()) => {
-  const home = homeDe(env, plat);
-  return binario("opencode", env.HILOS_OPENCODE, [path.join(home, ".opencode", "bin"), ...carpetasNpm(env, home, plat)], env, plat);
-};
+/**
+ * Las carpetas donde buscar opencode además del PATH: `~/.opencode/bin` (su instalador) y las de npm. Linux: `~/.local/bin` y el prefijo de npm;
+ * Windows: `%APPDATA%\npm` (y el prefijo), donde npm deja `opencode.cmd`, y `~\.local\bin`.
+ */
+export function dirsOpencode(env: Env, home: string, plat: Plataforma = plataformaActual()): string[] {
+  if (plat !== "win32") return [path.join(home, ".opencode", "bin"), ...carpetasNpm(env, home, plat)];
+  return [path.win32.join(home, ".opencode", "bin"), path.win32.join(home, ".local", "bin"), ...carpetasNpmApp(env, home, plat)];
+}
+/** El binario opencode: HILOS_OPENCODE, el PATH y `dirsOpencode`. "" si no está. */
+export const opencodeBin = (env: Env, plat: Plataforma = plataformaActual()) => binario("opencode", env.HILOS_OPENCODE, dirsOpencode(env, homeDe(env, plat), plat), env, plat);
 
 // ---------------------------------------------------------------- Ollama
 

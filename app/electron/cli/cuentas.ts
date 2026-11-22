@@ -16,6 +16,7 @@ import { tomar } from "./base/lock.ts";
 import { esPrincipal } from "./base/principal.ts";
 import { correr } from "./base/proc.ts";
 import { AYUDA_CUENTAS } from "./cuentas-ayuda.ts";
+import { dirsOpencode } from "./pa/motores/chequeo.ts";
 import { jsonPy } from "./trama-estado.ts";
 
 type Env = Record<string, string | undefined>;
@@ -82,7 +83,7 @@ const expandir = (p: string, home: string) => (p === "~" ? home : p.startsWith("
 
 type Cuenta = { id: string; proveedor: string; motor: string; nombre: string; dir: string | null; defecto: boolean; preferida?: boolean; plan?: string; logueado?: boolean | null; plan_detectado?: string | null };
 
-class Cuentas {
+export class Cuentas {
   readonly env: Env;
   readonly io: Io;
   constructor(env: Env, io: Io) {
@@ -161,11 +162,18 @@ class Cuentas {
   }
 
   /** El binario opencode (el PATH o ~/.opencode/bin, como pa): null si no está. */
-  opencodeBin(): string | null {
-    const c = enPath("opencode", [], this.env);
+  opencodeBin(plat = plataformaActual()): string | null {
+    // En Windows npm deja `opencode.cmd` en `%APPDATA%\npm`, que no siempre está en el PATH de la app. Linux: sólo el PATH, como siempre.
+    const c = enPath("opencode", plat === "win32" ? dirsOpencode(this.env, this.homeReal(), plat) : [], this.env, plat);
     if (c) return c;
     const f = path.join(this.homeReal(), ".opencode", "bin", "opencode");
     return esEjecutable(f) ? f : null;
+  }
+
+  /** Corre opencode: el `.cmd` de npm en Windows va por `cmd.exe /d /s /c` (directo da `EINVAL`). */
+  correrOpencode(bin: string, args: string[], o: Parameters<typeof correr>[2] = {}, plat = plataformaActual()) {
+    const l = paraLanzar(bin, args, this.env, plat);
+    return correr(l.file, l.args, { ...o, plat, verbatim: l.verbatim });
   }
 
   buscar = (cid: string) => this.cargar().find((c) => c.id === cid) ?? null;
@@ -237,7 +245,7 @@ class Cuentas {
   /** ["--standalone"] si ese subcomando de opencode lo tiene (2.x) y la cuenta es una agregada; si no, []. */
   async opencodeStandalone(c: Cuenta, sub: string[]): Promise<string[]> {
     if (c.defecto) return [];
-    const r = await correr(this.opencodeBin() || "opencode", [...sub, "--help"], { env: this.envDe(c), timeoutMs: 15_000, input: "" });
+    const r = await this.correrOpencode(this.opencodeBin() || "opencode", [...sub, "--help"], { env: this.envDe(c), timeoutMs: 15_000, input: "" });
     if (r.error || r.agotado) return [];
     return /(^|\s)--standalone(\s|$)/m.test(r.salida + r.errores) ? ["--standalone"] : [];
   }
@@ -268,7 +276,7 @@ class Cuentas {
     if (!verificar || !b) return null;
     const sa = await this.opencodeStandalone(c, ["auth", "list"]);
     for (const extra of [["--format", "json"], []] as string[][]) {
-      const r = await correr(b, ["auth", "list", ...sa, ...extra], { env: this.envDe(c), timeoutMs: 25_000, input: "", cwd: this.cwdTmp() });
+      const r = await this.correrOpencode(b, ["auth", "list", ...sa, ...extra], { env: this.envDe(c), timeoutMs: 25_000, input: "", cwd: this.cwdTmp() });
       if (r.error || r.agotado) return null;
       if (r.codigo !== 0) continue;
       if (extra.length) {
@@ -337,7 +345,7 @@ class Cuentas {
   async planDetectado(c: Cuenta): Promise<string | null> {
     const b = this.opencodeBin();
     if (!b) return null;
-    const r = await correr(b, ["models", ...(await this.opencodeStandalone(c, ["models"]))], { env: this.envDe(c), timeoutMs: 40_000, input: "", cwd: this.cwdTmp() });
+    const r = await this.correrOpencode(b, ["models", ...(await this.opencodeStandalone(c, ["models"]))], { env: this.envDe(c), timeoutMs: 40_000, input: "", cwd: this.cwdTmp() });
     if (r.error || r.agotado) return null;
     return r.codigo === 0 ? Cuentas.planDeModelos(r.salida) : null;
   }
