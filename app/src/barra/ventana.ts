@@ -45,9 +45,9 @@ export function olvidarAlto() {
 
 // El alto del estilo calculado y no `offsetHeight`: con la letra agrandada una
 // fila mide px con decimales, y redondeado el relleno se corre de a poco.
-function altoFila(): number {
+export function altoFila(): number {
   if (alto) return alto;
-  const fila = lista?.querySelector<HTMLElement>(".w");
+  const fila = lista?.querySelector<HTMLElement>(".w:not(.sub):not(.pliegue)");
   const w = fila ? parseFloat(getComputedStyle(fila).height) || fila.offsetHeight : 0;
   if (w > 0) alto = w;
   return w || ALTO_DEF;

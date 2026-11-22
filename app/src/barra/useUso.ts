@@ -33,15 +33,22 @@ function emitir() {
   for (const fn of oyentes) fn();
 }
 
+/**
+ * Calcula el próximo `{ uso, fallo }` al recibir una lectura `u` (de la suscripción o de `releerUso`).
+ * Si ya había un `uso` válido y llega `null` o `{ error }`, preserva los números previos y marca `fallo`.
+ */
+export function aplicarUso(actual: Pick<EstadoUso, "uso" | "fallo">, u: Uso | null, manual = false): Pick<EstadoUso, "uso" | "fallo"> {
+  if (u && !("error" in u)) return { uso: u, fallo: false };
+  const antes = actual.uso;
+  if (antes && !("error" in antes)) return { uso: antes, fallo: manual || u === null || "error" in u ? true : actual.fallo };
+  return { uso: u, fallo: manual ? true : actual.fallo };
+}
+
 function arrancar() {
   if (soltarFuente) return;
   let vivo = true;
   const soltar = fuente.alCambiarUso((u) => {
-    estado = {
-      ...estado,
-      uso: u,
-      fallo: u && !("error" in u) ? false : estado.fallo,
-    };
+    estado = { ...estado, ...aplicarUso(estado, u, false) };
     emitir();
   });
   soltarFuente = () => {
@@ -50,12 +57,12 @@ function arrancar() {
   };
   void fuente.uso().then(
     (u) => {
-      if (!vivo) return;
+      if (!vivo || estado.uso !== undefined) return;
       estado = { ...estado, uso: u };
       emitir();
     },
     () => {
-      if (!vivo) return;
+      if (!vivo || estado.uso !== undefined) return;
       estado = { ...estado, uso: null };
       emitir();
     },
@@ -74,17 +81,7 @@ export function releerUso() {
   }, PAUSA_RELEER_MS);
   void fuente.releerUso().then(
     (u) => {
-      if (u && !("error" in u)) {
-        estado = { ...estado, uso: u, fallo: false };
-      } else {
-        const antes = estado.uso;
-        // Sin nada anterior que mostrar, el error ocupa el lugar de los números.
-        estado = {
-          ...estado,
-          fallo: true,
-          uso: antes && !("error" in antes) ? antes : u,
-        };
-      }
+      estado = { ...estado, ...aplicarUso(estado, u, true) };
       emitir();
     },
     () => {

@@ -141,7 +141,7 @@ const rechazo = (e: unknown): never => {
 
 const conMain = (m: NonNullable<typeof main>): FuenteProyectos => ({
   async lista() {
-    const r = await m.proyectosNombres.lista().catch(() => []);
+    const r = await m.proyectosNombres.lista().catch(rechazo);
     return Array.isArray(r) ? (r as ProyectoNombre[]) : [];
   },
   async renombrar(slug, nombre) {
@@ -202,15 +202,23 @@ export async function proyectosDe(maquina: string): Promise<ProyectoNombre[] | n
 // --- El almacén ------------------------------------------------------------------------------------------------------
 let lista: readonly ProyectoNombre[] = [];
 let pedido = false;
+let turno = 0;
 const oyentes = new Set<() => void>();
 const avisar = () => oyentes.forEach((f) => f());
 
 /** Vuelve a leer los proyectos (después de renombrar, o al abrir Ajustes). */
-export async function recargarProyectos(): Promise<readonly ProyectoNombre[]> {
-  const nueva = await base.lista().catch(() => lista);
-  lista = nueva;
-  pedido = true;
-  avisar();
+export async function recargarProyectos(fuente: Pick<FuenteProyectos, "lista"> = base): Promise<readonly ProyectoNombre[]> {
+  const mio = ++turno;
+  try {
+    const nueva = await fuente.lista();
+    if (mio === turno) {
+      lista = nueva;
+      pedido = true;
+      avisar();
+    }
+  } catch {
+    if (mio === turno) pedido = true;
+  }
   return lista;
 }
 
