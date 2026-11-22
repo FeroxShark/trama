@@ -1,5 +1,23 @@
 # Cambios
 
+## 0.3.21
+
+- Menos tokens por mensaje en los chats de Claude: las herramientas que no se usan quedan apagadas, lo que cambia en cada mensaje sale de la parte fija y todo va en un solo archivo de ajustes. Antes Claude Code leía sólo el último y lo apagado en el panel de Contexto no le llegaba.
+- El anillo y el panel de Contexto leen la misma cuenta. En Codex el medidor sale del último pedido, no de la suma del turno.
+- Aros del costado: muestran los límites más apretados de todas tus suscripciones, con su nombre; el panel tiene una fila por ventana y los límites semanales de cada modelo. En Ajustes > Plan y cupos se elige automático o de 1 a 3 aros fijos.
+- Reparto no elige un modelo de Claude con su límite semanal propio agotado, y el cierre por cupo también lo mira. Sin sesión de Claude no se ofrece Claude, y los chats de otros motores no dan por hecho una suscripción.
+- Windows: el instalador registra los avisos de compactación, el resumen de modelos y la nota antes de compactar, sin bash. Las guardias de comandos cubren PowerShell. OpenCode se encuentra y se lanza aunque esté instalado con npm. Las rutas con unidad (`C:\…`) se pueden tocar en el chat y en la revisión del plan. Los workers de Codex, DeepSeek y OpenCode tienen las mismas guardias de git y cargo que en Linux, y el instalador trae los programas que corren a los de DeepSeek y OpenCode.
+- Debate y revisión: habla primero el modelo con más cupo libre, cancelar no suma fallas falsas, cada sección se lee en orden y un revisor que no contesta se corta a los pocos segundos.
+- Workers (`pa`): 15 arreglos en puestos, integración, esperas por cupo y Codex. El resumen que pasa a otro modelo se revisa antes por si tiene secretos.
+- Reparto y cupos: 9 arreglos en reinicios de ventanas, la medianoche local y qué lectura vale.
+- Ventana y puentes: 6 arreglos. En Windows se espera a que el puente cierre y la papelera confirma antes de borrar; el catálogo de conectores avisa cuando quedó incompleto.
+- Tope de workers a la vez por suscripción: 3 por defecto, entre todos los proyectos. Los que pasan esperan en cola («En cola · cupo: …») en vez de gastar la misma ventana todos juntos. Se cambia o se apaga en Ajustes > Plan y cupos > Avanzado.
+- Barra: un worker que entregó pero falló dice «No terminó», con su ícono, y no se pliega entre los terminados. Si falló hace menos de 24 h pide atención.
+- Un worker pedido con `-m` a Gemini, Codex, DeepSeek u OpenCode cuyo pedido trae algo que no puede salir (un secreto, una URL o una ruta de afuera del proyecto) ya no se pasa solo a Claude: se frena y dice qué lo disparó. Si el modelo lo eligió el reparto, sigue con Claude, pero sólo si Claude tiene sesión.
+- Dos proyectos con la misma carpeta final ya no comparten su estado: el segundo no arranca y dice qué carpeta renombrar. El alta automática tampoco agrega una carpeta con un nombre repetido.
+- Reparto: la ventana de 5 h del Claude oficial cuenta siempre, también cuando hay Claude por Google. Además reconoce como sesión de Claude las otras formas de entrar: token, Bedrock, Vertex, Foundry y `apiKeyHelper`.
+- En inglés, los porcentajes van pegados al número («85%»).
+
 ## 0.3.20
 
 - El chip de un modelo de ChatGPT dice cuál es y con qué esfuerzo («Sol 6.2 high»), no sólo «Gpt».

@@ -1,5 +1,23 @@
 # Changes
 
+## 0.3.21
+
+- Fewer tokens per message in Claude chats: unused tools are turned off, what changes every message is out of the fixed part, and everything goes in a single settings file. Before, Claude Code read only the last one and what you turned off in the Context panel did not reach it.
+- The ring and the Context panel read the same count. In Codex the meter comes from the last request, not the sum of the turn.
+- Side rings: they show the tightest limits across all your subscriptions, with their name; the panel has one row per window and each model's weekly limits. In Settings > Plan and quotas you choose automatic or 1 to 3 fixed rings.
+- Reparto does not pick a Claude model whose own weekly limit is used up, and the quota close checks it too. Without a Claude session, Claude is not offered, and chats on other engines do not assume a subscription.
+- Windows: the installer registers the compaction notices, the model summary and the note before compacting, without bash. Command guards cover PowerShell. OpenCode is found and launched even when installed with npm. Paths with a drive (`C:\…`) can be clicked in the chat and in the plan review. Codex, DeepSeek and OpenCode workers have the same git and cargo guards as on Linux, and the installer ships the programs that run the DeepSeek and OpenCode ones.
+- Debate and review: the model with the most free quota speaks first, cancelling does not add false failures, each section is read in order and a reviewer that does not answer is cut off after a few seconds.
+- Workers (`pa`): 15 fixes in slots, integration, quota waits and Codex. The summary handed to another model is checked for secrets first.
+- Reparto and quotas: 9 fixes in window resets, local midnight and which reading counts.
+- Window and bridges: 6 fixes. On Windows it waits for the bridge to close and the recycle bin confirms before deleting; the connector catalog says when it was left incomplete.
+- Limit of workers at once per subscription: 3 by default, across all projects. The extra ones wait in the queue instead of spending the same window all together. Change it or turn it off in Settings > Plan and quotas > Advanced.
+- Sidebar: a worker that delivered but failed says "Didn't finish", with its icon, and is not folded among the finished ones. If it failed less than 24 h ago it asks for attention.
+- A worker requested with `-m` on Gemini, Codex, DeepSeek or OpenCode whose request has something that cannot leave (a secret, a URL or a path outside the project) no longer moves to Claude on its own: it stops and says what triggered it. If reparto picked the model, it still goes on with Claude, but only if Claude has a session.
+- Two projects with the same final folder name no longer share their state: the second one does not start and says which folder to rename. The automatic add does not add a folder with a repeated name either.
+- Reparto: the official Claude's 5 h window always counts, also when there is Claude through Google. It also recognizes the other ways into Claude as a session: token, Bedrock, Vertex, Foundry and `apiKeyHelper`.
+- In English, percentages are attached to the number ("85%").
+
 ## 0.3.20
 
 - The chip of a ChatGPT model says which one it is and at what effort ("Sol 6.2 high"), not just "Gpt".
