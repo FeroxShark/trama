@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { mapaMonogramas, monograma, monogramaDe, monogramas, PALETA, tono } from "../src/barra/logo-logica.ts";
@@ -94,4 +94,11 @@ test("iconoDe: lee el primero que exista y lo devuelve como data URL", async () 
   assert.match((await iconoDe({ ruta: dir, icono: "package.json" })) ?? "", /^data:image\/svg/);
 
   assert.deepEqual(Object.keys(await iconosDe([{ slug: "con", ruta: dir, icono: null }, { slug: "sin", ruta: path.join(dir, "nada"), icono: null }])), ["con"]);
+});
+
+test("Logo, LogoCab y Riel descartan el ícono roto con onError para caer al monograma", async () => {
+  const logoTsx = await readFile(new URL("../src/barra/Logo.tsx", import.meta.url), "utf8");
+  const rielTsx = await readFile(new URL("../src/barra/Riel.tsx", import.meta.url), "utf8");
+  assert.equal((logoTsx.match(/onError=\{\(\) => descartar\(/g) ?? []).length, 2, "Logo y LogoCab manejan onError");
+  assert.match(rielTsx, /onError=\{\(\) => descartar\(it\.proyecto\)\}/, "Riel maneja onError");
 });

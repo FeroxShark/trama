@@ -35,7 +35,7 @@ export async function recargarIconos() {
 }
 
 /** Un ícono que no se pudo pintar deja su lugar al monograma. */
-function descartar(proyecto: string) {
+export function descartar(proyecto: string) {
   if (!iconos?.[proyecto]) return;
   const { [proyecto]: _, ...resto } = iconos;
   poner(resto);
@@ -89,7 +89,7 @@ export function LogoCab({ proyecto, titulo, otras = false, generico = false, per
       ) : generico || !proyecto ? (
         <Folder size={icono} strokeWidth={2} />
       ) : src ? (
-        <img src={src} alt="" draggable={false} />
+        <img src={src} alt="" draggable={false} onError={() => descartar(proyecto)} />
       ) : (
         monogramaDe(mapa, proyecto, titulo).toLowerCase()
       )}

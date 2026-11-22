@@ -9,7 +9,7 @@ import { MODO } from "../modo";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { OTRAS } from "./claude-code";
-import { useIconos, useMonogramas } from "./Logo";
+import { descartar, useIconos, useMonogramas } from "./Logo";
 import { monogramaDe, tonoRiel } from "./logo-logica";
 import { Marca } from "./Marca";
 import { nombreCarpeta } from "./arbol";
@@ -82,7 +82,7 @@ export function Riel({ items, filtro, viendo, alFiltrar, alMenu, alOcultar, cupo
               ) : it.proyecto === GENERAL ? (
                 <Home size={15} strokeWidth={2} aria-hidden="true" />
               ) : src ? (
-                <img className="pr-img" src={src} alt="" draggable={false} />
+                <img className="pr-img" src={src} alt="" draggable={false} onError={() => descartar(it.proyecto)} />
               ) : (
                 monogramaDe(mapa, it.proyecto, titulos[it.proyecto]).toLowerCase()
               )}
