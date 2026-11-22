@@ -9,7 +9,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileS
 import os from "node:os";
 import path from "node:path";
 import { prologo, type Env } from "../electron/cli/pa/entorno.ts";
-import { cmdIntegrar, empujarMain, rutaEmpujar } from "../electron/cli/pa/ramas.ts";
+import { cmdIntegrar, correrTests, empujarMain, rutaEmpujar } from "../electron/cli/pa/ramas.ts";
 import { fijarProyecto, lockDePuesto, PUESTO_INTEGRAR, type Proy } from "../electron/cli/pa/ramas-base.ts";
 import { probar, tomar, type Lock } from "../electron/cli/base/lock.ts";
 import { testPosix } from "./plataforma.ts";
@@ -144,4 +144,16 @@ testPosix("empujar: con la herramienta en el PATH, main se empuja y no avisa que
   await empujarMain(x, s.ruta);
   assert.doesNotMatch(s.err(), /no encuentro repos-empujar/);
   assert.match(readFileSync(marca, "utf8"), /--repo .*--tope 10/);
+});
+
+testPosix("correrTests: un test que ignora TERM se corta con KILL tras PA_TESTS_KILL_S y sale 124 acotado, no cuelga la integración (B091)", async () => {
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "pa-tests-kill-"));
+  const log = path.join(raiz, "tests.log");
+  const env: Env = { PATH: process.env.PATH ?? "", PA_TESTS_KILL_S: "0.2" };
+  const t0 = Date.now();
+  const rc = await correrTests("trap '' TERM; echo arrancó; while :; do sleep 1; done", raiz, log, 0.2, env, "linux");
+  assert.equal(rc, 124);
+  assert.ok(Date.now() - t0 < 8000, "el cierre está acotado");
+  assert.match(readFileSync(log, "utf8"), /arrancó/);
+  assert.equal(await correrTests("exit 3", raiz, log, 5, env, "linux"), 3, "sin vencer, el rc del test");
 });

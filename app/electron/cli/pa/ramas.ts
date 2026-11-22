@@ -405,8 +405,12 @@ export function correrTests(cmd: string, cwd: string, log: string, topeS: number
     const [exe, args] = plat === "win32" ? [env.ComSpec || env.COMSPEC || "cmd.exe", ["/d", "/s", "/c", cmd]] : ["bash", ["-c", cmd]];
     let agotado = false;
     let t: NodeJS.Timeout | undefined;
+    let tKill: NodeJS.Timeout | undefined;
+    let tFin: NodeJS.Timeout | undefined;
     const fin = (rc: number) => {
       clearTimeout(t);
+      clearTimeout(tKill);
+      clearTimeout(tFin);
       try {
         closeSync(fd);
       } catch {
@@ -419,9 +423,16 @@ export function correrTests(cmd: string, cwd: string, log: string, topeS: number
     h.once("close", (code, senal) => fin(code ?? (senal === "SIGTERM" ? 143 : 128)));
     if (h.pid) {
       const pid = h.pid;
+      // Un test que ignora TERM no puede dejar la integración colgada (y el puesto tomado): tras PA_TESTS_KILL_S (10) va KILL al grupo,
+      // y si ni así cierra la salida, se da por vencido (124) a los 2 s. En Windows `matarArbol` ya es `taskkill /F`.
+      const killS = Number(env.PA_TESTS_KILL_S) > 0 ? Number(env.PA_TESTS_KILL_S) : 10;
       t = setTimeout(() => {
         agotado = true;
         matarArbol(pid, "SIGTERM", { plat });
+        tKill = setTimeout(() => {
+          matarArbol(pid, "SIGKILL", { plat });
+          tFin = setTimeout(() => fin(124), 2000);
+        }, killS * 1000);
       }, topeS * 1000);
     }
   });
