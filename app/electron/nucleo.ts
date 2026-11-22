@@ -155,7 +155,7 @@ const manejadores = new Map<string, Manejador>();
  * Actualizar Trama (`trama:*`) sí se puede por la tailnet: baja el release del tag de GitHub y corre el instalador del checkout,
  * igual que desde la PC (el dueño lo pidió para actualizar la máquina de otro sin estar sentado ahí).
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "planDia:fijar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "proyectos:papelera", "historialChats:borrar", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "planDia:fijar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "proyectos:papelera", "historialChats:borrar", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "agy:actualizar", "opencode:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -934,6 +934,12 @@ export function esperarSalida(alIrse: () => void = () => {}): Promise<unknown> |
 /** El tope de `cerrarTodos` (lider.ts): quien sale agrega su red de última instancia encima. */
 export const TOPE_SALIDA_MS = lider.TOPE_SALIDA_MS;
 
+/** Lo encolado se descarta sólo cuando el cierre del líder terminó bien. */
+export async function cerrarLiderConCola(sid: string, motivo: unknown, d: { cerrar: typeof lider.cerrar; vaciar: (sid: string) => void }): Promise<void> {
+  await d.cerrar(sid, motivo);
+  d.vaciar(sid);
+}
+
 // --- Armado ---------------------------------------------------------------------
 
 /** Anota los manejadores de todos los canales del núcleo y arranca lo que corre solo (la cola). Una vez. */
@@ -1084,7 +1090,7 @@ export function armarNucleo() {
   });
   alCambiarSalud((e) => enviar("salud:cambio", e));
   manejar("salud:leer", () => estadoSalud());
-  manejar("salud:eventos", (_e, dias: unknown) => leerEventosSalud(Number.isFinite(Number(dias)) ? Number(dias) : 7));
+  manejar("salud:eventos", (_e, dias: unknown) => leerEventosSalud(typeof dias === "number" && dias >= 1 ? Math.min(dias, 365) : 7));
   manejar("salud:arreglar", (_e, h: Parameters<typeof arreglarDatos>[0]) =>
     arreglarDatos({ id: h?.id, proyecto: h?.proyecto, rama: h?.rama ?? null }),
   );
@@ -1662,8 +1668,7 @@ export function armarNucleo() {
   // Una imagen pegada, a su archivo por hash (una vez por imagen): devuelve el hash y la foto guarda sólo la referencia.
   manejar("borradores:imagen", (_e, tipo: unknown, datos: unknown) => borradores.guardarImagen(tipo, datos));
   manejar("lider:cerrar", async (_e, sid: string, motivo?: unknown) => {
-    cola.vaciar(String(sid));
-    await lider.cerrar(String(sid), motivo);
+    await cerrarLiderConCola(String(sid), motivo, { cerrar: lider.cerrar, vaciar: cola.vaciar });
     // Queda anotado cómo salió (archivado o cerrado) para el historial de chats; un fallo del registro no frena el cierre.
     await cierres.anotar(String(sid), motivo).catch(silencio("historial-chats"));
   });

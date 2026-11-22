@@ -86,6 +86,79 @@ test("manejadores: por red llega con quién pide; lo de la ventana y lo desconoc
   assert.equal(await nucleo.llamarRemoto("prueba:eco", [], "cel"), "otro");
 });
 
+test("actualizadores: la tailnet no puede actualizar herramientas; la PC sí", async () => {
+  const originales = new Map(nucleo.manejadoresAnotados());
+  try {
+    for (const canal of ["claude:actualizar", "agy:actualizar", "opencode:actualizar"]) {
+      assert.ok(originales.has(canal), canal);
+      nucleo.manejar(canal, () => "actualizado");
+      await assert.rejects(nucleo.llamarRemoto(canal, [], "cel", "192.0.2.2"), /main\.soloPc/, canal);
+      await assert.rejects(nucleo.llamarRemoto(canal, [], "cel", "127.0.0.1", { tailnet: true }), /main\.soloPc/, canal);
+      assert.equal(await nucleo.llamarLocal(canal, [], "prueba"), "actualizado", canal);
+      assert.equal(await nucleo.llamarRemoto(canal, [], "pc", "127.0.0.1"), "actualizado", canal);
+    }
+  } finally {
+    for (const canal of ["claude:actualizar", "agy:actualizar", "opencode:actualizar"]) nucleo.manejar(canal, originales.get(canal)!);
+  }
+});
+
+test("cerrar un líder conserva su cola si falla y la vacía sólo después de cerrar", async () => {
+  const colas = new Map([["lider", ["mensaje pendiente"]], ["otro", ["otro mensaje"]]]);
+  const vaciar = (sid: string) => { colas.delete(sid); };
+  const error = new Error("no se pudo cerrar");
+  await assert.rejects(nucleo.cerrarLiderConCola("lider", "archivar", {
+    cerrar: async () => { throw error; }, vaciar,
+  }), (e) => e === error);
+  assert.deepEqual(colas.get("lider"), ["mensaje pendiente"]);
+
+  let terminar!: () => void;
+  const pendiente = new Promise<void>((resolve) => { terminar = resolve; });
+  const cierre = nucleo.cerrarLiderConCola("lider", "archivar", {
+    cerrar: async (sid, motivo) => {
+      assert.equal(sid, "lider");
+      assert.equal(motivo, "archivar");
+      await pendiente;
+    }, vaciar,
+  });
+  assert.deepEqual(colas.get("lider"), ["mensaje pendiente"], "el cierre todavía está pendiente");
+  terminar();
+  await cierre;
+  assert.equal(colas.has("lider"), false);
+  assert.deepEqual(colas.get("otro"), ["otro mensaje"]);
+});
+
+test("salud:eventos usa siete días para entradas inválidas y limita el historial a un año", async (t) => {
+  const ahora = Date.UTC(2026, 10, 21);
+  t.mock.timers.enable({ apis: ["Date"], now: ahora });
+  const archivo = path.join(process.env.HILOS_STATE!, "salud-eventos.jsonl");
+  const anterior = existsSync(archivo) ? readFileSync(archivo) : null;
+  const eventos = [366, 365, 30, 8, 7, 1, 0].map((dias) => ({ t: ahora - dias * 86_400_000, tipo: "reinicio", ms: dias }));
+  mkdirSync(path.dirname(archivo), { recursive: true });
+  writeFileSync(archivo, eventos.map((e) => JSON.stringify(e)).join("\n"));
+  const leer = async (dias: unknown) => (await nucleo.llamarLocal("salud:eventos", [dias], "prueba") as { ms: number }[]).map((e) => e.ms);
+  try {
+    for (const dias of [undefined, null, "", "30", false, true, 0, -1, 0.5, NaN, -Infinity, {}, []])
+      assert.deepEqual(await leer(dias), [7, 1, 0], String(dias));
+    assert.deepEqual(await leer(1), [1, 0]);
+    assert.deepEqual(await leer(30), [30, 8, 7, 1, 0]);
+    for (const dias of [365, 366, 1e9, Infinity]) assert.deepEqual(await leer(dias), [365, 30, 8, 7, 1, 0], String(dias));
+  } finally {
+    if (anterior === null) rmSync(archivo);
+    else writeFileSync(archivo, anterior);
+  }
+});
+
+test("orq:auditar sin argumento rechaza el proyecto antes de acceder al pedido", async () => {
+  for (const args of [[], [undefined], [null]]) {
+    await assert.rejects(nucleo.llamarLocal("orq:auditar", args, "prueba"), (e: unknown) => {
+      assert.ok(e instanceof Error);
+      assert.equal(e instanceof TypeError, false);
+      assert.match(e.message, /main\.proyectoRaro/);
+      return true;
+    });
+  }
+});
+
 test("difundir: a cada oyente en orden; uno que falla no corta a los demás; quitar", () => {
   const vistos: string[] = [];
   const quitarA = nucleo.escuchar((c, d) => vistos.push(`a ${c} ${d}`));
