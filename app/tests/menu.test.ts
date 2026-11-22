@@ -1,7 +1,7 @@
 // El menú del clic derecho (B20): qué acciones se ven según la fila y su estado.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { accionesCarpeta, accionesLider, accionesWorker, type Opcion } from "../src/barra/menu-logica.ts";
+import { accionesCarpeta, accionesLider, accionesWorker, filtrarItemsMenu, type Opcion } from "../src/barra/menu-logica.ts";
 import type { Estado } from "../src/datos/contrato.ts";
 
 const as = (xs: Opcion[]) => xs.map((x) => (x.confirmar ? `${x.a}?` : x.a));
@@ -57,4 +57,14 @@ test("orden a mano: Subir y Bajar sólo si hay adónde, Orden por defecto sólo 
 test("carpeta con logo: cambiar siempre, y volver al automático sólo si ya tiene uno elegido", () => {
   assert.deepEqual(as(accionesCarpeta(false, undefined, { propio: false })), ["nueva", "ocultar", "limpiar", "renombrar", "logo"]);
   assert.deepEqual(as(accionesCarpeta(false, undefined, { propio: true })), ["nueva", "ocultar", "limpiar", "renombrar", "logo", "logoQuitar"]);
+});
+
+test("filtrarItemsMenu: filtra con buscador activo conservando los fijos, y sin buscador devuelve todos aunque quede texto en filtro", () => {
+  const items = [
+    { clave: "auto", texto: "Automático", fijo: true },
+    { clave: "a:atlas", texto: "Atlas" },
+    { clave: "a:brote", texto: "Brote" },
+  ];
+  assert.deepEqual(filtrarItemsMenu(items, "atlas", true).map((x) => x.clave), ["auto", "a:atlas"]);
+  assert.deepEqual(filtrarItemsMenu(items, "atlas", false).map((x) => x.clave), ["auto", "a:atlas", "a:brote"]);
 });

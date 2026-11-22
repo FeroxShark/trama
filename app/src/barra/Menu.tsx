@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { t as tr } from "../i18n";
+import { filtrarItemsMenu } from "./menu-logica";
 
 export type ItemMenu = {
   clave: string;
@@ -81,10 +82,7 @@ export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable, 
   const [filtro, setFiltro] = useState("");
   const campo = useRef<HTMLInputElement>(null);
   const conBuscador = !!buscable && items.length > MUCHOS;
-  const visibles = useMemo(() => {
-    const q = filtro.trim().toLowerCase();
-    return q ? items.filter((it) => it.fijo || it.texto.toLowerCase().includes(q)) : items;
-  }, [items, filtro]);
+  const visibles = useMemo(() => filtrarItemsMenu(items, filtro, conBuscador), [items, filtro, conBuscador]);
   const cerrar = useRef(alCerrar);
   cerrar.current = alCerrar;
 
@@ -104,6 +102,7 @@ export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable, 
     // La carpeta marcada a la vista aunque la lista sea larga.
     el.querySelector<HTMLElement>('[aria-checked="true"]')?.scrollIntoView({ block: "nearest" });
     setArmado(null);
+    setFiltro("");
   }, [x, y, nivel]);
 
   useAncla(ancla, caja, () => cerrar.current());

@@ -92,3 +92,10 @@ export const accionesCarpeta = (oculta: boolean, lugar?: LugarMenu, logo?: { pro
   // «Borrar proyecto…» abre un diálogo propio (sin doble clic): es lo último del menú y no depende de poder elegir un logo.
   ...(borrar ? [{ a: "borrarProyecto", peligro: true } as const] : []),
 ];
+
+/** Filtra los ítems del menú sólo cuando el buscador está activo (`conBuscador`), conservando siempre los `fijo`. */
+export function filtrarItemsMenu<T extends { fijo?: boolean; texto: string }>(items: readonly T[], filtro: string, conBuscador: boolean): T[] {
+  if (!conBuscador) return [...items];
+  const q = filtro.trim().toLowerCase();
+  return q ? items.filter((it) => it.fijo || it.texto.toLowerCase().includes(q)) : [...items];
+}
