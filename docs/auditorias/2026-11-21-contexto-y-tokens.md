@@ -194,15 +194,17 @@ Revisión simple medida: 16 250 tokens sin adjuntos y 26 287 con. Debate (estima
 
 ### Qué sabe cada motor
 
+Actualizada el 2026-11-22 con la Fase 5 (memoria compartida en líderes y workers de todos los motores, con un interruptor por motor en Ajustes > Modelos; el cambio de motor lleva el resumen del cierre por cupo y la última nota antes de compactar).
+
 | Motor y rol | Instrucciones | Memoria | Tablero | Skills | MCP | Hooks | Compactación | Medidor de contexto |
 |---|---|---|---|---|---|---|---|---|
 | Claude líder | nativo (CLAUDE.md, `@AGENTS.md`) | `MEMORY.md` nativo | hook de arranque | nativas | `trama` + los del dueño | sí | nativa + nota + `/compact` encolado | anillo desde el último mensaje (`usoDeLineaStream`) |
 | Claude worker | nativo + contrato | sí, pero sin verificar si la de la carpeta de trabajo | ficha pegada | nativas | `trama` | `nota-compactar`, `cierre-cupo` | nativa + nota (si no es Ollama) | sí |
-| Gemini (agy) líder | pegado (`CLAUDE.md` global, `~/CLAUDE.md`) | no | no | sincronizadas | `trama` | no | nota con umbral sobre uso subestimado | subestimado: descarta `cache_read` (CTX-3) |
-| Gemini (agy) worker | `AGENTS.md` pegado y nativo | no | no | sincronizadas | `trama` | no | sin verificar | idem |
-| Codex líder / worker / revisor | `AGENTS.md` nativo (+ pegado en worker) | no | no | sincronizadas (worker) | `trama` (worker) | no | sin verificar | ventana fija 400 000 |
-| DeepSeek / OpenCode | `armarContexto` | no | no | sincronizadas (OpenCode worker) | `trama` por ACP | no | `compaction-basic` sólo en locales | ventana 262144 de respaldo |
-| Local (Ollama / llama-server) | `PROMPT_LOCAL` / `armarContexto` | no | no | no | no | no | `/compact` propio | `contexto-local.ts` con 3 caracteres por token |
+| Gemini (agy) líder | pegado (`CLAUDE.md` global, `~/CLAUDE.md`) | `MEMORY.md` pegado (interruptor `memoria_compartida`, Fase 5) | ficha pegada (mismo interruptor) | sincronizadas | `trama` | no | nota con umbral sobre uso subestimado | subestimado: descarta `cache_read` (CTX-3) |
+| Gemini (agy) worker | `AGENTS.md` pegado y nativo, `CLAUDE.md` del dueño pegado | `MEMORY.md` del proyecto pegado, 200 líneas, sin líneas con pinta de secreto (interruptor `gemini`) | no | sincronizadas | `trama` | no | sin verificar | idem |
+| Codex líder / worker / revisor | `AGENTS.md` nativo (+ pegado en worker) | líder y worker: `MEMORY.md` pegado (interruptor `codex`); revisor: no | líder: ficha pegada (interruptor); worker y revisor: no | sincronizadas (worker) | `trama` (worker) | no | sin verificar | ventana fija 400 000 |
+| DeepSeek / OpenCode | `armarContexto`; worker: `CLAUDE.md` del dueño pegado también con proveedor remoto | líder y worker: `MEMORY.md` pegado (interruptor `dsh` u `opencode`; Ollama, `local`) | líder: ficha pegada (interruptor); worker: no | sincronizadas (OpenCode worker) | `trama` por ACP | no | `compaction-basic` sólo en locales | ventana 262144 de respaldo |
+| Local (Ollama / llama-server) | `PROMPT_LOCAL` / `armarContexto` | líder con `armarContexto`: pegado (interruptor `local`) | idem | no | no | no | `/compact` propio | `contexto-local.ts` con 3 caracteres por token |
 
 ## Hallazgos
 
