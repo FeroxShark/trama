@@ -6,7 +6,7 @@ import { carpetasNpm, paraLanzar, resolverNpm } from "../electron/binario.ts";
 import { capacidades } from "../electron/capacidades.ts";
 import { resolverDsh } from "../electron/dsh.ts";
 import { carpetasDatosOpencode, proveedoresConLogin, resolverOpencode } from "../electron/opencode.ts";
-import { interrumpir, shellDe } from "../electron/procesos.ts";
+import { interrumpir, plazoParar, shellDe } from "../electron/procesos.ts";
 import { detectarUnits } from "../electron/locales-deteccion.ts";
 import { envoltorioWindows, resolverTerminal } from "../electron/terminal-lanzar.ts";
 
@@ -115,4 +115,9 @@ test("carpeta de datos de opencode: XDG, ~/.local/share y, en Windows, LOCALAPPD
   assert.deepEqual(carpetasDatosOpencode(WENV, CASA, "win32"), [`${CASA}\\.local\\share`, `${CASA}\\AppData\\Local`, `${CASA}\\AppData\\Roaming`]);
   // las credenciales se leen de las carpetas de la plataforma de verdad (Linux acá)
   assert.deepEqual(proveedoresConLogin({ XDG_DATA_HOME: "/no/existe" }, "/tampoco"), []);
+});
+
+test("B103: en Windows el líder espera más que el puente (2 s para matar a su hijo) antes de matar el árbol; en Linux, los 3 s de siempre", () => {
+  assert.equal(plazoParar("linux"), 3000);
+  assert.ok(plazoParar("win32") >= 5000, "más que MS_PARAR (2 s) del puente más lo que tarda taskkill");
 });

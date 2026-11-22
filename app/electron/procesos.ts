@@ -57,6 +57,13 @@ export function interrumpir(hijo: { pid?: number; kill: (senal: NodeJS.Signals) 
   hijo.kill("SIGINT");
 }
 
+/**
+ * Cuánto espera el líder tras pedirle por stdin que pare antes de cortar (`interrumpir`). Linux: 3 s, y un `SIGINT` deja que el puente
+ * (dsh/opencode, 2 s para matar a su hijo) cierre el turno con su `result`. Windows no tiene esa señal: lo que se hace es matar el árbol
+ * entero del puente con `taskkill`, sin `result` ni cierre de las herramientas abiertas; por eso se le da más margen (B103).
+ */
+export const plazoParar = (plat: Plataforma = plataformaActual()): number => (esWindows(plat) ? 6000 : 3000);
+
 /** Cómo se lanza el shell que corre un comando escrito como texto (el `npm test` de un chequeo, el hook de un `settings.json`). */
 export type ShellLanzar = { file: string; args: string[]; verbatim: boolean };
 

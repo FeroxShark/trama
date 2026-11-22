@@ -79,7 +79,7 @@ import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTr
 import { paraAcp, resueltos } from "./mcp-config.ts";
 import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { partirCodex } from "./codex-stream.ts";
-import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
+import { hijoEnGrupo, interrumpir, matarArbol, plazoParar } from "./procesos.ts";
 import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, notaCompactarGuardado, notaCompactarPctGuardado, notaCompactarTareaPctGuardado, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
 import { baseNota, umbralesNota } from "./modelos-tipos.ts";
 import { VENTANA_GEMINI } from "./agy-stream.ts";
@@ -125,8 +125,8 @@ const spawnClaude = (args: string[], op: SpawnOptions): ChildProcess => {
   return spawn(l.file, l.args, { ...op, windowsHide: true, ...(l.verbatim ? { windowsVerbatimArguments: true } : {}) });
 };
 const PROYECTOS = path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(HOME, ".claude"), "projects");
-/** Si el interrupt no contesta en esto, SIGINT. */
-const PARAR_MS = 3000;
+/** Si el interrupt no contesta en esto, SIGINT (en Windows, matar el árbol: más margen, `plazoParar`). */
+const PARAR_MS = plazoParar();
 /** Si `set_model` o el esfuerzo no contestan en esto, se relanza con `--resume` como antes. */
 const CONTROL_MS = 5000;
 
