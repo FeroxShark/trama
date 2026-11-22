@@ -383,6 +383,29 @@ test("destructive-guard y docker-guard: los mensajes de bloqueo redactan credenc
   });
 });
 
+test("destructive-guard y docker-guard: redactan valores con comillas escapadas o más largos que el aviso", () => {
+  conTemporal((dir) => {
+    const env = entorno(dir);
+    const marcador = "FRAGMENTO_FICTICIO_PRIVADO";
+    const valores = [
+      `TOKEN="inicio\\" ${marcador}"`,
+      `TOKEN="${"x".repeat(220)} ${marcador} ${"x".repeat(100)}"`,
+      `--token "inicio\\" ${marcador}"`,
+      `--token "${"x".repeat(220)} ${marcador} ${"x".repeat(100)}"`,
+    ];
+    for (const comando of ["rm -rf carpeta", "docker run --privileged debian"]) {
+      for (const valor of valores) {
+        const linea = valor.startsWith("--") ? `echo ${valor}; ${comando}` : `${valor} ${comando}`;
+        const r = correr("destructive-guard", [], bash(linea), env);
+        assert.equal(r.rc, 2);
+        assert.equal(r.stdout, "");
+        assert.equal(r.stderr.includes(marcador), false);
+        assert.match(r.stderr, /<redactado>/);
+      }
+    }
+  });
+});
+
 test("docker-guard: analiza el comando (wrappers, shells, heredocs, imágenes locales no) y exporta revisar", async () => {
   const { revisar } = (await import(pathToFileURL(hook("docker-guard")).href)) as { revisar: (d: unknown) => number };
   const r = (command: string, extra: Record<string, unknown> = {}) => revisar({ tool_name: "Bash", tool_input: { command }, ...extra });
@@ -441,9 +464,44 @@ test("docker-guard: audita compose.yaml (flow y bloques indentados) sin requerir
   });
 });
 
+test("docker-guard: un bloque con ancla al inicio de Compose no deja servicios sin revisar", () => {
+  conTemporal((dir) => {
+    const env = entorno(dir);
+    const compose = path.join(dir, "compose.yaml");
+    for (const texto of [
+      "x-common: &base\n  image: alpine\nservices:\n  app:\n    image: alpine\n    privileged: true\n",
+      "x-common: &base\n  image: alpine\n  privileged: true\nservices:\n  app:\n    <<: *base\n",
+    ]) {
+      writeFileSync(compose, texto);
+      const r = correr("docker-guard", [], { cwd: dir, ...bash("docker compose up") }, env);
+      assert.equal(r.rc, 2);
+      assert.match(r.stderr, /privileged: true|no se pudo revisar completo/);
+    }
+  });
+});
+
 // ============================================================================ agy-pa
 
 const llamada = (name: string, args: Record<string, unknown> = {}) => ({ toolCall: { name, args } });
+
+test("agy-pa: usa el Cwd validado para escrituras relativas en Linux y para rutas de Windows", () => {
+  conTemporal((dir) => {
+    for (const [plat, raiz, cwd, relativa, absoluta, fuera] of [
+      ["linux", "/work/wt", "src", "../nota.txt", "/work/wt/nota.txt", "../../nota.txt"],
+      ["win32", "C:\\work\\wt", "src", "..\\nota.txt", "C:\\work\\wt\\nota.txt", "..\\..\\nota.txt"],
+    ] as const) {
+      const env = entorno(dir, { PA_AGY_PLAT: plat, PA_AGY_RAIZ: raiz, PA_AGY_HB: path.join(dir, "agy.heartbeat") });
+      const escribir = (archivo: string) => correr("agy-pa", ["pre"], llamada("write_to_file", { Cwd: cwd, TargetFile: archivo }), env);
+      for (const archivo of [relativa, absoluta]) {
+        const r = escribir(archivo);
+        assert.deepEqual([r.rc, r.stdout, r.stderr], [0, "", ""], `${plat}: ${archivo}`);
+      }
+      const r = escribir(fuera);
+      assert.equal(r.rc, 0);
+      assert.equal(JSON.parse(r.stdout).decision, "deny");
+    }
+  });
+});
 
 test("agy-pa: sin worker sólo corre destructive-guard y no imprime nada si no tiene nada que decir", () => {
   conTemporal((dir) => {
