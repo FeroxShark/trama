@@ -255,6 +255,17 @@ const CUPOS_AGY_POCO = {
     { ...CUPOS_AGY_LIBRE.suscripciones[1]!, grupos: [{ id: "claude-gpt", nombre: "Claude y GPT por Google", ventanas: [w("5h", 0.2, "2026-10-26T15:00:00Z"), w("7d", 0.93, "2026-10-29T00:00:00Z")] }] },
   ],
 };
+/** Claude con la 5 h casi usada y la semana por reiniciar, y Claude por Google disponible (CTX-23): el TS ya no le salta la ventana de 5 h. */
+const CUPOS_CLAUDE_5H_ALTA = {
+  ...CUPOS_AGY_LIBRE,
+  suscripciones: [
+    { id: "claude", nombre: "Claude", proveedor: "claude", cuenta: "claude", ventanas: [w("5h", 0.9, "2026-10-26T15:00:00Z"), w("7d", 0.3, "2026-10-26T18:00:00Z")] },
+    CUPOS_AGY_LIBRE.suscripciones[1]!,
+  ],
+};
+/** Sólo en el TS (CTX-23): con Claude por agy el python salta la ventana de 5 h del Claude oficial en la urgencia; el TS la cuenta (la urgencia es el mínimo de las ventanas). */
+const DIVERGE_URGENCIA_5H = "la urgencia del Claude oficial cuenta su ventana de 5 h aunque haya Claude por agy (sólo en el TS; reparto de python congelado). Los candidatos de Gemini 4 Hydrogen también son sólo del TS";
+const divergeUrgencia5h = (c: Caso): Caso => ({ ...c, divergenciaSalida: DIVERGE_URGENCIA_5H });
 /** Estos casos necesitan los modelos de agy como candidatos (el arnés los apaga por defecto con REPARTO_AGY=0). */
 const conAgy = (o: Opciones): Opciones => ({ ...o, env: { REPARTO_AGY: "1", ...((o.env as Record<string, string> | undefined) ?? {}) } });
 const rs = (nombre: string, args: string[], rc: number, o: Opciones = {}): Caso => rp(nombre, args, rc, conAgy(o));
@@ -296,6 +307,7 @@ const casosSustituir: Caso[] = [
   divergeHydrogen(rs("--resumen sin OpenCode", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE, env: { REPARTO_OPENCODE: "0" } })),
   ...["mecanico", "lectura", "codigo-acotado"].map((t) => divergeHydrogen(rs(`--tipo ${t} con chequeo ofrece primero los gratis de OpenCode`, ["--tipo", t, "--json"], 0, { cupos: CUPOS_AGY_LIBRE, env: { REPARTO_CON_CHEQUEO: "1" } }))),
   divergeHydrogen(rs("--tipo mecanico con chequeo y el límite gratis agotado", ["--tipo", "mecanico"], 0, { env: { REPARTO_CON_CHEQUEO: "1" }, preparar: (c) => escribir(path.join(c.estado, "agotado.json"), { "opencode-free": { hasta: "2026-10-27T00:00:00Z" } }) })),
+  ...["codigo-acotado", "lectura"].map((t) => divergeUrgencia5h(rs(`--tipo ${t} con la 5 h de Claude casi usada y Claude por agy: la 5 h cuenta en la urgencia`, ["--tipo", t, "--json"], 0, { cupos: CUPOS_CLAUDE_5H_ALTA }))),
   rs("--tipo lectura con chequeo y --mismo-proveedor no cambia", ["--tipo", "lectura", "--mismo-proveedor", "claude"], 0, { env: { REPARTO_CON_CHEQUEO: "1" } }),
 ];
 
