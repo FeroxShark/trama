@@ -8,7 +8,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 // @ts-expect-error: módulo .mjs sin tipos (el runner de pa no tiene TypeScript)
-import { aResultado } from "../../motor/opencode/correr.mjs";
+import { aResultado, dirPedidos } from "../../motor/opencode/correr.mjs";
 // @ts-expect-error: idem
 import * as cfg from "../../motor/opencode/config.mjs";
 import * as app from "../electron/opencode.ts";
@@ -248,4 +248,17 @@ test("Windows: adapta el shim .cmd en una ruta con espacios con paraLanzar (run 
   assert.equal(r.codigo, 0, r.stderr);
   assert.equal(r.json.is_error, false);
   assert.equal(r.json.result, "RESULTADO: desde cmd con espacios");
+});
+
+test("rutas de Windows y Linux en config.mjs y correr.mjs (modelos.json, estado de pa y pedidos)", () => {
+  assert.equal(cfg.rutaModelos({ LOCALAPPDATA: "C:\\Datos" }, "C:\\Users\\Persona"), "C:\\Datos\\trama\\config\\modelos.json");
+  assert.equal(cfg.rutaModelos({}, "C:\\Users\\Persona"), "C:\\Users\\Persona\\AppData\\Local\\trama\\config\\modelos.json");
+  assert.equal(cfg.rutaModelos({ TRAMA_MODELOS: "D:\\cfg\\m.json", LOCALAPPDATA: "C:\\Datos" }, "C:\\Users\\Persona"), "D:\\cfg\\m.json");
+  assert.equal(cfg.rutaModelos({}, "/home/ana", "linux"), "/home/ana/.config/trama/modelos.json");
+
+  assert.equal(dirPedidos({ LOCALAPPDATA: "C:\\Datos" }, "C:\\Users\\Persona"), "C:\\Datos\\trama\\estado\\pa\\reparto");
+  assert.equal(dirPedidos({}, "C:\\Users\\Persona"), "C:\\Users\\Persona\\AppData\\Local\\trama\\estado\\pa\\reparto");
+  assert.equal(dirPedidos({ PA_STATE: "D:\\EstadoPa" }, "C:\\Users\\Persona"), "D:\\EstadoPa\\reparto");
+  assert.equal(dirPedidos({ REPARTO_STATE: "D:\\Rep" }, "C:\\Users\\Persona"), "D:\\Rep");
+  assert.equal(dirPedidos({}, "/home/ana", "linux"), "/home/ana/.local/state/pa/reparto");
 });

@@ -31,7 +31,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
-import { conModeloChico, conPermisoFuera, esErrorCuota, esGratis, esModeloGo, esNvidia, mensajeCuotaGo, mensajeCuotaOpencode, paraLanzar, parsearModelo, planOpencode, resolverOpencode } from "./config.mjs";
+import { conModeloChico, conPermisoFuera, esErrorCuota, esGratis, esModeloGo, esNvidia, esWinRuta, mensajeCuotaGo, mensajeCuotaOpencode, paraLanzar, parsearModelo, planOpencode, resolverOpencode, rutaEstadoPa } from "./config.mjs";
 
 /** ¿Es una cuenta agregada de OpenCode (la que pone `cuentas env`: TRAMA_OPENCODE_CUENTA con un id válido que no es la de siempre)? */
 export const cuentaAgregada = (env = process.env) => /^[a-z0-9][a-z0-9-]{0,39}$/.test(env.TRAMA_OPENCODE_CUENTA ?? "") && env.TRAMA_OPENCODE_CUENTA !== "opencode";
@@ -128,10 +128,17 @@ export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, trun
  * junto al agotado.json de `reparto` (REPARTO_STATE, o <PA_STATE o ~/.local/state/pa>/reparto). Lo lee la barra de la app (app/electron/opencode-pedidos.ts,
  * mismo formato). Los de pago por uso no se anotan. Si no se puede escribir, la corrida sigue igual.
  */
+export function dirPedidos(env = process.env, home = os.homedir(), plat) {
+  if (env.REPARTO_STATE) return env.REPARTO_STATE;
+  const win = esWinRuta(env, home, plat);
+  const c = win ? path.win32 : path.posix;
+  return c.join(rutaEstadoPa(env, home, plat), "reparto");
+}
+
 export function anotarPedidos(modelo, n, env = process.env, home = os.homedir(), ahoraMs = Date.now()) {
   const m = String(modelo).replace(/^opencode:/, "").toLowerCase();
   if (!(n >= 1) || !(esGratis(m) || esModeloGo(m) || esNvidia(m))) return false;
-  const dir = env.REPARTO_STATE || path.join(env.PA_STATE || path.join(home, ".local", "state", "pa"), "reparto");
+  const dir = dirPedidos(env, home);
   try {
     mkdirSync(dir, { recursive: true });
     // `c`: la cuenta agregada de OpenCode con que corrió (TRAMA_OPENCODE_CUENTA, de `cuentas env`); sin ella, la de siempre.

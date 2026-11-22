@@ -12,6 +12,8 @@ import { elegibles } from "../electron/opencode-ajustes.ts";
 import { GRUPO_OPENCODE_GRATIS, grupoModeloGo, marcarModeloGoAgotado, marcarOpencodeAgotado, modelosGoAgotados, opencodeAgotadoHasta } from "../electron/opencode-agotado.ts";
 import * as motor from "../../motor/opencode/config.mjs";
 import { aResultado } from "../../motor/opencode/correr.mjs";
+// @ts-expect-error: módulo .mjs sin tipos
+import { rutaCache } from "../../motor/opencode/go-topes.mjs";
 import { esAvisoSinCupoOpencode, goAgotadosHasta } from "../src/hilo/agotados.ts";
 import { estadosCupoModelos } from "../src/hilo/cupo-modelos.ts";
 import { esGoOpencode, ponerConfig, TABLA } from "../src/hilo/modelos.ts";
@@ -235,6 +237,14 @@ test("el runner de workers (motor/opencode/config.mjs) dice lo mismo que la app 
   }
   assert.equal(motor.MODELO_CHICO_GRATIS, MODELO_CHICO_GRATIS);
   assert.equal(motor.VENCE_GO_MS, 5 * 3600_000);
+});
+
+test("rutaCache de go-topes.mjs respeta el estado nativo de Windows, Linux y HILOS_STATE", () => {
+  assert.equal(rutaCache({ LOCALAPPDATA: "C:\\Datos" }, "C:\\Users\\Persona"), "C:\\Datos\\trama\\estado\\hilos\\opencode-go-topes.json");
+  assert.equal(rutaCache({}, "C:\\Users\\Persona"), "C:\\Users\\Persona\\AppData\\Local\\trama\\estado\\hilos\\opencode-go-topes.json");
+  assert.equal(rutaCache({ HILOS_STATE: "D:\\EstadoHilos", LOCALAPPDATA: "C:\\Datos" }, "C:\\Users\\Persona"), "D:\\EstadoHilos\\opencode-go-topes.json");
+  assert.equal(rutaCache({}, "/home/ana", "linux"), "/home/ana/.local/state/hilos/opencode-go-topes.json");
+  assert.equal(rutaCache({ HILOS_STATE: "/tmp/hilos" }, "/home/ana", "linux"), "/tmp/hilos/opencode-go-topes.json");
 });
 
 test("el runner de workers: un modelo de Go cuesta 0 (plan fijo) y un 429 dice que se acabó el cupo de ESE modelo", () => {

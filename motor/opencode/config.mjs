@@ -99,9 +99,30 @@ export const VENCE_GO_MS = 5 * 3600_000;
 export const mensajeCuotaGo = (modelo) =>
   `OpenCode Go: se acabó el cupo de 5 h de ${modelo} (los demás modelos de Go siguen). Esperá a que se renueve o probá con otro modelo.`;
 
+const homeWin = (env, home) => (/^[A-Za-z]:[\\/]/.test(home || "") ? home : env?.USERPROFILE || env?.HOME || home);
+const raizWin = (env, home) => {
+  const h = homeWin(env, home);
+  return path.win32.join(env?.LOCALAPPDATA || path.win32.join(h, "AppData", "Local"), "trama");
+};
+
+/** Estado de `pa` (`PA_STATE` o el default por plataforma; igual que `estadoPa` de `app/electron/rutas.ts`). */
+export function rutaEstadoPa(env = process.env, home = os.homedir(), plat) {
+  if (env.PA_STATE) return env.PA_STATE;
+  return esWinRuta(env, home, plat) ? path.win32.join(raizWin(env, home), "estado", "pa") : path.posix.join(home, ".local", "state", "pa");
+}
+
+/** Estado de la app (`HILOS_STATE` o el default por plataforma; igual que `estadoHilos` de `app/electron/rutas.ts`). */
+export function rutaEstadoHilos(env = process.env, home = os.homedir(), plat) {
+  if (env.HILOS_STATE) return env.HILOS_STATE;
+  return esWinRuta(env, home, plat) ? path.win32.join(raizWin(env, home), "estado", "hilos") : path.posix.join(home, ".local", "state", "hilos");
+}
+
 /** Dónde está modelos.json (igual que `rutaModelos` de app/electron/modelos-config.ts y que reparto). */
-export function rutaModelos(env = process.env, home = os.homedir()) {
-  return env.TRAMA_MODELOS || env.HILOS_MODELOS || path.join(env.XDG_CONFIG_HOME || path.join(home, ".config"), "trama", "modelos.json");
+export function rutaModelos(env = process.env, home = os.homedir(), plat) {
+  if (env.TRAMA_MODELOS) return env.TRAMA_MODELOS;
+  if (env.HILOS_MODELOS) return env.HILOS_MODELOS;
+  if (esWinRuta(env, home, plat)) return path.win32.join(raizWin(env, home), "config", "modelos.json");
+  return path.posix.join(env.XDG_CONFIG_HOME || path.posix.join(home, ".config"), "trama", "modelos.json");
 }
 
 /**

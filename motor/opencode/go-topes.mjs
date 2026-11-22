@@ -24,9 +24,17 @@ export const VIGENCIA_MS = 24 * 3600_000;
 export const ESPERA_MS = 3600_000;
 const MINIMO_MODELOS = 3;
 
-/** Dónde está el caché (el estado propio de trama; igual que `estadoHilos` de app/electron/rutas.ts en Linux). */
-export function rutaCache(env = process.env, home = os.homedir()) {
-  return path.join(env.HILOS_STATE || path.join(home, ".local", "state", "hilos"), "opencode-go-topes.json");
+/** Dónde está el caché (el estado propio de trama; igual que `estadoHilos` de app/electron/rutas.ts en Linux y Windows). */
+export function rutaCache(env = process.env, home = os.homedir(), plat) {
+  const win = plat ? plat === "win32" : (env?.TRAMA_OPENCODE_PLAT || process.platform) === "win32" || /^[A-Za-z]:[\\/]/.test(home || "") || /^[A-Za-z]:[\\/]/.test(env?.LOCALAPPDATA || "") || /^[A-Za-z]:[\\/]/.test(env?.USERPROFILE || "");
+  const c = win ? path.win32 : path.posix;
+  if (env.HILOS_STATE) return c.join(env.HILOS_STATE, "opencode-go-topes.json");
+  if (win) {
+    const h = /^[A-Za-z]:[\\/]/.test(home || "") ? home : env?.USERPROFILE || env?.HOME || home;
+    const local = env?.LOCALAPPDATA || path.win32.join(h, "AppData", "Local");
+    return path.win32.join(local, "trama", "estado", "hilos", "opencode-go-topes.json");
+  }
+  return path.posix.join(home, ".local", "state", "hilos", "opencode-go-topes.json");
 }
 
 const norm = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
