@@ -400,7 +400,7 @@ const ps = (script, env = {}) => correr("powershell.exe", ["-NoProfile", "-NonIn
 const PS_LEER_PATH = `$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment')
 if ($k -eq $null) { exit 0 }
 $v = $k.GetValue('Path', '', 'DoNotExpandEnvironmentNames')
-[Console]::Out.Write($v)`;
+[Console]::Out.Write([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([string]$v)))`;
 // Se escribe como REG_EXPAND_SZ (el tipo de siempre del PATH de usuario) y se borra una variable que no existe: eso le avisa
 // a Windows (WM_SETTINGCHANGE) que el entorno cambió, así las consolas nuevas ya ven el PATH sin cerrar sesión.
 const PS_ESCRIBIR_PATH = `$k = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
@@ -408,12 +408,16 @@ $k.SetValue('Path', $env:TRAMA_VALOR, [Microsoft.Win32.RegistryValueKind]::Expan
 $k.Close()
 [Environment]::SetEnvironmentVariable('TRAMA_AVISO_PATH', $null, 'User')`;
 const PS_LEER_RUN = `$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\\Microsoft\\Windows\\CurrentVersion\\Run')
-if ($k -ne $null) { [Console]::Out.Write($k.GetValue($env:TRAMA_NOMBRE, '')) }`;
+if ($k -ne $null) { [Console]::Out.Write([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([string]$k.GetValue($env:TRAMA_NOMBRE, '')))) }`;
 const PS_ESCRIBIR_RUN = `$k = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Software\\Microsoft\\Windows\\CurrentVersion\\Run')
 $k.SetValue($env:TRAMA_NOMBRE, $env:TRAMA_VALOR, [Microsoft.Win32.RegistryValueKind]::String)
 $k.Close()`;
 const PS_QUITAR_RUN = `$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\\Microsoft\\Windows\\CurrentVersion\\Run', $true)
 if ($k -ne $null) { $k.DeleteValue($env:TRAMA_NOMBRE, $false); $k.Close() }`;
+
+// Lo que leen los PS_LEER_* sale en base64 de UTF-8: la consola de PowerShell escribe en la página de códigos del sistema y un
+// acento del perfil («José») llegaría roto, y al reescribir el PATH se perdería esa entrada.
+const deBase64 = (s) => Buffer.from(String(s).trim(), "base64").toString("utf8");
 
 function falla(r, que) {
   if (r.code !== 0) throw Object.assign(new Error(`No pude ${que}.`), { detalle: String(r.stderr || r.stdout).trim().slice(-600) });
@@ -425,7 +429,7 @@ const expandirCon = (env) => (s) => String(s).replace(/%([^%]+)%/g, (m, n) => en
 /** El PATH de usuario (HKCU\Environment): leer, sumar y quitar la carpeta bin de Trama. */
 function pathUsuario(env = process.env) {
   const expandir = expandirCon(env);
-  const leer = async () => falla(await ps(PS_LEER_PATH), "leer el PATH de tu usuario").stdout;
+  const leer = async () => deBase64(falla(await ps(PS_LEER_PATH), "leer el PATH de tu usuario").stdout);
   return {
     async tiene(carpeta) {
       return agregarAlPath(await leer(), carpeta, expandir) === null;
@@ -449,7 +453,7 @@ function pathUsuario(env = process.env) {
 function arranqueSesion(nombre = VALOR_RUN) {
   return {
     async leer() {
-      return falla(await ps(PS_LEER_RUN, { TRAMA_NOMBRE: nombre }), "leer el arranque de Windows").stdout.trim() || null;
+      return deBase64(falla(await ps(PS_LEER_RUN, { TRAMA_NOMBRE: nombre }), "leer el arranque de Windows").stdout).trim() || null;
     },
     async registrar(comando) {
       falla(await ps(PS_ESCRIBIR_RUN, { TRAMA_NOMBRE: nombre, TRAMA_VALOR: comando }), "registrar Trama en el arranque de Windows");
@@ -500,4 +504,7 @@ module.exports = {
   correrCli,
   abrirConsolaNativa,
   expandirCon,
+  PS_LEER_PATH,
+  PS_LEER_RUN,
+  deBase64,
 };

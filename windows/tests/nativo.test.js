@@ -295,3 +295,10 @@ test("el motor y el CLI (y la consola de login) corren con el home como carpeta 
   await n.correrCli(rutas, env)("x");
   assert.equal(fs.realpathSync(fs.readFileSync(salida, "utf8")), fs.realpathSync(home), "el CLI");
 });
+
+test("leer el PATH y la clave Run sale en base64 de UTF-8: un acento del perfil no se rompe", () => {
+  for (const script of [n.PS_LEER_PATH, n.PS_LEER_RUN]) assert.match(script, /ToBase64String\(\[Text\.Encoding\]::UTF8\.GetBytes/);
+  const v = "C:\\Users\\José\\bin;C:\\Ñandú";
+  assert.equal(n.deBase64(`${Buffer.from(v, "utf8").toString("base64")}\r\n`), v);
+  assert.equal(n.deBase64(""), "");
+});
