@@ -118,12 +118,13 @@ const argvLocal = (contexto?: string) => [
 
 /**
  * Herramientas de claude que ningún líder de la app usó: se apagan con `--disallowedTools` (cada definición suma su esquema a cada
- * pedido). Sale de los transcripts de líderes en `~` de las últimas dos semanas (64 sesiones, 2026-11-22): cero usos de estas seis
+ * pedido). Sale de los transcripts de líderes en `~` de las últimas dos semanas (64 sesiones, 2026-11-22): cero usos de estas tres
  * (Bash 3462, Read 290, Write 114, SendMessage 102, ToolSearch 47, Edit 22, WebSearch 18, Skill 17, AskUserQuestion 16, ListAgents 12,
  * Agent 8, TaskStop 6, ExitPlanMode 6). Nunca se apagan Agent, Workflow, Skill, Bash, Read, Edit, Write, ToolSearch, AskUserQuestion,
- * ExitPlanMode, TodoWrite ni las tareas programadas (Cron*, ScheduleWakeup): el líder las usa o las puede necesitar.
+ * ExitPlanMode, TodoWrite ni las tareas programadas (Cron*, ScheduleWakeup): el líder las usa o las puede necesitar. Tampoco
+ * ReportFindings, DesignSync ni RemoteTrigger, aunque no tuvieron usos: las piden /code-review, /design y /schedule.
  */
-export const HERRAMIENTAS_APAGADAS_LIDER = ["EnterWorktree", "ExitWorktree", "NotebookEdit", "DesignSync", "ReportFindings", "RemoteTrigger"].join(",");
+export const HERRAMIENTAS_APAGADAS_LIDER = ["EnterWorktree", "ExitWorktree", "NotebookEdit"].join(",");
 
 /**
  * Lo que se le agrega al argv de un líder de Ollama: `--bare` (sin hooks, plugins, skills ni CLAUDE.md del usuario: son para los
