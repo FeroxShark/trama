@@ -331,6 +331,7 @@ export function iniciarDebate(x: { sid: string; plan: string; participantes: rea
           break;
         }
       } catch (e) {
+        if (cancelada.signal.aborted) throw e;
         sumar({ tipo: "fallo", modelo: p.modelo, nombre: p.nombre, ronda: st.ronda, error: (e as Error).message });
       }
     }

@@ -139,6 +139,22 @@ test("cancelar: rechaza, no niega ni manda nada (el plan sigue pendiente)", asyn
   assert.deepEqual([hecho.negado.length, hecho.mandado.length], [0, 0]);
 });
 
+test("cancelar mientras se escribe la conclusión: no deja líneas «salió del debate» y el rechazo es «cancelado» (B022)", async () => {
+  let llamadas = 0;
+  const { d, hecho } = armar({}, {
+    correr: async (_m, _e, _p, o) => {
+      if (++llamadas <= 2) return turno("acuerdo");
+      return new Promise((_ok, no) => (o.señal.aborted ? no(new Error("abortado")) : o.señal.addEventListener("abort", () => no(new Error("abortado")))));
+    },
+  });
+  const deb = iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a"), P("b")], rondas: 1 }, d);
+  await esperarHasta(() => llamadas === 3);
+  deb.cancelar();
+  await assert.rejects(deb.terminado, /debateCancelado/);
+  assert.equal(deb.estado().lineas.filter((l) => l.tipo === "fallo").length, 0);
+  assert.equal(hecho.mandado.length, 0);
+});
+
 test("el de más cupo habla primero y concluye; y se exigen 2 o 3 modelos distintos", async () => {
   const { d, hecho } = armar({ a: [turno("acuerdo")], b: [turno("acuerdo"), CONCLUSION] }, { cupo: (m) => (m === "b" ? 90 : 10) });
   await iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a"), P("b")], rondas: 1 }, d).terminado;
