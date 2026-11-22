@@ -1716,7 +1716,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "ctxp.ayuda.memoria": "Los archivos CLAUDE.md y las notas que se leen al empezar: tus reglas y las del proyecto. Pesan en cada mensaje.",
   "ctxp.ayuda.agentes": "Los subagentes que puede lanzar para repartir trabajo. Cada uno aparece con su descripción corta.",
   "ctxp.ayuda.sistema": "Las instrucciones base de Claude Code, que van antes de tu primer mensaje, más lo que suman los hooks de inicio y el entorno.",
-  "ctxp.ayuda.prefacio": "Lo que Trama le manda a este motor antes de tu primer mensaje: sus instrucciones, tus reglas (CLAUDE.md, AGENTS.md), la memoria y la ficha del tablero. Pesa en cada mensaje; lo que no entra en su tope se recorta.",
+  "ctxp.ayuda.prefacio": "Lo que Trama le manda a este motor antes de tu primer mensaje: sus instrucciones, tus reglas, la memoria y la ficha del tablero. Lo que pasa su tope se recorta.",
   "ctxp.ayuda.otro": "Contexto que Claude Code no ubica en ningún otro grupo.",
   "ctxp.ayuda.reserva": "Espacio que Claude Code deja libre a propósito para poder compactar: resumir la conversación necesita lugar. No se puede usar para conversar.",
   "ctxp.ayuda.prompt": "Las instrucciones base de Claude Code: cómo trabajar, qué cuidar y cómo usar las herramientas. Las escribe Anthropic y cambian con cada versión.",

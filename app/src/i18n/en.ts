@@ -1728,7 +1728,7 @@ export const en = {
   "ctxp.ayuda.memoria": "The CLAUDE.md files and notes read at start: your rules and the project's. They weigh on every message.",
   "ctxp.ayuda.agentes": "The subagents it can launch to split up work. Each one shows up with a short description.",
   "ctxp.ayuda.sistema": "Claude Code's base instructions, sent before your first message, plus what start-up hooks and the environment add.",
-  "ctxp.ayuda.prefacio": "What Trama sends this engine before your first message: its instructions, your rules (CLAUDE.md, AGENTS.md), the memory and the board card. It weighs on every message; whatever does not fit its cap is trimmed.",
+  "ctxp.ayuda.prefacio": "What Trama sends this engine before your first message: its instructions, your rules, the memory and the board card. Whatever goes over its cap is trimmed.",
   "ctxp.ayuda.otro": "Context that Claude Code does not place in any other group.",
   "ctxp.ayuda.reserva": "Space Claude Code deliberately leaves free so it can compact: summarizing the conversation needs room. It cannot be used for chatting.",
   "ctxp.ayuda.prompt": "Claude Code's base instructions: how to work, what to be careful about and how to use the tools. Anthropic writes them and they change with every version.",
