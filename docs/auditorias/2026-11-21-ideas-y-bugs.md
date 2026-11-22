@@ -727,7 +727,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/cierre-cupo-lectura.ts` (`cierreDe`, `cierreDeModelo`) y `app/electron/cli/reparto.ts`.
 - Arreglo: una entrada con `grupo` sólo cierra a los modelos de ese grupo (`grupoDeModelo`); `reparto` pasa el grupo del candidato.
 
-**B144 · Nada frena lanzar más workers de los que el cupo aguanta** (`NOCHE-10`, severidad alta) · **PENDIENTE**
+**B144 · Nada frena lanzar más workers de los que el cupo aguanta** (`NOCHE-10`, severidad alta) · **ARREGLADO**: `tope_vivos` en `modelos.json` (default 3 por grupo de cupo, 0 lo apaga; Ajustes > Plan y cupos > Avanzado), con tests en `app/tests/cli-pa-puestos.test.ts`.
 - Qué pasa: veinte workers lanzados a la vez contra una suscripción con cupo para pocas corridas pesadas arrancaron todos y murieron a mitad, sin commits. El cupo se mira al lanzar, no lo que ya está corriendo contra esa ventana.
 - Dónde: `app/electron/cli/pa/orquesta.ts`, `app/electron/cli/reparto.ts`.
 - Arreglo: tope de workers vivos por suscripción según el cupo libre y lo medido por corrida; los demás esperan en cola.
