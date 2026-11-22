@@ -2,10 +2,10 @@
 // (lo usa también el hook `cierre-cupo.mjs`, que corre fuera de la app): acá se cargan de ahí. Además, el `--settings` que registra
 // el hook en cada líder de Claude de la app y qué líderes (de otro motor, que no corren hooks) reciben el aviso por la cola.
 // Lo de afuera (la cola, la lista de líderes vivos) se inyecta: sin Electron, lo prueba tests/cierre-cupo-hook.test.ts.
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { comandoCierreCupo, comandoNotaCompactar, EVENTOS_CIERRE_CUPO, EVENTOS_NOTA_COMPACTAR } from "./cli/hooks.ts";
+import { cierreCupoRegistrado, comandoCierreCupo, comandoNotaCompactar, EVENTOS_CIERRE_CUPO, EVENTOS_NOTA_COMPACTAR } from "./cli/hooks.ts";
 import { resolverMotor } from "./cli/pa/entorno.ts";
 import { suscripcionDeModelo, type EntradaCierre } from "./cierre-cupo.ts";
 
@@ -31,6 +31,18 @@ export function carpetaHooksNota(env: NodeJS.ProcessEnv = process.env): string |
     return existsSync(path.join(dir, "nota-compactar.mjs")) && existsSync(path.join(dir, "nota-compactar-textos.mjs")) ? dir : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * ¿El `settings.json` de esa carpeta de configuración de Claude ya registra el cierre por cupo (lo hace la instalación, para los
+ * líderes de terminal)? Si sí, el `--settings` de un líder de la app no lo repite. Sin archivo, ilegible o inválido: `false`.
+ */
+export function cierreRegistradoEn(configDir: string): boolean {
+  try {
+    return cierreCupoRegistrado(JSON.parse(readFileSync(path.join(configDir, "settings.json"), "utf8")));
+  } catch {
+    return false;
   }
 }
 

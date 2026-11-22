@@ -764,6 +764,23 @@ test("líderes (settingsCierreCupo y lider.nuevo): un solo JSON con cierre-cupo 
     assert.equal(hooks3.PostToolUse!.length, 1);
     assert.match(hooks3.PostToolUse![0]!.hooks[0]!.command, /cierre-cupo\.mjs/);
 
+    // 4. CTX-16: si el settings del usuario ya registra el cierre por cupo (lo hace la instalación), el `--settings` del líder no lo
+    // repite (correría dos veces por evento); la nota antes de compactar sigue yendo.
+    const cmdCierre = `node '${path.join("/m/hooks", "cierre-cupo.mjs")}'`;
+    writeFileSync(
+      path.join(dir, "claude", "settings.json"),
+      JSON.stringify({ hooks: { PostToolUse: [{ hooks: [{ type: "command", command: cmdCierre }] }], UserPromptSubmit: [{ hooks: [{ type: "command", command: cmdCierre }] }] } }),
+    );
+    writeFileSync(modelosF, JSON.stringify({ version: 1, autocompact_lider: { defecto: null, por_modelo: { opus: 400_000 } } }));
+    const s4 = await lider.nuevo({ modelo: "claude-opus-5-5", effort: "high", texto: "hola" });
+    await esperarHasta(() => readFileSync(log, "utf8").includes(s4), { tope: 8000 });
+    const hooks4 = settingsDe(s4).find((x) => x.hooks)?.hooks as Record<string, { hooks: { command: string }[] }[]>;
+    assert.equal(hooks4.PostToolUse!.length, 1);
+    assert.match(hooks4.PostToolUse![0]!.hooks[0]!.command, /nota-compactar\.mjs/);
+    const todos4 = Object.values(hooks4).flatMap((gs) => gs.flatMap((g) => g.hooks.map((h) => h.command)));
+    assert.ok(!todos4.some((c) => /cierre-cupo\.mjs/.test(c)), "el cierre ya está en los settings del usuario: no se repite");
+    assert.match(hooks4.PreCompact![0]!.hooks[0]!.command, /nota-compactar\.mjs/);
+
     const comb = JSON.parse(settingsCierreCupo("/m/hooks", { plataforma: "linux", umbralNota: 170_000, umbralTareaNota: 120_000 }));
     assert.equal(comb.hooks.SessionStart[0].matcher, "compact");
     assert.equal(comb.hooks.PostToolUse.length, 2);

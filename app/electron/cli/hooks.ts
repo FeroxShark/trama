@@ -186,6 +186,16 @@ export function registrarCierreEnAjustes(ajustes: Json, o: OpcionesRegistro): bo
   return cambio;
 }
 
+/**
+ * ¿Ya está el cierre por cupo en este settings, en sus dos eventos? (el mismo criterio de `registrarCierreEnAjustes`). Un líder de
+ * la app que lo ve registrado no lo repite en su `--settings`: correría dos veces por evento.
+ */
+export function cierreCupoRegistrado(ajustes: unknown): boolean {
+  if (!esObjeto(ajustes) || !esObjeto(ajustes.hooks)) return false;
+  const hooks = ajustes.hooks;
+  return EVENTOS_CIERRE_CUPO.every((e) => comandosDe(hooks[e]).some((h) => typeof h.command === "string" && marca("cierre-cupo").test(h.command)));
+}
+
 export type ResultadoRegistro =
   | { estado: "registrado"; destino: string; copia?: string }
   | { estado: "ya"; destino: string }

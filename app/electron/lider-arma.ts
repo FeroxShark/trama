@@ -116,6 +116,23 @@ const argvLocal = (contexto?: string) => [
   "off",
 ];
 
+/**
+ * Herramientas de claude que ningún líder de la app usó: se apagan con `--disallowedTools` (cada definición suma su esquema a cada
+ * pedido). Sale de los transcripts de líderes en `~` de las últimas dos semanas (64 sesiones, 2026-11-22): cero usos de estas seis
+ * (Bash 3462, Read 290, Write 114, SendMessage 102, ToolSearch 47, Edit 22, WebSearch 18, Skill 17, AskUserQuestion 16, ListAgents 12,
+ * Agent 8, TaskStop 6, ExitPlanMode 6). Nunca se apagan Agent, Workflow, Skill, Bash, Read, Edit, Write, ToolSearch, AskUserQuestion,
+ * ExitPlanMode, TodoWrite ni las tareas programadas (Cron*, ScheduleWakeup): el líder las usa o las puede necesitar.
+ */
+export const HERRAMIENTAS_APAGADAS_LIDER = ["EnterWorktree", "ExitWorktree", "NotebookEdit", "DesignSync", "ReportFindings", "RemoteTrigger"].join(",");
+
+/**
+ * Lo que se le agrega al argv de un líder de Ollama: `--bare` (sin hooks, plugins, skills ni CLAUDE.md del usuario: son para los
+ * modelos de Claude y pesan más de 15 000 tokens en cada pedido) y `--strict-mcp-config` (sin los MCP de la config del usuario; Trama
+ * no le pasa el suyo). El login sigue andando: con `--bare` el `ANTHROPIC_AUTH_TOKEN` que pone `entornoOllama` llega igual como
+ * `Authorization: Bearer` (comprobado con claude 2.1.330 contra un servidor falso). Sin `--effort` (Ollama no tiene esfuerzos de Claude).
+ */
+export const ARGV_OLLAMA = ["--bare", "--strict-mcp-config"];
+
 /** Lo único que se pasa a `--advisor`: el alias de una familia (nada que parezca un flag). */
 const ESASESOR = /^(haiku|sonnet|opus|fable)$/;
 
@@ -156,10 +173,13 @@ export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEF
     "--model",
     // Ollama no entiende `claude-*` ni los esfuerzos de Claude: su modelo, y sin `--effort`.
     ollama ? ollama.modelo : modelo,
-    ...(local ? argvLocal(local.contexto) : ollama ? [] : ["--effort", effort]),
+    ...(local ? argvLocal(local.contexto) : ollama ? ARGV_OLLAMA : ["--effort", effort]),
     // Un archivo y no el texto: el relevo puede pesar decenas de miles de caracteres (el argv de Windows tiene tope).
     ...(relevo ? ["--append-system-prompt-file", relevo] : []),
     ...(lineaSistema ? ["--append-system-prompt", lineaSistema] : []),
+    // Menos carga fija en cada pedido: sin las herramientas que ningún líder usó y sin las secciones dinámicas del prompt de sistema
+    // (cwd, git, memoria: pasan al primer mensaje), como un worker de `pa`. Un local u Ollama no las lleva (su prompt y sus tools son otros).
+    ...(local || ollama ? [] : ["--disallowedTools", HERRAMIENTAS_APAGADAS_LIDER, "--exclude-dynamic-system-prompt-sections"]),
     ...(mcpConfig && !local && !ollama ? ["--mcp-config", mcpConfig] : []),
     ...(cierreCupo && !local && !ollama ? ["--settings", cierreCupo] : []),
     ...(autocompact && !local && !ollama ? ["--autocompact", String(autocompact)] : []),
@@ -192,6 +212,17 @@ export function entornoLider(env: Env, home: string): Env {
     out[k] = v;
   }
   out[clavePath(env)] = pathConLocal(env, home);
+  return out;
+}
+
+/**
+ * El entorno de un líder de Claude: el de siempre más la búsqueda diferida de herramientas siempre activa (el default `auto` la prende
+ * recién al pasar el 10 % del contexto): con los MCP del usuario, sólo los nombres entran al contexto hasta que el líder los busca con
+ * ToolSearch. Lo que la persona fijó en su entorno manda. Un local u Ollama no: su endpoint no entiende las referencias diferidas.
+ */
+export function entornoClaude(env: Env, home: string): Env {
+  const out = entornoLider(env, home);
+  if (!out.ENABLE_TOOL_SEARCH) out.ENABLE_TOOL_SEARCH = "true";
   return out;
 }
 
@@ -261,7 +292,7 @@ export function entornoOllama(env: Env, home: string, x: Ollama): Env {
  */
 export const opcionesLider = (env: Env, home: string, cwd?: string, local?: { modelo: string; effort: string; local: Local }, ollama?: Ollama) => ({
   cwd: cwdSeguro(cwd, env, home),
-  env: local ? entornoLocal(env, home, local) : ollama ? entornoOllama(env, home, ollama) : entornoLider(env, home),
+  env: local ? entornoLocal(env, home, local) : ollama ? entornoOllama(env, home, ollama) : entornoClaude(env, home),
 });
 
 /** "trama-" + 4 hex. */

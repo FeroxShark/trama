@@ -71,7 +71,7 @@ import { barrerEtiqueta, nuevaEtiqueta, VARIABLE } from "./huerfanos.js";
 import { arranqueDe } from "./local.js";
 import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts";
 import { settingsLider } from "./apagados.ts";
-import { carpetaHooksCierre, carpetaHooksNota, settingsCierreCupo } from "./cierre-cupo-texto.ts";
+import { carpetaHooksCierre, carpetaHooksNota, cierreRegistradoEn, settingsCierreCupo } from "./cierre-cupo-texto.ts";
 import { conClaves } from "./claves.ts";
 import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTramaApp, tramaParaAcp } from "./mcp.ts";
 import { paraAcp, resueltos } from "./mcp-config.ts";
@@ -731,7 +731,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
         umbralNota: u?.fuerte ?? null,
         umbralTareaNota: u?.suave ?? null,
         baseNota: u ? baseNota({ tope: topeNota, ventana: ventanaDe(g.modelo) }) : null,
-        conCierre: Boolean(hooksCierre),
+        // Si el settings del usuario (el de la cuenta de este líder) ya lo registra, no se repite: correría dos veces por evento.
+        conCierre: Boolean(hooksCierre) && !cierreRegistradoEn(cuenta?.dir ?? process.env.CLAUDE_CONFIG_DIR ?? path.join(HOME, ".claude")),
       });
     }
   } catch (e) {

@@ -8,6 +8,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  ARGV_OLLAMA,
   argvLider,
   aplicarModo,
   autoaprueba,
@@ -15,10 +16,12 @@ import {
   cortar,
   cwdDeTranscript,
   dirProyecto,
+  entornoClaude,
   entornoLider,
   estilosDe,
   escribirGuardados,
   herramienta,
+  HERRAMIENTAS_APAGADAS_LIDER,
   leerGuardados,
   lineaEffort,
   lineaEstilo,
@@ -62,11 +65,44 @@ test("argv nuevo: stream-json, permisos salteados, modelo, effort, session-id y 
     "claude-sonnet-5-5",
     "--effort",
     "high",
+    // CTX-1: menos carga fija en cada pedido.
+    "--disallowedTools",
+    HERRAMIENTAS_APAGADAS_LIDER,
+    "--exclude-dynamic-system-prompt-sections",
     "--session-id",
     SID,
     "--name",
     "trama-0a1b",
   ]);
+});
+
+test("CTX-1: el líder apaga sólo herramientas que ninguno usó y nunca las que sí; el entorno trae la búsqueda diferida", () => {
+  const apagadas = HERRAMIENTAS_APAGADAS_LIDER.split(",");
+  for (const t of ["Agent", "Workflow", "Skill", "Bash", "Read", "Edit", "Write", "ToolSearch", "AskUserQuestion", "ExitPlanMode", "TodoWrite", "ScheduleWakeup"])
+    assert.ok(!apagadas.includes(t), `${t} no se apaga`);
+  assert.ok(!apagadas.some((t) => /^Cron/.test(t)), "ninguna tarea programada se apaga");
+  assert.ok(apagadas.length > 0);
+  // Un local o un Ollama no los lleva (su prompt y sus herramientas son otros).
+  const ol = argvLider({ modelo: "ollama:m", effort: "high", sid: SID, nombre: "trama-0a1b", ollama: { url: "http://127.0.0.1:11434", modelo: "m" } });
+  assert.ok(!ol.includes("--disallowedTools") && !ol.includes("--exclude-dynamic-system-prompt-sections"));
+  const lo = argvLider({ modelo: "m", effort: "high", sid: SID, nombre: "trama-0a1b", local: { url: "http://127.0.0.1:8080", ctx: 32768 } });
+  assert.ok(!lo.includes("--disallowedTools") && !lo.includes("--exclude-dynamic-system-prompt-sections"));
+  assert.equal(entornoClaude({ PATH: "/usr/bin" }, HOME).ENABLE_TOOL_SEARCH, "true");
+  assert.equal(entornoClaude({ PATH: "/usr/bin", ENABLE_TOOL_SEARCH: "false" }, HOME).ENABLE_TOOL_SEARCH, "false", "lo de la persona manda");
+  assert.equal(entornoLider({ PATH: "/usr/bin" }, HOME).ENABLE_TOOL_SEARCH, undefined, "el resto de los usos no lo recibe");
+  assert.equal((opcionesLider({ PATH: "/usr/bin" }, HOME).env as Record<string, string>).ENABLE_TOOL_SEARCH, "true");
+  const oll = opcionesLider({ PATH: "/usr/bin" }, HOME, undefined, undefined, { url: "http://127.0.0.1:11434", modelo: "m" }).env as Record<string, string>;
+  assert.equal(oll.ENABLE_TOOL_SEARCH, undefined, "Ollama no lo recibe");
+});
+
+test("CTX-6: un líder de Ollama va con --bare y --strict-mcp-config (sin hooks, skills, CLAUDE.md ni MCP del usuario)", () => {
+  const a = argvLider({ modelo: "ollama:m", effort: "high", sid: SID, nombre: "trama-0a1b", ollama: { url: "http://127.0.0.1:11434", modelo: "m" }, cierreCupo: "{}", mcpConfig: "/x.json" });
+  assert.deepEqual(ARGV_OLLAMA, ["--bare", "--strict-mcp-config"]);
+  for (const f of ARGV_OLLAMA) assert.ok(a.includes(f), f);
+  assert.ok(!a.includes("--effort") && !a.includes("--settings") && !a.includes("--mcp-config"));
+  // Un líder de Claude no.
+  const c = argvLider({ modelo: "claude-opus-5-5", effort: "high", sid: SID, nombre: "trama-0a1b" });
+  assert.ok(!c.includes("--bare") && !c.includes("--strict-mcp-config"));
 });
 
 test("argv con modo (B13): bypass con --dangerously-skip-permissions; otro, --allow… y --permission-mode", () => {
