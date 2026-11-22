@@ -2287,6 +2287,8 @@ const revisiones = crearTrabajos({
   emitir: (e) => alEv(e.sid, { tipo: "revision", estado: e }),
   leer: leerRevisiones,
   escribir: (lista) => escribirAtomico(ARCHIVO_REVISIONES, JSON.stringify({ version: 1, pendientes: lista })),
+  // La guarda inversa de la del debate (`preparar`): con un debate vivo en ese líder no corre una revisión simple.
+  ocupado: (sid) => debates.viva(sid),
 });
 /** Cómo entra la revisión en la conversación del líder: por su cola (la pone nucleo.ts, que es quien la tiene). */
 let entregaRevision: (sid: string, texto: string) => Promise<unknown> = async () => {

@@ -162,11 +162,11 @@ test("la entrega con el líder respondiendo se encola (no se rechaza) y llega al
 });
 
 /** Los trabajos de revisión con un disco de mentira y los estados que se emiten anotados. */
-function trabajos() {
+function trabajos(extra: Partial<Parameters<typeof crearTrabajos>[0]> = {}) {
   let disco: Pendiente[] = [];
   const emitidos: RevisionEstado[] = [];
   let t = 1000;
-  const tr = crearTrabajos({ ahora: () => (t += 1000), emitir: (e) => emitidos.push(e), leer: async () => disco, escribir: async (l) => void (disco = l), juntarMs: 1 });
+  const tr = crearTrabajos({ ahora: () => (t += 1000), emitir: (e) => emitidos.push(e), leer: async () => disco, escribir: async (l) => void (disco = l), juntarMs: 1, ...extra });
   return { tr, emitidos, disco: () => disco };
 }
 const pedido = { sid: SID, planId: "p1", modelo: "claude-fable-5-2", effort: "high", plan: "# Plan\n1. X", nombre: "Fable 5.2" };
@@ -370,4 +370,15 @@ test("correrRevisor con ChatGPT: si codex sale con error sin respuesta, el fallo
     if (antes === undefined) delete process.env.HILOS_CODEX;
     else process.env.HILOS_CODEX = antes;
   }
+});
+
+test("una revisión no arranca si el líder ya tiene un debate vivo (B023)", async () => {
+  let debate = true;
+  const { tr, emitidos } = trabajos({ ocupado: (sid) => sid === SID && debate });
+  const { d } = deps(RESPUESTA);
+  assert.throws(() => tr.iniciar(pedido, () => d), /revisionYaCorre/);
+  assert.equal(emitidos.length, 0);
+  debate = false;
+  assert.equal(tr.iniciar(pedido, () => d).fase, "corriendo");
+  await esperarHasta(async () => (await tr.estado(SID))?.fase === "hecha");
 });

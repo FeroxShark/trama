@@ -17,6 +17,8 @@ export type DepsTrabajos = {
   escribir: (lista: Pendiente[]) => Promise<void>;
   /** Cuánto se juntan los avances del revisor antes de emitirse (ms): un evento por cada token es mucho para el IPC. */
   juntarMs?: number;
+  /** ¿Ese líder ya tiene otro trabajo de segunda opinión corriendo (un debate)? Si sí, no se arranca una revisión. */
+  ocupado?: (sid: string) => boolean;
 };
 
 /** El texto de un error ya traducible por la ventana (clave de i18n codificada); lo demás se dice general. */
@@ -71,6 +73,7 @@ export function crearTrabajos(d: DepsTrabajos) {
     iniciar(x: { sid: string; planId: string; modelo: string; effort: string; plan: string; nombre: string }, armar: () => DepsRevision): RevisionEstado {
       const previo = estados.get(x.sid);
       if (previo && (previo.fase === "corriendo" || previo.fase === "entregando")) throw errorT("main.revisionYaCorre");
+      if (d.ocupado?.(x.sid)) throw errorT("main.revisionYaCorre");
       const id = randomUUID();
       const inicio = d.ahora();
       const base: RevisionEstado = { id, sid: x.sid, planId: x.planId, modelo: x.modelo, nombre: x.nombre, fase: "corriendo", inicio, fin: null, pasos: [], texto: "", error: null, reintentable: false };
