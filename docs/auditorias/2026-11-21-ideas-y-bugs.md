@@ -7,9 +7,9 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 ## Resumen
 
 - **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
-  - pendiente: 80
-  - arreglado: 71
-  - refutado: 4
+  - arreglado: 77
+  - pendiente: 73
+  - refutado: 5
   - arreglado a medias: 3
 - **Ideas: 102**.
 
@@ -17,7 +17,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 |---|---|---|---|
 | Barra lateral y datos | 18 | 17 | 0 |
 | Debate y revisión de planes | 14 | 0 | 14 |
-| El hilo: la caja y el líder en la ventana | 14 | 5 | 7 |
+| El hilo: la caja y el líder en la ventana | 14 | 11 | 0 |
 | Hooks y motor | 16 | 5 | 11 |
 | Núcleo y canales | 14 | 3 | 10 |
 | El CLI de `pa` | 15 | 0 | 15 |
@@ -173,27 +173,27 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/src/hilo/Lider.tsx` líneas 1406-1410 (efecto de `compactoCache`) y 1149 (`salir`)
 - Arreglo: poner la caja en solo lectura mientras `compactoCache` esté activo (`readOnly={enviando || !!compactoCache}`), o mandar `texto` actual si difiere. Test: `siguienteCambio`/efecto con un texto cambiado.
 
-**B036 · Si falla la lectura de pedidos pendientes, un plan o permiso queda invisible y no se reintenta** (`HILO-LIDER-4`, severidad media) · **PENDIENTE**
+**B036 · Si falla la lectura de pedidos pendientes, un plan o permiso queda invisible y no se reintenta** (`HILO-LIDER-4`, severidad media) · **ARREGLADO**
 - Qué pasa: Con la ventana recargada, un fallo de `liderPendientes` deja sin mostrar el «Plan listo» o el permiso que el líder espera. El líder queda parado y no hay forma de volver a pedirlo.
 - Dónde: `app/src/hilo/vivo.ts` líneas 395-397 (`suscribir`)
 - Arreglo: `.catch(() => rehidratados.delete(sid))`, para que la próxima suscripción lo pida de nuevo.
 
-**B037 · El aviso de «cambiar de modelo con caché viva» sigue en pantalla, sin texto, cuando la caché ya venció** (`HILO-LIDER-5`, severidad baja) · **PENDIENTE**
+**B037 · El aviso de «cambiar de modelo con caché viva» sigue en pantalla, sin texto, cuando la caché ya venció** (`HILO-LIDER-5`, severidad baja) · **REFUTADO**
 - Qué pasa: Al vencer la caché, el reloj del aviso se vacía (`texto: ""`), pero la franja con «Volver a X» y «Compactar y cambiar» sigue hasta el próximo repintado. Ofrece compactar cuando ya no hay caché que cuidar.
 - Dónde: `app/src/hilo/Lider.tsx` líneas 1455-1462 (`cambia`) y 1966-1989; `app/src/hilo/Turno.tsx` líneas 34-44 (`pintorAviso`)
 - Arreglo: un `setTimeout` hasta `cache_vence` que fuerce el repintado, o mover la condición al pintor para que no renderice la franja.
 
-**B038 · Un cambio de esfuerzo hecho en otro lado no llega a la caja** (`HILO-LIDER-6`, severidad baja) · **PENDIENTE**
+**B038 · Un cambio de esfuerzo hecho en otro lado no llega a la caja** (`HILO-LIDER-6`, severidad baja) · **ARREGLADO**
 - Qué pasa: Si el esfuerzo del líder cambia desde otra ventana o `/effort` sin que cambie el modelo, la caja conserva el esfuerzo viejo. «Volver/Editar» y los envíos mandan el viejo, y durante un turno aparece «próx.» con el esfuerzo viejo.
 - Dónde: `app/src/hilo/Lider.tsx` línea 461
 - Arreglo: separar un efecto de esfuerzo con su propio `vistoEffort`, con la misma regla de HILO-LIDER-1 para no pisar lo que la persona tocó.
 
-**B039 · El menú de `/model` y «Seguir con otro modelo» no se refrescan cuando cambia la tabla de modelos** (`HILO-LIDER-7`, severidad baja) · **PENDIENTE**
+**B039 · El menú de `/model` y «Seguir con otro modelo» no se refrescan cuando cambia la tabla de modelos** (`HILO-LIDER-7`, severidad baja) · **ARREGLADO**
 - Qué pasa: Tras cambiar el catálogo (Ajustes, proveedor nuevo), el segundo nivel de `/model` muestra modelos viejos y `SeguirCon` no recalcula su lista.
 - Dónde: `app/src/hilo/Lider.tsx` líneas 501-511 (`valores`) y 1907; `app/src/hilo/opciones.tsx` línea 83
 - Arreglo: agregar `tablaModelos` a las dependencias de `valores`, y pasar a `SeguirCon` una copia (`[...MODELOS]`) memoizada por `tablaModelos`.
 
-**B040 · Sin transcript cargado, la pregunta de caché vencida cuenta 0 tokens y deja pasar el mensaje** (`HILO-LIDER-8`, severidad baja) · **PENDIENTE**
+**B040 · Sin transcript cargado, la pregunta de caché vencida cuenta 0 tokens y deja pasar el mensaje** (`HILO-LIDER-8`, severidad baja) · **ARREGLADO**
 - Qué pasa: Si la persona manda antes de que cargue el transcript y todavía no hay uso del stream, `tokens = 0`. `decidirCache` responde «enviar» por ser menor que `UMBRAL_TOKENS`, y el mensaje relee todo el contexto sin avisar.
 - Dónde: `app/src/hilo/Lider.tsx` líneas 1006-1022 (`veredictoCache`); `app/src/hilo/contexto-logica.ts` líneas 43-44
 - Arreglo: si `pag` es null, esperar a la lectura o decidir con `l.usage` si existe. Test: `decidirCache` con tokens desconocidos.
@@ -203,7 +203,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/src/hilo/cola.ts` líneas 26-30 (`poner`)
 - Arreglo: conservar la entrada si `a.error`, o documentar que nunca ocurre. Test en `tests/` del espejo.
 
-**B042 · La preferencia de caché vencida queda fija si falla su lectura** (`HILO-LIDER-10`, severidad baja) · **PENDIENTE**
+**B042 · La preferencia de caché vencida queda fija si falla su lectura** (`HILO-LIDER-10`, severidad baja) · **ARREGLADO**
 - Qué pasa: Si `fuente.cacheVencida()` falla, `valor` queda en «preguntar» y no se vuelve a leer. Lo que la persona recordó se ignora hasta reiniciar, y el rechazo queda sin manejar.
 - Dónde: `app/src/hilo/cache-eleccion.ts` líneas 11-22
 - Arreglo: `.catch(() => { leido = false; })`.
@@ -213,7 +213,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/src/hilo/compactar.ts` líneas 29 y 55-64
 - Arreglo: un tope (por ejemplo 15 min) que vuelva a `reposo` con una nota de error.
 
-**B044 · Si falla la lista de revisores, se ofrecen todos los modelos como si todo estuviera conectado** (`HILO-LIDER-12`, severidad baja) · **PENDIENTE**
+**B044 · Si falla la lista de revisores, se ofrecen todos los modelos como si todo estuviera conectado** (`HILO-LIDER-12`, severidad baja) · **ARREGLADO**
 - Qué pasa: Con `liderRevisores` rechazado, el selector lista todos los de `MODELOS`, incluidos proveedores desactivados en Ajustes o sin conectar. La persona puede elegir uno y la revisión falla después.
 - Dónde: `app/src/hilo/Lider.tsx` línea 2181
 - Arreglo: en el fallo, filtrar `!m.sinConectar` y mostrar un aviso de que no se pudo leer la lista.
