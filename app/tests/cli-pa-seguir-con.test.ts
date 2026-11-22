@@ -300,3 +300,16 @@ testPosix("vence la espera de cupo del hijo --async: deja .listo con rc 96 y su 
   assert.equal(rcE, 96, e.e);
   assert.match(e.e, /sin cupo: venció la espera/);
 });
+
+test("--seguir sobre una corrida de Codex (o Gemini, DeepSeek, OpenCode) sin -m: corta con 2 y dice cómo seguirla, no cae a Claude sin la conversación", async () => {
+  const s = sandbox();
+  const dir = corridaVieja(s, { conTranscript: false });
+  for (const m of ["codex:gpt-6.1-terra-medium", "gemini-3.8-flash"]) {
+    writeFileSync(path.join(dir, `${ID}.hilo`), `tarea=Contestá\nmodelo=${m}\neffort=-\nproyecto=demo\nleer=1\n`);
+    const r = await pa(["demo", "--sin-jefe", "--seguir", "--id", ID, "Cerrá con el RESULTADO."], { ...s.env, TRAMA_MODELOS: "" });
+    assert.equal(r.rc, 2, `${m}: ${r.e}`);
+    assert.equal(r.l, null, `${m}: no lanza nada`);
+    assert.match(r.e, new RegExp(`es de ${m.replace(/[.:]/g, "\\$&")}, que no retoma sesiones`));
+    assert.match(r.e, new RegExp(`--seguir-con ${m.replace(/[.:]/g, "\\$&")} --id ${ID}`));
+  }
+});
