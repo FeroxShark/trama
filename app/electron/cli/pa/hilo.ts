@@ -12,7 +12,8 @@ import { leerLineaSid } from "./hilo-sid.ts";
 import { comoString, cortar, ruta, transcriptDe, type J } from "./hilos.ts";
 import { mensajesDeStream } from "./hilo-stream.ts";
 
-const USO = "uso: pa --hilo <id> [--json] [-n N] [--antes N] [--tope N]\n";
+// El uso no nombra --tope: es del TS y el texto tiene que seguir igual al del bash congelado (paridad).
+const USO = "uso: pa --hilo <id> [--json] [-n N] [--antes N]\n";
 /** Lo más que ocupa por defecto lo que imprime `pa --hilo` (caracteres del JSON). */
 export const TOPE_HILO = 16_000;
 const esObj = (v: unknown): v is J => v !== null && typeof v === "object" && !Array.isArray(v);
