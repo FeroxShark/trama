@@ -9,8 +9,8 @@
 // /run/systemd…, pid/ipc/cgroupns=host, --cap-add peligrosos, --security-opt unconfined, e init/systemd como proceso
 // principal (también el que trae la imagen: `image inspect`). Si el hook mismo se rompe, deja pasar (nunca frena por un bug).
 //
-// Diferencia conocida con el .py: el compose.yaml sólo se audita si el paquete `yaml` de npm se puede cargar (el .py usa
-// PyYAML y, sin él, tampoco lo mira). Node no trae un parser de YAML y este hook no tiene dependencias.
+// Compose usa el paquete `yaml` si está disponible. El lector incluido revisa los archivos simples y bloquea
+// cuando encuentra construcciones que no sabe interpretar.
 import { spawnSync } from "node:child_process";
 import { accessSync, constants, readFileSync, realpathSync, statSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
@@ -21,7 +21,7 @@ const env = process.env;
 
 let yaml = null;
 try {
-  // Opcional: sólo si el paquete está a mano. Sin él, el compose.yaml no se mira (como el .py sin PyYAML).
+  // Opcional: el hook también se distribuye sin módulos de npm.
   const m = await import("yaml");
   yaml = m.default ?? m;
 } catch {
@@ -750,6 +750,7 @@ function partirClaveValorYaml(s) {
 
 function parsearValorYaml(s) {
   const t = s.trim();
+  if (/^[&*!]/.test(t)) throw new Error("ancla, alias o etiqueta YAML sin resolver");
   if (!t || t === "null" || t === "~") return null;
   if (t === "true") return true;
   if (t === "false") return false;
@@ -758,7 +759,8 @@ function parsearValorYaml(s) {
     const obj = {};
     for (const item of partirComasYaml(t.slice(1, -1))) {
       const kv = partirClaveValorYaml(item);
-      if (kv) obj[kv[0]] = parsearValorYaml(kv[1]);
+      if (!kv) throw new Error("entrada YAML sin interpretar");
+      obj[kv[0]] = parsearValorYaml(kv[1]);
     }
     return obj;
   }
@@ -782,6 +784,7 @@ function parsearYamlSimple(texto) {
       acum = "";
     }
   }
+  if (acum) throw new Error("colección YAML incompleta");
   if (!crudas.length) return {};
   if (crudas.length === 1 && /^[{[]/.test(crudas[0].text)) return parsearValorYaml(crudas[0].text);
 
@@ -811,10 +814,7 @@ function parsearYamlSimple(texto) {
     const obj = {};
     while (i < crudas.length && crudas[i].indent === base && !/^-(?:\s|$)/.test(crudas[i].text)) {
       const kv = partirClaveValorYaml(crudas[i].text);
-      if (!kv) {
-        i++;
-        continue;
-      }
+      if (!kv) throw new Error("entrada YAML sin interpretar");
       const [k, v] = kv;
       if (v) {
         obj[k] = parsearValorYaml(v);
@@ -834,11 +834,13 @@ function parsearYamlSimple(texto) {
     return [obj, i];
   }
 
-  return bloque(0, crudas[0].indent)[0];
+  const [doc, fin] = bloque(0, crudas[0].indent);
+  if (fin !== crudas.length) throw new Error("quedaron entradas YAML sin interpretar");
+  return doc;
 }
 
 function revisarComposeArchivos(optsC, ctx, exe = "docker") {
-  const parsearYaml = yaml ? (t) => yaml.parse(t) : parsearYamlSimple;
+  const parsearYaml = yaml ? (t) => yaml.parse(t, { merge: true }) : parsearYamlSimple;
   const base = ctx.cwd || process.cwd();
   let archivos = optsC.filter(([n, v]) => (n === "-f" || n === "--file") && v && !v.includes("$")).map(([, v]) => v);
   // Sin -f, compose busca el archivo en --project-directory, no en el cwd.
@@ -859,17 +861,13 @@ function revisarComposeArchivos(optsC, ctx, exe = "docker") {
     }
   }
   for (const a of archivos) {
-    let doc;
     try {
-      if (statSync(a).size > 2_000_000) continue;
-      doc = parsearYaml(readFileSync(a, "utf8"));
-    } catch {
-      continue;
-    }
-    try {
+      if (statSync(a).size > 2_000_000) throw new Error("archivo YAML demasiado grande");
+      const doc = parsearYaml(readFileSync(a, "utf8"));
       auditarCompose(doc, a, exe);
     } catch (e) {
       if (e instanceof Bloqueo) throw e;
+      throw new Bloqueo(`no se pudo revisar completo el archivo Compose ${a}`);
     }
   }
 }
@@ -1029,12 +1027,16 @@ function revisarInitDeServicio(s, archivo, donde, exe) {
   }
 }
 
+// Un mismo valor puede combinar tramos citados y caracteres escapados.
+const valorPrivado = /(?:"(?:[^"\\\x60]|[\\\x60][\s\S])*(?:"|[\\\x60]?$)|'[^']*(?:'|$)|[\\\x60](?:[\s\S]|$)|[^\s;|&"'\\\x60])+/;
+const asignacionPrivada = new RegExp(/(?<![-\w./])((?:[A-Z_][A-Z0-9_]*|[A-Za-z_]*(?:token|key|secret|pass(?:word)?|auth|cred|clave|priv)[A-Za-z0-9_]*)\s*=\s*)/.source + valorPrivado.source, "g");
+const argumentoPrivado = new RegExp(/((?:--?(?:token|api[-_]?key|secret|password|pass|auth|clave|credential)|bearer)\s*[=:\s]\s*)/.source + valorPrivado.source, "gi");
 const redactarCmd = (s) =>
   s
-    .replace(/(?<![-\w./])((?:[A-Z_][A-Z0-9_]*|[A-Za-z_]*(?:token|key|secret|pass(?:word)?|auth|cred|clave|priv)[A-Za-z0-9_]*)\s*=\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/g, (m, pre) =>
+    .replace(asignacionPrivada, (m, pre) =>
       /^(?:CARGO_(?:BUILD_)?TARGET_DIR|LABEL|X)\s*=$/.test(pre) ? m : `${pre}<redactado>`,
     )
-    .replace(/((?:--?(?:token|api[-_]?key|secret|password|pass|auth|clave|credential)|bearer)\s*[=:\s]\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/gi, "$1<redactado>")
+    .replace(argumentoPrivado, "$1<redactado>")
     .replace(/\b(sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|AKIA[A-Z0-9]{8,})\b/g, "<redactado>");
 
 /** d = JSON del hook. 2 = bloquear (motivo por stderr), 0 = pasa. Lo llama destructive-guard.mjs. */
@@ -1047,7 +1049,8 @@ export function revisar(d) {
     analizar(cmd, new Ctx(typeof d.cwd === "string" ? d.cwd : null));
   } catch (e) {
     if (e instanceof Bloqueo) {
-      escribirErr(`GUARD: docker/podman bloqueado: ${e.message}. ${EXPLICACION.replaceAll("{D}", nombreDueno())} | cmd: ${redactarCmd([...cmd].slice(0, 300).join(""))}`);
+      const corto = [...redactarCmd(cmd)].slice(0, 300).join("");
+      escribirErr(`GUARD: docker/podman bloqueado: ${e.message}. ${EXPLICACION.replaceAll("{D}", nombreDueno())} | cmd: ${corto}`);
       return 2;
     }
     escribirErr(`docker-guard: error interno (deja pasar):\n${e?.stack ?? e}\n`);
