@@ -7,17 +7,17 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 ## Resumen
 
 - **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
-  - pendiente: 87
-  - arreglado: 66
+  - pendiente: 80
+  - arreglado: 71
+  - refutado: 4
   - arreglado a medias: 3
-  - refutado: 2
 - **Ideas: 102**.
 
 | Área | Bugs | Arreglados | Pendientes |
 |---|---|---|---|
 | Barra lateral y datos | 18 | 17 | 0 |
 | Debate y revisión de planes | 14 | 0 | 14 |
-| El hilo: la caja y el líder en la ventana | 14 | 0 | 14 |
+| El hilo: la caja y el líder en la ventana | 14 | 5 | 7 |
 | Hooks y motor | 16 | 5 | 11 |
 | Núcleo y canales | 14 | 3 | 10 |
 | El CLI de `pa` | 15 | 0 | 15 |
@@ -158,17 +158,17 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 
 ### El hilo: la caja y el líder en la ventana
 
-**B033 · El efecto de `modeloServidor` pisa lo que la persona eligió después** (`HILO-LIDER-1`, severidad media) · **PENDIENTE**
+**B033 · El efecto de `modeloServidor` pisa lo que la persona eligió después** (`HILO-LIDER-1`, severidad media) · **ARREGLADO**
 - Qué pasa: Si la lista del servidor llega con un modelo nuevo justo después de que la persona eligió otro (o otro esfuerzo) en la caja, la caja vuelve al modelo del servidor. La elección se pierde, y el efecto de la línea 476 manda el valor pisado a la cola, así que el main también se queda con el viejo.
 - Dónde: `app/src/hilo/Lider.tsx` líneas 457-466 (efecto de `modeloServidor`)
 - Arreglo: seguir al servidor solo si la caja seguía igual al valor anterior del servidor: `setModelo((m) => (m === vistoAntes ? modeloServidor : m))`, y lo mismo con el esfuerzo. Test: una función pura `seguirServidor(caja, anterior, nuevo)`.
 
-**B034 · «Seguir con otro modelo» y «Revisar con otro modelo» pierden la fila resaltada cuando el padre se repinta** (`HILO-LIDER-2`, severidad media) · **PENDIENTE**
+**B034 · «Seguir con otro modelo» y «Revisar con otro modelo» pierden la fila resaltada cuando el padre se repinta** (`HILO-LIDER-2`, severidad media) · **ARREGLADO**
 - Qué pasa: Con el diálogo de revisión abierto, cada repintado de `ChatLider` hace que la fila marcada con las flechas vuelva a la preferida. Además se vuelve a llamar a `fuente.cuentas()`.
 - Dónde: `app/src/hilo/Lider.tsx` líneas 2272-2278 (`PedidoPermiso`) y `app/src/hilo/SeguirCon.tsx` líneas 89-96 y 102-105
 - Arreglo: `useMemo` de `opciones` por `[revisores, tablaModelos]` y `useCallback` para `esfuerzos` en `PedidoPermiso`. En `SeguirCon`, resetear la resaltada solo si cambia la lista de ids o la búsqueda, no la identidad de `filas`.
 
-**B035 · Tras «Compactar y seguir» desde la caché vencida se borra lo que la persona escribió mientras tanto** (`HILO-LIDER-3`, severidad media) · **PENDIENTE**
+**B035 · Tras «Compactar y seguir» desde la caché vencida se borra lo que la persona escribió mientras tanto** (`HILO-LIDER-3`, severidad media) · **ARREGLADO**
 - Qué pasa: El mensaje queda en la caja mientras compacta, y la caja sigue editable porque `enviando` es false. Si la persona lo corrige o escribe otra cosa, al terminar se manda el texto viejo `pend.crudo` y `salir` hace `setTexto("")`, así que los cambios se pierden.
 - Dónde: `app/src/hilo/Lider.tsx` líneas 1406-1410 (efecto de `compactoCache`) y 1149 (`salir`)
 - Arreglo: poner la caja en solo lectura mientras `compactoCache` esté activo (`readOnly={enviando || !!compactoCache}`), o mandar `texto` actual si difiere. Test: `siguienteCambio`/efecto con un texto cambiado.
@@ -198,7 +198,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/src/hilo/Lider.tsx` líneas 1006-1022 (`veredictoCache`); `app/src/hilo/contexto-logica.ts` líneas 43-44
 - Arreglo: si `pag` es null, esperar a la lectura o decidir con `l.usage` si existe. Test: `decidirCache` con tokens desconocidos.
 
-**B041 · El espejo de la cola descarta el error cuando la lista queda vacía** (`HILO-LIDER-9`, severidad baja) · **PENDIENTE**
+**B041 · El espejo de la cola descarta el error cuando la lista queda vacía** (`HILO-LIDER-9`, severidad baja) · **ARREGLADO**
 - Qué pasa: Un aviso con `error` y sin items en `lista` ni `camino` borra el estado del líder, y el motivo del fallo se pierde.
 - Dónde: `app/src/hilo/cola.ts` líneas 26-30 (`poner`)
 - Arreglo: conservar la entrada si `a.error`, o documentar que nunca ocurre. Test en `tests/` del espejo.
@@ -208,7 +208,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/src/hilo/cache-eleccion.ts` líneas 11-22
 - Arreglo: `.catch(() => { leido = false; })`.
 
-**B043 · «Compactar» del panel de contexto puede quedar trabado en «compactando» para siempre** (`HILO-LIDER-11`, severidad baja) · **PENDIENTE**
+**B043 · «Compactar» del panel de contexto puede quedar trabado en «compactando» para siempre** (`HILO-LIDER-11`, severidad baja) · **REFUTADO**
 - Qué pasa: Si la marca de `useCompactando` nunca se baja (se cae el hook, o el proceso muere a mitad), la fase queda en `compactando`. `puede` es false (`fase === "reposo"`) y el botón no vuelve.
 - Dónde: `app/src/hilo/compactar.ts` líneas 29 y 55-64
 - Arreglo: un tope (por ejemplo 15 min) que vuelva a `reposo` con una nota de error.
@@ -218,12 +218,12 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/src/hilo/Lider.tsx` línea 2181
 - Arreglo: en el fallo, filtrar `!m.sinConectar` y mostrar un aviso de que no se pudo leer la lista.
 
-**B045 · El aviso de «cerca del límite» confunde 1 % con 100 %** (`HILO-LIDER-13`, severidad baja) · **PENDIENTE**
+**B045 · El aviso de «cerca del límite» confunde 1 % con 100 %** (`HILO-LIDER-13`, severidad baja) · **REFUTADO**
 - Qué pasa: `uso === 1` se muestra como 100 %, aunque venga como «1 %». Con `uso` = 0,5 o 50 se interpreta bien, pero el valor 1 es ambiguo.
 - Dónde: `app/src/hilo/Hace.tsx` línea 78 (`textoAviso`, clase `limite`)
 - Arreglo: normalizar la escala en el main para que siempre llegue 0-1, o 0-100, y quitar la heurística.
 
-**B046 · Textos desparejos entre español e inglés** (`HILO-LIDER-14`, severidad baja) · **PENDIENTE**
+**B046 · Textos desparejos entre español e inglés** (`HILO-LIDER-14`, severidad baja) · **ARREGLADO**
 - Qué pasa: En español dice «{pct} %» y en inglés «{pct}%». En inglés el mismo concepto sale como «lead» en `lider.nuevo` y como «leader» en `lider.atFallo` y en `ctxp.*`. Las variables coinciden, así que no rompe nada.
 - Dónde: `app/src/i18n/es.ts` líneas 1682 y 1722, y `app/src/i18n/en.ts` líneas 1694 y 1734 (`ctxp.pctVentana`, `ctxp.mapaBloque`); `en.ts` línea 101 contra 1163 (`lider.nuevo` y `lider.atFallo`)
 - Arreglo: unificar el espaciado y elegir «lead» o «leader» en todo `en.ts`.
