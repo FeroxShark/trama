@@ -27,6 +27,7 @@ test("el chip del modelo dice su nombre corto, nunca una letra suelta", () => {
   assert.equal(modeloCorto("gemini-4-argon"), "Argon 4");
   assert.equal(modeloCorto("opencode:opencode/deepseek-v4.1-flash-free"), "Deepseek V4.1");
   assert.equal(modeloCorto("agy:claude-opus-5-5"), "Opus 5.5");
+  assert.equal(modeloCorto("codex:gpt-6.1-sol-high"), "GPT-6.1 Sol");
   assert.equal(modeloCorto(""), null);
   assert.equal(modeloCorto(null), null);
 });
@@ -69,7 +70,23 @@ test("el chip gris dice familia y esfuerzo («Sonnet high»); angosto, la inicia
   assert.equal(chipModeloTip(sin), "Modelo: Opus 5.5.");
   // Otros motores: el esfuerzo del id manda; `off` de un local no se muestra.
   assert.equal(chipModelo("gemini-3.8-flash-low", null)!.largo, "Flash low");
+  assert.equal(chipModelo("gemini-4-argon-high", null)!.largo, "Argon high");
+  assert.equal(chipModelo("gemini-4-argon-high", null)!.modelo, "Argon 4");
   assert.equal(chipModelo("modelo-local-ejemplo", "off")!.largo, "Modelo");
   assert.equal(chipModelo("", "high"), null);
   assert.equal(chipModelo(null, null), null);
+});
+
+test("el chip de Codex muestra apodo, versión y esfuerzo, con o sin prefijo", () => {
+  const esperado = { familia: "otro", largo: "Sol 6.2 high", corto: "S high", nombre: "Sol 6.2", nivel: "high", modelo: "GPT-6.2 Sol" };
+  for (const effort of [null, "high", "", "-"]) {
+    assert.deepEqual(chipModelo("codex:gpt-6.2-sol-high", effort), esperado);
+  }
+  assert.deepEqual(chipModelo("gpt-6.2-sol-high", null), esperado);
+  assert.deepEqual(chipModelo("gpt-6.2-sol", "high"), esperado);
+  const terra = chipModelo("codex:gpt-6.1-terra-medium", null)!;
+  assert.equal(terra.largo, "Terra 6.1 medium");
+  assert.equal(terra.modelo, "GPT-6.1 Terra");
+  assert.equal(chipModelo("codex:gpt-reserve", null)!.largo, "GPT reserve");
+  assert.equal(chipModelo("codex:gpt-6.2", null)!.largo, "GPT-6.2");
 });

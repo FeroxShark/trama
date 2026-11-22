@@ -3,7 +3,7 @@
 // entera en el tooltip. Sin React: lo prueban los tests.
 import type { Hilo } from "../datos/contrato.ts";
 import { t } from "../i18n/index.ts";
-import { esfuerzoDe, nivelDe } from "./esfuerzo.ts";
+import { esfuerzoDe, nivelDe, partirGptId } from "./esfuerzo.ts";
 
 import { familiaDe, type Familia } from "./marca-familia.ts";
 
@@ -12,14 +12,30 @@ export { familiaDe, type Familia };
 /** El nombre corto de cada familia: va en la fila tal cual (nada de letras sueltas que no se entienden). */
 export const CORTO: Record<Exclude<Familia, "otro">, string> = { opus: "Opus", sonnet: "Sonnet", fable: "Fable", haiku: "Haiku" };
 
+function rotulosGpt(id: string | null | undefined): { nombre: string; modelo: string } | null {
+  const gpt = partirGptId(id);
+  if (!gpt) return null;
+  const versionado = /^gpt-(\d+(?:\.\d+)*)(?:-(.+))?$/.exec(gpt.slug);
+  if (!versionado) {
+    const nombre = `GPT${gpt.slug.slice(3).replaceAll("-", " ")}`;
+    return { nombre, modelo: nombre };
+  }
+  const [, version, apodo] = versionado;
+  const modelo = `GPT-${version}`;
+  if (!apodo) return { nombre: modelo, modelo };
+  const variante = apodo[0].toUpperCase() + apodo.slice(1).replaceAll("-", " ");
+  return { nombre: `${variante} ${version}`, modelo: `${modelo} ${variante}` };
+}
+
 /**
- * Lo que dice el chip del modelo en la fila: la familia con su versión ("Opus 5.5", "Hydrogen 4") o, si no
- * es de la casa, las dos primeras palabras del id ("deepseek-v4.1-flash-free" → "Deepseek V4.1"). `null`
- * sin modelo: no hay chip.
+ * El modelo con su versión para el historial y el tooltip («Opus 5.5», «Hydrogen 4», «GPT-6.2 Sol»).
+ * Para los demás, las dos primeras palabras del id. `null` sin modelo.
  */
 export function modeloCorto(modelo: string | null | undefined): string | null {
   const id = modelo?.trim().toLowerCase().replace(/\[.*\]$/, "");
   if (!id) return null;
+  const gpt = rotulosGpt(id);
+  if (gpt) return gpt.modelo;
   const f = familiaDe(id);
   // Claude: la familia y su versión ("claude-opus-5-5" → "Opus 5.5"), así se distingue de otra generación.
   if (f !== "otro") {
@@ -62,14 +78,15 @@ export type ChipModelo = { familia: Familia; largo: string; corto: string; nombr
 
 /**
  * Qué dice el chip de modelo y esfuerzo de un worker o de un líder. `null` sin modelo (no se inventa). Claude: la familia
- * («Sonnet», «Opus»); otro motor: la primera palabra de su nombre corto («Hydrogen», «Deepseek»). El esfuerzo sale de `nivelDe`
+ * («Sonnet», «Opus»); Codex: apodo y versión («Sol 6.2»); otros motores: la primera palabra («Hydrogen», «Deepseek»). El esfuerzo sale de `nivelDe`
  * (el id manda); `off` de los locales no se muestra. Sin esfuerzo no hay inicial suelta: el nombre entero. La versión completa va en el tooltip (`modelo`).
  */
 export function chipModelo(modelo: string | null | undefined, effort: string | null | undefined): ChipModelo | null {
-  const m = modeloCorto(modelo);
+  const gpt = rotulosGpt(modelo);
+  const m = gpt?.modelo ?? modeloCorto(modelo);
   if (!m) return null;
-  const f = familiaDe(modelo);
-  const nombre = f !== "otro" ? CORTO[f] : m.split(" ")[0];
+  const f = gpt ? "otro" : familiaDe(modelo);
+  const nombre = gpt?.nombre ?? (f !== "otro" ? CORTO[f] : m.split(" ")[0]);
   const n = nivelDe(modelo, effort);
   const nivel = n && n !== "off" ? n : null;
   return { familia: f, largo: nivel ? `${nombre} ${nivel}` : nombre, corto: nivel ? `${nombre[0].toUpperCase()} ${nivel}` : nombre, nombre, nivel, modelo: m };

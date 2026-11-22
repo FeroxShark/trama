@@ -1,6 +1,6 @@
 // El esfuerzo de un worker para el chip de la fila: de dónde sale, en qué escala cae y cuántas barritas llena.
 // Sin JSX: lo prueban los tests (tests/esfuerzo.test.ts).
-import { effortsDe, partirGeminiId } from "../hilo/modelos.ts";
+import { EFFORTS_CODEX, effortsDe, partirGeminiId } from "../hilo/modelos.ts";
 
 export type EsfuerzoFila = {
   /** El nivel, en minúscula ("high"). */
@@ -17,16 +17,25 @@ const limpio = (e: string | null | undefined): string | null => {
   return v && v !== "-" ? v : null;
 };
 
+/** Separa el esfuerzo del id de GPT que guardan los workers y los líderes de Codex. */
+export function partirGptId(modelo: string | null | undefined): { slug: string; nivel: string | null } | null {
+  const id = modelo?.trim().toLowerCase().replace(/\[.*\]$/, "") ?? "";
+  const slug = /^(?:codex:)?(gpt(?:-[\w.-]+)?)$/.exec(id)?.[1];
+  if (!slug) return null;
+  const nivel = EFFORTS_CODEX.find((n) => slug.endsWith(`-${n}`)) ?? null;
+  return { slug: nivel ? slug.slice(0, -nivel.length - 1) : slug, nivel };
+}
+
 /**
- * El nivel de un worker: el que trae el id del modelo (Gemini/agy: `gemini-4-hydrogen-high`; OpenCode con la variante pegada al final) o,
- * si no, el campo `effort` (Claude). El id manda: es lo que de verdad se lanzó. `null` si no se sabe.
+ * El nivel de un worker: el que trae el id del modelo (Gemini/agy, Codex u OpenCode) o el campo `effort`.
+ * El id manda: es lo que de verdad se lanzó. `null` si no se sabe.
  */
 export function nivelDe(modelo: string | null | undefined, effort: string | null | undefined): string | null {
   const id = modelo?.trim().toLowerCase().replace(/\[.*\]$/, "") ?? "";
   const g = partirGeminiId(id)[1];
   if (g) return g;
   const op = /^opencode:.+-(minimal|low|medium|high|xhigh|max)$/.exec(id)?.[1];
-  return op ?? limpio(effort);
+  return op ?? partirGptId(id)?.nivel ?? limpio(effort);
 }
 
 /**
