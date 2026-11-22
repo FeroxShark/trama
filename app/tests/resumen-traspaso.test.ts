@@ -86,3 +86,25 @@ test("resumenDeTranscript: lee el archivo con el lector incremental; sin archivo
   writeFileSync(path.join(d, "vacio.jsonl"), "");
   assert.equal(await resumenDeTranscript(path.join(d, "vacio.jsonl")), null);
 });
+
+test("PUENTES-14: una rama descartada al rebobinar y el error sintético de la API no entran en el resumen", () => {
+  const r = (o: object) => JSON.stringify(o);
+  const lineas = [
+    r({ type: "user", uuid: "u1", message: { role: "user", content: "Arreglá login" } }),
+    r({ type: "assistant", uuid: "a1", parentUuid: "u1", message: { role: "assistant", content: [uso("Edit", { file_path: "rama-borrada.ts" }), texto("Decisión: usar foo.ts")] } }),
+    r({ type: "user", uuid: "u2", parentUuid: "u1", message: { role: "user", content: "En realidad arreglá logout" } }),
+    r({ type: "assistant", uuid: "a2", parentUuid: "u2", message: { role: "assistant", content: [uso("Edit", { file_path: "logout.ts" }), texto("Listo logout.")] } }),
+    r({ type: "assistant", uuid: "a3", parentUuid: "a2", isApiErrorMessage: true, message: { role: "assistant", model: "<synthetic>", content: [texto("API Error: 529 Overloaded")] } }),
+  ];
+  const d = extraerDatos(lineas);
+  assert.deepEqual(d.archivos, ["logout.ts"]);
+  assert.deepEqual(d.decisiones, []);
+  assert.equal(d.estado, "Listo logout.");
+  assert.doesNotMatch(resumenTraspaso(lineas), /API Error|rama-borrada/);
+  // Sin ramas se lee todo, aunque tengan uuid.
+  const lineal = [
+    r({ type: "user", uuid: "u1", message: { role: "user", content: "Hacé X" } }),
+    r({ type: "assistant", uuid: "a1", parentUuid: "u1", message: { role: "assistant", content: [uso("Edit", { file_path: "x.ts" })] } }),
+  ];
+  assert.deepEqual(extraerDatos(lineal).archivos, ["x.ts"]);
+});

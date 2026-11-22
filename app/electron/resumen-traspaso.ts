@@ -30,7 +30,7 @@ const RUIDO = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
 const NO_ES_PEDIDO = /^(<command-|<local-command|<task-notification|Caveat:|\[Request interrupted)/;
 
 type Bloque = { type?: string; text?: unknown; name?: unknown; input?: unknown };
-type Reg = { type?: string; isSidechain?: boolean; isMeta?: boolean; message?: { content?: unknown } };
+type Reg = { type?: string; uuid?: string; parentUuid?: string | null; isSidechain?: boolean; isMeta?: boolean; isApiErrorMessage?: boolean; message?: { model?: unknown; content?: unknown } };
 
 function textoDe(c: unknown): string {
   if (typeof c === "string") return c;
@@ -62,6 +62,26 @@ export type Datos = {
   sigue: string[];
 };
 
+/**
+ * Si el transcript tiene ramas (alguien rebobinó y siguió por otro lado: un `uuid` con más de un hijo), los `uuid` de la rama viva: la que baja
+ * desde el último mensaje hasta la raíz. `null` si no hay ramas (se lee todo, como siempre).
+ */
+function ramaViva(regs: Array<Reg | null>): Set<string> | null {
+  const padre = new Map<string, string | null>();
+  const hijos = new Map<string, number>();
+  let hoja: string | null = null;
+  for (const r of regs) {
+    if (!r || r.isSidechain || typeof r.uuid !== "string" || (r.type !== "user" && r.type !== "assistant")) continue;
+    padre.set(r.uuid, typeof r.parentUuid === "string" ? r.parentUuid : null);
+    if (typeof r.parentUuid === "string") hijos.set(r.parentUuid, (hijos.get(r.parentUuid) ?? 0) + 1);
+    hoja = r.uuid;
+  }
+  if (!hoja || ![...hijos.values()].some((n) => n > 1)) return null;
+  const viva = new Set<string>();
+  for (let u: string | null | undefined = hoja; u && !viva.has(u); u = padre.get(u)) viva.add(u);
+  return viva;
+}
+
 /** Lo que sale del transcript, sin darle formato. Exportada para las pruebas. */
 export function extraerDatos(lineas: string[]): Datos {
   const pedidos: string[] = [];
@@ -72,14 +92,19 @@ export function extraerDatos(lineas: string[]): Datos {
   let todos: Todo[] | null = null;
   let ultimoTexto = "";
   let ultimaAccion = "";
-  for (const crudo of lineas) {
-    let r: Reg;
+  const regs = lineas.map((crudo): Reg | null => {
     try {
-      r = JSON.parse(crudo) as Reg;
+      return JSON.parse(crudo) as Reg;
     } catch {
-      continue;
+      return null;
     }
+  });
+  const viva = ramaViva(regs);
+  for (const r of regs) {
     if (!r || typeof r !== "object" || r.isSidechain) continue;
+    if (viva && typeof r.uuid === "string" && !viva.has(r.uuid)) continue; // una rama que la persona descartó al rebobinar
+    // El error sintético de la API («API Error: 529 Overloaded») no es lo que dijo el modelo ni el estado del trabajo.
+    if (r.isApiErrorMessage || r.message?.model === "<synthetic>") continue;
     const c = r.message?.content;
     if (r.type === "user") {
       if (r.isMeta) continue;
