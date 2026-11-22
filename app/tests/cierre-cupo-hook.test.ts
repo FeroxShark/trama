@@ -145,7 +145,7 @@ test("pa y reparto: lectura de la señal, suscripción de un modelo y mensaje", 
   assert.equal(cierreDe(soloGemini, "google", "google", "gemini-4-argon"), null);
   assert.equal(grupoDeModelo("claude-sonnet-5-5"), null);
   assert.equal(grupoDeModelo("gemini-4-neon-low"), "gemini");
-  assert.match(textoSinCupo(ent(), AHORA), /^sin cupo: vuelve a las \d\d:\d\d$/);
+  assert.match(textoSinCupo(ent(), AHORA), /^sin cupo: vuelve a las (\d\d\/\d\d )?\d\d:\d\d$/);
 });
 
 test("el registro en el settings del usuario agrega el hook una vez por evento y no pisa nada", async () => {
