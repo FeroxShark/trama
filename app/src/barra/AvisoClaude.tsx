@@ -15,23 +15,12 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Avance } from "../ui/Avance";
 import { fuente, SIN_OCUPAR, type AvisoClaude as Aviso, type EstadoActTrama, type OcupacionTrama } from "../datos/fuente";
-import { yaEstrenada } from "./version-pagina";
+import { faseEfectiva, yaEstrenada, type FaseAct as Fase } from "./version-pagina";
 import { useFoco } from "../foco";
 import { t } from "../i18n";
 import { enOtros, Fijo, Reserva } from "../i18n/Fijo";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
-
-/** Qué pasa con Actualizar. */
-type Fase =
-  | { tipo: "nada" }
-  | { tipo: "actualizando" }
-  | { tipo: "hecho"; version: string; abiertos: number }
-  | { tipo: "error"; texto: string }
-  | { tipo: "esperando" }
-  | { tipo: "instalada"; version: string }
-  | { tipo: "reiniciando"; version: string }
-  | { tipo: "reiniciado"; version: string; reiniciados: number; ocupados: number };
 
 /** Los textos de cada uno (las claves literales: `t` las comprueba contra el diccionario). */
 const K = {
@@ -75,17 +64,7 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
   const [act, setAct] = useState<EstadoActTrama>({ fase: "nada" });
   const [ocup, setOcup] = useState<OcupacionTrama>(SIN_OCUPAR);
   const [confirmando, setConfirmando] = useState(false);
-  const faseEf: Fase = !trama
-    ? fase
-    : act.fase === "esperando"
-      ? { tipo: "esperando" }
-      : act.fase === "instalando"
-        ? { tipo: "actualizando" }
-        : act.fase === "hecho" && !yaEstrenada(act.version)
-          ? { tipo: "instalada", version: act.version }
-          : act.fase === "error"
-            ? { tipo: "error", texto: act.error }
-            : fase;
+  const faseEf: Fase = faseEfectiva(trama, fase, act);
   // La ventana ya estrenó la instalada: el «hecho» del main se limpia solo, sin pedir otro reinicio.
   const estrenada = trama && act.fase === "hecho" && yaEstrenada(act.version);
   useEffect(() => {
@@ -140,6 +119,7 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
     void fuente.estadoActTrama().then((e) => vivo && setAct(e));
     const soltar = fuente.alCambiarActTrama((e) => {
       setAct(e);
+      setFase({ tipo: "nada" });
       // Que termine la instalación se avisa solo: el globito se abre.
       if (e.fase === "hecho") setAbierto(true);
     });
@@ -202,10 +182,13 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
   const pedirTrama = (modo: "ya" | "esperar") => {
     setConfirmando(false);
     setFase({ tipo: "actualizando" });
-    void fuente.actualizarTrama(modo).then((r) => {
-      setFase(r.ok ? { tipo: "nada" } : { tipo: "error", texto: r.error });
-      if (r.ok) void fuente.estadoActTrama().then(setAct);
-    });
+    void fuente.actualizarTrama(modo).then(
+      (r) => {
+        setFase(r.ok ? { tipo: "nada" } : { tipo: "error", texto: r.error });
+        if (r.ok) void fuente.estadoActTrama().then(setAct, () => {});
+      },
+      (e) => setFase({ tipo: "error", texto: e instanceof Error ? e.message : String(e) }),
+    );
   };
   const reiniciarVentana = () => {
     fuente.limpiarTrama();
@@ -214,13 +197,17 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
   const actualizar = () => {
     if (trama) return pedirTrama("ya");
     setFase({ tipo: "actualizando" });
-    void (agy ? fuente.actualizarAgy() : fuente.actualizarClaude()).then((r) =>
-      setFase(r.ok ? { tipo: "hecho", version: r.version, abiertos: r.abiertos } : { tipo: "error", texto: r.error }),
+    void (agy ? fuente.actualizarAgy() : fuente.actualizarClaude()).then(
+      (r) => setFase(r.ok ? { tipo: "hecho", version: r.version, abiertos: r.abiertos } : { tipo: "error", texto: r.error }),
+      (e) => setFase({ tipo: "error", texto: e instanceof Error ? e.message : String(e) }),
     );
   };
   const reiniciar = (version: string) => {
     setFase({ tipo: "reiniciando", version });
-    void fuente.reiniciarLideres().then((r) => setFase({ tipo: "reiniciado", version, ...r }));
+    void fuente.reiniciarLideres().then(
+      (r) => setFase({ tipo: "reiniciado", version, ...r }),
+      (e) => setFase({ tipo: "error", texto: e instanceof Error ? e.message : String(e) }),
+    );
   };
 
   return (
