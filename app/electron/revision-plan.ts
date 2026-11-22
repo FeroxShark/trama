@@ -17,7 +17,7 @@ import { errorT } from "./errores.ts";
 import { entornoLider } from "./lider-arma.ts";
 import { claseDeModelo, idAgy, modeloAgy, partirGemini } from "./modelos-config.ts";
 import { reglaDeExcluir, familiaClaude } from "./reparto-claude.ts";
-import { matarArbol } from "./procesos.ts";
+import { hijoEnGrupo, matarArbol } from "./procesos.ts";
 import { LectorAgy, LectorClaude, LectorCodex, type Avance } from "./revision-flujo.ts";
 import { mensajeParaLider, parsearRevision, promptRevisor, sinComillas, type ArchivoAdjunto, type RevisionVista } from "./revision-plan-texto.ts";
 
@@ -179,10 +179,10 @@ type Salida = { rc: number | null; out: string; err: string };
  * Corre un proceso, le pasa `stdin`, junta la salida y le pasa cada línea de stdout a `linea` apenas llega. Sólo rechaza si no
  * se pudo lanzar (ENOENT: texto traducido), si se cortó con `señal` o si pasó el tiempo; un código ≠ 0 se devuelve (lo lee quien llama).
  */
-function ejecutar(file: string, args: string[], opc: { cwd: string; env: NodeJS.ProcessEnv; stdin: string; verbatim: boolean; espera: number; señal: AbortSignal; linea?: (l: string) => void; quien: string }): Promise<Salida> {
+export function ejecutar(file: string, args: string[], opc: { cwd: string; env: NodeJS.ProcessEnv; stdin: string; verbatim: boolean; espera: number; señal: AbortSignal; linea?: (l: string) => void; quien: string; matarArbol?: typeof matarArbol; graciaMs?: number }): Promise<Salida> {
   return new Promise((ok, no) => {
     if (opc.señal.aborted) return no(errorT("main.revisionCancelada"));
-    const p = spawn(file, args, { cwd: opc.cwd, env: opc.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, windowsVerbatimArguments: opc.verbatim });
+    const p = spawn(file, args, { cwd: opc.cwd, env: opc.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, windowsVerbatimArguments: opc.verbatim, detached: hijoEnGrupo() });
     let out = "";
     let err = "";
     let resto = "";
@@ -194,9 +194,19 @@ function ejecutar(file: string, args: string[], opc: { cwd: string; env: NodeJS.
       opc.señal.removeEventListener("abort", cortar);
       f();
     };
+    const matarTodo = opc.matarArbol ?? matarArbol;
+    let duro: ReturnType<typeof setTimeout> | null = null;
     const matar = () => {
       p.kill();
-      matarArbol(p.pid);
+      matarTodo(p.pid);
+      // Si ignora el TERM (o dejó hijos vivos), a los pocos segundos va el KILL a todo el grupo: nada queda corriendo ni gastando cupo.
+      if (!duro) {
+        duro = setTimeout(() => {
+          p.kill("SIGKILL");
+          matarTodo(p.pid, "SIGKILL");
+        }, opc.graciaMs ?? 5000);
+        duro.unref?.();
+      }
     };
     const t = setTimeout(() => {
       matar();

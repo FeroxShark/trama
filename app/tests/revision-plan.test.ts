@@ -8,8 +8,9 @@ import path from "node:path";
 import { crearCola, type Encolado } from "../electron/cola.ts";
 import { crearModificador, crearTrabajos, type Pendiente } from "../electron/revision-trabajo.ts";
 import { LectorAgy, LectorClaude, LectorCodex } from "../electron/revision-flujo.ts";
-import { codexListo, correrRevisor, falloDeRevisor, type RevisionEstado } from "../electron/revision-plan.ts";
+import { codexListo, correrRevisor, ejecutar, falloDeRevisor, type RevisionEstado } from "../electron/revision-plan.ts";
 import { esperarHasta } from "./esperar.ts";
+import { matarArbol } from "../electron/procesos.ts";
 import { esfuerzosDeRevisor } from "../src/hilo/esfuerzo-revisor.ts";
 import { effortApagado, effortsPermitidosDe, esfuerzosRevisor, ADJUNTO_BYTES, ADJUNTOS_MAX, ADJUNTOS_TOTAL, archivosDelPlan, rutasDelPlan, leerMensajeRevision, mensajeParaLider, parsearRevision, promptRevisor, revisarPlan, revisoresPermitidos, respuestaDeAgy, type DepsRevision } from "../electron/revision-plan.ts";
 
@@ -412,4 +413,34 @@ test("el archivo de pendientes se cambia de a una modificación: dos a la vez no
   const p = (id: string): Pendiente => ({ id, sid: id, planId: "x", modelo: "m", nombre: "M", mensaje: "t", inicio: 0 });
   await Promise.all([mod((l) => [...l, p("a")]), mod((l) => [...l, p("b")]), mod((l) => l.filter((x) => x.id !== "a"))]);
   assert.deepEqual(disco.map((x) => x.id), ["b"]);
+});
+
+test("cancelar al revisor: sale en su propio grupo y, si ignora el TERM, recibe KILL a los pocos segundos (B021)", noWin, async () => {
+  const corte = new AbortController();
+  const visto: { pid: number | undefined; senal: string; grupo: boolean }[] = [];
+  const hijo = ejecutar(process.execPath, ["-e", "process.on('SIGTERM',()=>{});console.log('listo');setInterval(()=>{},1000)"], {
+    cwd: os.tmpdir(), env: process.env, stdin: "", verbatim: false, espera: 60_000, señal: corte.signal, quien: "x", graciaMs: 20,
+    linea: (l) => l === "listo" && corte.abort(),
+    matarArbol: (pid, senal = "SIGTERM") => {
+      let grupo = false;
+      try {
+        process.kill(-pid!, 0); // si el hijo es líder de su grupo, el grupo existe
+        grupo = true;
+      } catch {}
+      visto.push({ pid, senal, grupo });
+      matarArbol(pid, senal);
+    },
+  });
+  await assert.rejects(hijo, /revisionCancelada/);
+  await esperarHasta(() => visto.some((v) => v.senal === "SIGKILL"));
+  assert.ok(visto[0]!.grupo, "el hijo sale detached: kill(-pid) llega a todo su grupo");
+  const pid = visto[0]!.pid!;
+  await esperarHasta(() => {
+    try {
+      process.kill(pid, 0);
+      return false;
+    } catch {
+      return true;
+    }
+  });
 });
