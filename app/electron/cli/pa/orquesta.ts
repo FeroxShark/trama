@@ -6,9 +6,10 @@
 // Todos los motores: claude y ollama (el mismo claude CLI) por lanzarClaude; agy, codex y dsh/opencode por `ejecutarOtro`
 // (otros-motores.ts). Esperar cupo (sin_cupo=esperar) y relanzar por falta de cupo con reparto: ver cupo.ts.
 import { randomUUID } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { escribirAtomico } from "../base/archivo.ts";
+import { enlazarArchivo } from "../base/enlaces.ts";
 import { correr } from "../base/proc.ts";
 import { esEjecutable } from "../base/buscar.ts";
 import { entornoCmd, paraLanzar, resolverClaude } from "../../binario.ts";
@@ -427,8 +428,8 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       for (const f of transcriptsDe(pa, sid)) {
         if (lstatSync(f).isSymbolicLink()) continue;
         try {
-          mkdirSync(path.dirname(transcript), { recursive: true });
-          symlinkSync(f, transcript);
+          // En Windows un symlink de archivo pide privilegios (`EPERM`) y la sesión se perdía callada: ahí va hardlink o copia.
+          enlazarArchivo(f, transcript, { plat: pa.plat });
           io.err(`pa: el transcript de la sesión vivía en ${path.dirname(f)}; lo enlacé para retomarla desde ${t.rutaTrabajo}.\n`);
         } catch {
           /* `ln -s … 2>/dev/null` */
