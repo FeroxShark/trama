@@ -18,8 +18,13 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-servidor-"));
 const vivos = new Set<ChildProcess>();
 after(() => {
   for (const p of vivos) p.kill("SIGKILL");
-  // un proceso recién matado puede seguir escribiendo en tmp un instante: ENOTEMPTY al borrar (CI, 2026-11-22); se reintenta
-  rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  // un proceso recién matado (o un hijo suelto del motor) puede seguir escribiendo en tmp: ENOTEMPTY al borrar (CI, 2026-11-22, dos veces
+  // aun con 10 reintentos). Borrar la carpeta temporal es limpieza, no lo que se prueba: si no se puede, queda en /tmp y se avisa.
+  try {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  } catch (e) {
+    console.error(`# no se pudo borrar ${tmp}: ${(e as Error).message}`);
+  }
 });
 
 // --- un checkout falso -----------------------------------------------------------------------------
