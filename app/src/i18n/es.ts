@@ -1116,6 +1116,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "main.reporteVacio": "Falta contar qué pasó.",
   "main.reporteSinRed": "No se pudo conectar. Revisá la conexión a internet y probá de nuevo.",
   "main.reporteMuchos": "Llegaron muchos reportes en poco tiempo. Probá de nuevo en un minuto.",
+  "main.reporteFallo": "No se pudo armar el reporte. Probá de nuevo.",
   "main.reporteRechazado": "El receptor no lo aceptó (error {estado}). Probá de nuevo o usá «Abrir en GitHub».",
   "limpiar.titulo": "Limpiar chats",
   "limpiar.tituloCarpeta": "Limpiar chats de {carpeta}",

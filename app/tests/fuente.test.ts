@@ -35,7 +35,7 @@ Object.assign(globalThis, {
   window: { hilos: { hilos: { leer, guardados: async () => null, alCambiar: sinSoltar, alEvento: sinSoltar }, trama } },
 });
 
-const { fuente, planDiaValido } = await import("../src/datos/fuente.ts");
+const { fuente, planDiaValido, reporteValido } = await import("../src/datos/fuente.ts");
 const { recargarProyectos } = await import("../src/datos/proyectos.ts");
 const { aplicarUso } = await import("../src/barra/useUso.ts");
 const { altoFila, olvidarAlto, ponerLista } = await import("../src/barra/ventana.ts");
@@ -129,4 +129,10 @@ test("altoFila: consulta .w:not(.sub):not(.pliegue) para no cachear el alto de u
   } finally {
     (globalThis as { getComputedStyle?: unknown }).getComputedStyle = prevGetComputedStyle;
   }
+});
+
+test("reporteValido: una respuesta rara no muestra el error de «cuentas» (con su {rc} sin reemplazar)", () => {
+  for (const raro of [null, undefined, {}, { ok: false }, { ok: true, carpeta: 3 }, "x"]) assert.deepEqual(reporteValido(raro), { ok: false, error: "main.reporteFallo" });
+  assert.deepEqual(reporteValido({ ok: false, error: "EACCES" }), { ok: false, error: "EACCES" });
+  assert.doesNotMatch(t("main.reporteFallo"), /\{/);
 });

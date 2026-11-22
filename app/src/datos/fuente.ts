@@ -35,10 +35,10 @@ import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaForma
 
 /** Lo que vuelve de «Reportar un bug»: la carpeta escrita y la URL del issue, o el error. */
 export type ReporteArmado = { ok: true; carpeta: string; url: string } | { ok: false; error: string };
-const reporteValido = (x: unknown): ReporteArmado => {
+export const reporteValido = (x: unknown): ReporteArmado => {
   const o = x as { ok?: unknown; carpeta?: unknown; url?: unknown; error?: unknown } | null;
   if (o?.ok === true && typeof o.carpeta === "string" && typeof o.url === "string" && o.url.startsWith("https://github.com/")) return { ok: true, carpeta: o.carpeta, url: o.url };
-  return { ok: false, error: typeof o?.error === "string" && o.error ? o.error : "main.cuentasFallo" };
+  return { ok: false, error: typeof o?.error === "string" && o.error ? o.error : "main.reporteFallo" };
 };
 
 export type { EstadoPlanDia, ModoPlanDia };

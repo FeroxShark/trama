@@ -1127,6 +1127,7 @@ export const en = {
   "main.reporteVacio": "Say what happened first.",
   "main.reporteSinRed": "Couldn't connect. Check your internet connection and try again.",
   "main.reporteMuchos": "Too many reports arrived in a short time. Try again in a minute.",
+  "main.reporteFallo": "Couldn't build the report. Try again.",
   "main.reporteRechazado": "The receiver didn't accept it (error {estado}). Try again or use «Open on GitHub».",
   "limpiar.titulo": "Clean up chats",
   "limpiar.tituloCarpeta": "Clean up chats in {carpeta}",
