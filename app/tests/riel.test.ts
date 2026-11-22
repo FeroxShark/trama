@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { armarArbol, type Arbol, type Carpeta, type Item, type Rama } from "../src/barra/arbol.ts";
 import { aRiel, actualizarOrdenProyectos, atencionCarpeta, carpetaViva, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, filasCarpeta, segunLista } from "../src/barra/riel-logica.ts";
+import { ORDEN0, reordenar } from "../src/barra/orden.ts";
 import { bloquesMotores, cuentasClaude, estadoAnillo, lineasCuentas, marcaAnillo, nivelCupo, vueltaDe } from "../src/barra/cupos-riel-logica.ts";
 import { PALETA_RIEL, tonoRiel } from "../src/barra/logo-logica.ts";
 import { pintorHace } from "../src/tiempo.ts";
@@ -169,15 +170,30 @@ test("ordenAtencion, actualizarOrdenProyectos y segunLista: lo que pide atenció
   assert.deepEqual(segunLista([nueva, nada, pide], lista).map((c) => c.proyecto), ["pide", "nada", "nueva"]);
 
   // Congelada sin cambio de orden manual: conserva la foto anterior aunque llegue atención nueva en segundo plano.
-  const inicial = actualizarOrdenProyectos([], [nada, otra], false, false);
+  const inicial = actualizarOrdenProyectos([], [nada, otra], false, ORDEN0, ORDEN0);
   assert.deepEqual(inicial, ["nada", "otra"]);
-  const congelado = actualizarOrdenProyectos(inicial, [nada, pide, otra], true, false);
+  const congelado = actualizarOrdenProyectos(inicial, [nada, pide, otra], true, ORDEN0, ORDEN0);
   assert.deepEqual(congelado, ["nada", "otra"]);
 
   // Congelada pero con cambio de orden del usuario (arrastrar o Subir/Bajar dentro de .lista): actualiza la foto de inmediato.
-  const reordenado = actualizarOrdenProyectos(inicial, [otra, nada], true, true);
+  const orden = reordenar(ORDEN0, null, inicial, "otra", "nada", true)!;
+  const reordenado = actualizarOrdenProyectos(inicial, [otra, nada], true, ORDEN0, orden);
   assert.deepEqual(reordenado, ["otra", "nada"]);
   assert.deepEqual(segunLista([otra, nada], reordenado).map((c) => c.proyecto), ["otra", "nada"]);
+});
+
+test("reordenar líderes no adelanta un proyecto que falló con la lista congelada", () => {
+  const atlas = carpeta("atlas", [rama("a1", lider("a1", "atlas")), rama("a2", lider("a2", "atlas"))]);
+  const brote = carpeta("brote", [rama("s", null, [item(hilo({ proyecto: "brote", estado: "murio" }))])]);
+  const inicial = ["atlas", "brote"];
+  const nuevo = reordenar(ORDEN0, "atlas", ["a1", "a2"], "a2", "a1", true)!;
+  const desdeDisco = { ...nuevo, carpetas: [...nuevo.carpetas], modo: "recientes" as const, prioridad: true };
+
+  assert.deepEqual(actualizarOrdenProyectos(inicial, [atlas, brote], true, ORDEN0, nuevo), inicial);
+  assert.deepEqual(actualizarOrdenProyectos(inicial, [atlas, brote], true, nuevo, desdeDisco), inicial);
+  assert.deepEqual(actualizarOrdenProyectos(inicial, [atlas, brote], false, nuevo, nuevo), ["brote", "atlas"]);
+  assert.deepEqual(actualizarOrdenProyectos(inicial, [atlas, brote], true, nuevo, { ...nuevo, modo: "az" }), ["brote", "atlas"]);
+  assert.deepEqual(actualizarOrdenProyectos(inicial, [atlas, brote], true, { ...nuevo, prioridad: false }, nuevo), ["brote", "atlas"]);
 });
 
 test("partirResalte: sin mayúsculas ni tildes, y varias veces", () => {
