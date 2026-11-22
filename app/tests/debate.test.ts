@@ -301,3 +301,24 @@ test("cupoLibreDeModelo: con una sola ventana de Claude conocida usa esa; sin ni
   assert.equal(cupoLibreDeModelo("claude-fable-5-2", { ...base, claude: { cincoH: null, sieteD: 85 } }, 1000), 15);
   assert.equal(cupoLibreDeModelo("claude-fable-5-2", { ...base, claude: { cincoH: null, sieteD: null } }, 1000), null);
 });
+
+test("CTX-30: lo que entra por llamada con 3 modelos x 3 rondas no crece de la ronda 2 en adelante (la transcripción se acota por participante)", async () => {
+  // Plan grande (~15 mil tokens a 3,5 car./token), pedido de 1 000 y archivos de ~35 mil caracteres; cada modelo contesta «cambio» con un plan
+  // propio de 12 mil caracteres (planes distintos: no hay acuerdo y se juegan las 3 rondas).
+  const plan = "p".repeat(52_000);
+  const archivos = [{ ruta: "a.ts", texto: "a".repeat(35_000), cortado: false }];
+  const largo = (m: string, i: number) => turno("cambio", "razón ".repeat(40), `${m}${i} ` + "x".repeat(12_000));
+  const guion: Guion = Object.fromEntries(["a", "b", "c"].map((m) => [m, [1, 2, 3].map((i) => largo(m, i))]));
+  guion.a!.push(CONCLUSION);
+  const { d, hecho } = armar(guion, { pedidoOriginal: async () => "q".repeat(1000), archivos: async () => archivos });
+  const r = await iniciarDebate({ sid: "s", plan, participantes: [P("a"), P("b"), P("c")], rondas: 3 }, d).terminado;
+  assert.equal(r.motivo, "tope");
+  assert.equal(hecho.llamadas.length, 10);
+  const largos = hecho.llamadas.map((l) => l.prompt.length);
+  console.log(`CTX-30 caracteres por llamada: ${largos.join(" ")} (total ${largos.reduce((a, b) => a + b, 0)})`);
+  const base = plan.length + 1000 + 35_000;
+  for (const n of largos) assert.ok(n >= base, "toda llamada lleva plan, pedido y archivos (el revisor corre sin sesión)");
+  // Ronda 1: 3 llamadas (0-2); ronda 2: 3-5; ronda 3: 6-8; conclusión: 9. Ronda 3 y conclusión no pasan de lo que pesó la ronda 2 más el plan de un turno.
+  const max = (xs: number[]) => Math.max(...xs);
+  assert.ok(max(largos.slice(6)) <= max(largos.slice(3, 6)) + 1000, "la transcripción no crece entre la ronda 2 y las siguientes");
+});
