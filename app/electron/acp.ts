@@ -99,7 +99,7 @@ export type RespuestaInicio = { protocolVersion: number; agentCapabilities: Obj;
 
 /**
  * La política por default: permitir una vez, salvo que la herramienta pida salir del sandbox a todo el disco
- * (`sandbox_permissions: "danger-full-access"`) o toque una ruta (`file_path`, `path`, `cwd`) fuera de `raiz`.
+ * (`sandbox_permissions: "danger-full-access"`) o toque una ruta (`file_path`, `filePath`, `filepath`, `path`, `cwd`) fuera de `raiz`.
  */
 export function politicaEnWorkspace(raiz: string): Politica {
   const base = path.resolve(raiz);
@@ -110,7 +110,7 @@ export function politicaEnWorkspace(raiz: string): Politica {
   return ({ entrada }) => {
     if (!entrada) return "permitir";
     if (entrada.sandbox_permissions === "danger-full-access") return "rechazar";
-    for (const k of ["file_path", "path", "cwd"]) if (typeof entrada[k] === "string" && !dentro(entrada[k])) return "rechazar";
+    for (const k of ["file_path", "filePath", "filepath", "path", "cwd"]) if (typeof entrada[k] === "string" && !dentro(entrada[k])) return "rechazar";
     return "permitir";
   };
 }
@@ -311,7 +311,10 @@ export class ClienteAcp {
     if (metodo !== "session/update") return;
     const u = params.update;
     if (!u || typeof u !== "object" || typeof params.sessionId !== "string") return;
-    if (u.sessionUpdate === "tool_call" && typeof u.toolCallId === "string" && u.rawInput && typeof u.rawInput === "object") this.llamadas.set(u.toolCallId, u.rawInput);
+    // Hay agentes (opencode) que completan el `rawInput` recién en un `tool_call_update`: se suma al que ya había.
+    if ((u.sessionUpdate === "tool_call" || u.sessionUpdate === "tool_call_update") && typeof u.toolCallId === "string" && u.rawInput && typeof u.rawInput === "object") {
+      this.llamadas.set(u.toolCallId, { ...this.llamadas.get(u.toolCallId), ...u.rawInput });
+    }
     try {
       this.o.alActualizar?.(params.sessionId, u);
     } catch (e) {
@@ -327,7 +330,7 @@ export class ClienteAcp {
     const politica = this.o.permiso ?? politicaEnWorkspace(this.o.raiz ?? this.o.cwd ?? process.cwd());
     let d: DecisionPermiso;
     try {
-      d = await politica({ sessionId: String(params.sessionId ?? ""), entrada: this.llamadas.get(String(toolCall.toolCallId)) ?? null, toolCall, opciones });
+      d = await politica({ sessionId: String(params.sessionId ?? ""), entrada: this.llamadas.get(String(toolCall.toolCallId)) ?? (toolCall.rawInput && typeof toolCall.rawInput === "object" ? toolCall.rawInput : null), toolCall, opciones });
     } catch {
       d = "rechazar";
     }

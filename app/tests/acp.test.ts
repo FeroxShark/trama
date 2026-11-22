@@ -104,6 +104,30 @@ test("la política por default: permite lo del workspace y rechaza escapar de é
   assert.equal(p(pedido({ command: "ls", sandbox_permissions: "danger-full-access" })) as string, "rechazar");
 });
 
+test("PUENTES-8: la política mira también filepath/filePath, el rawInput del tool_call_update y el que viene en el propio pedido", async () => {
+  const p = politicaEnWorkspace("/ws/proyecto");
+  const pedido = (entrada: Record<string, unknown> | null): PedidoPermiso => ({ sessionId: "s", entrada, toolCall: {}, opciones: [] });
+  assert.equal(p(pedido({ filepath: "/etc/passwd" })) as string, "rechazar");
+  assert.equal(p(pedido({ filePath: "/etc/passwd" })) as string, "rechazar");
+  assert.equal(p(pedido({ filePath: "/ws/proyecto/a.ts" })) as string, "permitir");
+  const f = agente(`${OK_INIT}
+    if (m.method === "session/prompt") {
+      salir({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "s", update: { sessionUpdate: "tool_call", toolCallId: "t1", title: "write" } } });
+      salir({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "s", update: { sessionUpdate: "tool_call_update", toolCallId: "t1", rawInput: { filepath: "/etc/x" } } } });
+      const ops = [{ optionId: "allow-once", kind: "allow_once" }, { optionId: "reject-once", kind: "reject_once" }];
+      salir({ jsonrpc: "2.0", id: 100, method: "session/request_permission", params: { sessionId: "s", toolCall: { toolCallId: "t1" }, options: ops } });
+      salir({ jsonrpc: "2.0", id: 101, method: "session/request_permission", params: { sessionId: "s", toolCall: { toolCallId: "t2", rawInput: { file_path: "/etc/y" } }, options: ops } });
+      globalThis.pendiente = m.id; return;
+    }
+    if (m.id === 100) globalThis.d1 = m.result.outcome.optionId;
+    if (m.id === 101) globalThis.d2 = m.result.outcome.optionId;
+    if (globalThis.d1 && globalThis.d2) salir({ jsonrpc: "2.0", id: globalThis.pendiente, result: { stopReason: globalThis.d1 + "/" + globalThis.d2 } });`);
+  const c = nuevo({ comando: process.execPath, args: [f], raiz: trabajo });
+  await c.iniciar();
+  assert.deepEqual(await c.prompt("s", [{ type: "text", text: "x" }]), { stopReason: "reject-once/reject-once" });
+  c.matar();
+});
+
 test("session/request_permission se contesta con la política; lo que el cliente no implementa da -32601", async () => {
   const f = agente(`${OK_INIT}
     if (m.method === "session/prompt") {
