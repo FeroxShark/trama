@@ -108,7 +108,7 @@ async function arrancar() {
     irse: () =>
       void apagar("build nuevo", () => {
         // Bajo la unidad, Restart=always lo levanta; suelto, se lanza él mismo (ya soltó el socket).
-        if (!unidad) spawn(process.execPath, process.argv.slice(1), { detached: true, stdio: "ignore", env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } }).unref();
+        if (!unidad) spawn(process.execPath, process.argv.slice(1), { detached: true, stdio: "ignore", windowsHide: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } }).unref();
       }),
   });
 }
