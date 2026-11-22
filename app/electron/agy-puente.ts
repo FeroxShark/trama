@@ -671,7 +671,7 @@ function comandosDeAgy() {
     const out = String(r.stdout);
     comandosCache = comandosPluginAgy(out);
   } catch {
-    comandosCache = [];
+    return []; // sin cachear: un fallo suelto (red, timeout) no deja la lista vacía para toda la vida del puente
   }
   return comandosCache;
 }

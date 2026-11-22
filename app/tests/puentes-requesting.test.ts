@@ -49,3 +49,27 @@ test("PUENTES-9: el puente de Gemini avisa «requesting» al arrancar el mensaje
 test("PUENTES-9: el puente de ChatGPT avisa «requesting» al arrancar el mensaje que esperaba en la cola", { timeout: 60_000 }, async () => {
   assert.deepEqual(await dosMensajes("codex-puente.ts", "codex-falso.mjs", "HILOS_CODEX", ["--modelo", "codex:gpt-6.1-sol", "--effort", "high", "--modo", "default"]), ["result", "requesting", "result"]);
 });
+
+test("PUENTES-18: si `agy plugin list` falla una vez, el siguiente initialize vuelve a preguntar (no queda la lista vacía)", { timeout: 60_000 }, async () => {
+  const h = spawn(process.execPath, [path.join(import.meta.dirname, "..", "electron", "agy-puente.ts"), "--sid", "33333333-0000-4000-8000-000000000018", "--nombre", "trama-test", "--cwd", trabajo, "--modelo", "gemini-4-argon"], {
+    env: { ...process.env, HOME: path.join(tmp, "home"), HILOS_AGY: path.join(import.meta.dirname, "..", "scripts", "agy-falso.mjs"), HILOS_STATE: path.join(tmp, "estado-18"), HILOS_SESIONES: path.join(tmp, "ses-18"), TRAMA_FALSO_PLUGINS_FALLA_UNA: path.join(tmp, "plugins-falla") },
+    stdio: ["pipe", "pipe", "inherit"],
+  });
+  hijos.push(h);
+  const respuestas: any[] = [];
+  createInterface({ input: h.stdout! }).on("line", (l) => {
+    try {
+      const o = JSON.parse(l);
+      if (o.type === "control_response") respuestas.push(o.response);
+    } catch {
+      /* ruido */
+    }
+  });
+  const init = (id: string) => h.stdin!.write(JSON.stringify({ type: "control_request", request_id: id, request: { subtype: "initialize" } }) + "\n");
+  init("i1");
+  await esperarHasta(() => respuestas.length === 1, { tope: 15_000 });
+  init("i2");
+  await esperarHasta(() => respuestas.length === 2, { tope: 15_000 });
+  assert.deepEqual(respuestas[0].response.commands, []);
+  assert.ok(respuestas[1].response.commands.length > 0, JSON.stringify(respuestas[1]));
+});

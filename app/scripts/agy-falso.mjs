@@ -36,6 +36,12 @@ if (args.includes("--version")) {
   process.exit(0);
 }
 if (args[0] === "plugin" && args[1] === "list") {
+  // TRAMA_FALSO_PLUGINS_FALLA_UNA=<archivo>: la primera vez falla (sale con 1) y deja el archivo; las siguientes contestan.
+  const marca = process.env.TRAMA_FALSO_PLUGINS_FALLA_UNA;
+  if (marca && !existsSync(marca)) {
+    writeFileSync(marca, "1");
+    process.exit(1);
+  }
   console.log(
     process.env.TRAMA_FALSO_PLUGINS_AGY ??
       JSON.stringify([{ name: "pa-worker", enabled: true, skills: ["ana-orquestar", "gemini"] }]),
