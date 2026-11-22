@@ -71,6 +71,7 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 | Frase tierna (`se esponja`) antes del tiempo | Corre. Se apaga en Ajustes y rota sola. | B17, pedido del dueño; reemplaza a «Trabajando». | recuperada: va pegada al título y cede antes que él: entra entera o no se ve (con un título largo no se ve); sin asteriscos y sin el brillo (el movimiento ya lo hace el punto). |
 | Anillo punteado que gira + `Trabado` | Sin avance hace rato: puede que haya que mirarlo. | No confundirlo con lo frenado a propósito. | recuperada (el Riel usaba las mismas dos barras que para frenado) |
 | Dos barras + `Frenado` | Lo paró `pa --parar` a propósito. Nunca en rojo: no es un fallo. | | igual |
+| `✕` coral + `No terminó` | Entregó pero falló (`fallo` de `pa --hilos`: rc ≠ 0 o `is_error`): ya no dice `Terminó`. Sólo chip y «N falló» si terminó hace menos de 24 h; los viejos llevan palabra e ícono. No se pliega en «N terminados» mientras cuenta. | B149 / NOCHE-6: un fallo con resultado parcial se veía como éxito. | nueva |
 | Reloj + `En cola` | Espera puesto o lugar: no trabaja todavía. El motivo, en el tooltip. | | igual |
 | ✕ en círculo coral, halo + `falló` y fila tintada | Murió sin que nadie lo frenara. El tooltip dice `Murió` o `No arrancó`. | Se ve desde lejos. | recuperado el tooltip |
 | ? en círculo ámbar, halo + `decidir` y fila tintada | Pide que elijas algo. | `decidir` en vez de `pide decisión`: lo pide la línea única. | cambió la palabra (la frase, en el tooltip) |
