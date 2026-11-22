@@ -1,5 +1,9 @@
 # Changes
 
+## 0.3.27
+
+- Windows: Claude workers also start with Claude installed through npm (`claude.cmd`). Before, none started and `pa` said the install was broken. The same goes for Codex, Gemini and OpenCode installed through npm.
+
 ## 0.3.26
 
 - Windows: OpenCode workers installed with npm use `opencode.cmd`. Before, `pa` picked the extensionless script npm leaves next to it, which Windows cannot run.
