@@ -466,3 +466,58 @@ test("agy-pa: bloquea enlaces simbólicos que salen del worktree en lectura, Cwd
     assert.equal(pre(llamada("read_file", { Path: "link-ok.txt" })), null, "enlace interno relativo permitido");
   });
 });
+
+test("agy-pa: niega la herramienta si destructive-guard o latido fallan (código 1, ENOENT, señal o código 2)", () => {
+  conTemporal((dir) => {
+    const cod1 = path.join(dir, "falla1.mjs");
+    const cod2 = path.join(dir, "falla2.mjs");
+    const senal = path.join(dir, "senal.mjs");
+    const ok = path.join(dir, "ok.mjs");
+    writeFileSync(cod1, 'process.stderr.write("modulo ausente\\n"); process.exit(1);\n');
+    writeFileSync(cod2, 'process.stderr.write("bloqueado explicito\\n"); process.exit(2);\n');
+    writeFileSync(senal, 'process.kill(process.pid, "SIGTERM");\n');
+    writeFileSync(ok, "process.exit(0);\n");
+
+    const envBase = entorno(dir, { PA_AGY_HB: path.join(dir, "agy.heartbeat"), PA_AGY_RAIZ: dir, PA_AGY_RAMA: "rama-x" });
+    const pre = (cmd: string, extra: Record<string, string>) => {
+      const r = correr("agy-pa", ["pre"], llamada("run_command", { CommandLine: cmd }), { ...envBase, ...extra });
+      assert.equal(r.rc, 0);
+      assert.notEqual(r.stdout.trim(), "", `no debe permitir con ${JSON.stringify(extra)}`);
+      return JSON.parse(r.stdout) as { decision: string; reason: string };
+    };
+
+    // Guardias hijas: código 1, ENOENT (bash sin PATH), señal y código 2 en destructive-guard
+    const g1 = pre("rm -rf carpeta", { PA_AGY_GUARD: cod1, PA_AGY_LATIDO: ok });
+    assert.equal(g1.decision, "deny");
+    assert.match(g1.reason, /destructive-guard.*modulo ausente/);
+
+    const gEnoent = pre("rm -rf carpeta", { PA_AGY_GUARD: path.join(dir, "no-existe.sh"), PA_AGY_LATIDO: ok, PATH: "" });
+    assert.equal(gEnoent.decision, "deny");
+    assert.match(gEnoent.reason, /destructive-guard.*ENOENT/);
+
+    const gSig = pre("rm -rf carpeta", { PA_AGY_GUARD: senal, PA_AGY_LATIDO: ok });
+    assert.equal(gSig.decision, "deny");
+    assert.match(gSig.reason, /destructive-guard/);
+
+    const g2 = pre("rm -rf carpeta", { PA_AGY_GUARD: cod2, PA_AGY_LATIDO: ok });
+    assert.equal(g2.decision, "deny");
+    assert.match(g2.reason, /bloqueado explicito/);
+
+    // Guardias hijas: código 1, ENOENT, señal y código 2 en latido
+    const l1 = pre("cargo clean", { PA_AGY_GUARD: ok, PA_AGY_LATIDO: cod1 });
+    assert.equal(l1.decision, "deny");
+    assert.match(l1.reason, /latido.*modulo ausente/);
+
+    const lEnoent = pre("cargo clean", { PA_AGY_GUARD: ok, PA_AGY_LATIDO: path.join(dir, "no-existe.sh"), PATH: "" });
+    assert.equal(lEnoent.decision, "deny");
+    assert.match(lEnoent.reason, /latido.*ENOENT/);
+
+    const lSig = pre("cargo clean", { PA_AGY_GUARD: ok, PA_AGY_LATIDO: senal });
+    assert.equal(lSig.decision, "deny");
+    assert.match(lSig.reason, /latido/);
+
+    const l2 = pre("cargo clean", { PA_AGY_GUARD: ok, PA_AGY_LATIDO: cod2 });
+    assert.equal(l2.decision, "deny");
+    assert.match(l2.reason, /bloqueado explicito/);
+  });
+});

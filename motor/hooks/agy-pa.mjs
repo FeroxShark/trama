@@ -95,11 +95,11 @@ const herramientaCruda = campo("toolCall", "name");
 const herramienta = Object.hasOwn(ALIAS, herramientaCruda) ? ALIAS[herramientaCruda] : herramientaCruda;
 const cmd = campo("toolCall", "args", "CommandLine");
 
-/** Corre una guardia (.mjs con node, lo demás con bash). Devuelve {status, stdout, stderr}. */
+/** Corre una guardia (.mjs con node, lo demás con bash). Devuelve {status, signal, error, stdout, stderr}. */
 function correrHook(archivo, args, input) {
   const [programa, base] = archivo.endsWith(".mjs") ? [process.execPath, [archivo]] : ["bash", [archivo]];
   const r = spawnSync(programa, [...base, ...args], { input, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
-  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+  return { status: r.status, signal: r.signal ?? null, error: r.error ?? null, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
 // --- PostInvocation: tope de turnos -----------------------------------------------------------
@@ -162,6 +162,10 @@ if (fase === "post") {
 if (herramienta === "run_command" && cmd) {
   const g = correrHook(GUARD, [], claudeJson);
   if (g.status === 2) negar(sinFinales(g.stderr) || "BLOQUEADO por destructive-guard.");
+  if (g.error || g.signal || g.status !== 0) {
+    const det = sinFinales(g.stderr) || g.error?.message || (g.signal ? `señal ${g.signal}` : `código ${g.status}`);
+    negar(`BLOQUEADO: falló destructive-guard (${path.basename(GUARD)}): ${det}`);
+  }
 }
 if (!worker) nada();
 
@@ -553,6 +557,10 @@ if (herramienta === "run_command" && cmd) {
 const argsLatido = [env.PA_AGY_HB, "pre", ...(leer ? ["leer"] : [])];
 const l = correrHook(LATIDO, argsLatido, claudeJson);
 if (l.status === 2) negar(sinFinales(l.stderr) || "BLOQUEADO por latido.sh.");
+if (l.error || l.signal || l.status !== 0) {
+  const det = sinFinales(l.stderr) || l.error?.message || (l.signal ? `señal ${l.signal}` : `código ${l.status}`);
+  negar(`BLOQUEADO: falló latido (${path.basename(LATIDO)}): ${det}`);
+}
 let nuevo = "";
 try {
   const o = JSON.parse(l.stdout);
