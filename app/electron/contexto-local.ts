@@ -10,6 +10,7 @@ import { deDueno, dueno } from "./dueno.ts";
 import { shellDe } from "./procesos.ts";
 import { resolverImports } from "./instrucciones-md.ts";
 import { CHARS_POR_TOKEN, tokensAprox } from "./contexto-sesion.ts";
+import { secretoEn } from "./cli/pa/motores/privacidad.ts";
 
 /** Los encabezados que no le tocan a un local: él no delega (no hay `pa`) ni elige workers. */
 export const ENCABEZADOS_FUERA = /^(jefe|modelos)\b/i;
@@ -188,7 +189,8 @@ export async function armarContexto(x: {
 
   const mem = memoriaDe(home, cwd, x.env);
   const memoria = !compartir ? "" : ((await leer(mem)) ?? "");
-  poner(`Memoria sobre ${dueno()} (índice; cada archivo está en ${path.dirname(mem)}/, léelo con Read si hace falta)`, memoria.split("\n").slice(0, 200).join("\n"), TOPE_PARTE.memoria, mem);
+  // Una línea con pinta de clave, mail o teléfono no sale de la máquina (el mismo filtro que la memoria de los workers, `cli/pa/motores/prompt.ts`).
+  poner(`Memoria sobre ${dueno()} (índice; cada archivo está en ${path.dirname(mem)}/, léelo con Read si hace falta)`, memoria.split("\n").slice(0, 200).filter((l) => secretoEn(l) === "").join("\n"), TOPE_PARTE.memoria, mem);
 
   // AGENTS.md es la fuente única de las instrucciones del proyecto (`pa <proy> --unificar-md`): si el CLAUDE.md no lo trae (por un import),
   // va aparte, así un líder que no es Claude sabe lo mismo que uno que sí.

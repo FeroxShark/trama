@@ -299,3 +299,13 @@ test("CTX-51 correrHook en Windows: el comando de un hook de Trama pasa por cmd 
   const lin = comandoHook("latido", "mjs", "/home/ana/.claude/hooks", { plataforma: "linux" });
   assert.deepEqual(shellDe("sh", lin, {}, "linux"), { file: "/bin/sh", args: ["-c", lin], verbatim: false });
 });
+
+test("memoria compartida: una línea con pinta de clave, mail o teléfono no se manda (como en los workers)", async () => {
+  const { prefacioDsh } = await import("../electron/contexto-local.ts");
+  const { home, env, deps } = casaFalsa();
+  const leer = async (f: string) => (f === memoriaDe(home, home, env) ? "- [Trato](trato.md) — privado\n- mail: persona@ejemplo.com\n- clave sk-abcdefghijklmnop\n" : deps.leer(f));
+  const p = await prefacioDsh({ home, cwd: home, env, deps: { ...deps, leer }, motor: "codex" });
+  assert.match(p, /\[Trato\]\(trato\.md\)/);
+  assert.doesNotMatch(p, /persona@ejemplo\.com/);
+  assert.doesNotMatch(p, /sk-abcdefghijklmnop/);
+});
