@@ -861,8 +861,14 @@ function revisarComposeArchivos(optsC, ctx, exe = "docker") {
     }
   }
   for (const a of archivos) {
+    let peso;
     try {
-      if (statSync(a).size > 2_000_000) throw new Error("archivo YAML demasiado grande");
+      peso = statSync(a).size;
+    } catch {
+      continue; // No existe o no se puede leer: compose falla solo, no hay nada que revisar.
+    }
+    try {
+      if (peso > 2_000_000) throw new Error("archivo YAML demasiado grande");
       const doc = parsearYaml(readFileSync(a, "utf8"));
       auditarCompose(doc, a, exe);
     } catch (e) {
