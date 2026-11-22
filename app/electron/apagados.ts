@@ -2,8 +2,9 @@
 // (CLAUDE.md y compañía) que ningún líder ni worker de Claude carga, para que el contexto pese menos. Vive en
 // `<config de trama>/apagados.json` y de él sale `apagados-claude.json`: el pedazo de settings de Claude Code que lo aplica
 // (`skillOverrides`, `permissions.deny` y `claudeMdExcludes`). Ese pedazo lo suman `pa` (motor/bin/pa y su port, cli/pa/lanzar.ts)
-// al `--settings` de cada worker y `argvLider` al de cada líder (un segundo `--settings`). Sin nada apagado no hay archivo y todo
+// al `--settings` de cada worker y `settingsLider` al de cada líder (junto con sus hooks: Claude Code usa sólo el último `--settings`). Sin nada apagado no hay archivo y todo
 // queda como siempre. Nunca toca `~/.claude.json` ni credenciales: sólo estos dos archivos propios. Node puro: los tests pasan la carpeta.
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { errorT } from "./errores.ts";
@@ -142,4 +143,32 @@ export function sumarFragmento(s: Record<string, unknown>, f: unknown): Record<s
   const deny = [...antes, ...lista((o.permissions as Record<string, unknown> | undefined)?.deny)];
   if (deny.length) s.permissions = { deny };
   return s;
+}
+
+/**
+ * El ÚNICO `--settings` de un líder de Claude: sus hooks (`hooks`, el JSON de `settingsCierreCupo`) con el apagado global encima.
+ * Claude Code se queda sólo con el último `--settings` (probado en vivo: con dos, corren los hooks del segundo y el primero se
+ * pierde), así que no pueden ir separados. Con algo apagado va a un archivo y no al argv (en Windows `claude.cmd` corta en 8191
+ * caracteres y el registro admite cientos de nombres); el nombre sale del contenido, así dos líderes con hooks distintos no se pisan.
+ * Sin nada apagado devuelve `hooks` tal cual (o nada).
+ */
+export function settingsLider(hooks: string | undefined, dir = configTrama()): string | undefined {
+  const f = fragmentoClaude(leerApagadosTrama(dir));
+  if (!f) return hooks;
+  let s: Record<string, unknown> = {};
+  try {
+    const h = hooks ? JSON.parse(hooks) : null;
+    if (h && typeof h === "object" && !Array.isArray(h)) s = h as Record<string, unknown>;
+  } catch {
+    /* hooks ilegibles: queda al menos el apagado */
+  }
+  const texto = JSON.stringify(sumarFragmento(s, f)) + "\n";
+  const ruta = path.join(dir, `settings-lider-${createHash("sha1").update(texto).digest("hex").slice(0, 12)}.json`);
+  try {
+    if (readFileSync(ruta, "utf8") === texto) return ruta;
+  } catch {
+    /* no estaba */
+  }
+  escribirAtomico(ruta, texto);
+  return ruta;
 }
