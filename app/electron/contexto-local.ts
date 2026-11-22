@@ -49,8 +49,11 @@ export function recortar(texto: string, tokens: number, donde: string): string {
   return (fin > 0 ? corte.slice(0, fin) : corte).trimEnd() + aviso;
 }
 
+/** La carpeta de configuración de Claude Code: `CLAUDE_CONFIG_DIR` (del `env` dado) o `~/.claude`. */
+export const claudeDe = (home: string, env?: Record<string, string | undefined>): string => env?.CLAUDE_CONFIG_DIR || path.join(home, ".claude");
+
 /** La carpeta de memoria de Claude Code para un cwd: todo lo que no es letra o número, un guión. */
-export const memoriaDe = (home: string, cwd: string) => path.join(home, ".claude", "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"), "memory", "MEMORY.md");
+export const memoriaDe = (home: string, cwd: string, env?: Record<string, string | undefined>) => path.join(claudeDe(home, env), "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"), "memory", "MEMORY.md");
 
 /** Los CLAUDE.md que Claude Code cargaría: de `~` hacia el cwd (si el cwd está bajo `~`; si no, sólo el del cwd). */
 export function carpetasDe(home: string, cwd: string): string[] {
@@ -91,8 +94,8 @@ export function textoDeHook(salida: string): string {
 }
 
 /** Los comandos de SessionStart de `~/.claude/settings.json` (los que aplican a un arranque: sin matcher, o `startup`). */
-export async function hooksDeArranque(home: string, leer: (ruta: string) => Promise<string | null>): Promise<string[]> {
-  const t = await leer(path.join(home, ".claude", "settings.json"));
+export async function hooksDeArranque(home: string, leer: (ruta: string) => Promise<string | null>, env?: Record<string, string | undefined>): Promise<string[]> {
+  const t = await leer(path.join(claudeDe(home, env), "settings.json"));
   if (!t) return [];
   try {
     const grupos = JSON.parse(t)?.hooks?.SessionStart;
@@ -154,7 +157,7 @@ export async function armarContexto(x: {
   // un nivel y dentro de su carpeta: un modelo que no sigue imports no puede quedar sin las instrucciones del proyecto.
   const conImports = async (ruta: string, texto: string | null) => (texto ? await resolverImports(texto, path.dirname(ruta)).catch(() => texto) : (texto ?? ""));
 
-  const global = path.join(home, ".claude", "CLAUDE.md");
+  const global = path.join(claudeDe(home, x.env), "CLAUDE.md");
   poner(`Reglas globales ${deDueno()}`, sinSecciones(await conImports(global, await leer(global)), fuera), TOPE_PARTE.usuario, global);
 
   // `~/CLAUDE.md` y los de las carpetas hasta el cwd: los de arriba primero, como Claude Code.
@@ -165,10 +168,10 @@ export async function armarContexto(x: {
   const [primero, ...proyecto] = textos[0] && path.dirname(textos[0][0]) === home ? textos : [undefined, ...textos];
   if (primero) poner(`CLAUDE.md de ${path.dirname(primero[0]) === home ? "~" : path.dirname(primero[0])}`, sinSecciones(await conImports(primero[0], primero[1]), fuera), 4000, primero[0]);
 
-  const salidas = gemini ? [] : await Promise.all((await hooksDeArranque(home, leer)).map((c) => hook(c, cwd).then(textoDeHook, () => "")));
+  const salidas = gemini ? [] : await Promise.all((await hooksDeArranque(home, leer, x.env)).map((c) => hook(c, cwd).then(textoDeHook, () => "")));
   poner("Tablero y estado al arrancar (salida de los hooks de arranque)", salidas.filter(Boolean).join("\n"), TOPE_PARTE.hook, "`tablero resumen`");
 
-  const mem = memoriaDe(home, cwd);
+  const mem = memoriaDe(home, cwd, x.env);
   const memoria = gemini ? "" : ((await leer(mem)) ?? "");
   poner(`Memoria sobre ${dueno()} (índice; cada archivo está en ${path.dirname(mem)}/, léelo con Read si hace falta)`, memoria.split("\n").slice(0, 200).join("\n"), TOPE_PARTE.memoria, mem);
 
@@ -216,8 +219,8 @@ export const SKILL_GENERICA = "trama-orquestar";
  * Qué skill de orquestación existe en `home`: la propia de la persona (otra `<algo>-orquestar` en `~/.claude/skills`, con
  * su SKILL.md; la primera por orden alfabético) manda; si no hay, la genérica del producto (`trama-orquestar`).
  */
-export async function skillOrquestar(home: string): Promise<string> {
-  const dir = path.join(home, ".claude", "skills");
+export async function skillOrquestar(home: string, env?: Record<string, string | undefined>): Promise<string> {
+  const dir = path.join(claudeDe(home, env), "skills");
   const nombres = (await readdir(dir).catch(() => [] as string[])).filter((n) => n.endsWith("-orquestar") && n !== SKILL_GENERICA).sort();
   for (const n of nombres) if (await access(path.join(dir, n, "SKILL.md")).then(() => true, () => false)) return n;
   return SKILL_GENERICA;
@@ -237,9 +240,9 @@ export const PROMPT_DSH = PROMPT_GEMINI.split("\n")
   )
   .join("\n");
 
-async function prefacioCon(prompt: string, x: { home: string; cwd?: string; pa?: string; deps?: Partial<DepsContexto> }): Promise<string> {
-  const c = await armarContexto({ home: x.home, cwd: x.cwd, ctx: 40000, perfil: "gemini", deps: x.deps }).catch(() => null);
-  const skill = await skillOrquestar(x.home);
+async function prefacioCon(prompt: string, x: { home: string; cwd?: string; pa?: string; env?: Record<string, string | undefined>; deps?: Partial<DepsContexto> }): Promise<string> {
+  const c = await armarContexto({ home: x.home, cwd: x.cwd, ctx: 40000, perfil: "gemini", env: x.env, deps: x.deps }).catch(() => null);
+  const skill = await skillOrquestar(x.home, x.env);
   const base = skill === SKILL_GENERICA ? prompt : prompt.replaceAll(SKILL_GENERICA, skill);
   const conPa = x.pa && path.isAbsolute(x.pa) ? `${base}\nSi un comando dice "pa: command not found", \`pa\` está en \`${x.pa}\`: llamalo con esa ruta.` : base;
   return c?.texto ? `${conPa}\n\n${c.texto}` : conPa;
@@ -250,7 +253,7 @@ async function prefacioCon(prompt: string, x: { home: string; cwd?: string; pa?:
  * `pa`: dónde está el binario si se encontró con ruta absoluta; se lo dice por si el PATH de la herramienta de comandos de
  * agy no lo trae (la unidad de systemd y el menú de apps arrancan sin `~/.local/bin`), así nunca queda en "pa: command not found".
  */
-export const prefacioGemini = (x: { home: string; cwd?: string; pa?: string; deps?: Partial<DepsContexto> }): Promise<string> => prefacioCon(PROMPT_GEMINI, x);
+export const prefacioGemini = (x: { home: string; cwd?: string; pa?: string; env?: Record<string, string | undefined>; deps?: Partial<DepsContexto> }): Promise<string> => prefacioCon(PROMPT_GEMINI, x);
 
 /** Lo mismo para un líder de `opencode acp` (los modelos de OpenCode): que no se crea DeepSeek ni Claude. */
 export const PROMPT_OPENCODE = PROMPT_DSH.replace(
@@ -269,7 +272,7 @@ export const PROMPT_CODEX = PROMPT_DSH.replace(
  * El prefacio completo de un líder de dsh u opencode en `cwd` (ver `PROMPT_DSH`/`PROMPT_OPENCODE`). `modelo`: el id con el que lo lanzó
  * Trama; se le dice tal cual, así cuando le preguntan qué modelo es no adivina por el nombre del harness.
  */
-export const prefacioDsh = (x: { home: string; cwd?: string; pa?: string; motor?: "dsh" | "opencode" | "codex"; modelo?: string; deps?: Partial<DepsContexto> }): Promise<string> => {
+export const prefacioDsh = (x: { home: string; cwd?: string; pa?: string; env?: Record<string, string | undefined>; motor?: "dsh" | "opencode" | "codex"; modelo?: string; deps?: Partial<DepsContexto> }): Promise<string> => {
   const base = x.motor === "opencode" ? PROMPT_OPENCODE : x.motor === "codex" ? PROMPT_CODEX : PROMPT_DSH;
   return prefacioCon(x.modelo ? `${base}\nEl modelo con el que corrés es \`${x.modelo}\`; si te preguntan qué modelo sos, decí ese.` : base, x);
 };

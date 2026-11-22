@@ -5,7 +5,8 @@
 import { closeSync, existsSync, fstatSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import path from "node:path";
 import { pedidoDeMensaje } from "../../cache.ts";
-import { registroProyectos } from "../../rutas.ts";
+import { claveRuta } from "../../proyectos-auto.ts";
+import { registroProyectos, type Plataforma } from "../../rutas.ts";
 import { git } from "../base/git.ts";
 import { resolverProyecto } from "../proyecto-ruta.ts";
 import { carpetasDeProyecto, corridaEnCola, esArchivo, leerCampo, listar, nombreRegistry, runningVivo } from "./corridas.ts";
@@ -431,7 +432,13 @@ function leerLinea(f: string): string | null {
 // ---------------------------------------------------------------- el armado del jq
 
 /** Un hilo: el objeto de la salida (con las claves en el orden del jq). */
-function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: number, ultSid: Map<string, string>): J {
+/**
+ * ¿Son la misma carpeta? Con `\` o `/`, con o sin barra final y, en Windows, sin distinguir mayúsculas (`c:\x` y `C:\x`); en Linux sí
+ * las distingue. Lo usa el chequeo del caché: una diferencia de escritura no es «otro directorio» (CTX-56).
+ */
+export const mismaCarpeta = (a: string, b: string, plat: Plataforma): boolean => claveRuta(a, plat) === claveRuta(b, plat);
+
+function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: number, ultSid: Map<string, string>, plat: Plataforma): J {
   const hp = leerOpt(path.join(h.dir, `${h.id}.hilo`));
   const cp = leerOpt(path.join(h.dir, `${h.id}.corrida`));
   const jp = contenido(path.join(h.dir, `${h.id}.json`));
@@ -480,13 +487,13 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
   }
   const u: J = as.length ? as[as.length - 1]! : {};
   const cmod = ttl === null ? null : noVacio(ruta(u, "message", "model") as string | null | undefined);
-  const esperado = (noVacio(C.ruta_trabajo) ?? h.ppal).replace(/\/$/, "");
+  const esperado = (noVacio(C.ruta_trabajo) ?? h.ppal).replace(/[\\/]$/, "");
   const cwd = typeof u.cwd === "string" ? u.cwd : "";
   let frio: string | null = null;
   if (ttl !== null) {
     if (ahora >= vence!) frio = "vencido";
     else if (modelo !== null && cmod !== null && cmod !== modelo) frio = "modelo";
-    else if (cwd !== "" && esperado !== "" && cwd.replace(/\/$/, "") !== esperado) frio = "otro_dir";
+    else if (cwd !== "" && esperado !== "" && !mismaCarpeta(cwd, esperado, plat)) frio = "otro_dir";
   }
   const reciente = h.listo && ini !== null && ahora - ini < 86400;
   // una corrida que falló (código de salida ≠ 0 o is_error) no está «lista» ni pide decisión aunque haya dejado un resultado parcial
@@ -609,7 +616,7 @@ export async function cmdHilos(pa: Pa, args: string[]): Promise<number> {
   const ultSid = new Map<string, string>();
   for (const h of hechos) if (h.sid && (ultSid.get(h.sid) ?? "") < h.id) ultSid.set(h.sid, h.id);
   const offs = -new Date().getTimezoneOffset() * 60;
-  const hilos = hechos.map((h) => armar(h, mtimes, H.now, offs, ultSid));
+  const hilos = hechos.map((h) => armar(h, mtimes, H.now, offs, ultSid, pa.plat));
   hilos.sort((a, b) => ((a.id as string) < (b.id as string) ? -1 : (a.id as string) > (b.id as string) ? 1 : 0));
   hilos.reverse();
   if (json) pa.io.out(`${JSON.stringify({ version: 1, hilos }, null, 2)}\n`);

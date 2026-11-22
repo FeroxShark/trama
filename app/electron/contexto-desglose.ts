@@ -620,11 +620,13 @@ export function sinDesglose(x: { tipo: "lider" | "worker" | "subagente"; id: str
 // --- Memoria: qué CLAUDE.md carga una sesión ---------------------------------------------------------------------------------------------
 
 /** ¿La ruta cae en algún `claudeMdExcludes`? Ruta exacta o glob (`**` cualquier cosa, `*` dentro de una carpeta). */
-export function excluida(ruta: string, excludes: string[]): boolean {
+export function excluida(ruta: string, excludes: string[], plat: string = process.platform): boolean {
+  // En Windows el disco no distingue mayúsculas (`C:\\Users` y `c:\\users` son la misma): se compara igual. En Linux sí distingue.
+  const sinMayus = plat === "win32";
   const r = ruta.replace(/\\/g, "/");
   return excludes.some((e) => {
     const p = e.replace(/\\/g, "/");
-    if (!/[*?]/.test(p)) return p === r;
+    if (!/[*?]/.test(p)) return sinMayus ? p.toLowerCase() === r.toLowerCase() : p === r;
     const re = new RegExp(
       "^" +
         p
@@ -632,6 +634,7 @@ export function excluida(ruta: string, excludes: string[]): boolean {
           .map((t) => (t === "**/" || t === "**" ? ".*" : t === "*" ? "[^/]*" : t === "?" ? "[^/]" : t.replace(/[.+^${}()|[\]\\]/g, "\\$&")))
           .join("") +
         "$",
+      sinMayus ? "i" : "",
     );
     return re.test(r);
   });

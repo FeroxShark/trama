@@ -462,8 +462,8 @@ export async function commitearCambiosDelWorker(x: Proyecto, wt: string, rama: s
   });
 }
 
-/** La carpeta de proyectos de Claude (`$PROJ`). */
-export const carpetaProyectosClaude = (pa: Pa) => pa.env.PA_PROJ || camino(pa).join(pa.home, ".claude", "projects");
+/** La carpeta de proyectos de Claude (`$PROJ`): `PA_PROJ`, o `projects` dentro de `CLAUDE_CONFIG_DIR` (o de `~/.claude`). */
+export const carpetaProyectosClaude = (pa: Pa) => pa.env.PA_PROJ || camino(pa).join(pa.env.CLAUDE_CONFIG_DIR || camino(pa).join(pa.home, ".claude"), "projects");
 
 /** `compartir_memoria`: la memoria de proyecto de Claude del worktree apunta a la del tree principal. */
 export function compartirMemoria(x: Proyecto, ppal: string, wt: string): void {

@@ -206,8 +206,8 @@ export const sufPuesto = (p: string) => (!p || p === "1" ? "" : `@${p}`);
 /** `escapar`: la carpeta de proyecto de claude para una ruta (todo lo que no es alfanumérico, `-`). */
 export const escapar = (s: string) => s.replace(/[^A-Za-z0-9]/g, "-");
 
-/** La carpeta de proyectos de claude (`PA_PROJ`, o `~/.claude/projects`). */
-export const carpetaProyectos = (pa: Pa) => pa.env.PA_PROJ || path.join(pa.home, ".claude", "projects");
+/** La carpeta de proyectos de claude (`PA_PROJ`, o `projects` dentro de `CLAUDE_CONFIG_DIR`, o `~/.claude/projects`). */
+export const carpetaProyectos = (pa: Pa) => pa.env.PA_PROJ || path.join(configClaudeDe(pa), "projects");
 
 /** `limite_de`: el archivo del límite de sesión de una cuenta. */
 export function limiteDe(pa: Pa, cuenta: string): string {
@@ -292,7 +292,7 @@ export function settingsWorker(
       // umbral salía de la ventana entera y Claude Code compactaba antes de que se pidiera la nota.
       const tope = o.autocompact && /^[0-9]+$/.test(o.autocompact)
         ? Number(o.autocompact)
-        : !o.autocompact && !o.local ? leerUmbralYa(o.configClaude ?? path.join(pa.home, ".claude")) : null;
+        : !o.autocompact && !o.local ? leerUmbralYa(o.configClaude ?? configClaudeDe(pa)) : null;
       const ventana = o.modelo ? ventanaDe(o.modelo) : tope ?? 200_000;
       const u = umbralesNota({
         tope,
@@ -318,7 +318,7 @@ export function settingsWorker(
     deny = denyEspejo(o.espejo, pa.home, pa.plat);
   }
   // La guardia del usuario y la nuestra no se registran las dos: si él ya tiene una, el guard corre una vez por Bash.
-  const guardOtro = guardEnSettings(o.configClaude ?? path.join(pa.home, ".claude"));
+  const guardOtro = guardEnSettings(o.configClaude ?? configClaudeDe(pa));
   const s: Record<string, unknown> = {
     crossSessionInbound: "accept",
     claudeMdExcludes: [pa.plat === "win32" ? path.win32.join(pa.home, "CLAUDE.md") : `${pa.home}/CLAUDE.md`],
@@ -405,8 +405,7 @@ function leerJsonClaude<T>(f: string): T | null {
 }
 
 /** Las de `SKILLS_DISENO` que están instaladas: `nombre` con su `SKILL.md` en `~/.claude/skills`, o `plugin:skill` con el plugin habilitado (`enabledPlugins`, true) y `skills/<skill>/SKILL.md` en su installPath. */
-export function skillsDisenoInstaladas(home: string): string[] {
-  const claude = path.join(home, ".claude");
+export function skillsDisenoInstaladas(home: string, claude: string = path.join(home, ".claude")): string[] {
   const habilitados = leerJsonClaude<PluginsClaude>(path.join(claude, "settings.json"))?.enabledPlugins ?? {};
   const instalados = leerJsonClaude<PluginsClaude>(path.join(claude, "plugins", "installed_plugins.json"))?.plugins ?? {};
   return SKILLS_DISENO.filter((s) => {
@@ -458,7 +457,7 @@ export function contratoClaude(pa: Pa, c: Corrida): string {
   if (!c.leer && c.modeloFlojo) k += `\n${TXT_FLOJO}`;
   // Un worker de frontend o diseño carga las skills de diseño instaladas al empezar (la herramienta Skill sólo existe en claude).
   if (!c.leer && (c.motor ?? "claude") === "claude" && (c.tipo === "frontend" || c.tipo === "diseno")) {
-    const linea = lineaSkillsDiseno(skillsDisenoInstaladas(pa.home));
+    const linea = lineaSkillsDiseno(skillsDisenoInstaladas(pa.home, configClaudeDe(pa)));
     if (linea) k += `\n${linea}`;
   }
   if (c.leer) k += `\n${txtLeer(c.motor ?? "claude")}`;

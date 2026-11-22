@@ -5,7 +5,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { nombreDueno, type Pa } from "../electron/cli/pa/entorno.ts";
-import { denyEspejo, mapaDe } from "../electron/cli/pa/lanzar.ts";
+import { carpetaProyectos, denyEspejo, mapaDe } from "../electron/cli/pa/lanzar.ts";
+import { mismaCarpeta } from "../electron/cli/pa/hilos.ts";
+import { carpetaProyectosClaude } from "../electron/cli/pa/worktrees.ts";
+import { excluida } from "../electron/contexto-desglose.ts";
+import { claudeDe, hooksDeArranque, memoriaDe, skillOrquestar } from "../electron/contexto-local.ts";
 import { afueraEn } from "../electron/cli/pa/motores/privacidad.ts";
 import { chequearDsh, chequearOpencode } from "../electron/cli/pa/motores/chequeo.ts";
 import { promptOtroMotor } from "../electron/cli/pa/motores/prompt.ts";
@@ -109,5 +113,49 @@ test("CTX-60: el comando de tests del registry puede ser por plataforma (tests_w
   escribir({ tests_windows: "node scripts\\t.mjs", tests_linux: "bash ./t.sh" });
   assert.equal(testsRegistry(pa("win32"), slug), "node scripts\\t.mjs");
   assert.equal(testsRegistry(pa("linux"), slug), "bash ./t.sh");
+  rmSync(d, { recursive: true, force: true });
+});
+
+test("CTX-56: mismaCarpeta en Windows no distingue \\ de /, mayúsculas ni barra final; en Linux sí distingue mayúsculas", () => {
+  assert.ok(mismaCarpeta("c:\\Users\\Ana\\proy", "C:/Users/Ana/proy/", "win32"));
+  assert.ok(mismaCarpeta("C:\\Users\\Ana\\proy\\", "C:\\users\\ana\\PROY", "win32"));
+  assert.ok(!mismaCarpeta("C:\\Users\\Ana\\proy", "C:\\Users\\Ana\\otro", "win32"));
+  // el par Linux
+  assert.ok(mismaCarpeta("/home/ana/proy/", "/home/ana/proy", "linux"));
+  assert.ok(!mismaCarpeta("/home/ana/Proy", "/home/ana/proy", "linux"));
+});
+
+test("CTX-56: excluida compara sin mayúsculas en Windows (ruta exacta y glob) y con mayúsculas en Linux", () => {
+  assert.ok(excluida("C:\\Users\\Ana\\CLAUDE.md", ["c:/users/ana/claude.md"], "win32"));
+  assert.ok(excluida("C:\\Users\\Ana\\proy\\CLAUDE.md", ["c:\\USERS\\*\\proy\\CLAUDE.md"], "win32"));
+  assert.ok(!excluida("C:\\Users\\Ana\\proy\\CLAUDE.md", ["c:\\users\\ana\\otro\\*"], "win32"));
+  assert.ok(!excluida("/home/Ana/CLAUDE.md", ["/home/ana/claude.md"], "linux"));
+  assert.ok(!excluida("/home/Ana/p/CLAUDE.md", ["/home/ana/*/CLAUDE.md"], "linux"));
+  assert.ok(excluida("/home/ana/p/CLAUDE.md", ["/home/ana/*/CLAUDE.md"], "linux"));
+});
+
+test("CTX-56: la carpeta de configuración de Claude respeta CLAUDE_CONFIG_DIR (proyectos, memoria, hooks de arranque, skill de orquestación)", async () => {
+  const pl = (env: Record<string, string>) => ({ env, home: "/home/ana", plat: "linux" }) as unknown as Pa;
+  assert.equal(carpetaProyectos(pl({})), "/home/ana/.claude/projects");
+  assert.equal(carpetaProyectos(pl({ CLAUDE_CONFIG_DIR: "/cfg/c" })), "/cfg/c/projects");
+  assert.equal(carpetaProyectos(pl({ CLAUDE_CONFIG_DIR: "/cfg/c", PA_PROJ: "/p" })), "/p");
+  assert.equal(carpetaProyectosClaude(pl({})), "/home/ana/.claude/projects");
+  assert.equal(carpetaProyectosClaude(pl({ CLAUDE_CONFIG_DIR: "/cfg/c" })), "/cfg/c/projects");
+  // Windows: la misma regla con `path.win32`
+  const pw = (env: Record<string, string>) => ({ env, home: HOME_W, plat: "win32" }) as unknown as Pa;
+  assert.equal(carpetaProyectosClaude(pw({ CLAUDE_CONFIG_DIR: "D:\\claude" })), "D:\\claude\\projects");
+  assert.equal(carpetaProyectosClaude(pw({})), "C:\\Users\\Ana\\.claude\\projects");
+  // contexto-local (líderes que no son Claude): lo mismo, con el entorno que se le pasa
+  assert.equal(claudeDe("/home/ana"), "/home/ana/.claude");
+  assert.equal(claudeDe("/home/ana", { CLAUDE_CONFIG_DIR: "/cfg/c" }), "/cfg/c");
+  assert.equal(memoriaDe("/home/ana", "/home/ana", { CLAUDE_CONFIG_DIR: "/cfg/c" }), "/cfg/c/projects/-home-ana/memory/MEMORY.md");
+  const leidos: string[] = [];
+  await hooksDeArranque("/home/ana", async (r) => (leidos.push(r), null), { CLAUDE_CONFIG_DIR: "/cfg/c" });
+  assert.deepEqual(leidos, ["/cfg/c/settings.json"]);
+  const d = tmp();
+  mkdirSync(path.join(d, "skills", "mi-orquestar"), { recursive: true });
+  writeFileSync(path.join(d, "skills", "mi-orquestar", "SKILL.md"), "x");
+  assert.equal(await skillOrquestar("/home/ana", { CLAUDE_CONFIG_DIR: d }), "mi-orquestar");
+  assert.equal(await skillOrquestar("/home/ana-sin-nada", {}), "trama-orquestar");
   rmSync(d, { recursive: true, force: true });
 });
