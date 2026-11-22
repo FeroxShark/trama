@@ -12,7 +12,7 @@ export type Reporte = { descripcion: string; log: string | null; version: string
 export type Entrada = Reporte & { captura: Uint8Array | null };
 
 // C0 salvo tab y salto de línea, DEL y C1; los de dirección (pueden dar vuelta lo que se lee) y los invisibles.
-const CONTROL = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F​-‏‪-‮⁠-⁩﻿]/g;
+const CONTROL = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u00AD\u034F\u061C\u180E\u200B-\u200F\u2028-\u202E\u2060-\u2069\uFE00-\uFE0F\uFEFF\u{E0000}-\u{E007F}\u{E0100}-\u{E01EF}]/gu;
 
 /** Texto de afuera → texto plano seguro de guardar: normalizado, sin caracteres de control ni invisibles, con tope. `null` si no es texto. */
 export function limpiarTexto(x: unknown, max: number): string | null {

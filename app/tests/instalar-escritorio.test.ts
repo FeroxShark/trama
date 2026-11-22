@@ -238,3 +238,26 @@ test("trama-estado: opencode sin auth.json pero con `auth list` de 2.x cuenta co
   const k = estado({});
   assert.equal((k.opencode ?? k.programas?.opencode).logueado, false);
 });
+
+
+test("instalar.sh conserva comillas, espacios, ampersand y barras verticales en las rutas", () => {
+  const c = casa("rutas raras");
+  const app = path.join(c.dir, "app con ' & | % y espacio");
+  appFalsa(app);
+  const r = spawnSync("bash", [path.join(app, "scripts", "instalar.sh"), "--raiz", app], { env: c.env, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  const lanzador = path.join(c.h, ".local", "bin", "trama");
+  const sintaxis = spawnSync("sh", ["-n", lanzador], { encoding: "utf8" });
+  assert.equal(sintaxis.status, 0, sintaxis.stderr);
+  ejecutable(path.join(app, "node_modules", "electron", "dist", "electron"), '#!/bin/sh\nprintf "%s\\n" "$PWD" "$1"\n');
+  const abrir = spawnSync(lanzador, [], { env: { ...c.env, TRAMA_UNIDAD: "1" }, encoding: "utf8" });
+  assert.equal(abrir.status, 0, abrir.stderr);
+  assert.equal(abrir.stdout.trim().split("\n").at(-1), app);
+  const desktop = readFileSync(path.join(c.h, ".local", "share", "applications", "trama.desktop"), "utf8");
+  assert.ok(desktop.includes(`Exec="${lanzador}"`));
+  const unidad = readFileSync(path.join(c.h, ".config", "systemd", "user", "trama-motor.service"), "utf8");
+  const linea = unidad.split("\n").find((l) => l.startsWith("ExecStart="))!;
+  const decodificada = linea.replace(/\\x([0-9a-f]{2})/gi, (_, h: string) => String.fromCharCode(parseInt(h, 16))).replace(/%%/g, "%").replace(/\$\$/g, "$");
+  assert.equal(decodificada, `ExecStart=${app}/node_modules/electron/dist/electron ${app}/dist-electron/motor.js`);
+  assert.ok(!unidad.includes("@RAIZ@"));
+});

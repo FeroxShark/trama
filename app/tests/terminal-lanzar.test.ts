@@ -33,3 +33,11 @@ test("x-terminal-emulator toma la bandera de la terminal a la que resuelve (gnom
   assert.deepEqual(resolverTerminal(env, hay("/usr/bin/x-terminal-emulator"), "linux", a("/usr/bin/xterm")), ["/usr/bin/x-terminal-emulator", "-e"]);
   assert.deepEqual(resolverTerminal(env, hay("/usr/bin/x-terminal-emulator"), "linux", a("/usr/bin/foo")), ["/usr/bin/x-terminal-emulator", "-e"]);
 });
+
+
+test("xfce4-terminal espera al comando con --disable-server, también por alternatives", () => {
+  const esperado = ["--disable-server", "-x"];
+  assert.deepEqual(resolverTerminal({ HILOS_TERMINAL: "xfce4-terminal" }, hay(), "linux"), ["xfce4-terminal", ...esperado]);
+  assert.deepEqual(resolverTerminal({ PATH: "/bin", TERMINAL: "xfce4-terminal" }, hay("/bin/xfce4-terminal"), "linux"), ["/bin/xfce4-terminal", ...esperado]);
+  assert.deepEqual(resolverTerminal({ PATH: "/bin" }, hay("/bin/x-terminal-emulator"), "linux", () => "/bin/xfce4-terminal"), ["/bin/x-terminal-emulator", ...esperado]);
+});

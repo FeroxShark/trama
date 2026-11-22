@@ -231,7 +231,7 @@ export async function papeleraProyecto(archivo: string, slug: unknown, escrito: 
   if (!existe) throw errorT("main.borrar.noExiste");
   const motivo = motivoPapelera(p.ruta, otros, casa, deps.plat);
   if (motivo) throw new Error(motivo);
-  if (p.estado !== "retirado") await negarSiVivos(p, deps);
+  await negarSiVivos(p, deps);
   if (p.estado !== "retirado") {
     marcar(json, propias, (deps.ahora ?? (() => new Date()))());
     await escribir(archivo, json);

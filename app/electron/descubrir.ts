@@ -509,7 +509,7 @@ async function vista(d: DepsDescubrir, c: Cache): Promise<CatalogoDescubrir> {
 export async function catalogo(actualizar: unknown, d: DepsDescubrir): Promise<CatalogoDescubrir> {
   const ahora = (d.ahora ?? Date.now)();
   let c = await leerCache(d);
-  const vigente = c.actualizado !== null && ahora - c.actualizado < VIGENCIA_MS && c.actualizado <= ahora + 60_000;
+  const vigente = !c.errores.skills && !c.errores.mcp && c.actualizado !== null && ahora - c.actualizado < VIGENCIA_MS && c.actualizado <= ahora + 60_000;
   if (actualizar === true || !vigente) {
     const [sk, mc] = await Promise.allSettled([bajarSkills(d), bajarMcp(d)]);
     const motivo = (r: PromiseRejectedResult) => (r.reason instanceof Error ? r.reason.message : String(r.reason)).slice(0, 300);

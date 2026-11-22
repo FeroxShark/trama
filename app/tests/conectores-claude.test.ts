@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, renameSync, symlinkSync, lstatSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -126,4 +126,29 @@ test("rutasClaude: en Windows sale de USERPROFILE", () => {
   const r = rutasClaude({ USERPROFILE: "C:\\Users\\ana" }, "win32");
   assert.equal(r.claude, "C:\\Users\\ana\\.claude");
   assert.equal(r.claudeJson, "C:\\Users\\ana\\.claude.json");
+});
+
+
+test("alternar conserva el enlace simbólico de los ajustes del usuario y del proyecto", async (t) => {
+  const x = armar();
+  try {
+    const casos = [
+      [path.join(x.rutas.claude, "settings.json"), "plugin|estilo@mercado|"],
+      [path.join(x.proy, ".claude", "settings.local.json"), `mcp|proyecto|${x.proy}|web`],
+    ];
+    for (const [ruta, id] of casos) {
+      const destino = `${ruta}.dotfile`;
+      renameSync(ruta, destino);
+      try { symlinkSync(destino, ruta, "file"); } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "EPERM") throw e;
+        t.skip("Windows sin permiso para crear enlaces");
+        return;
+      }
+      await alternar(id, false, x.rutas);
+      assert.ok(lstatSync(ruta).isSymbolicLink());
+      const j = JSON.parse(readFileSync(destino, "utf8"));
+      if (id.startsWith("plugin")) assert.equal(j.enabledPlugins["estilo@mercado"], false);
+      else assert.ok(j.disabledMcpjsonServers.includes("web"));
+    }
+  } finally { x.limpiar(); }
 });

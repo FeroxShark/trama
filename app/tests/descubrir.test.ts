@@ -395,3 +395,30 @@ test("un servidor que no contesta o cae corta por tiempo, y un archivo de la cac
     await d.cerrar();
   }
 });
+
+
+test("una fuente fallida se reintenta al volver a abrir aunque la otra haya actualizado", async () => {
+  for (const fuente of ["skills", "mcp"] as const) {
+    const dir = mkdtempSync(path.join(raizTmp, "reintento-"));
+    let falla = true;
+    let pedidos = 0;
+    const d: DepsDescubrir = {
+      home: dir, estado: path.join(dir, "estado"),
+      env: { TRAMA_MCP: path.join(dir, "mcp.json") },
+      fetch: async (url) => {
+        pedidos++;
+        const mcp = String(url).includes("/v0/servers");
+        if (falla && mcp === (fuente === "mcp")) throw new Error("fuente caída");
+        return Response.json(mcp ? { servers: [], metadata: {} } : { tree: [], truncated: false });
+      },
+    };
+    const primero = await catalogo(false, d);
+    assert.ok(primero.errores[fuente]);
+    assert.equal(primero.errores[fuente === "mcp" ? "skills" : "mcp"], null);
+    const antes = pedidos;
+    falla = false;
+    const segundo = await catalogo(false, d);
+    assert.deepEqual(segundo.errores, { skills: null, mcp: null });
+    assert.ok(pedidos > antes);
+  }
+});

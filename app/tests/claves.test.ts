@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { analizarClaves, conClaves, guardarClave, hayClaves, leerClaves, rutaClaves } from "../electron/claves.ts";
+import { analizarClaves, conClaves, guardarClave, guardarClavesMcp, hayClaves, leerClaves, rutaClaves } from "../electron/claves.ts";
 import { cambiarIdioma, textoMain } from "../src/i18n/index.ts";
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "trama-claves-"));
@@ -95,4 +95,18 @@ test("la key de Artificial Analysis se guarda como las otras, se cuenta como pre
   assert.equal(conClaves({}, await leerClaves(ruta)).ARTIFICIAL_ANALYSIS_API_KEY, undefined);
   await guardarClave("ARTIFICIAL_ANALYSIS_API_KEY", null, ruta);
   assert.deepEqual(await leerClaves(ruta), {});
+});
+
+
+test("guardar y borrar claves conserva reportes, comentarios y líneas ajenas", async () => {
+  const ruta = nueva();
+  mkdirSync(path.dirname(ruta), { recursive: true });
+  const ajenas = "# conservar\r\nTRAMA_REPORTES_CLAVE=valor-de-prueba\r\nOTRA=valor\nlinea sin formato\n";
+  writeFileSync(ruta, ajenas + "OPENCODE_API_KEY=vieja\n");
+  await guardarClave("OPENCODE_API_KEY", "nueva", ruta);
+  assert.ok(readFileSync(ruta, "utf8").startsWith(ajenas));
+  await guardarClavesMcp({ MCP_PRUEBA__E_TOKEN: "prueba" }, ruta);
+  await guardarClave("OPENCODE_API_KEY", null, ruta);
+  await guardarClavesMcp({ MCP_PRUEBA__E_TOKEN: null }, ruta);
+  assert.equal(readFileSync(ruta, "utf8"), ajenas);
 });

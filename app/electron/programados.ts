@@ -7,6 +7,7 @@
 // si el líder está a mitad de un turno espera su turno, y si no tiene proceso se lo retoma, igual que cualquier mensaje encolado.
 // Un mensaje que no pudo salir NO se reintenta solo (un `claude` que no arranca sería un bucle): queda con su error hasta que se saque.
 // Sin imports de Electron: el reloj, el timer, el disco y la cola se inyectan; lo prueba tests/programados.test.ts.
+import { silencio } from "./log.ts";
 import { LEJOS_MS } from "./programados-hora.ts";
 
 export type Programado = {
@@ -114,13 +115,14 @@ export function crearProgramados(deps: Deps) {
   const estado = (): Estado => ({ mensajes: foto.mensajes.map((m) => ({ ...m })), pospuestos: foto.pospuestos.map((p) => ({ ...p })) });
   const guardar = () => {
     const json = JSON.stringify(foto);
-    escritura = escritura.then(() => deps.escribir(json)).catch(() => undefined);
+    escritura = escritura.then(() => deps.escribir(json));
     return escritura;
   };
-  const cargar = () => (cargado ??= deps.leer().then(
-    (j) => void (foto = leerFoto(j)),
-    () => undefined,
-  ));
+  const cargar = () => (cargado ??= deps.leer().then((j) => {
+    // Un archivo ilegible o de otra versión no autoriza a sobrescribirlo con una lista vacía.
+    if (j !== null && JSON.parse(j)?.version !== 1) throw new Error("programados: versión de archivo desconocida");
+    foto = leerFoto(j);
+  }));
 
   /** Lo que falta para el próximo vencimiento (un mensaje sin error o un pospuesto), o `null` si no hay nada. */
   const proximo = (): number | null => {
@@ -138,7 +140,7 @@ export function crearProgramados(deps: Deps) {
     const ms = Math.max(0, Math.min(p - deps.ahora(), REVISAR_MS, POR_DEBAJO_DE));
     timer = deps.poner(ms, () => {
       timer = null;
-      void vencer();
+      void vencer().catch(silencio("programados"));
     });
   };
 
@@ -174,9 +176,13 @@ export function crearProgramados(deps: Deps) {
       }
     })();
     // `finally` corre en otro tick: `venciendo` ya está asignado aunque la pasada no haya esperado nada.
-    venciendo = pasada.finally(() => {
+    venciendo = pasada.then(() => {
       venciendo = null;
       armar();
+    }, (e) => {
+      // Sin persistencia no se entrega ni se vuelve a armar un timer que insistiría sobre el mismo error.
+      venciendo = null;
+      throw e;
     });
     return venciendo;
   };

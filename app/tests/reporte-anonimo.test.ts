@@ -159,3 +159,46 @@ test("leerGuardado y claveLectura: lo que baja se revisa otra vez; la clave sól
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+
+test("bajarReportes avisa lo guardado aunque falle la siguiente descarga o el borrado", async () => {
+  for (const fallo of ["GET", "DELETE"]) {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "trama-rep-parcial-"));
+    const primero = "abcdef-0123456789abcdef";
+    const segundo = "abcdeg-0123456789abcdef";
+    const avisos: string[] = [];
+    const borrados: string[] = [];
+    try {
+      await assert.rejects(bajarReportes({
+        url: "https://r.test", clave: CLAVE, dir, avisar: (c) => { avisos.push(c); },
+        fetch: async (url, opts) => {
+          const u = String(url);
+          if (u.endsWith("/reportes")) return Response.json({ ids: [primero, segundo] });
+          if (opts?.method === "DELETE") {
+            if (fallo === "DELETE") throw new Error("red caída");
+            borrados.push(u);
+            return new Response(null, { status: 204 });
+          }
+          if (u.endsWith(segundo)) throw new Error("red caída");
+          return Response.json({ descripcion: "dato externo", recibido: "2026-11-21T12:00:00Z" });
+        },
+      }), /red caída/);
+      assert.equal(avisos.length, 1);
+      assert.ok(existsSync(path.join(avisos[0], "reporte.txt")));
+      if (fallo === "GET") assert.equal(borrados.length, 1);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }
+});
+
+
+test("limpiarTexto elimina tags y selectores invisibles también en el receptor", () => {
+  const invisibles = [0xE0000, 0xE0041, 0xE007F, 0xE0100, 0xE01EF, 0xAD, 0x34F, 0x61C, 0x180E, 0xFE00, 0xFE0F, 0x2028, 0x2029];
+  for (const cp of invisibles) {
+    const descripcion = `hola${String.fromCodePoint(cp)}mundo`;
+    assert.equal(limpiarTexto(descripcion, 100), "holamundo", cp.toString(16));
+    const r = validarEntrada(JSON.stringify({ descripcion }));
+    assert.ok(r.ok);
+    assert.equal(r.entrada.descripcion, "holamundo");
+  }
+  assert.equal(limpiarTexto("á 😀\n\t", 100), "á 😀\n\t");
+});

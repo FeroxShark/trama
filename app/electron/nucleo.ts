@@ -585,7 +585,10 @@ const borradores = almacenBorradores(
 // Mensajes programados y conversaciones pospuestas (programados.ts): un timer en este proceso, guardado en `programados.json`.
 // Al llegar la hora el mensaje entra por la cola del líder (sale cuando el líder pueda recibirlo, o lo retoma si no tiene proceso).
 const programados = crearProgramados({
-  leer: () => readFile(path.join(ESTADO, "programados.json"), "utf8").catch(() => null),
+  leer: () => readFile(path.join(ESTADO, "programados.json"), "utf8").catch((e: NodeJS.ErrnoException) => {
+    if (e.code === "ENOENT") return null;
+    throw e;
+  }),
   escribir: (json) => escribirAtomico(path.join(ESTADO, "programados.json"), json),
   ahora: Date.now,
   poner: (ms, fn) => setTimeout(fn, ms).unref(),

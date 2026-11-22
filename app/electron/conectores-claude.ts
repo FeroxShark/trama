@@ -4,7 +4,7 @@
 // Se puede prender y apagar lo que Claude Code deja: un plugin (`enabledPlugins`) y un servidor de `.mcp.json` (`enabledMcpjsonServers` /
 // `disabledMcpjsonServers` en `.claude/settings.local.json` del proyecto). NUNCA sale un secreto: de las variables de un MCP sólo el nombre,
 // y en comandos, argumentos, URLs y hooks se enmascaran los valores de claves, tokens y contraseñas. Node puro: los tests pasan las rutas.
-import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, realpath, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { errorT } from "./errores.ts";
 import { homeDe, plataformaActual, registroProyectos, type Plataforma } from "./rutas.ts";
@@ -437,6 +437,10 @@ export async function inventario(rutas: Rutas = rutasClaude()): Promise<Inventar
 
 /** Lee, cambia y reescribe un JSON de ajustes sin tocar el resto de sus claves; si no se puede leer, no se toca. */
 async function cambiarAjustes(ruta: string, cambiar: (j: Json) => void): Promise<void> {
+  ruta = await realpath(ruta).catch((e: NodeJS.ErrnoException) => {
+    if (e.code === "ENOENT") return ruta;
+    throw e;
+  });
   const crudo = await leerTexto(ruta);
   let j: Json = {};
   if (crudo !== null && crudo.trim()) {

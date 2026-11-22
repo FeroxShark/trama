@@ -298,3 +298,16 @@ test("los canales: papelera sólo desde la PC; quitar y deshacer valen también 
   const todos = JSON.stringify(canales);
   for (const c of ["proyectos:borrarVista", "proyectos:quitar", "proyectos:reactivar", "proyectos:papelera"]) assert.ok(todos.includes(`"${c}"`), c);
 });
+
+
+test("papelera: un proyecto retirado con líderes o workers vivos se rechaza", async () => {
+  nuevoRegistro();
+  await quitarProyecto(reg, "atlas", deps().d);
+  const antes = readFileSync(reg, "utf8");
+  for (const vivos of [{ lideres: 1, workers: 0 }, { lideres: 0, workers: 1 }]) {
+    const { d, mandadas } = deps({ vivos });
+    await assert.rejects(papeleraProyecto(reg, "atlas", "atlas", d), /main\.borrar\.vivos/);
+    assert.deepEqual(mandadas, []);
+    assert.equal(readFileSync(reg, "utf8"), antes);
+  }
+});

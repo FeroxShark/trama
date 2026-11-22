@@ -128,10 +128,11 @@ export async function bajarReportes(d: DepsBajar): Promise<string[]> {
       const img = g.captura ? deBase64(g.captura) : null;
       if (img && tipoImagen(img) === "image/jpeg") await writeFile(path.join(carpeta, "captura.jpg"), img);
       nuevas.push(carpeta);
+      // Avisar antes de borrar del receptor: una falla posterior no oculta lo que ya llegó al disco.
+      await d.avisar?.(carpeta);
     }
     // Escrito (o roto sin arreglo): se borra del receptor.
     await pedir(`/${id}`, "DELETE");
   }
-  for (const c of nuevas) await d.avisar?.(c);
   return nuevas;
 }

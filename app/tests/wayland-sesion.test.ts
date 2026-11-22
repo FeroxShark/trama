@@ -1,7 +1,8 @@
 // Trama elige Wayland nativo aunque el proceso que la lanza no traiga WAYLAND_DISPLAY (electron/wayland.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -78,4 +79,28 @@ test("aplicarWayland sin socket real: no exporta y no fuerza", () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+
+test("WAYLAND_DISPLAY absoluto tiene prioridad sobre otro socket de la sesión", () => {
+  const env = { WAYLAND_DISPLAY: "/anidado/socket", XDG_RUNTIME_DIR: "/run/user/1000" };
+  assert.deepEqual(resolverWayland(env, 1000, () => ["wayland-0"], () => true), { waylandDisplay: env.WAYLAND_DISPLAY, forzarWayland: true });
+});
+
+test("lanzador y app descartan una pantalla absoluta vieja y respetan la existente", { skip: soloPosix("el lanzador de Linux usa sh") }, () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "tw-absoluto-"));
+  const socket = path.join(dir, "wayland-0");
+  // El predicado de socket se inyecta tanto en TS como en sh: no hace falta un compositor.
+  writeFileSync(socket, "socket falso");
+  try {
+    const fuente = readFileSync(new URL("../scripts/instalar.sh", import.meta.url), "utf8");
+    const bloque = fuente.split("# --- wayland")[1].split("# --- fin wayland")[0].replace(/\\/g, "");
+    const predicado = '[() { if test "$1" = "!" && test "$2" = "-S"; then test "$3" != "$SOCKET_PRUEBA"; elif test "$1" = "-S"; then test "$2" = "$SOCKET_PRUEBA"; else command [ "$@"; fi; };\n';
+    for (const pantalla of [socket, path.join(dir, "viejo")]) {
+      const env = { ...process.env, XDG_RUNTIME_DIR: dir, WAYLAND_DISPLAY: pantalla, SOCKET_PRUEBA: socket };
+      const r = spawnSync("sh", ["-c", `${predicado}${bloque}\nprintf '%s' "$WAYLAND_DISPLAY"`], { env, encoding: "utf8" });
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(r.stdout, resolverWayland(env, 1000, () => ["wayland-0"], (ruta) => ruta === socket).waylandDisplay);
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

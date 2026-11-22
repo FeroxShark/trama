@@ -37,7 +37,8 @@ const CLAVES: [RegExp, string][] = [
   [/\bnvapi-[A-Za-z0-9_-]{16,}/g, "<clave>"],
   [/\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, "<token>"],
   [/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, "$1 <token>"],
-  [/\b((?:[A-Z0-9_]*_)?(?:API_?KEY|TOKEN|SECRET|PASSWORD|CLAVE)[A-Z0-9_]*)(\s*[=:]\s*)("?)[^\s"']+\3/gi, "$1$2<oculto>"],
+  [/\b((?:[A-Z0-9_-]*[_-])?(?:API[-_]?KEY|TOKEN|SECRET|PASSWORD|CLAVE)[A-Z0-9_-]*["']?)(\s*[=:]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;}\]]+)/gi, "$1$2<oculto>"],
+  [/:\/\/[^/\s:@]+:[^/\s@]+@/g, "://<oculto>@"],
   [/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g, "<correo>"],
 ];
 

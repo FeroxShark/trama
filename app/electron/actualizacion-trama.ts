@@ -31,6 +31,7 @@ import { crearAlmacen } from "./arranque-seguro.js";
 import { carpetaCopias, crearVersionAnterior, instalacionDe } from "./version-anterior.js";
 import { textoT } from "./errores.js";
 import { configTrama } from "./rutas.js";
+import { hijoEnGrupo, matarArbol } from "./procesos.js";
 import { silencio } from "./log.js";
 import { comparar, desdeArchivo, hayQueConsultar, normal, type Chequeo } from "./version.js";
 
@@ -104,7 +105,7 @@ function paquete(): { version?: unknown; repository?: unknown } {
 export const versionInstalada = (): string | null => normal(paquete().version);
 export const repoDelPaquete = (): string | null => repoDe(paquete().repository);
 
-export type Corrida = { code: number | null; salida: string };
+export type Corrida = { code: number | null; salida: string; stdout?: string };
 export type Correr = (paso: Pick<Paso, "cmd" | "args" | "cwd" | "timeoutMs" | "registro"> & { env?: Record<string, string>; alPid?: (pid: number) => void }) => Promise<Corrida>;
 
 /** execFile (argv, sin shell) con el PATH de siempre; nunca rechaza. */
@@ -112,7 +113,7 @@ export const correrReal: Correr = (p) =>
   p.registro ? correrSuelto(p) : new Promise((listo) =>
     execFile(p.cmd, p.args, { cwd: p.cwd, windowsHide: true, timeout: p.timeoutMs, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, ...p.env, GIT_TERMINAL_PROMPT: "0" } }, (err, stdout, stderr) => {
       const code = err ? (typeof (err as { code?: unknown }).code === "number" ? ((err as { code: number }).code) : null) : 0;
-      listo({ code, salida: `${String(stderr ?? "")}\n${String(stdout ?? "")}${err && code === null ? `\n${err.message}` : ""}` });
+      listo({ code, stdout: String(stdout ?? ""), salida: `${String(stderr ?? "")}\n${String(stdout ?? "")}${err && code === null ? `\n${err.message}` : ""}` });
     }),
   );
 
@@ -125,8 +126,8 @@ function correrSuelto(p: Parameters<Correr>[0]): Promise<Corrida> {
     let fd = -1;
     try {
       fd = openSync(p.registro!, "w");
-      const hijo = spawn(p.cmd, p.args, { cwd: p.cwd, detached: true, stdio: ["ignore", fd, fd], env: { ...process.env, ...p.env, GIT_TERMINAL_PROMPT: "0" } });
-      const reloj = setTimeout(() => hijo.kill("SIGTERM"), p.timeoutMs);
+      const hijo = spawn(p.cmd, p.args, { cwd: p.cwd, detached: hijoEnGrupo(), windowsHide: true, stdio: ["ignore", fd, fd], env: { ...process.env, ...p.env, GIT_TERMINAL_PROMPT: "0" } });
+      const reloj = setTimeout(() => matarArbol(hijo.pid, "SIGTERM"), p.timeoutMs);
       const leer = () => { try { return readFileSync(p.registro!, "utf8"); } catch { return ""; } };
       hijo.on("error", (e) => (clearTimeout(reloj), listo({ code: null, salida: e.message })));
       hijo.on("exit", (code) => (clearTimeout(reloj), listo({ code, salida: leer() })));
@@ -340,7 +341,7 @@ export function crearActualizacionTrama(deps: Deps = {}) {
   /** ¿El checkout tiene cambios sin commitear? (Lo sin seguimiento no cuenta: no frena un checkout de tag.) */
   async function sucioEn(checkout: string): Promise<boolean> {
     const r = await correr({ cmd: "git", args: ["status", "--porcelain", "--untracked-files=no"], cwd: checkout, timeoutMs: 15_000 });
-    return r.code === 0 && r.salida.trim() !== "";
+    return r.code === 0 && (r.stdout ?? r.salida).trim() !== "";
   }
 
   /** El aviso de ahora a partir de lo guardado (sin red). */

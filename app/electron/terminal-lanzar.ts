@@ -16,7 +16,7 @@ const BANDERA: Record<string, string[]> = {
   alacritty: ["-e"],
   foot: [],
   xterm: ["-e"],
-  "xfce4-terminal": ["-x"],
+  "xfce4-terminal": ["--disable-server", "-x"],
   wezterm: ["start", "--"],
 };
 

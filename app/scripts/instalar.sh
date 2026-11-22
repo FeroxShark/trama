@@ -51,10 +51,12 @@ mkdir -p "$(dirname "$bin")" "$(dirname "$desktop")" "$iconos/scalable/apps" "$i
 
 # El binario real de Electron, no node_modules/.bin/electron (cli.js lo lanzaría
 # como hijo y la ventana quedaría en otro proceso).
+# El lanzador es /bin/sh: comillas simples, incluso si la ruta contiene una comilla.
+raiz_lanzador=${raiz//\'/\'\\\'\'}
 cat >"$bin" <<EOF
 #!/bin/sh
 # Lanzador de trama (lo escribe scripts/instalar.sh): abre el build de este checkout.
-raiz='$raiz'
+raiz='$raiz_lanzador'
 electron="\$raiz/node_modules/electron/dist/electron"
 [ -x "\$electron" ] || (cd "\$raiz" && npm ci) || exit 1
 [ -f "\$raiz/dist/index.html" ] && [ -f "\$raiz/dist-electron/main.js" ] || (cd "\$raiz" && npm run build) || exit 1
@@ -72,7 +74,9 @@ fi
 # seguidos hacen que «Actualizar» dé la versión nueva por mala y vuelva atrás (2026-11-10: 0.2.61, 0.2.62 y 0.2.63). Si el socket no existe, se usa el que haya.
 # Sin WAYLAND_DISPLAY (lo lanzó un entorno sin sesión gráfica) también se usa el que haya: si no, Electron cae en XWayland (borrosa, 2026-11-15).
 sock_dir="\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}"
-if { [ -z "\$WAYLAND_DISPLAY" ] || { [ "\${WAYLAND_DISPLAY#/}" = "\$WAYLAND_DISPLAY" ] && [ ! -S "\$sock_dir/\$WAYLAND_DISPLAY" ]; }; }; then
+pantalla="\$sock_dir/\$WAYLAND_DISPLAY"
+case "\$WAYLAND_DISPLAY" in /*) pantalla="\$WAYLAND_DISPLAY" ;; esac
+if [ -z "\$WAYLAND_DISPLAY" ] || [ ! -S "\$pantalla" ]; then
   for s in "\$sock_dir"/wayland-[0-9]*; do
     if [ -S "\$s" ]; then WAYLAND_DISPLAY="\${s##*/}"; export WAYLAND_DISPLAY; break; fi
   done
@@ -86,12 +90,19 @@ install -m 644 "$raiz/public/favicon.svg" "$iconos/scalable/apps/trama.svg"
 install -m 644 "$raiz/public/icon.png" "$iconos/256x256/apps/trama.png"
 
 # StartupWMClass: el app_id de la ventana en Wayland es el `name` de package.json.
+# Primero el escape de argv; después el de cadenas del formato .desktop.
+bin_desktop=${bin//\\/\\\\}
+bin_desktop=${bin_desktop//\"/\\\"}
+bin_desktop=${bin_desktop//\`/\\\`}
+bin_desktop=${bin_desktop//\$/\\\$}
+bin_desktop=${bin_desktop//\\/\\\\}
+bin_desktop=${bin_desktop//%/%%}
 cat >"$desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=trama
 Comment=Workers de pa y líderes de Claude
-Exec=$bin
+Exec="$bin_desktop"
 Icon=trama
 Terminal=false
 Categories=Development;
@@ -116,7 +127,19 @@ if command -v systemctl >/dev/null && systemctl --user show-environment >/dev/nu
   else
     # rm antes: si quedó el enlace de una versión anterior, escribir encima pisaría la plantilla del repo.
     rm -f "$unidades/trama-motor.service"
-    sed "s|@RAIZ@|${raiz//%/%%}|g" "$raiz/systemd/trama-motor.service" >"$unidades/trama-motor.service"
+    # systemd interpreta escapes C antes de ejecutar; sed necesita además sus propios escapes.
+    raiz_unidad=${raiz//\\/\\x5c}
+    raiz_unidad=${raiz_unidad// /\\x20}
+    raiz_unidad=${raiz_unidad//$'\t'/\\x09}
+    raiz_unidad=${raiz_unidad//$'\n'/\\x0a}
+    raiz_unidad=${raiz_unidad//\'/\\x27}
+    raiz_unidad=${raiz_unidad//\"/\\x22}
+    raiz_unidad=${raiz_unidad//\$/\$\$}
+    raiz_unidad=${raiz_unidad//%/%%}
+    raiz_sed=${raiz_unidad//\\/\\\\}
+    raiz_sed=${raiz_sed//&/\\&}
+    raiz_sed=${raiz_sed//|/\\|}
+    sed "s|@RAIZ@|$raiz_sed|g" "$raiz/systemd/trama-motor.service" >"$unidades/trama-motor.service"
     systemctl --user daemon-reload
     systemctl --user enable trama.service trama-motor.service
     echo "unidades: $unidades/trama.service (habilitada; arranca con la sesión gráfica o al abrir trama)"

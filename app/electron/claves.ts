@@ -92,7 +92,15 @@ export function leerClavesMcpSync(ruta = rutaClaves()): Record<string, string> {
 const validoMcp = (v: string) => v.length > 0 && v.length <= 4096 && !/[\r\n\0]/.test(v) && !/^(["']).*\1$/.test(v);
 
 async function escribir(ruta: string, hoy: Partial<Record<NombreClave, string>>, mcp: Record<string, string>) {
-  const texto =
+  const anterior = await readFile(ruta, "utf8").catch((e: NodeJS.ErrnoException) => {
+    if (e.code === "ENOENT") return "";
+    throw e;
+  });
+  const ajenas = (anterior.match(/[^\n]*\n|[^\n]+$/g) ?? []).filter((linea) => {
+    const nombre = /^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=/.exec(linea)?.[1];
+    return !esNombreClave(nombre) && !esClaveMcp(nombre);
+  }).join("");
+  const texto = ajenas + (ajenas && !ajenas.endsWith("\n") ? "\n" : "") +
     NOMBRES_CLAVE.filter((n) => hoy[n]).map((n) => `${n}=${hoy[n]}\n`).join("") +
     Object.keys(mcp).sort().map((n) => `${n}=${mcp[n]}\n`).join("");
   const dir = path.dirname(ruta);

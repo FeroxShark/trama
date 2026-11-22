@@ -31,7 +31,7 @@ export function resolverWayland(
 ): { waylandDisplay?: string; forzarWayland: boolean } {
   const run = env.XDG_RUNTIME_DIR || `/run/user/${uid}`;
   // Ya viene con una pantalla que existe: se respeta.
-  if (env.WAYLAND_DISPLAY && !env.WAYLAND_DISPLAY.startsWith("/") && esSocket(path.join(run, env.WAYLAND_DISPLAY))) {
+  if (env.WAYLAND_DISPLAY && esSocket(env.WAYLAND_DISPLAY.startsWith("/") ? env.WAYLAND_DISPLAY : path.join(run, env.WAYLAND_DISPLAY))) {
     return { waylandDisplay: env.WAYLAND_DISPLAY, forzarWayland: true };
   }
   const socket = listar(run).find((f) => /^wayland-\d+$/.test(f) && esSocket(path.join(run, f)));

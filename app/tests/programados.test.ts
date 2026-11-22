@@ -184,3 +184,61 @@ test("resolverCuando entiende duraciones, horas y días en español y en inglés
   // Las opciones rápidas siempre se entienden.
   for (const r of RAPIDOS) assert.ok(dur(r)! > T0, r);
 });
+
+
+test("una lectura fallida, rota o de otra versión bloquea cualquier escritura", async () => {
+  for (const leer of [
+    async (): Promise<string | null> => { throw Object.assign(new Error("EACCES"), { code: "EACCES" }); },
+    async () => "{roto",
+    async () => JSON.stringify({ version: 2, mensajes: [] }),
+  ]) {
+    let escrituras = 0;
+    const p = crearProgramados({
+      leer, escribir: async () => { escrituras++; }, ahora: () => T0,
+      poner: () => assert.fail("no debe armar un timer"), cancelar: () => {},
+      encolar: async () => assert.fail("no debe enviar"), avisar: () => {},
+    });
+    await assert.rejects(p.arrancar());
+    await assert.rejects(p.programar(pedido(T0 + MIN)));
+    await assert.rejects(p.posponer("sid", T0 + MIN));
+    assert.equal(escrituras, 0);
+  }
+});
+
+
+test("una escritura fallida rechaza programar y evita entregar mensajes que siguen en disco", async () => {
+  let json: string | null = null;
+  let falla = true;
+  let ahora = T0;
+  let enviados = 0;
+  let avisos = 0;
+  const abrir = () => crearProgramados({
+    leer: async () => json,
+    escribir: async (j) => { if (falla) throw new Error("disco lleno"); json = j; },
+    ahora: () => ahora, poner: () => 1, cancelar: () => {},
+    encolar: async () => { enviados++; }, avisar: () => { avisos++; },
+  });
+  const p = abrir();
+  await assert.rejects(p.programar(pedido(T0 + MIN)), /disco lleno/);
+  assert.equal(json, null);
+  assert.equal(avisos, 0);
+  // Nueva sesión con disco sano: el mensaje queda guardado.
+  falla = false;
+  const q = abrir();
+  await q.programar(pedido(T0 + MIN));
+  const bueno = json;
+  ahora += MIN;
+  falla = true;
+  await assert.rejects(q.vencer(), /disco lleno/);
+  assert.equal(enviados, 0);
+  assert.equal(json, bueno);
+  q.parar();
+});
+
+
+test("resolverCuando rechaza horas, minutos y días desbordados en una fecha completa", () => {
+  for (const entrada of ["2026-11-05 25:00", "2026-11-05 09:99", "2026-11-00 09:00", "2026-11-31 09:00", "2027-02-29 09:00"]) {
+    assert.equal(resolverCuando(entrada, T0), null, entrada);
+  }
+  assert.equal(resolverCuando("2026-11-05 23:59", T0), new Date(2026, 10, 5, 23, 59).getTime());
+});

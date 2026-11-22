@@ -53,8 +53,9 @@ export function resolverCuando(entrada: string, ahora: number): number | null {
   // Fecha completa.
   const f = /^(\d{4})-(\d{2})-(\d{2})(?:[ t](\d{1,2}):(\d{2}))?$/.exec(crudo);
   if (f) {
+    if (Number(f[4]) > 23 || Number(f[5]) > 59) return null;
     const d = new Date(Number(f[1]), Number(f[2]) - 1, Number(f[3]), f[4] === undefined ? 9 : Number(f[4]), f[5] === undefined ? 0 : Number(f[5]), 0, 0);
-    if (d.getMonth() !== Number(f[2]) - 1 || d.getTime() <= ahora || d.getTime() - ahora > LEJOS_MS) return null;
+    if (d.getFullYear() !== Number(f[1]) || d.getDate() !== Number(f[3]) || d.getMonth() !== Number(f[2]) - 1 || d.getTime() <= ahora || d.getTime() - ahora > LEJOS_MS) return null;
     return d.getTime();
   }
 

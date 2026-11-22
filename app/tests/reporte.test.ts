@@ -80,3 +80,20 @@ test("armarReporte: escribe la captura sólo si es PNG y devuelve la URL de GitH
     rmSync(home, { recursive: true, force: true });
   }
 });
+
+
+test("limpiarLog oculta secretos JSON, cabeceras con guion y credenciales de URL", () => {
+  for (const entrada of [
+    '{"access_token":"valor-secreto-uno","dato":"visible"}',
+    '{"apiKey": "valor-secreto-dos"}',
+    "x-api-key: valor-secreto-tres",
+    "'password': 'valor secreto con espacios'",
+    "https://usuario:valor-secreto-cuatro@host.example.com/ruta",
+  ]) {
+    const limpio = limpiarLog(entrada, "");
+    assert.ok(!limpio.includes("valor"), limpio);
+    assert.match(limpio, /<oculto>/);
+    if (entrada.includes("visible")) assert.ok(limpio.includes('"dato":"visible"'));
+    if (entrada.startsWith("https")) assert.ok(limpio.includes("host.example.com/ruta"));
+  }
+});

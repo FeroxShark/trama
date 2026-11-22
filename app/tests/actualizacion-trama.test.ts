@@ -2,6 +2,9 @@
 // contra el release v0.1.4 NO avisa), la validación estricta del tag, el argv de Actualizar (sin shell), el checkout que
 // anota el instalador y el aviso entero con un GitHub y un git de mentira. Nunca toca la red ni corre el instalador real.
 import test from "node:test";
+import childProcess from "node:child_process";
+import { EventEmitter } from "node:events";
+import { syncBuiltinESMExports } from "node:module";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
@@ -149,7 +152,7 @@ test("leerCheckout: la ruta anotada si sigue siendo un checkout de Trama; si no,
 // --- el aviso entero, con GitHub y git de mentira ---
 
 type Llamada = { cmd: string; args: string[]; cwd: string; env?: Record<string, string> };
-type Opciones = { instalada: string; tag?: string | null; sucio?: boolean; sinRed?: boolean; falla?: string; avisoInstalador?: string; checkout?: string | null; archivo?: string; archivoAct?: string; ocupacion?: () => import("../electron/actualizacion-trama.ts").Ocupacion; vivo?: (pid: number) => boolean; esperaMs?: number; quietas?: number; antes?: () => Promise<void>; rechazada?: string | null };
+type Opciones = { instalada: string; tag?: string | null; sucio?: boolean; advertenciaGit?: boolean; sinRed?: boolean; falla?: string; avisoInstalador?: string; checkout?: string | null; archivo?: string; archivoAct?: string; ocupacion?: () => import("../electron/actualizacion-trama.ts").Ocupacion; vivo?: (pid: number) => boolean; esperaMs?: number; quietas?: number; antes?: () => Promise<void>; rechazada?: string | null };
 function armar(o: Opciones) {
   const llamadas: Llamada[] = [];
   let pedidos = 0;
@@ -179,7 +182,7 @@ function armar(o: Opciones) {
     },
     correr: async (p) => {
       llamadas.push({ cmd: p.cmd, args: p.args, cwd: p.cwd, env: p.env });
-      if (p.cmd === "git" && p.args[0] === "status") return { code: 0, salida: o.sucio ? " M motor/bin/pa\n" : "" };
+      if (p.cmd === "git" && p.args[0] === "status") return { code: 0, stdout: o.sucio ? " M motor/bin/pa\n" : "", salida: o.advertenciaGit ? "warning: configuración de prueba\n" : o.sucio ? " M motor/bin/pa\n" : "" };
       if (o.falla && p.args.join(" ").includes(o.falla)) return { code: 128, salida: "fatal: unable to access 'https://github.com/x': Could not resolve host\n" };
       if (p.cmd === "bash") return { code: 0, salida: o.avisoInstalador ?? "listo. Para abrir la interfaz: trama-motor abrir\n" };
       return { code: 0, salida: "" };
@@ -687,4 +690,44 @@ test("modoValido: sólo 'ya' y 'esperar'; total cuenta lo que cortaría", () => 
   for (const x of ["", "YA", null, undefined, 1, {}]) assert.equal(m.modoValido(x), false);
   assert.equal(m.total(LIBRE), 0);
   assert.equal(m.total({ lideres: 1, workers: 2, otras: 1, leyendo: true }), 5);
+});
+
+
+test("git status limpio con una advertencia en stderr no bloquea la actualización", async () => {
+  const x = armar({ instalada: "0.1.0", advertenciaGit: true });
+  assert.equal((await x.act.leerAviso())?.sucio, false);
+  const y = armar({ instalada: "0.1.0", advertenciaGit: true, sucio: true });
+  assert.equal((await y.act.leerAviso())?.sucio, true);
+
+});
+
+
+test("el tope del instalador corta todo el árbol y lo lanza sin consola en Windows", async (t) => {
+  const hijo = Object.assign(new EventEmitter(), { pid: 43210, unref() {}, kill() { assert.fail("no alcanza con matar sólo al instalador"); } });
+  const cortes: unknown[][] = [];
+  const spy = t.mock.method(childProcess, "spawn", (_cmd: string, _args: string[], opts: Record<string, unknown>) => {
+    assert.equal(opts.windowsHide, true);
+    assert.equal(opts.detached, process.platform !== "win32");
+    return hijo;
+  });
+  t.mock.method(process, "kill", (pid: number, senal: string) => { cortes.push([pid, senal]); return true; });
+  t.mock.method(childProcess, "execFile", (cmd: string, args: string[], opts: Record<string, unknown>, cb: () => void) => {
+    assert.equal(cmd, "taskkill");
+    assert.equal(opts.windowsHide, true);
+    cortes.push(args);
+    cb();
+  });
+  syncBuiltinESMExports();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const corrida = m.correrReal({ cmd: "instalador-falso", args: [], cwd: tmp, registro: path.join(tmp, "tope.log"), timeoutMs: 100 });
+    assert.equal(spy.mock.callCount(), 1);
+    t.mock.timers.tick(100);
+    assert.deepEqual(cortes, process.platform === "win32" ? [["/T", "/F", "/PID", "43210"]] : [[-43210, "SIGTERM"]]);
+    hijo.emit("exit", null);
+    await corrida;
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
 });
