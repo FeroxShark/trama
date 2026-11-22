@@ -75,7 +75,7 @@ const conLimiteConocido = (c: Contexto) => writeFileSync(path.join(c.estado, "li
 
 const caso = (
   nombre: string,
-  o: { respuestas: object[]; guion: Respuesta[]; modelos?: object; env?: Record<string, string>; pasos: Paso[]; antes?: (c: Contexto) => void; divergenciaSalida?: string; divergenciaEstado?: string },
+  o: { respuestas: object[]; guion: Respuesta[]; modelos?: object; env?: Record<string, string>; pasos: Paso[]; antes?: (c: Contexto) => void; divergenciaSalida?: string; divergenciaEstado?: string; divergenciaPasos?: string },
 ): Caso => ({
   herramienta: "pa-cli",
   nombre: `pa-cli: cupo: ${nombre}`,
@@ -87,6 +87,7 @@ const caso = (
   pasos: o.pasos,
   ...(o.divergenciaSalida ? { divergenciaSalida: o.divergenciaSalida } : {}),
   ...(o.divergenciaEstado ? { divergenciaEstado: o.divergenciaEstado } : {}),
+  ...(o.divergenciaPasos ? { divergenciaPasos: o.divergenciaPasos } : {}),
   divergencia: "el argv de claude del TS difiere del bash congelado a propósito (MCP apagado, sin comandos de slash, sin subagentes, system prompt estable)",
 });
 
@@ -167,6 +168,7 @@ export const casosCupo: Caso[] = [
     pasos: [lanzar(1, "--async")], // el hijo sale 96 sin tomar puesto: el padre lo ve muerto
     divergenciaSalida: "sólo el TS (pa de bash congelado): el que muere antes de tomar puesto dice lo que dijo el hijo y no deja archivos, en vez de «Mirá el log»",
     divergenciaEstado: "sólo el TS: la corrida que muere antes de tomar puesto no deja .log, .jefe ni .pid (si no, Trama muestra un worker fantasma)",
+    divergenciaPasos: "sólo el TS (B090): el hijo que vence la espera de cupo deja .listo con rc 96, así que el padre ya no lo da por muerto (sale 0) y --esperar entrega el 96",
   }),
   // Lo que reparto eligió y ahora no sirve se saltea antes de lanzar: se le pide el siguiente con REPARTO_NO_DISPONIBLE (se ve en el registro de llamadas).
   caso("agy sin el plugin pa-worker: reparto da el siguiente en vez de caer a un Claude", {

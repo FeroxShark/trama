@@ -99,6 +99,8 @@ export interface Caso {
   divergenciaSalida?: string;
   /** El stdout es JSON y el TS lo imprime sin sangría a propósito (`pa --hilo`): se compara el JSON, no los espacios. */
   salidaJson?: string;
+  /** El código de salida diverge a propósito del bash congelado (el motivo va acá); estado y salida se siguen comparando salvo que se diga lo contrario. */
+  divergenciaPasos?: string;
   /** Los archivos de estado divergen a propósito del bash congelado (p. ej. el TS limpia una corrida que murió antes de tomar puesto). */
   divergenciaEstado?: string;
 }
@@ -258,6 +260,9 @@ function completaFilas(tsv: string): string {
 }
 
 /** `.hilo`: `espera=` son los segundos de cola de la corrida (un cruce de segundo, 0 o 1, según la carga): se marca fijo. */
+/** El `.jefe` del TS suma el pedido (tarea, modelo, effort, cuenta) para mostrar la corrida en cola (B084); el bash congelado no: se saca para comparar. */
+const sinPedido = (t: string) => t.split("\n").filter((l) => !/^(tarea|modelo|effort|cuenta)=/.test(l)).join("\n");
+
 const sinEspera = (hilo: string) => hilo.replace(/^espera=\d+$/m, "espera=<N>");
 
 /** Lo que quedó en la casa del `pa` (estado + proyectos), normalizado. Lo usan también lanzar.test.ts (lado B) para que A y B pasen por lo mismo. */
@@ -273,7 +278,7 @@ export function recolectarEstado(dir: string, ignorar: RegExp[], r: Raices): Rec
       else if (/\.pid$/.test(nombre)) salida[normalizar(rr, r)] = "<PID>";
       else if (st.size <= 256 * 1024) {
         const texto = normalizar(readFileSync(abs, "utf8"), r);
-        salida[normalizar(rr, r)] = rr === "medicion.tsv" ? sinPisado(sinDuracion(completaFilas(texto))) : nombre.endsWith(".hilo") ? sinEspera(texto) : texto;
+        salida[normalizar(rr, r)] = rr === "medicion.tsv" ? sinPisado(sinDuracion(completaFilas(texto))) : nombre.endsWith(".hilo") ? sinEspera(texto) : nombre.endsWith(".jefe") ? sinPedido(texto) : texto;
       }
     }
   };

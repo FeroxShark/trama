@@ -401,6 +401,7 @@ export const casosGlobales: Caso[] = [
   {
     herramienta: "pa-cli",
     nombre: "globales: archivar y verla archivada",
+    divergenciaSalida: RC_TS,
     preparar: escenarioQuieto,
     pasos: [{ args: ["--archivar", ID_LISTO], rc: 0 }, { args: ["--hilos", "--json"], rc: 0 }],
   },
