@@ -335,3 +335,20 @@ test("anillos del riel: 3rem, insignia por estado, marquita semanal y tokens", (
   assert.match(riel, /<Insignia nivel=\{estado\.nivel\}/);
   assert.match(riel, /semanal/);
 });
+
+test("AvisoVuelta, AvisoSetup y Reporte: el aviso de rollback persiste al desmontar la barra y los rechazos IPC no traban la UI", async () => {
+  const { descartarAvisoVuelta, leerAvisoVuelta } = await import("../src/barra/AvisoVuelta.tsx");
+  let llamadas = 0;
+  const pedirUnaVez = async () => (++llamadas === 1 ? { de: "0.2.26", a: "0.2.25", motivo: "lento" as const } : null);
+  assert.deepEqual(await leerAvisoVuelta(pedirUnaVez), { de: "0.2.26", a: "0.2.25", motivo: "lento" });
+  // Si Acople desmonta y remonta AvisoVuelta antes de tocar Entendido, sigue devolviendo el aviso sin volver a gastar el IPC.
+  assert.deepEqual(await leerAvisoVuelta(pedirUnaVez), { de: "0.2.26", a: "0.2.25", motivo: "lento" });
+  assert.equal(llamadas, 1);
+  descartarAvisoVuelta();
+  assert.equal(await leerAvisoVuelta(pedirUnaVez), null);
+
+  const setup = leer("../src/barra/AvisoSetup.tsx");
+  assert.match(setup, /\.finally\(\(\) => setRevisando\(false\)\)/, "AvisoSetup libera revisando aunque rechace el IPC");
+  const rep = leer("../src/barra/Reporte.tsx");
+  assert.equal((rep.match(/catch \(e\)/g) ?? []).length, 2, "Reporte captura rechazos en enviar y enviarAnonimo");
+});

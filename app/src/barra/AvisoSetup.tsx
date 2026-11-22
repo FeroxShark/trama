@@ -35,11 +35,14 @@ export const AvisoSetup = memo(function AvisoSetup() {
 
   const revisar = useCallback(() => {
     setRevisando(true);
-    return fuente.faltasSetup().then((l) => {
-      setFaltas(l);
-      setRevisando(false);
-      if (!l.length) setAbierto(false);
-    });
+    return fuente
+      .faltasSetup()
+      .then((l) => {
+        setFaltas(l);
+        if (!l.length) setAbierto(false);
+      })
+      .catch(() => {})
+      .finally(() => setRevisando(false));
   }, []);
   useEffect(() => void revisar(), [revisar]);
 

@@ -9,15 +9,37 @@ import { useIdioma } from "../i18n/react";
 
 const TEXTO = { cierres: "vuelta.cierres", lento: "vuelta.lento", manual: "vuelta.manual" } as const;
 
+let cache: Aviso | null | undefined;
+let enVuelo: Promise<Aviso | null> | null = null;
+
+/**
+ * Lee el aviso de rollback una sola vez y lo conserva en memoria mientras la ventana siga abierta
+ * (si `Acople` desmonta y remonta la barra al angostar, no se pierde antes de que se toque «Entendido»).
+ */
+export function leerAvisoVuelta(pedir: () => Promise<Aviso | null> = () => fuente.avisoVuelta()): Promise<Aviso | null> {
+  if (cache !== undefined) return Promise.resolve(cache);
+  if (!enVuelo)
+    enVuelo = pedir().then(
+      (a) => ((cache = a), (enVuelo = null), a),
+      () => ((enVuelo = null), null),
+    );
+  return enVuelo;
+}
+
+export function descartarAvisoVuelta(): void {
+  cache = null;
+  enVuelo = null;
+}
+
 export const AvisoVuelta = memo(function AvisoVuelta() {
   useIdioma();
-  const [aviso, setAviso] = useState<Aviso | null>(null);
+  const [aviso, setAviso] = useState<Aviso | null>(cache ?? null);
   const [abierto, setAbierto] = useState(true);
   const globo = useRef<HTMLDivElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     let vivo = true;
-    void fuente.avisoVuelta().then((a) => vivo && setAviso(a));
+    void leerAvisoVuelta().then((a) => vivo && setAviso(a));
     return () => void (vivo = false);
   }, []);
   const alCerrar = useCallback(() => setAbierto(false), []);
@@ -35,7 +57,14 @@ export const AvisoVuelta = memo(function AvisoVuelta() {
           <div className="avc-t">{t("vuelta.titulo")}</div>
           <div className="avc-n">{t(TEXTO[aviso.motivo], { de: aviso.de, a: aviso.a })}</div>
           <div className="avc-a">
-            <button type="button" className="avc-u" onClick={() => setAviso(null)}>
+            <button
+              type="button"
+              className="avc-u"
+              onClick={() => {
+                descartarAvisoVuelta();
+                setAviso(null);
+              }}
+            >
               {t("vuelta.entendido")}
             </button>
           </div>

@@ -66,20 +66,28 @@ export function Reporte({ captura, alCerrar: alCerrarYa }: Props) {
   const enviarAnonimo = async () => {
     if (!texto.trim() || estado.fase === "armando") return;
     setEstado({ fase: "armando" });
-    const jpeg = conCaptura && captura ? await aJpeg(captura) : null;
-    const r = await fuente.enviarReporte({ descripcion: texto, captura: jpeg, log: conLog });
-    // El texto queda escrito si falla: se puede reintentar.
-    setEstado(r.ok ? { fase: "enviado" } : { fase: "error", error: textoMain(r.error) });
+    try {
+      const jpeg = conCaptura && captura ? await aJpeg(captura) : null;
+      const r = await fuente.enviarReporte({ descripcion: texto, captura: jpeg, log: conLog });
+      // El texto queda escrito si falla: se puede reintentar.
+      setEstado(r.ok ? { fase: "enviado" } : { fase: "error", error: textoMain(r.error) });
+    } catch (e) {
+      setEstado({ fase: "error", error: textoMain(e instanceof Error ? e.message : String(e)) });
+    }
   };
 
   const enviar = async () => {
     if (!texto.trim() || estado.fase === "armando") return;
     setEstado({ fase: "armando" });
-    const r = await fuente.armarReporte({ descripcion: texto, captura: conCaptura ? captura : null, log: conLog });
-    if (!r.ok) return setEstado({ fase: "error", error: textoMain(r.error) });
-    fuente.abrirNotasTrama(r.url);
-    if (conCaptura || conLog) void fuente.carpetaAbrir(r.carpeta).catch(() => false);
-    setEstado({ fase: "listo", carpeta: r.carpeta });
+    try {
+      const r = await fuente.armarReporte({ descripcion: texto, captura: conCaptura ? captura : null, log: conLog });
+      if (!r.ok) return setEstado({ fase: "error", error: textoMain(r.error) });
+      fuente.abrirNotasTrama(r.url);
+      if (conCaptura || conLog) void fuente.carpetaAbrir(r.carpeta).catch(() => false);
+      setEstado({ fase: "listo", carpeta: r.carpeta });
+    } catch (e) {
+      setEstado({ fase: "error", error: textoMain(e instanceof Error ? e.message : String(e)) });
+    }
   };
 
   const listo = estado.fase === "listo";
