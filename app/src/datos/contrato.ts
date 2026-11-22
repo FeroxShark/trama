@@ -107,6 +107,9 @@ export type RespuestaHilos = { version: number; hilos: Hilo[] };
  */
 export type Ventana = { pct: number; resets_at: number | null };
 
+/** El límite semanal propio de un modelo de Claude (hoy Fable): `modelo` es el nombre tal cual lo dice claude.ai. */
+export type VentanaModelo = Ventana & { modelo: string };
+
 /** Una ventana de cupo de una suscripción (`5h`, `7d`…): `pct` 0..100 (`null`: sin dato) y cuándo vuelve (epoch s, `null`: no se sabe). */
 export type VentanaCupo = {
   id: string;
@@ -157,6 +160,11 @@ export type Uso =
       ts: number;
       five_hour: Ventana | null;
       seven_day: Ventana | null;
+      /**
+       * Los límites semanales propios de un modelo de Claude (`weekly_scoped` de `get_usage`: hoy Fable, «hasta 50 % del límite
+       * semanal»), uno por modelo y con el nombre que dice claude.ai. Sin el campo: no se sabe de ninguno.
+       */
+      por_modelo?: VentanaModelo[];
       /** Las demás suscripciones conectadas (Google AI Pro, y las que vengan) y las cuentas agregadas de Claude, una fila cada una. */
       suscripciones?: SuscripcionCupo[];
       /** Cómo se llama la cuenta de siempre de Claude, si `reparto` lo dice. */

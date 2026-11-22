@@ -175,3 +175,80 @@ test("get_usage: la respuesta se lee del stdout de claude; lo que no es, null", 
   // Sin hora de reinicio (o una que no se entiende) el porcentaje vale igual.
   assert.deepEqual(deUsoOficial({ rate_limits: { five_hour: { utilization: 7, resets_at: "mañana" } } }, AHORA)?.five_hour, { pct: 7, resets_at: null, ts: AHORA, oficial: true });
 });
+
+// --- límites semanales por modelo (`weekly_scoped` de `get_usage`) ------------------------------------
+const FABLE = { kind: "weekly_scoped", group: "weekly", percent: 93, severity: "critical", resets_at: "2026-11-22T14:59:59.733098+00:00", scope: { model: { id: null, display_name: "Fable" }, surface: null }, is_active: true };
+const RL = (extra: object) => ({
+  rate_limits: {
+    five_hour: { utilization: 14, resets_at: "2026-11-22T10:29:59.732931+00:00" },
+    seven_day: { utilization: 75, resets_at: "2026-11-22T14:59:59.732952+00:00" },
+    seven_day_opus: null,
+    seven_day_sonnet: null,
+    ...extra,
+  },
+});
+const T_FABLE = Math.round(Date.parse("2026-11-22T14:59:59.733098+00:00") / 1000);
+
+test("get_usage: un weekly_scoped queda como ventana del modelo, con el nombre tal cual", () => {
+  const l = deUsoOficial(RL({ limits: [{ kind: "session", percent: 14, scope: null }, { kind: "weekly_all", percent: 75, scope: null }, FABLE] }), AHORA)!;
+  assert.deepEqual(l.por_modelo, [{ modelo: "Fable", pct: 93, resets_at: T_FABLE, ts: AHORA, oficial: true }]);
+  assert.equal(l.five_hour?.pct, 14);
+  assert.equal(l.seven_day?.pct, 75);
+  // Genérico: otro modelo entra solo.
+  const dos = deUsoOficial(RL({ limits: [FABLE, { ...FABLE, percent: 10, scope: { model: { display_name: "Opus" } } }] }), AHORA)!;
+  assert.deepEqual(dos.por_modelo?.map((v) => v.modelo), ["Fable", "Opus"]);
+});
+
+test("get_usage sin limits (o con una forma rara): todo sigue como hoy y sin por_modelo", () => {
+  for (const limits of [undefined, null, "x", {}, [], [null, 3, { kind: "weekly_scoped" }, { kind: "weekly_scoped", percent: "9", scope: { model: { display_name: "Fable" } } }, { kind: "weekly_scoped", percent: 5, scope: { model: {} } }]]) {
+    const l = deUsoOficial(RL({ limits }), AHORA)!;
+    assert.equal(l.five_hour?.pct, 14, String(limits));
+    assert.equal(l.seven_day?.pct, 75);
+    assert.equal("por_modelo" in l, false);
+  }
+});
+
+test("get_usage con sólo el límite del modelo igual cuenta como lectura", () => {
+  const l = deUsoOficial({ rate_limits: { limits: [FABLE] } }, AHORA);
+  assert.equal(l?.five_hour, null);
+  assert.equal(l?.por_modelo?.[0]?.pct, 93);
+});
+
+test("oficialDe lee el control_response con limits", () => {
+  const linea = JSON.stringify({ type: "control_response", response: { subtype: "success", response: RL({ limits: [FABLE] }) } });
+  assert.equal(oficialDe(linea, AHORA)?.por_modelo?.[0]?.modelo, "Fable");
+});
+
+test("uso.json: guarda por_modelo, un archivo viejo (sin el campo) se sigue leyendo y una entrada rara se saltea", () => {
+  const l = deUsoOficial(RL({ limits: [FABLE] }), AHORA)!;
+  const ida = guardada(JSON.parse(JSON.stringify({ version: 1, ...l })))!;
+  assert.deepEqual(ida.por_modelo, l.por_modelo);
+  const vieja = guardada({ version: 1, five_hour: { pct: 3, resets_at: AHORA + 100, ts: AHORA } })!;
+  assert.equal(vieja.five_hour?.pct, 3);
+  assert.equal("por_modelo" in vieja, false);
+  const rara = guardada({ version: 1, five_hour: { pct: 3, resets_at: null, ts: AHORA }, por_modelo: [null, { modelo: 3, pct: 1, ts: 1 }, { modelo: "Fable", pct: "x", ts: 1 }, { modelo: "Fable", pct: 50, resets_at: AHORA + 9, ts: AHORA }] })!;
+  assert.deepEqual(rara.por_modelo?.map((v) => v.pct), [50]);
+  assert.equal(guardada({ version: 1, por_modelo: "x" }), null);
+});
+
+test("juntar e igual miran los modelos: la nueva sólo toca los que trae y un cambio de modelo cuenta como cambio", () => {
+  const a = deUsoOficial(RL({ limits: [FABLE, { ...FABLE, percent: 20, scope: { model: { display_name: "Opus" } } }] }), AHORA - 100)!;
+  const b = deUsoOficial(RL({ limits: [{ ...FABLE, percent: 95 }] }), AHORA)!;
+  const j = juntar(a, b);
+  assert.deepEqual(j.por_modelo?.map((v) => [v.modelo, v.pct]), [["Fable", 95], ["Opus", 20]]);
+  assert.equal(igual(a, j), false);
+  assert.equal(igual(j, juntar(j, b)), true);
+  // Una lectura sin modelos no borra los que había.
+  assert.equal(juntar(j, sl(AHORA, [1, AHORA + 100], null)).por_modelo?.length, 2);
+  assert.equal(igual(sl(AHORA, [1, AHORA + 100], null), sl(AHORA + 5, [1, AHORA + 100], null)), true);
+});
+
+test("usoDe: por_modelo sólo con los vigentes y sin el campo si no hay ninguno", () => {
+  const l = deUsoOficial(RL({ limits: [FABLE] }), AHORA)!;
+  const u = usoDe([l], T_FABLE - 100);
+  assert.deepEqual(u.por_modelo, [{ modelo: "Fable", pct: 93, resets_at: T_FABLE }]);
+  assert.equal(proximoReinicio({ five_hour: null, seven_day: null, por_modelo: u.por_modelo }), T_FABLE);
+  // Ya se reinició: no se afirma.
+  assert.equal("por_modelo" in usoDe([l], T_FABLE + 10), false);
+  assert.equal("por_modelo" in usoDe([sl(AHORA, [1, AHORA + 100], null)], AHORA), false);
+});

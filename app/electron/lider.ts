@@ -167,7 +167,7 @@ function anotarUso(l: Lectura) {
   const cambio = !igual(antes, usoStream);
   const ahora = Math.floor(Date.now() / 1000);
   // La oficial se guarda siempre: aunque diga lo mismo, desde ahora vale más que un statusline.
-  const oficial = !!(l.five_hour?.oficial || l.seven_day?.oficial);
+  const oficial = !!(l.five_hour?.oficial || l.seven_day?.oficial || l.por_modelo?.some((v) => v.oficial));
   if (oficial) oficiales++;
   if (cambio || oficial || ahora - usoGuardado >= GUARDAR_USO_S) {
     usoGuardado = ahora;

@@ -20,7 +20,15 @@ export type Ventana = { pct: number; resets_at: number | null };
  * (lo mismo que su página), no la cabecera de una respuesta.
  */
 export type Vista = Ventana & { ts: number; oficial?: true };
-export type Lectura = { five_hour: Vista | null; seven_day: Vista | null };
+/**
+ * El límite semanal propio de un modelo de Claude (`weekly_scoped` de `get_usage`: hoy Fable, «hasta 50 % del límite
+ * semanal»). `modelo` es el nombre tal cual lo dice claude.ai («Fable»): nada de lista fija, si mañana aparece «Opus» entra solo.
+ */
+export type VistaModelo = Vista & { modelo: string };
+/** `por_modelo` no viene (o `undefined`) cuando la lectura no dice nada de los límites por modelo: una lectura vieja o un statusline. */
+/** Un límite por modelo como lo muestra la interfaz (`Uso.por_modelo`). */
+export type VentanaModelo = Ventana & { modelo: string };
+export type Lectura = { five_hour: Vista | null; seven_day: Vista | null; por_modelo?: VistaModelo[] };
 
 const CUALES = ["five_hour", "seven_day"] as const;
 const num = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
@@ -85,7 +93,33 @@ export function deUsoOficial(r: any, ahora: number): Lectura | null {
     return { pct: x.utilization, resets_at: Number.isFinite(ms) ? Math.round(ms / 1000) : null, ts: ahora, oficial: true };
   };
   const l: Lectura = { five_hour: v(r?.rate_limits?.five_hour), seven_day: v(r?.rate_limits?.seven_day) };
-  return l.five_hour || l.seven_day ? l : null;
+  const pm = porModeloDe(r?.rate_limits?.limits, ahora);
+  if (pm.length) l.por_modelo = pm;
+  return l.five_hour || l.seven_day || pm.length ? l : null;
+}
+
+/**
+ * Los límites semanales por modelo de `rate_limits.limits` (experimental: cualquier campo puede faltar o cambiar, y un arreglo
+ * que no es lo esperado no rompe la lectura de `five_hour` y `seven_day`): cada `weekly_scoped` con `scope.model.display_name`.
+ * `percent` de 0 a 100, `resets_at` en ISO 8601. Dos entradas del mismo modelo: queda la de más porcentaje.
+ */
+function porModeloDe(limits: unknown, ahora: number): VistaModelo[] {
+  if (!Array.isArray(limits)) return [];
+  const out: VistaModelo[] = [];
+  for (const x of limits) {
+    try {
+      const nombre = x?.scope?.model?.display_name;
+      if (x?.kind !== "weekly_scoped" || typeof nombre !== "string" || !nombre.trim() || !num(x.percent)) continue;
+      const ms = typeof x.resets_at === "string" ? Date.parse(x.resets_at) : num(x.resets_at) ? x.resets_at * 1000 : NaN;
+      const v: VistaModelo = { modelo: nombre.trim(), pct: x.percent, resets_at: Number.isFinite(ms) ? Math.round(ms / 1000) : null, ts: ahora, oficial: true };
+      const i = out.findIndex((o) => o.modelo === v.modelo);
+      if (i < 0) out.push(v);
+      else if (v.pct > out[i]!.pct) out[i] = v;
+    } catch {
+      /* una entrada rara no tapa a las demás */
+    }
+  }
+  return out;
 }
 
 /**
@@ -107,12 +141,27 @@ export function oficialDe(linea: string, ahora: number): Lectura | null {
 /** Lo que vale de cada ventana (`mejor`) entre lo que había y lo nuevo: la nueva sólo toca las que trae. */
 export function juntar(antes: Lectura | null, nueva: Lectura): Lectura {
   const de = (c: (typeof CUALES)[number]) => mejor([antes?.[c] ?? null, nueva[c]].filter((v) => v !== null));
-  return { five_hour: de("five_hour"), seven_day: de("seven_day") };
+  const l: Lectura = { five_hour: de("five_hour"), seven_day: de("seven_day") };
+  const pm = juntarModelos(antes?.por_modelo, nueva.por_modelo);
+  if (pm.length) l.por_modelo = pm;
+  return l;
+}
+
+/** Cada modelo por separado, con la misma regla que las ventanas (`mejor`): la nueva sólo toca los modelos que trae. */
+function juntarModelos(antes: VistaModelo[] | undefined, nuevo: VistaModelo[] | undefined): VistaModelo[] {
+  const nombres = [...new Set([...(antes ?? []), ...(nuevo ?? [])].map((v) => v.modelo))];
+  const out: VistaModelo[] = [];
+  for (const n of nombres) {
+    const m = mejor([...(antes ?? []), ...(nuevo ?? [])].filter((v) => v.modelo === n));
+    if (m) out.push({ ...m, modelo: n });
+  }
+  return out;
 }
 
 /** ¿Dicen lo mismo? (sin mirar cuándo se vio). */
 export function igual(a: Lectura | null, b: Lectura | null): boolean {
-  return CUALES.every((c) => a?.[c]?.pct === b?.[c]?.pct && a?.[c]?.resets_at === b?.[c]?.resets_at);
+  const ms = (l: Lectura | null) => (l?.por_modelo ?? []).map((v) => `${v.modelo}\t${v.pct}\t${v.resets_at}`).sort().join("\n");
+  return CUALES.every((c) => a?.[c]?.pct === b?.[c]?.pct && a?.[c]?.resets_at === b?.[c]?.resets_at) && ms(a) === ms(b);
 }
 
 /** Una lectura guardada (`uso.json`), o `null` si no lo es. */
@@ -120,8 +169,17 @@ export function guardada(x: any): Lectura | null {
   if (x?.version !== 1) return null;
   const v = (y: any): Vista | null =>
     num(y?.pct) && num(y?.ts) ? { pct: y.pct, resets_at: num(y.resets_at) ? y.resets_at : null, ts: y.ts, ...(y.oficial === true ? { oficial: true as const } : {}) } : null;
-  const l = { five_hour: v(x.five_hour), seven_day: v(x.seven_day) };
-  return l.five_hour || l.seven_day ? l : null;
+  const l: Lectura = { five_hour: v(x.five_hour), seven_day: v(x.seven_day) };
+  // `por_modelo` es de una versión nueva del archivo: uno viejo no lo trae y se lee igual; una entrada rara se saltea.
+  const pm: VistaModelo[] = [];
+  if (Array.isArray(x.por_modelo)) {
+    for (const y of x.por_modelo) {
+      const vv = typeof y?.modelo === "string" && y.modelo ? v(y) : null;
+      if (vv) pm.push({ ...vv, modelo: y.modelo });
+    }
+  }
+  if (pm.length) l.por_modelo = pm;
+  return l.five_hour || l.seven_day || pm.length ? l : null;
 }
 
 /**
@@ -146,18 +204,26 @@ function mejor(vs: Vista[]): Vista | null {
  * Las barras: de cada ventana, la lectura que vale (`mejor`); si ya pasó su reinicio no se
  * sabe cuánto va de la que siguió (`null`). `ts`: cuándo se vio lo más nuevo que se muestra (0, nada).
  */
-export function usoDe(lecturas: (Lectura | null)[], ahora: number): { ts: number; five_hour: Ventana | null; seven_day: Ventana | null } {
+export function usoDe(lecturas: (Lectura | null)[], ahora: number): { ts: number; five_hour: Ventana | null; seven_day: Ventana | null; por_modelo?: VentanaModelo[] } {
   const de = (c: (typeof CUALES)[number]): Vista | null => {
     const m = mejor(lecturas.map((l) => l?.[c] ?? null).filter((v) => v !== null));
     return m && (m.resets_at === null || m.resets_at > ahora) ? m : null;
   };
   const [h, s] = [de("five_hour"), de("seven_day")];
   const limpia = (v: Vista | null): Ventana | null => (v ? { pct: v.pct, resets_at: v.resets_at } : null);
-  return { ts: Math.max(h?.ts ?? 0, s?.ts ?? 0), five_hour: limpia(h), seven_day: limpia(s) };
+  // Los límites por modelo, cada uno con la misma regla; sólo los que siguen vigentes. Sin ninguno, el campo no va.
+  const todos = lecturas.flatMap((l) => l?.por_modelo ?? []);
+  const pm: (Vista & { modelo: string })[] = [];
+  for (const n of new Set(todos.map((v) => v.modelo))) {
+    const m = mejor(todos.filter((v) => v.modelo === n));
+    if (m && (m.resets_at === null || m.resets_at > ahora)) pm.push({ ...m, modelo: n });
+  }
+  const ts = Math.max(h?.ts ?? 0, s?.ts ?? 0, ...pm.map((v) => v.ts));
+  return { ts, five_hour: limpia(h), seven_day: limpia(s), ...(pm.length ? { por_modelo: pm.map((v) => ({ modelo: v.modelo, pct: v.pct, resets_at: v.resets_at })) } : {}) };
 }
 
 /** Cuándo se reinicia la próxima ventana que se muestra (epoch s): ahí hay que releer. `null`: ninguna. */
-export function proximoReinicio(u: { five_hour: Ventana | null; seven_day: Ventana | null }): number | null {
-  const rs = [u.five_hour?.resets_at, u.seven_day?.resets_at].filter(num);
+export function proximoReinicio(u: { five_hour: Ventana | null; seven_day: Ventana | null; por_modelo?: VentanaModelo[] }): number | null {
+  const rs = [u.five_hour?.resets_at, u.seven_day?.resets_at, ...(u.por_modelo ?? []).map((v) => v.resets_at)].filter(num);
   return rs.length ? Math.min(...rs) : null;
 }

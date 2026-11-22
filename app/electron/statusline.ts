@@ -28,7 +28,7 @@ import { marcasOpencode } from "./opencode-agotado.js";
 import { hayOpencode, planOpencode } from "./opencode.js";
 import { cargarTablaGo, esPlanGo } from "./opencode-go.js";
 import { cuentasOpencode, leerPedidos, marcasDeCuenta, sinOpencodeDeReparto, suscripcionNvidia, suscripcionOpencode } from "./opencode-pedidos.js";
-import { deStatusline, esCuentaDeSiempre, usoDe, type Ventana } from "./uso.ts";
+import { deStatusline, esCuentaDeSiempre, usoDe, type Ventana, type VentanaModelo } from "./uso.ts";
 import { verCaidos, type Caido } from "./vigia.js";
 import { silencio } from "./log.js";
 
@@ -40,7 +40,7 @@ const VIVO_S = 6 * 3600;
 const GENERAL = "general";
 
 type Uso =
-  | { version: 1; ts: number; five_hour: Ventana | null; seven_day: Ventana | null; suscripciones?: SuscripcionCupo[] }
+  | { version: 1; ts: number; five_hour: Ventana | null; seven_day: Ventana | null; por_modelo?: VentanaModelo[]; suscripciones?: SuscripcionCupo[] }
   | { version: number; error: string };
 type Lider = {
   id: string;

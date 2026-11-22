@@ -51,11 +51,18 @@ export function preferidaClaude(env: Env = process.env, home = homeDe(env), plat
 }
 
 /** Lo que `reparto` lee de `cuentas/<id>/uso.json` (`pct` 0..100, `resets_at` y `ts` en epoch s). */
-export function usoParaReparto(l: Lectura): { version: 1; five_hour?: { pct: number; resets_at: number | null; ts: number }; seven_day?: { pct: number; resets_at: number | null; ts: number } } {
+export function usoParaReparto(l: Lectura): {
+  version: 1;
+  five_hour?: { pct: number; resets_at: number | null; ts: number };
+  seven_day?: { pct: number; resets_at: number | null; ts: number };
+  por_modelo?: { modelo: string; pct: number; resets_at: number | null; ts: number }[];
+} {
   const v = (x: Lectura["five_hour"]) => (x ? { pct: x.pct, resets_at: x.resets_at, ts: x.ts } : undefined);
   const f = v(l.five_hour);
   const s = v(l.seven_day);
-  return { version: 1, ...(f ? { five_hour: f } : {}), ...(s ? { seven_day: s } : {}) };
+  // Los límites por modelo (Fable…) van sólo si la lectura los trajo: sin ellos el archivo queda como siempre.
+  const pm = (l.por_modelo ?? []).map((x) => ({ modelo: x.modelo, pct: x.pct, resets_at: x.resets_at, ts: x.ts }));
+  return { version: 1, ...(f ? { five_hour: f } : {}), ...(s ? { seven_day: s } : {}), ...(pm.length ? { por_modelo: pm } : {}) };
 }
 
 /** `<estado de pa>/cuentas/<id>/uso.json`. */
