@@ -305,6 +305,8 @@ export function crearCola(d: Deps) {
   }
 
   function fallar(sid: string, texto: string, id: number | null, volvio = false) {
+    // Si sacaron el último mensaje durante el intento, el error tardío no debe trabar lo próximo que se encole.
+    if (!lista(sid).length) return;
     errores.set(sid, { texto, id });
     void guardar();
     d.avisar({ ...foto(sid), ...(volvio ? { volvio } : {}) });

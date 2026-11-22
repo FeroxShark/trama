@@ -255,6 +255,38 @@ test("no se pudo traer: queda en la cola con el porqué, y no se reintenta solo"
   assert.deepEqual(a.mandados, ["uno"]);
 });
 
+test("si se quita el último mensaje mientras se trae al líder, el fallo tardío no traba la cola", async () => {
+  const empezo = Promise.withResolvers<void>();
+  const falla = Promise.withResolvers<{ ok: false; motivo: string }>();
+  const enviado = Promise.withResolvers<string>();
+  const avisos: AvisoCola[] = [];
+  let disponible: Disponible = "terminal";
+  const cola = crearCola({
+    disponible: async () => disponible,
+    traer: () => {
+      empezo.resolve();
+      return falla.promise;
+    },
+    mandar: async (_sid, item) => enviado.resolve(item.texto),
+    total: async () => 0,
+    textoError: () => "No se pudo traer al líder",
+    guardar: async () => {},
+    avisar: (a) => avisos.push(a),
+  });
+  await cola.cargar(JSON.stringify({ version: 1, colas: { [SID]: [{ ...x("quitar"), id: 1 }] } }));
+  const intento = cola.libre(SID);
+  await empezo.promise;
+  cola.quitar(SID, 1);
+  falla.resolve({ ok: false, motivo: "abierto" });
+  await intento;
+
+  assert.equal(cola.error(SID), null);
+  assert.ok(avisos.every((a) => a.lista.length || a.camino?.length || a.error === null));
+  disponible = "app";
+  cola.encolar(SID, x("nuevo"));
+  assert.equal(await enviado.promise, "nuevo");
+});
+
 test("el mandar falló: vuelve a la cola, adelante, con el error; Reintentar lo saca", async () => {
   const a = armar({ disp: "app", falla: true });
   a.cola.encolar(SID, x("uno"));
