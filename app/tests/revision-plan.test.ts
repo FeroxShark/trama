@@ -27,6 +27,13 @@ test("parsearRevision: parte las cuatro secciones; sin encabezados queda todo en
   assert.equal(parsearRevision("Está bien, dale.").libre, "Está bien, dale.");
 });
 
+test("parsearRevision: un «## Riesgos» o «### Cambios» dentro del plan mejorado es parte del plan (B019)", () => {
+  const r = parsearRevision("## Qué está bien\n- A\n\n## Riesgos y huecos\n- R1\n\n## Mejoras concretas\n- M1\n\n## Plan mejorado\n1. Paso\n\n## Riesgos\n- del plan\n\n### Cambios\n- otros");
+  assert.equal(r.riesgos, "- R1");
+  assert.equal(r.mejoras, "- M1");
+  assert.equal(r.plan, "1. Paso\n\n## Riesgos\n- del plan\n\n### Cambios\n- otros");
+});
+
 test("el mensaje del líder va y vuelve con su marca (y un mensaje común no es una revisión)", () => {
   const m = mensajeParaLider("gemini-4-argon", "Gemini 4 Argon", parsearRevision(RESPUESTA));
   assert.match(m, /ExitPlanMode/);

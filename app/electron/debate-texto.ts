@@ -115,8 +115,9 @@ function partir<K extends string>(texto: string, defs: readonly { clave: K; alia
   for (const linea of lineas) {
     if (/^\s*(?:```|~~~)/.test(linea)) codigo = !codigo;
     const h = codigo ? null : /^\s{0,3}#{1,3}\s*(?:\d+[.)]\s*)?(?:\*\*)?(.+?)(?:\*\*)?\s*:?\s*$/.exec(linea);
+    // Cada sección se abre una sola vez y en el orden de `defs`: un «## Plan de pruebas» dentro del plan es parte del plan.
     const s = h ? defs.find((x) => x.alias.test(h[1]!.trim())) : undefined;
-    if (s) {
+    if (s && defs.indexOf(s) > (actual ? defs.findIndex((x) => x.clave === actual) : -1)) {
       actual = s.clave;
       hallo = true;
       acum[actual] = [];

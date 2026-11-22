@@ -44,6 +44,12 @@ test("parsearTurno: las cuatro secciones; sin postura nunca se deduce un acuerdo
   assert.equal(parsearTurno("texto libre").libre, "texto libre");
 });
 
+test("un subtítulo «Plan de pruebas» dentro del plan no lo corta, en el turno ni en la conclusión (B020)", () => {
+  const plan = "1. Código\n\n## Plan de pruebas\n- test A\n\n### Plan de migración\n- paso";
+  assert.equal(parsearTurno(turno("cambio", "x", plan)).plan, plan);
+  assert.equal(parsearConclusion(`## Acuerdos\n- a\n\n## Desacuerdos que quedan\nNinguno\n\n## Plan consensuado\n${plan}`).plan, plan);
+});
+
 test("acuerdoTotal: todos de acuerdo (mismo plan o ninguno); una pregunta o planes distintos no cortan", () => {
   assert.deepEqual(acuerdoTotal([{ postura: "acuerdo", plan: null }, { postura: "acuerdo", plan: null }]), { plan: "" });
   assert.deepEqual(acuerdoTotal([{ postura: "cambio", plan: "A  b" }, { postura: "acuerdo", plan: "a B" }]), null);

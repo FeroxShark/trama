@@ -137,8 +137,9 @@ export function parsearRevision(texto: string): Revision {
   for (const linea of limpio.split("\n")) {
     if (/^\s*(?:```|~~~)/.test(linea)) dentroDeCodigo = !dentroDeCodigo;
     const h = dentroDeCodigo ? null : /^\s{0,3}#{1,3}\s*(?:\d+[.)]\s*)?(?:\*\*)?(.+?)(?:\*\*)?\s*:?\s*$/.exec(linea);
+    // Cada sección se abre una sola vez y en el orden pedido: un «## Riesgos» dentro del plan mejorado es parte del plan.
     const s = h ? SECCIONES.find((x) => x.alias.test(h[1].trim())) : undefined;
-    if (s) {
+    if (s && SECCIONES.indexOf(s) > (actual ? SECCIONES.findIndex((x) => x.clave === actual) : -1)) {
       actual = s.clave;
       hallo = true;
       partes[actual] = [];
