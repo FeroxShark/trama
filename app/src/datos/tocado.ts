@@ -6,7 +6,9 @@ import { useSyncExternalStore } from "react";
 import { MODO } from "../modo";
 import { main } from "../puente";
 import type { ItemId } from "./tablero";
-import { OTRA, podar, preguntaContestada, pruebaContestada, vacias, type ProyectoPend, type RespPregunta, type RespPrueba, type Respuestas } from "./pendientes";
+import { OTRA, desdeDisco, podar, preguntaContestada, pruebaContestada, vacias, type ProyectoPend, type RespPregunta, type RespPrueba, type Respuestas } from "./pendientes";
+
+export { desdeDisco };
 
 const GUARDAR_MS = 300;
 
@@ -48,16 +50,6 @@ function guardar() {
 
 // Lo mismo que hace `volver.ts` con lo suyo: al recargar o cerrar, lo que esté esperando el respiro se va ya.
 if (typeof addEventListener === "function") addEventListener("pagehide", guardar);
-
-/** Lo que el main devolvió, ya limpio allá; acá sólo la forma. */
-function desdeDisco(x: unknown): Respuestas {
-  const r = vacias();
-  const o = (x && typeof x === "object" ? x : {}) as { q?: Record<string, { op?: unknown; otra?: unknown }>; p?: Record<string, { res?: unknown; nota?: unknown }> };
-  for (const [k, v] of Object.entries(o.q ?? {})) if (typeof v?.op === "string") r.q[Number(k)] = { op: v.op, otra: typeof v.otra === "string" ? v.otra : "" };
-  for (const [k, v] of Object.entries(o.p ?? {}))
-    if (v?.res === "anda" || v?.res === "no-anda") r.p[Number(k)] = { res: v.res, nota: typeof v.nota === "string" ? v.nota : "" };
-  return r;
-}
 
 /** Para las capturas del proyecto abierto y del chat: un poco de todo contestado (items de `pendientesFijos`). */
 export function muestraTocada(): Respuestas {

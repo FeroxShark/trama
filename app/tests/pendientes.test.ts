@@ -8,6 +8,7 @@ import {
   armarProyectos,
   corto,
   cuenta,
+  desdeDisco,
   ordenar,
   podar,
   sumarAlBorrador,
@@ -137,4 +138,18 @@ test("corto corta en borde de palabra y deja una sola línea", () => {
 test("un proyecto sin ningún dato de movimiento cuenta como parado", () => {
   const sinDatos: ProyectoPend = { ...atlas, nombre: "x", hace: PARADO_H };
   assert.equal(ordenar([sinDatos]).parados.length, 1);
+});
+
+test("desdeDisco: conserva tanto IDs numéricos locales como IDs remotos con prefijo de máquina", () => {
+  const r = desdeDisco({
+    q: { "9002": { op: "c", otra: "" }, "servidor:12": { op: "a", otra: "nota" }, "invalido!": { op: "a", otra: "" } },
+    p: { "9011": { res: "anda", nota: "" }, "mi-pc:5": { res: "no-anda", nota: "falló" } },
+  });
+  assert.equal("NaN" in r.q, false);
+  assert.equal("NaN" in r.p, false);
+  assert.deepEqual(r.q["9002"], { op: "c", otra: "" });
+  assert.deepEqual(r.q["servidor:12"], { op: "a", otra: "nota" });
+  assert.equal(r.q["invalido!"], undefined);
+  assert.deepEqual(r.p["9011"], { res: "anda", nota: "" });
+  assert.deepEqual(r.p["mi-pc:5"], { res: "no-anda", nota: "falló" });
 });

@@ -123,6 +123,18 @@ export function ordenar(ps: readonly ProyectoPend[]): { activos: ProyectoPend[];
 
 export const vacias = (): Respuestas => ({ q: {}, p: {} });
 
+const esIdPendiente = (k: string) => /^(?:[a-z][a-z0-9-]{0,15}:)?\d{1,9}$/.test(k);
+
+/** Lo que el main devolvió, ya limpio allá; acá sólo la forma (conserva ids locales y remotos `maquina:id`). */
+export function desdeDisco(x: unknown): Respuestas {
+  const r = vacias();
+  const o = (x && typeof x === "object" ? x : {}) as { q?: Record<string, { op?: unknown; otra?: unknown }>; p?: Record<string, { res?: unknown; nota?: unknown }> };
+  for (const [k, v] of Object.entries(o.q ?? {})) if (esIdPendiente(k) && typeof v?.op === "string") r.q[k] = { op: v.op, otra: typeof v.otra === "string" ? v.otra : "" };
+  for (const [k, v] of Object.entries(o.p ?? {}))
+    if (esIdPendiente(k) && (v?.res === "anda" || v?.res === "no-anda")) r.p[k] = { res: v.res, nota: typeof v.nota === "string" ? v.nota : "" };
+  return r;
+}
+
 /** Una pregunta cuenta como contestada con una opción marcada o, en "otra", con algo escrito. */
 export const preguntaContestada = (r: RespPregunta | undefined): boolean => !!r && r.op !== null && (r.op !== OTRA || r.otra.trim() !== "");
 export const pruebaContestada = (r: RespPrueba | undefined): boolean => !!r?.res;
