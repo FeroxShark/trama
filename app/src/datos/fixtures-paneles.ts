@@ -602,6 +602,7 @@ export const DESCUBRIR_FIJO = (variante: string | null): CatalogoDescubrir => {
   const base: CatalogoDescubrir = {
     actualizado: Date.UTC(2026, 10, 5, 12, 0),
     errores: { skills: null, mcp: null },
+    mcpTruncado: false,
     skills: [
       { id: "skill:theme-factory", tipo: "skill", nombre: "theme-factory", descripcion: "Aplicar un tema (colores y tipografías) a documentos, presentaciones y páginas.", origen: "anthropics/skills", enlace: "https://github.com/anthropics/skills/tree/main/skills/theme-factory", fecha: null, archivos: 14, scripts: false, instalado: false },
       { id: "skill:webapp-testing", tipo: "skill", nombre: "webapp-testing", descripcion: "Probar aplicaciones web locales con Playwright: capturas, registros del navegador y clics.", origen: "anthropics/skills", enlace: "https://github.com/anthropics/skills/tree/main/skills/webapp-testing", fecha: null, archivos: 6, scripts: true, instalado: false },
@@ -614,7 +615,7 @@ export const DESCUBRIR_FIJO = (variante: string | null): CatalogoDescubrir => {
       { id: "mcp:dev.local/prueba", tipo: "mcp", nombre: "dev.local/prueba", titulo: null, descripcion: null, origen: "registry.modelcontextprotocol.io", enlace: null, fecha: "2026-08-01T00:00:00.000Z", version: null, remoto: { url: "http://prueba.example.com/mcp", dominio: "prueba.example.com", seguro: false }, cabeceras: [], paquete: null, agregado: false },
     ],
   };
-  if (variante === "descubrir-vacio") return { skills: [], mcp: [], actualizado: null, errores: { skills: null, mcp: null } };
+  if (variante === "descubrir-vacio") return { skills: [], mcp: [], actualizado: null, errores: { skills: null, mcp: null }, mcpTruncado: false };
   if (variante === "descubrir-falla") return { ...base, mcp: [], errores: { skills: null, mcp: textoT("main.descubrirTiempo") } };
   return base;
 };

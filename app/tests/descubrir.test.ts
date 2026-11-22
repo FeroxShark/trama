@@ -422,3 +422,17 @@ test("una fuente fallida se reintenta al volver a abrir aunque la otra haya actu
     assert.ok(pedidos > antes);
   }
 });
+
+test("B139: un registro con más páginas que el tope queda marcado como incompleto (y se guarda en la caché); uno entero, no", async () => {
+  const a = await armar();
+  try {
+    const entero = await catalogo(true, a.deps);
+    assert.equal(entero.mcpTruncado, false, "las dos páginas entran");
+    const corto = await catalogo(true, { ...a.deps, limites: { paginas: 1 } });
+    assert.equal(corto.mcpTruncado, true, "quedó una página sin bajar");
+    assert.equal(JSON.parse(readFileSync(path.join(a.deps.estado!, "descubrir.json"), "utf8")).mcpTruncado, true);
+    assert.equal((await catalogo(false, { ...a.deps, limites: { paginas: 1 } })).mcpTruncado, true, "la caché vigente lo sigue diciendo");
+  } finally {
+    await a.cerrar();
+  }
+});

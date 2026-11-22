@@ -286,7 +286,7 @@ export function AjustesConectores() {
           : t("descubrir.nuncaBajado")
         : null;
   const noAgregados = vista === "descubrir" && pestana === "plugins" ? (catalogos.datos?.catalogos ?? []).filter((c) => !c.agregado) : [];
-  const avisosDescubrir = vista === "descubrir" && (pestana === "skills" || pestana === "mcp") ? [descubrir.datos?.errores.skills && pestana === "skills" ? t("descubrir.fallaSkills", { m: textoMain(descubrir.datos.errores.skills) }) : null, descubrir.datos?.errores.mcp && pestana === "mcp" ? t("descubrir.fallaMcp", { m: textoMain(descubrir.datos.errores.mcp) }) : null].filter(Boolean) : [];
+  const avisosDescubrir = vista === "descubrir" && (pestana === "skills" || pestana === "mcp") ? [descubrir.datos?.errores.skills && pestana === "skills" ? t("descubrir.fallaSkills", { m: textoMain(descubrir.datos.errores.skills) }) : null, descubrir.datos?.errores.mcp && pestana === "mcp" ? t("descubrir.fallaMcp", { m: textoMain(descubrir.datos.errores.mcp) }) : null, descubrir.datos?.mcpTruncado && pestana === "mcp" ? t("descubrir.truncadoMcp") : null].filter(Boolean) : [];
   const ver = lista.slice(0, visibles);
   const sinNada = !cargandoVista && !falla && base.length === 0;
 

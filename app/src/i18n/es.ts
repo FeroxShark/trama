@@ -3942,6 +3942,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "descubrir.vacio": "El catálogo está vacío. Apretá Actualizar para bajarlo.",
   "descubrir.fallaSkills": "No pude bajar las skills: {m}. Se muestra la copia anterior.",
   "descubrir.fallaMcp": "No pude bajar los conectores: {m}. Se muestra la copia anterior.",
+  "descubrir.truncadoMcp": "El registro tiene más conectores de los que se bajaron: el catálogo está incompleto. Buscá por nombre en el registro oficial si no ves alguno.",
   "descubrir.tipoSkill": "Skill",
   "descubrir.tipoMcp": "Conector MCP",
   "descubrir.origen": "Origen: {o}",

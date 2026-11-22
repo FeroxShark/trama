@@ -111,6 +111,8 @@ export type CatalogoDescubrir = {
   actualizado: number | null;
   /** Texto traducible por fuente si la última bajada falló (se conserva lo viejo si había). */
   errores: { skills: ErrorFuente; mcp: ErrorFuente };
+  /** El registro tiene más conectores que los que se bajaron (tope de páginas o de servidores): el catálogo está incompleto. */
+  mcpTruncado: boolean;
 };
 
 export type PreviaSkill = { tipo: "skill"; id: string; nombre: string; destino: string; archivos: { ruta: string; tam: number }[]; total: number; scripts: string[]; huella: string };
@@ -316,21 +318,27 @@ export function itemsMcpDe(entradas: unknown[], maximo = LIMITES.servidores): It
   return [...porNombre.values()].map((v) => v.item).slice(0, maximo);
 }
 
-async function bajarMcp(d: DepsDescubrir): Promise<ItemMcp[]> {
+async function bajarMcp(d: DepsDescubrir): Promise<{ items: ItemMcp[]; truncado: boolean }> {
   const l = lim(d);
   const base = urls(d).registro.replace(/\/+$/, "");
   const entradas: unknown[] = [];
   let cursor = "";
+  let completo = false;
   for (let i = 0; i < l.paginas; i++) {
     const q = `limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
     const j = obj(aJson(await traer(d, `${base}/v0/servers?${q}`, l.pagina)));
     if (!Array.isArray(j.servers)) throw errorT("main.descubrirMalformado");
     entradas.push(...j.servers);
     const sig = obj(j.metadata).nextCursor;
-    if (typeof sig !== "string" || !sig || sig === cursor || entradas.length >= l.servidores * 2) break;
+    if (typeof sig !== "string" || !sig || sig === cursor) {
+      completo = true;
+      break;
+    }
+    if (entradas.length >= l.servidores * 2) break;
     cursor = sig;
   }
-  return itemsMcpDe(entradas, l.servidores);
+  const todos = itemsMcpDe(entradas, Infinity);
+  return { items: todos.slice(0, l.servidores), truncado: !completo || todos.length > l.servidores };
 }
 
 // --- Skills de GitHub -----------------------------------------------------------------------------------------------------------------
@@ -427,9 +435,9 @@ const rawDe = (raw: string, nombre: string, ruta: string) => `${raw.replace(/\/+
 // --- Caché ----------------------------------------------------------------------------------------------------------------------------
 
 type SkillGuardada = { nombre: string; descripcion: string | null; archivos: ArchivoSkill[] };
-type Cache = { version: 1; actualizado: number | null; skills: SkillGuardada[]; mcp: ItemMcp[]; errores: CatalogoDescubrir["errores"] };
+type Cache = { version: 1; actualizado: number | null; skills: SkillGuardada[]; mcp: ItemMcp[]; errores: CatalogoDescubrir["errores"]; mcpTruncado: boolean };
 
-const vacia = (): Cache => ({ version: 1, actualizado: null, skills: [], mcp: [], errores: { skills: null, mcp: null } });
+const vacia = (): Cache => ({ version: 1, actualizado: null, skills: [], mcp: [], errores: { skills: null, mcp: null }, mcpTruncado: false });
 const rutaCache = (d: DepsDescubrir) => path.join(d.estado ?? estadoHilos(d.env ?? process.env, d.home), "descubrir.json");
 const carpetaSkills = (d: DepsDescubrir) => path.join(d.home, ".claude", "skills");
 
@@ -468,6 +476,7 @@ export async function leerCache(d: DepsDescubrir): Promise<Cache> {
     skills,
     mcp,
     errores: { skills: typeof err.skills === "string" ? err.skills.slice(0, 300) : null, mcp: typeof err.mcp === "string" ? err.mcp.slice(0, 300) : null },
+    mcpTruncado: j.mcpTruncado === true,
   };
 }
 
@@ -499,7 +508,7 @@ async function vista(d: DepsDescubrir, c: Cache): Promise<CatalogoDescubrir> {
       instalado: await existe(path.join(carpetaSkills(d), s.nombre)),
     });
   const mcp = c.mcp.map((m) => ({ ...m, agregado: !!m.remoto && urlsPropias.has(m.remoto.url) }));
-  return { skills, mcp, actualizado: c.actualizado, errores: c.errores };
+  return { skills, mcp, actualizado: c.actualizado, errores: c.errores, mcpTruncado: c.mcpTruncado };
 }
 
 /**
@@ -517,8 +526,9 @@ export async function catalogo(actualizar: unknown, d: DepsDescubrir): Promise<C
       version: 1,
       actualizado: sk.status === "fulfilled" || mc.status === "fulfilled" ? ahora : c.actualizado,
       skills: sk.status === "fulfilled" ? sk.value : c.skills,
-      mcp: mc.status === "fulfilled" ? mc.value : c.mcp,
+      mcp: mc.status === "fulfilled" ? mc.value.items : c.mcp,
       errores: { skills: sk.status === "rejected" ? motivo(sk) : null, mcp: mc.status === "rejected" ? motivo(mc) : null },
+      mcpTruncado: mc.status === "fulfilled" ? mc.value.truncado : c.mcpTruncado,
     };
     await guardarCache(d, c).catch(() => {});
   }

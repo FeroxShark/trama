@@ -3956,6 +3956,7 @@ export const en = {
   "descubrir.vacio": "The catalog is empty. Press Refresh to download it.",
   "descubrir.fallaSkills": "Couldn't download the skills: {m}. Showing the previous copy.",
   "descubrir.fallaMcp": "Couldn't download the connectors: {m}. Showing the previous copy.",
+  "descubrir.truncadoMcp": "The registry has more connectors than were downloaded: the catalog is incomplete. Look a connector up by name in the official registry if you don't see it.",
   "descubrir.tipoSkill": "Skill",
   "descubrir.tipoMcp": "MCP connector",
   "descubrir.origen": "Source: {o}",
