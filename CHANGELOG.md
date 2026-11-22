@@ -1,5 +1,19 @@
 # Cambios
 
+## 0.3.19
+
+- Compactar con nota del modelo: antes de compactar, el modelo se escribe una nota con lo que no quiere perder (objetivo, pedidos, decisiones, qué sigue) y la recibe de vuelta después. En el chat sale como una tarjeta plegada «Nota para no perder al compactar» y el divisor de la compactación dice «con nota» y trae «Ver la nota». Vale para líderes y workers de Claude y para líderes de Gemini; Codex, DeepSeek y OpenCode no compactan y la interfaz lo dice.
+- En Ajustes > Modelos: el interruptor «Compactar con nota del modelo», a qué porcentaje se pide la nota y desde qué porcentaje se aprovecha el fin de una tarea para compactar. Si no hay tope propio, se usa el de los ajustes de Claude Code.
+- Con la caché vencida en un chat grande, el aviso suma «Compactar con» un modelo más barato y seguir con el elegido, y dice cuántos tokens relee cada opción.
+- El aviso de después de compactar cuenta los tokens de después, no los de antes.
+- Cambiar de modelo a mitad de un turno cambia ya, aunque el asesor no sea más fuerte que el modelo nuevo.
+- Apagar Fast lo apaga de verdad: un chat que había arrancado con Fast seguía pidiendo en modo rápido y mostrando «Fast mode disabled · Out of usage credits». Ahora se relanza sin Fast en el próximo mensaje.
+- Los modelos de ChatGPT salen de lo que tu Codex ofrece, sin una lista fija: aparecen los nuevos sin actualizar Trama.
+- Cupo de Google: que se agote una de sus tres ventanas (Gemini, Argon, o Claude y GPT por Google) ya no frena a los workers de las otras dos.
+- Codex: el medidor de contexto ya no arranca en cero cada turno, y «Mandar ya» entra primero en el turno que sigue. En Windows, Codex vuelve a recibir el esfuerzo elegido.
+- Gemini: si un turno se corta, queda el texto que llegó a escribir y los pasos abiertos se cierran con su error en vez de quedar girando.
+- En Windows, retomar la sesión de un worker desde otra carpeta ya no la pierde.
+
 ## 0.3.18
 
 - El aviso de cambio de modelo («Cambiar a X relee toda la conversación») trae dos botones: «Volver a» el modelo anterior y «Compactar y cambiar», que compacta con el modelo de ahora y recién después cambia. Si la compactación falla o no arranca, lo dice y no cambia solo. «Compactar y cambiar» sale en Claude y Gemini.

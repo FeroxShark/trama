@@ -1,5 +1,19 @@
 # Changes
 
+## 0.3.19
+
+- Compacting with a note from the model: before compacting, the model writes itself a note with what it does not want to lose (goal, requests, decisions, what comes next) and gets it back afterwards. In the chat it shows as a folded card «Note to carry past compaction», and the compaction divider says «with note» and has «View note». It applies to Claude leaders and workers and to Gemini leaders; Codex, DeepSeek and OpenCode do not compact and the interface says so.
+- In Settings > Models: the «Compact with model note» switch, at what percentage the note is requested and from what percentage the end of a task is used to compact. With no limit of its own, the one from the Claude Code settings is used.
+- With an expired cache in a large chat, the notice adds «Compact with» a cheaper model and continue with the chosen one, and says how many tokens each option rereads.
+- The notice after compacting counts the tokens from after, not from before.
+- Switching models in the middle of a turn switches right away, even if the advisor is not stronger than the new model.
+- Turning Fast off really turns it off: a chat that had started with Fast kept requesting in fast mode and showing «Fast mode disabled · Out of usage credits». It now relaunches without Fast on the next message.
+- ChatGPT models come from what your Codex offers, with no fixed list: new ones show up without updating Trama.
+- Google quota: running out of one of its three windows (Gemini, Argon, or Claude and GPT through Google) no longer stops the workers of the other two.
+- Codex: the context meter no longer starts at zero every turn, and «Send now» goes first in the next turn. On Windows, Codex gets the chosen effort again.
+- Gemini: if a turn is cut short, the text it managed to write stays and the open steps close with their error instead of spinning forever.
+- On Windows, resuming a worker's session from another folder no longer loses it.
+
 ## 0.3.18
 
 - The model switch notice («Switching to X rereads the whole conversation») has two buttons: «Back to» the previous model and «Compact and switch», which compacts with the current model and only then switches. If compaction fails or doesn't start, it says so and doesn't switch on its own. «Compact and switch» shows on Claude and Gemini.
