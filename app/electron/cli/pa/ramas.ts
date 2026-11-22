@@ -612,7 +612,11 @@ export async function cmdIntegrar(x: Proy, t: string, o: { tests?: boolean } = {
   }
   // 2. rebase adentro del puesto (el tree principal no se toca)
   if (headPpal !== b) {
-    if (prestado) await commitearHuerfano(x, wt);
+    if (prestado && !(await commitearHuerfano(x, wt))) {
+      await finIntegrar();
+      io.err("pa: NO integro: el trabajo sin commitear del puesto prestado no se pudo guardar.\n");
+      return 87;
+    }
     if (!(await gOk(x, wt, ["checkout", "-q", r]))) {
       await finIntegrar();
       io.err(`pa: no pude entrar a ${r} en ${wt}.\n`);
@@ -630,7 +634,11 @@ export async function cmdIntegrar(x: Proy, t: string, o: { tests?: boolean } = {
   // 2b. --tests sobre la rama ya rebaseada; mientras corren se sueltan el candado de git y el del tree principal
   if (cmdTests) {
     if ((await gs(x, wt, ["rev-parse", "--abbrev-ref", "HEAD"])) !== r) {
-      if (prestado) await commitearHuerfano(x, wt);
+      if (prestado && !(await commitearHuerfano(x, wt))) {
+        await finIntegrar();
+        io.err("pa: NO integro: el trabajo sin commitear del puesto prestado no se pudo guardar.\n");
+        return 87;
+      }
       if (!(await gOk(x, wt, ["checkout", "-q", r]))) {
         await finIntegrar();
         io.err(`pa: no pude entrar a ${r} en ${wt}.\n`);

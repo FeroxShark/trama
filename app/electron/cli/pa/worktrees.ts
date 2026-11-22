@@ -517,9 +517,9 @@ export async function adoptarHuerfanas(x: Proyecto): Promise<void> {
  * estaba (o en `pa/<slug>/huerfano-<ts>` si estaba en HEAD suelto), sin dirs de build ni symlinks externos. Requiere el candado
  * de git.
  */
-export async function commitearHuerfano(x: Proyecto, wt: string): Promise<void> {
+export async function commitearHuerfano(x: Proyecto, wt: string): Promise<boolean> {
   await desenlazarCaches(x, wt);
-  if (!(await suciosDe(x, wt)).length) return;
+  if (!(await suciosDe(x, wt)).length) return true;
   let anterior = (await g(x, wt, ["rev-parse", "--abbrev-ref", "HEAD"])).salida.replace(/\n$/, "");
   let baseH = "";
   if (anterior === "HEAD") {
@@ -542,16 +542,23 @@ export async function commitearHuerfano(x: Proyecto, wt: string): Promise<void> 
       excluidos: fuera,
       err: (m) => x.pa.io.err(m),
     });
-    if (parche) return;
+    if (parche) return true;
   }
-  await g(x, wt, ["add", "-A", "--", ".", ...fuera.map((r) => `:(exclude,literal)${r}`)]);
+  const agregado = await g(x, wt, ["add", "-A", "--", ".", ...fuera.map((r) => `:(exclude,literal)${r}`)]);
   if (fuera.length) x.pa.io.err(`pa: no commiteo artefactos de build del huérfano: ${fuera.join(" ")}\n`);
   await excluirSymlinksExternos(x, wt);
-  if ((await g(x, wt, ["diff", "--cached", "--quiet"])).codigo !== 0) {
-    await g(x, wt, ["commit", "-qm", `pa: huérfano de ${anterior}`]);
+  if (agregado.codigo !== 0 || (await g(x, wt, ["diff", "--cached", "--quiet"])).codigo !== 0) {
+    const c = agregado.codigo === 0 ? await g(x, wt, ["commit", "-qm", `pa: huérfano de ${anterior}`]) : agregado;
+    // el commit puede fallar (un hook, un `user.email` sin configurar): sin esto se anunciaba guardado y lo staged entraba en la corrida siguiente
+    if (c.codigo !== 0 || (await g(x, wt, ["diff", "--cached", "--quiet"])).codigo !== 0) {
+      await g(x, wt, ["reset", "-q"]);
+      x.pa.io.err(`pa: no pude commitear el trabajo huérfano de ${path.basename(wt)} en '${anterior}': ${c.errores.slice(0, 300).replace(/\n/g, " ")}\npa: lo dejé sin commitear en esa rama; no arranco.\n`);
+      return false;
+    }
     x.pa.io.err(`pa: el worktree ${path.basename(wt)} tenía trabajo huérfano; quedó commiteado en '${anterior}'.\n`);
   }
   if (baseH) await corridaDeHuerfana(x, anterior, x.ruta, baseH);
+  return true;
 }
 
 // ---------------------------------------------------------------- crear / reusar
@@ -628,7 +635,8 @@ export async function prepararWorktree(x: Proyecto, retomada: string, puesto: st
       await candado.liberar();
       return { ...ppal, codigo: 87 };
     }
-    await commitearHuerfano(x, wt);
+    // si el trabajo huérfano no quedó guardado, no se sigue: la rama y sus cambios se conservan y no nace otra corrida encima
+    if (!(await commitearHuerfano(x, wt))) return await fallo("pa: NO corro en el tree principal ni sobre ese trabajo sin guardar.\n");
     let rama: string;
     let base: string;
     if (retomada && retomada !== "-") {

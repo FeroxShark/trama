@@ -396,9 +396,9 @@ export async function adoptarHuerfanas(x: Proy): Promise<void> {
 }
 
 /** `commitear_huerfano`: lo que quedó sin commitear en un worktree de pa se commitea entero (sin build ni symlinks externos). Requiere el candado de git. */
-export async function commitearHuerfano(x: Proy, wt: string, ts = ""): Promise<void> {
+export async function commitearHuerfano(x: Proy, wt: string, ts = ""): Promise<boolean> {
   desenlazarCaches(wt, x.ruta);
-  if ((await suciosDe(x, wt)).length === 0) return;
+  if ((await suciosDe(x, wt)).length === 0) return true;
   let anterior = await gs(x, wt, ["rev-parse", "--abbrev-ref", "HEAD"]);
   let baseH = "";
   if (anterior === "HEAD") {
@@ -421,16 +421,23 @@ export async function commitearHuerfano(x: Proy, wt: string, ts = ""): Promise<v
       excluidos: fuera,
       err: (m) => x.pa.io.err(m),
     });
-    if (parche) return;
+    if (parche) return true;
   }
-  await g(x, wt, ["add", "-A", "--", ".", ...fuera.map((r) => `:(exclude,literal)${r}`)]);
+  const agregado = await g(x, wt, ["add", "-A", "--", ".", ...fuera.map((r) => `:(exclude,literal)${r}`)]);
   if (fuera.length) x.pa.io.err(`pa: no commiteo artefactos de build del huérfano: ${fuera.join(" ")}\n`);
   await excluirSymlinksExternos(x, wt);
-  if (!(await gOk(x, wt, ["diff", "--cached", "--quiet"]))) {
-    await g(x, wt, ["commit", "-qm", `pa: huérfano de ${anterior}`]);
+  if (agregado.codigo !== 0 || !(await gOk(x, wt, ["diff", "--cached", "--quiet"]))) {
+    const c = agregado.codigo === 0 ? await g(x, wt, ["commit", "-qm", `pa: huérfano de ${anterior}`]) : agregado;
+    // el commit puede fallar (un hook, un `user.email` sin configurar): sin esto se anunciaba guardado y lo staged entraba en la corrida siguiente
+    if (c.codigo !== 0 || !(await gOk(x, wt, ["diff", "--cached", "--quiet"]))) {
+      await g(x, wt, ["reset", "-q"]);
+      x.pa.io.err(`pa: no pude commitear el trabajo huérfano de ${path.basename(wt)} en '${anterior}': ${c.errores.slice(0, 300).replace(/\n/g, " ")}\npa: lo dejé sin commitear en esa rama; no arranco.\n`);
+      return false;
+    }
     x.pa.io.err(`pa: el worktree ${path.basename(wt)} tenía trabajo huérfano; quedó commiteado en '${anterior}'.\n`);
   }
   if (baseH) await corridaDeHuerfana(x, anterior, x.ruta, baseH);
+  return true;
 }
 
 /** `asegurar_worktree`: el worktree del puesto, creado si no existe. Requiere el candado de git. */

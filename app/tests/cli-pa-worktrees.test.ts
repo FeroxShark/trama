@@ -247,6 +247,27 @@ testPosix("huérfano superado, también en ramas-base (el que usa --integrar)", 
   assert.equal(s.git(wt, "status", "--porcelain").stdout, "");
 });
 
+testPosix("huérfano que no se puede commitear (un hook lo rechaza): sale 87, conserva la rama y sus cambios y no nace otra rama de trabajo (B080)", async () => {
+  const s = armar();
+  const a = await prepararWorktree(s.proy("20261110-043331-1"), "", "1");
+  const wt = a.rutaTrabajo;
+  writeFileSync(path.join(wt, "resto.txt"), "sin guardar\n");
+  const hook = path.join(s.ruta, ".git", "hooks", "pre-commit");
+  mkdirSync(path.dirname(hook), { recursive: true });
+  writeFileSync(hook, "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  const b = await prepararWorktree(s.proy("20261110-064406-2"), "", "1");
+  assert.equal(b.codigo, 87);
+  assert.match(s.err(), /no pude commitear el trabajo huérfano/);
+  assert.doesNotMatch(s.err(), /quedó commiteado/);
+  assert.equal(s.git(s.ruta, "branch", "--list", "pa/demo/20261110-064406-2").stdout.trim(), "", "no nació la rama de la corrida nueva");
+  assert.equal(s.git(wt, "rev-parse", "--abbrev-ref", "HEAD").stdout.trim(), a.rama);
+  assert.equal(readFileSync(path.join(wt, "resto.txt"), "utf8"), "sin guardar\n");
+  assert.equal(s.git(wt, "diff", "--cached", "--name-only").stdout.trim(), "", "nada staged que entre en otro commit");
+  // lo mismo en el rescate que usa --integrar
+  assert.equal(await commitearHuerfanoBase(fijarProyecto(s.pa, "demo", s.ruta), wt), false);
+  assert.equal(s.git(wt, "diff", "--cached", "--name-only").stdout.trim(), "");
+});
+
 testPosix("huérfano en HEAD suelto: rama pa/<slug>/huerfano-<ts> con su .corrida; adoptar las que no la tienen", async () => {
   const s = armar();
   const wt = path.join(s.state, "worktrees", "demo");
