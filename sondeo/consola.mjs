@@ -52,6 +52,19 @@ if (modo === "respaldo") {
   process.exit(0);
 }
 
+if (modo === "raiz-claude") {
+  // Sin consola (la lanzan con detached, como la ventana de Electron). Corre `claude mcp list`, que arranca cada servidor MCP para chequearlo.
+  const [, , , claude, variante, out, nombre] = process.argv;
+  const fd = fs.openSync(out + ".log", "a");
+  const env = { ...process.env, SONDEO_NOMBRE: nombre + "/" };
+  const stdio = variante === "fd" ? ["ignore", fd, fd] : ["pipe", "pipe", "pipe"];
+  const p = spawn("cmd.exe", ["/d", "/s", "/c", `""${claude}" mcp list"`], { env, windowsHide: true, windowsVerbatimArguments: true, detached: variante === "det", stdio });
+  p.stdout?.on("data", (d) => fs.appendFileSync(out + ".log", d));
+  p.stderr?.on("data", (d) => fs.appendFileSync(out + ".log", d));
+  p.on("exit", (c) => { fs.appendFileSync(out + ".log", `claude salió con ${c}\n`); process.exit(0); });
+  setTimeout(() => process.exit(0), 60_000);
+}
+
 // --- el sondeo ----------------------------------------------------------------------------------------------------------------------
 if (!modo) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sondeo-"));
@@ -62,13 +75,15 @@ if (!modo) {
     const props = flags ? `@{ShowWindow=[uint16]0;CreateFlags=[uint32]${flags}}` : "@{ShowWindow=[uint16]0}";
     const ps = [
       "$ErrorActionPreference='Stop'",
+      "$ProgressPreference='SilentlyContinue'",
       `$st=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property ${props}`,
       `$a=@{CommandLine=${q(linea)};ProcessStartupInformation=$st}`,
       "$r=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments $a",
       'Write-Output ("rv=" + $r.ReturnValue + " pid=" + $r.ProcessId)',
     ].join("\n");
     const r = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(ps, "utf16le").toString("base64")], { windowsHide: true, encoding: "utf8", timeout: 60_000 });
-    return `${(r.stdout || "").trim()} ${(r.stderr || "").trim().slice(0, 400)}`.trim();
+    const o = (r.stdout || "").trim();
+    return /rv=/.test(o) ? o : `${o} ${(r.stderr || "").replace(/#< CLIXML|<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300)}`;
   }
 
   function monitor(nombre, segundos) {
@@ -83,7 +98,7 @@ if (!modo) {
     };
   }
 
-  async function escenario(nombre, correr, segundos = 14) {
+  async function escenario(nombre, correr, segundos = 22) {
     const out = path.join(dir, `${nombre}.txt`);
     const mon = monitor(nombre, segundos);
     await mon.listo();
@@ -120,7 +135,15 @@ if (!modo) {
   await escenario("W0-hoy", async (out) => {
     const f = pedido(out, "W0", [runner(out, "W0", true), consolaCmd(out, "W0")]);
     const rv = wmi(lineaCmd(f));
-    await esperar(11000);
+    await esperar(19000);
+    return rv;
+  });
+
+  // W4: lo de hoy pero el runner sin detached: hereda la consola oculta del cmd de WMI.
+  await escenario("W4-runner-sin-detached", async (out) => {
+    const f = pedido(out, "W4", [runner(out, "W4", false), consolaCmd(out, "W4")]);
+    const rv = wmi(lineaCmd(f));
+    await esperar(19000);
     return rv;
   });
 
@@ -128,7 +151,7 @@ if (!modo) {
   await escenario("W1-cmd-sin-ventana", async (out) => {
     const f = pedido(out, "W1", [runner(out, "W1", false), consolaCmd(out, "W1")]);
     const rv = wmi(lineaCmd(f), 0x08000000);
-    await esperar(11000);
+    await esperar(19000);
     return rv;
   });
 
@@ -136,7 +159,7 @@ if (!modo) {
   await escenario("W2-conhost-headless", async (out) => {
     const f = pedido(out, "W2", [runner(out, "W2", false), consolaCmd(out, "W2")]);
     const rv = wmi(`conhost.exe --headless ${lineaCmd(f)}`);
-    await esperar(11000);
+    await esperar(19000);
     return rv;
   });
 
@@ -144,7 +167,7 @@ if (!modo) {
   await escenario("W3-node-detached-sin-cmd", async (out) => {
     const f = pedido(out, "W3", [runner(out, "W3", false)]);
     const rv = wmi(`"${NODE}" "${yo}" lanzador "${f}"`, 8);
-    await esperar(11000);
+    await esperar(19000);
     return rv;
   });
 
@@ -155,9 +178,32 @@ if (!modo) {
       p.stdout.resume();
       p.stderr.resume();
       await new Promise((r) => p.on("exit", r));
-      await esperar(11000);
+      await esperar(19000);
       return "pa ya terminó";
     });
+  }
+  // C: Claude Code real arrancando un servidor MCP (la hoja), desde una raíz sin consola.
+  const donde = spawnSync("where", ["claude"], { encoding: "utf8", windowsHide: true });
+  const claude = (donde.stdout || "").split(/\r?\n/).find((l) => /\.cmd$/i.test(l.trim()))?.trim();
+  if (claude) {
+    const mcpOut = path.join(dir, "C-mcp.txt");
+    const add = spawnSync("cmd.exe", ["/d", "/s", "/c", `""${claude}" mcp add -s user sondeo -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${HOJA}" -out "${mcpOut}" -espera 0 -nombre mcp"`], { encoding: "utf8", windowsHide: true, windowsVerbatimArguments: true, timeout: 60_000 });
+    console.log(`claude: ${claude}\nmcp add: rc=${add.status} ${(add.stdout || "").trim()} ${(add.stderr || "").trim()}`);
+    for (const [nombre, variante] of [["C1-lider-pipes", "pipes"], ["C2-worker-fd-sin-consola", "fd"], ["C3-claude-detached", "det"]]) {
+      await escenario(nombre, async (out) => {
+        const p = spawn(NODE, [yo, "raiz-claude", claude, variante, mcpOut, nombre], { detached: true, windowsHide: true, stdio: "ignore" });
+        await new Promise((r) => p.on("exit", r));
+        await esperar(3000);
+        return `variante ${variante}`;
+      }, 30);
+    }
+  } else console.log("\n(sin claude: no corren los escenarios C)");
+
+  await esperar(8000);
+  console.log("\n######## todo lo que reportaron las hojas (al final, por si alguna llegó tarde)");
+  for (const f of fs.readdirSync(dir).sort()) {
+    if (!/\.(txt|log)$/.test(f)) continue;
+    console.log(`--- ${f}\n${fs.readFileSync(path.join(dir, f), "utf8").trim().slice(0, 1500)}`);
   }
   console.log("\nFIN");
 }

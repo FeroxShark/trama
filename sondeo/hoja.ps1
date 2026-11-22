@@ -1,5 +1,6 @@
 param([string]$out, [int]$espera = 0, [string]$nombre)
 Start-Sleep -Seconds $espera
+$nombre = "$env:SONDEO_NOMBRE$nombre"
 Add-Type -Namespace S -Name K -MemberDefinition @'
 [DllImport("kernel32.dll")] public static extern System.IntPtr GetConsoleWindow();
 [DllImport("kernel32.dll")] public static extern uint GetConsoleCP();
