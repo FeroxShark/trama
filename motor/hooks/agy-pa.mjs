@@ -434,11 +434,11 @@ function comandoSale(c, cwd) {
   return null;
 }
 
+let cwd = raizN;
 if (worker) {
   let cwdPedido = campo("toolCall", "args", "Cwd");
   if (cwdPedido.startsWith('"')) cwdPedido = cwdPedido.slice(1);
   if (cwdPedido.endsWith('"')) cwdPedido = cwdPedido.slice(0, -1);
-  let cwd = raizN;
   const msgFuera = (x) =>
     `BLOQUEADO (privacidad): '${x}' está fuera de tu worktree (${env.PA_AGY_RAIZ || "?"}). Un worker Gemini no lee, lista, busca ni ejecuta nada fuera de su worktree (ni ~/.ssh, ~/.config, ~/.gemini, ~/.claude, /etc, otros proyectos, $HOME): lo que lee viaja a Google. Si hace falta, decilo en DECISION.`;
   const sospechosa = (v) => {
