@@ -8,13 +8,14 @@
 // Las líneas son las del instalador de Linux (`ok`, `hecho`, `AVISO`). Sale con 1 si algo quedó con aviso (como `mal=1` allá).
 // En Windows la skill se COPIA (un symlink pide privilegios); la copia lleva una marca (`.de-trama`) y una carpeta sin la marca
 // no se toca. Lo prueba tests/cli-instalar-nativo.test.ts con las carpetas inyectadas.
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { carpetaApp, homeDe, nodeWindows, plataformaActual, registroProyectos } from "../rutas.ts";
+import { carpetaApp, configTrama, homeDe, nodeWindows, plataformaActual, registroProyectos } from "../rutas.ts";
 import { esEjecutable } from "./base/buscar.ts";
 import { hallarAgy } from "../binario.ts";
 import { esPrincipal } from "./base/principal.ts";
-import { registrarEnArchivo } from "./hooks.ts";
+import { registrarEnArchivo, type OpcionesNotaCompactar } from "./hooks.ts";
+import { baseNota, umbralesNota } from "../modelos-tipos.ts";
 import { instalarPluginAgy } from "./plugin-agy.ts";
 
 type Env = Record<string, string | undefined>;
@@ -29,6 +30,8 @@ export type OpcionesInstalar = {
   registro: string;
   /** Para armar los comandos de los hooks (en win32 van con `/`). */
   plataforma?: NodeJS.Platform;
+  /** `modelos.json` (de ahí salen los umbrales de la nota antes de compactar). Sin él, el de `configTrama`. */
+  modelos?: string;
   /** ¿Hay agy (Antigravity CLI) en esta máquina? Si sí, se deja su plugin pa-worker (sin él pa no lanza workers de agy). */
   agy?: boolean;
 };
@@ -48,6 +51,32 @@ export function opcionesDe(env: Env = process.env): OpcionesInstalar {
     plataforma: plat,
     agy: hallarAgy(env, home, (f) => esEjecutable(f, plat), plat) !== null || existsSync(path.join(home, ".gemini")),
   };
+}
+
+/**
+ * Los umbrales de la nota antes de compactar de los líderes de terminal, desde `modelos.json` (el mismo cálculo que `registrar-hook.mjs`
+ * en Linux): `null` si `nota_compactar` está apagada; el líder que no dice modelo es Opus (ventana de 1M con la familia 5 o `[1m]`).
+ */
+export function notaDeModelos(modelos: string): OpcionesNotaCompactar | null {
+  let c: Record<string, any> = {};
+  try {
+    const j: unknown = JSON.parse(readFileSync(modelos, "utf8").replace(/^﻿/, ""));
+    if (j && typeof j === "object" && !Array.isArray(j)) c = j as Record<string, any>;
+  } catch {}
+  if (c.nota_compactar === false) return null;
+  const modelo = typeof c.lider?.modelo === "string" && c.lider.modelo ? c.lider.modelo : "claude-opus-5-5";
+  const ventana = /\[1m\]/i.test(modelo) || /^claude-[a-z]+-5(?:[-.]|$)/.test(modelo) ? 1_000_000 : 200_000;
+  const ac = c.autocompact_lider ?? c.autocompact;
+  let tope: number | null = null;
+  if (ac && typeof ac === "object") {
+    const por = ac.por_modelo && typeof ac.por_modelo === "object" ? ac.por_modelo : {};
+    const fam = ["fable", "opus", "sonnet", "haiku"].find((f) => modelo.toLowerCase().includes(f));
+    const cand = por[modelo] ?? (fam ? por[fam] : undefined) ?? ac.defecto;
+    if (typeof cand === "number" && Number.isFinite(cand) && cand >= 100_000 && cand <= 1_000_000) tope = Math.round(cand);
+  }
+  const t = tope ? Math.min(tope, ventana) : null;
+  const u = umbralesNota({ tope: t, ventana, pct: c.nota_compactar_pct, tareaPct: c.nota_compactar_tarea_pct });
+  return { umbral: u.fuerte, umbralTarea: u.suave, base: baseNota({ tope: t, ventana }) };
 }
 
 /** Copia una carpeta nuestra encima de la anterior (sólo si la anterior también es nuestra). */
@@ -79,10 +108,12 @@ export function instalar(o: OpcionesInstalar): { lineas: Linea[]; mal: boolean }
   const settings = path.join(claude, "settings.json");
   if (!existsSync(path.join(hooks, "destructive-guard.mjs"))) out.push({ tipo: "aviso", texto: `faltan los hooks en ${hooks}: no registré nada en ${settings}` });
   else {
-    const r = registrarEnArchivo(settings, { carpeta: hooks, variante: "mjs", node: o.node, plataforma: o.plataforma });
-    if (r.estado === "invalido") out.push({ tipo: "aviso", texto: `${r.motivo}: no lo toqué (registrá a mano destructive-guard.mjs y statusline-espejo.mjs)` });
+    const modelos = o.modelos ?? path.join(configTrama(process.env, o.home, plataformaActual()), "modelos.json");
+    const nota = existsSync(path.join(hooks, "nota-compactar.mjs")) ? notaDeModelos(modelos) : undefined;
+    const r = registrarEnArchivo(settings, { carpeta: hooks, variante: "mjs", node: o.node, plataforma: o.plataforma, nota });
+    if (r.estado === "invalido") out.push({ tipo: "aviso", texto: `${r.motivo}: no lo toqué (registrá a mano destructive-guard.mjs, statusline-espejo.mjs, cierre-cupo.mjs, hook-compactando.mjs, resumen-modelos.mjs y nota-compactar.mjs)` });
     else if (r.estado === "ya") out.push({ tipo: "ok", texto: `${settings} ya engancha los hooks` });
-    else out.push({ tipo: "hecho", texto: `${settings}: destructive-guard y statusline-espejo registrados${r.copia ? ` (copia: ${r.copia})` : ""}` });
+    else out.push({ tipo: "hecho", texto: `${settings}: destructive-guard, statusline-espejo, cierre por cupo, hook-compactando, resumen de modelos y nota antes de compactar registrados${r.copia ? ` (copia: ${r.copia})` : ""}` });
   }
 
   // --- skills del líder ---

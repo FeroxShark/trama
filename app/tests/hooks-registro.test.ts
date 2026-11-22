@@ -16,6 +16,7 @@ import {
   entreComillas,
   EVENTOS_NOTA_COMPACTAR,
   hooksJsonAgy,
+  registrarCompactacionEnAjustes,
   registrarEnAjustes,
   registrarEnArchivo,
   type OpcionesRegistro,
@@ -109,6 +110,36 @@ test("CTX-51 comandoHook y statusLine: en Windows comillas dobles y sin bash -c;
   const viejo = { statusLine: { type: "command", command: `'C:/Program Files/x/node.exe' 'C:/h/statusline-espejo.sh' bash -c 'otro'` } };
   assert.equal(registrarEnAjustes(viejo, win), true);
   assert.equal(viejo.statusLine.command, `"C:/Program Files/trama/node.exe" "C:/Users/Ana López/.claude/hooks/statusline-espejo.mjs" bash -c 'otro'`);
+});
+
+test("CTX-50 registrarCompactacionEnAjustes: hook-compactando, resumen (startup|compact) y nota; pasa lo .sh a .mjs sin duplicar ni tocar lo ajeno", () => {
+  const o: OpcionesRegistro = { ...mjs, plataforma: "linux", nota: { umbral: 850_000, umbralTarea: 600_000, base: 1_000_000 } };
+  const a: Record<string, any> = {};
+  assert.equal(registrarCompactacionEnAjustes(a, o), true);
+  assert.deepEqual(a.hooks.PreCompact.map((g: any) => g.hooks[0].command), [`node '${HOOKS}/hook-compactando.mjs'`, `node '${HOOKS}/nota-compactar.mjs' --umbral 850000 --umbral-tarea 600000 --base 1000000`]);
+  assert.deepEqual(a.hooks.PostCompact, [{ hooks: [{ type: "command", command: `node '${HOOKS}/hook-compactando.mjs'` }] }]);
+  assert.deepEqual(a.hooks.SessionStart.map((g: any) => g.matcher), ["startup|compact", "compact"]);
+  assert.equal(a.hooks.SessionStart[0].hooks[0].command, `node '${HOOKS}/resumen-modelos.mjs'`);
+  assert.deepEqual(Object.keys(a.hooks).sort(), ["PostCompact", "PostToolUse", "PreCompact", "SessionStart", "UserPromptSubmit"]);
+  assert.equal(registrarCompactacionEnAjustes(a, o), false, "idempotente");
+  // nota apagada (null) la saca y deja el resto; sin la clave no la toca
+  assert.equal(registrarCompactacionEnAjustes(a, { ...o, nota: undefined }), false);
+  assert.equal(registrarCompactacionEnAjustes(a, { ...o, nota: null }), true);
+  assert.ok(!JSON.stringify(a).includes("nota-compactar"));
+  assert.ok(JSON.stringify(a).includes("hook-compactando.mjs") && JSON.stringify(a).includes("resumen-modelos.mjs"));
+  // lo de antes en .sh pasa a .mjs en su lugar; lo del usuario queda
+  const viejo: Record<string, any> = {
+    hooks: {
+      PreCompact: [{ hooks: [{ type: "command", command: "/r/app/scripts/hook-compactando.sh" }, { type: "command", command: "mio" }] }],
+      PostCompact: [{ hooks: [{ type: "command", command: "/r/app/scripts/hook-compactando.sh" }] }],
+      SessionStart: [{ hooks: [{ type: "command", command: "bash '/h/resumen-modelos.sh'", timeout: 10 }] }, { matcher: "resume", hooks: [{ type: "command", command: "otro" }] }],
+    },
+  };
+  assert.equal(registrarCompactacionEnAjustes(viejo, { ...mjs, plataforma: "linux" }), true);
+  assert.deepEqual(viejo.hooks.PreCompact[0].hooks.map((h: any) => h.command), [`node '${HOOKS}/hook-compactando.mjs'`, "mio"]);
+  assert.equal(viejo.hooks.PostCompact.length, 1);
+  assert.deepEqual(viejo.hooks.SessionStart.map((g: any) => [g.matcher, g.hooks[0].command]), [["startup|compact", `node '${HOOKS}/resumen-modelos.mjs'`], ["resume", "otro"]]);
+  assert.throws(() => registrarCompactacionEnAjustes({ hooks: { PreCompact: {} } }, mjs), /no es una lista/);
 });
 
 test("hooksJsonAgy: la variante sh es exactamente el hooks.json del plugin", () => {

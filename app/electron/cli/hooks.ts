@@ -14,7 +14,7 @@ import path from "node:path";
 import { escribirAtomicoSync } from "./base/archivo.ts";
 
 export type VarianteHook = "sh" | "mjs";
-export type NombreHook = "latido" | "destructive-guard" | "statusline-espejo" | "agy-pa" | "cierre-cupo" | "nota-compactar";
+export type NombreHook = "latido" | "destructive-guard" | "statusline-espejo" | "agy-pa" | "cierre-cupo" | "nota-compactar" | "hook-compactando" | "resumen-modelos";
 
 /** Los hooks que `instalar-producto.sh` enlaza en `~/.claude/hooks`. */
 export const HOOKS_DE_CLAUDE: readonly NombreHook[] = ["latido", "destructive-guard", "statusline-espejo"];
@@ -62,6 +62,20 @@ export function comandoNotaCompactar(carpeta: string, o: OpcionesNotaCompactar =
   const b = typeof o.base === "number" && Number.isFinite(o.base) && o.base > 0 ? Math.round(o.base) : null;
   return `${base}${u ? ` --umbral ${u}` : ""}${ut ? ` --umbral-tarea ${ut}` : ""}${b ? ` --base ${b}` : ""}`;
 }
+
+/**
+ * Quién está compactando (`hook-compactando.mjs`, port a Node de `scripts/hook-compactando.sh`): PreCompact deja la marca y PostCompact la
+ * saca (`electron/compactando.ts`). Mismo comando en los dos eventos, sin matcher. Va con `node` en todas las plataformas.
+ */
+export const EVENTOS_COMPACTANDO = ["PreCompact", "PostCompact"] as const;
+export const comandoCompactando = (carpeta: string, o: OpcionesComando = {}): string => comandoHook("hook-compactando", "mjs", carpeta, o);
+
+/**
+ * El resumen de modelos para el líder (`resumen-modelos.mjs`, port a Node de `resumen-modelos.sh`): `SessionStart` sólo en `startup` y
+ * `compact` (no al retomar ni al limpiar). Va con `node` en todas las plataformas.
+ */
+export const MATCHER_RESUMEN_MODELOS = "startup|compact";
+export const comandoResumenModelos = (carpeta: string, o: OpcionesComando = {}): string => comandoHook("resumen-modelos", "mjs", carpeta, o);
 
 export type OpcionesComando = {
   /** El intérprete de la variante `.mjs` (default `node`; el instalador de Windows pasa el `node.exe` empaquetado). */
@@ -127,6 +141,11 @@ export type OpcionesRegistro = OpcionesComando & {
   /** La carpeta donde están los hooks (en Linux, `~/.claude/hooks`, que son enlaces a `motor/hooks`). */
   carpeta: string;
   variante: VarianteHook;
+  /**
+   * La nota antes de compactar de los líderes de terminal (`registrarCompactacionEnAjustes`): con umbral la registra en sus 4 eventos;
+   * sin él (`null`: `nota_compactar` apagado en modelos.json) saca la que hubiera; sin la clave (`undefined`) no la toca.
+   */
+  nota?: OpcionesNotaCompactar | null;
 };
 
 /** Los hooks de los grupos de un evento (con `?` de jq: lo que no tiene la forma esperada se ignora). */
@@ -223,6 +242,84 @@ export function cierreCupoRegistrado(ajustes: unknown): boolean {
   return EVENTOS_CIERRE_CUPO.every((e) => comandosDe(hooks[e]).some((h) => typeof h.command === "string" && marca("cierre-cupo").test(h.command)));
 }
 
+/**
+ * Asegura UN comando nuestro (el que tiene `marca`) en un evento: si ya está, lo deja con el `comando` pedido (y el matcher, si su
+ * grupo es sólo nuestro); si no, agrega un grupo. Lo del usuario no se toca. `comando: null` lo saca. Devuelve true si cambió algo.
+ */
+function asegurarComando(hooks: Json, evento: string, o: { marca: RegExp; comando: string | null; matcher?: string; timeout?: number }): boolean {
+  if (hooks[evento] !== undefined && hooks[evento] !== null && !Array.isArray(hooks[evento])) throw new Error(`hooks.${evento} no es una lista`);
+  const grupos = ((hooks[evento] as unknown[] | null | undefined) ?? []).slice();
+  const esMio = (h: unknown) => esObjeto(h) && typeof h.command === "string" && o.marca.test(h.command);
+  let cambio = false;
+  let puesto = false;
+  const salida: unknown[] = [];
+  for (const g of grupos) {
+    if (!esObjeto(g) || !Array.isArray(g.hooks) || !g.hooks.some(esMio)) {
+      salida.push(g);
+      continue;
+    }
+    const otros = g.hooks.filter((h) => !esMio(h));
+    if (o.comando === null || puesto) {
+      cambio = true; // sacarlo (o un repetido)
+      if (otros.length) salida.push({ ...g, hooks: otros });
+      continue;
+    }
+    puesto = true;
+    const mios = g.hooks.filter(esMio) as Json[];
+    for (const h of mios) {
+      if (h.command !== o.comando) {
+        h.command = o.comando;
+        cambio = true;
+      }
+      if (o.timeout && h.timeout !== o.timeout) {
+        h.timeout = o.timeout;
+        cambio = true;
+      }
+    }
+    if (otros.length === 0 && o.matcher !== undefined && g.matcher !== o.matcher) {
+      g.matcher = o.matcher;
+      cambio = true;
+    }
+    salida.push(g);
+  }
+  if (!puesto && o.comando !== null) {
+    const entrada: Json = { type: "command", command: o.comando, ...(o.timeout ? { timeout: o.timeout } : {}) };
+    salida.push(o.matcher !== undefined ? { matcher: o.matcher, hooks: [entrada] } : { hooks: [entrada] });
+    cambio = true;
+  }
+  if (cambio) {
+    if (salida.length) hooks[evento] = salida;
+    else delete hooks[evento];
+  }
+  return cambio;
+}
+
+/**
+ * Lo de la compactación para los líderes de terminal, en Node para todas las plataformas (es lo que el instalador de Linux registra con
+ * `scripts/registrar-hook.mjs` y `instalar-producto.sh`, y en Windows no había): `hook-compactando` (PreCompact y PostCompact), el
+ * resumen de modelos (SessionStart `startup|compact`) y, con `o.nota`, `nota-compactar` en sus 4 eventos. Un registro de antes con la
+ * variante .sh pasa a la .mjs. Devuelve true si cambió algo.
+ */
+export function registrarCompactacionEnAjustes(ajustes: Json, o: OpcionesRegistro): boolean {
+  if (ajustes.hooks !== undefined && ajustes.hooks !== null && !esObjeto(ajustes.hooks)) throw new Error("hooks no es un objeto");
+  const hooks = (ajustes.hooks && esObjeto(ajustes.hooks) ? ajustes.hooks : {}) as Json;
+  let cambio = false;
+  const comp = comandoCompactando(o.carpeta, o);
+  for (const e of EVENTOS_COMPACTANDO) cambio = asegurarComando(hooks, e, { marca: marca("hook-compactando"), comando: comp }) || cambio;
+  cambio = asegurarComando(hooks, "SessionStart", { marca: marca("resumen-modelos"), comando: comandoResumenModelos(o.carpeta, o), matcher: MATCHER_RESUMEN_MODELOS, timeout: 10 }) || cambio;
+  const conNota = !!o.nota && typeof o.nota.umbral === "number" && o.nota.umbral > 0;
+  const nota = conNota ? comandoNotaCompactar(o.carpeta, { ...o, ...o.nota }) : null;
+  if (o.nota !== undefined) {
+    for (const e of EVENTOS_NOTA_COMPACTAR) {
+      // `SessionStart` ya tiene al resumen en otro grupo: el de la nota lleva su matcher `compact` y se distingue por la marca.
+      cambio = asegurarComando(hooks, e.evento, { marca: marca("nota-compactar"), comando: nota, matcher: "matcher" in e ? e.matcher : undefined, timeout: 10 }) || cambio;
+    }
+  }
+  if (cambio && ajustes.hooks !== hooks) ajustes.hooks = hooks;
+  if (cambio && Object.keys(hooks).length === 0) delete ajustes.hooks;
+  return cambio;
+}
+
 export type ResultadoRegistro =
   | { estado: "registrado"; destino: string; copia?: string }
   | { estado: "ya"; destino: string }
@@ -256,7 +353,8 @@ export function registrarEnArchivo(settings: string, o: OpcionesRegistro, ahora:
   try {
     const a = registrarEnAjustes(ajustes, o);
     const b = registrarCierreEnAjustes(ajustes, o);
-    if (!(a || b) || JSON.stringify(ajustes) === antes) return { estado: "ya", destino: real };
+    const c = registrarCompactacionEnAjustes(ajustes, o);
+    if (!(a || b || c) || JSON.stringify(ajustes) === antes) return { estado: "ya", destino: real };
   } catch (e) {
     return { estado: "invalido", motivo: `${settings}: ${(e as Error).message}` };
   }

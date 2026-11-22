@@ -68,7 +68,7 @@ const ENTRADAS_NATIVO = [
     grupo: "sistema",
     tipo: "compartido",
     ruta: "%USERPROFILE%\\.claude\\settings.json",
-    que: "Los hooks de Trama en ~/.claude/settings.json (destructive-guard y statusline-espejo; sacalos a mano si ya no usás Trama)",
+    que: "Los hooks de Trama en ~/.claude/settings.json (destructive-guard, statusline-espejo, cierre por cupo, hook-compactando, resumen de modelos y nota antes de compactar; sacalos a mano si ya no usás Trama)",
     quitar: "nunca",
   }),
 ];
