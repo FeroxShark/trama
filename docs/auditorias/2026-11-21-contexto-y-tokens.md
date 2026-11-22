@@ -298,6 +298,15 @@ Windows contra Linux (CTX-48 a 60): 9 confirmados, 2 refutados, 2 dudosos. Nada 
 - Hallazgo nuevo CTX-61: `app/electron/cli/tablero.ts:369` lee `perfil.json` de `~/.config`, igual que `entorno.ts:312` (mismo error que CTX-52).
 - Varias citas tenían líneas viejas (CTX-48, 49, 52, 53, 55); las de arriba son las actuales.
 
+## Cierre de dudosos (2026-11-22, lectura de código)
+
+- CTX-43 DUDOSO: los 85 y 95 del panel están en `app/src/paneles/PanelContexto.tsx:453,474` (niveles «casi/lleno»), no en `contexto-panel.ts`. El worker no tiene `autoCompact` en porcentaje: pasa `--autocompact <tokens>` (`lanzar.ts:536`, default 300000 para haiku en `modelos.ts:300-311`). El 85 del worker es `nota_compactar_pct` (`modelos-tipos.ts:49`), no un umbral de compactación. Falta leer el anillo del worker (`app/src/hilo/contexto-logica.ts:70-79`).
+- CTX-46 CONFIRMADO con corrección: `contexto-local.ts:17` usa base 3 (prefacios de Gemini, dsh, opencode y codex). `contexto-sesion.ts:8` usa 3,5 (panel). No hay «/4» para el relevo: `cache-pregunta.ts:17` es sólo comentario. `motores/prompt.ts:107-121` corta por caracteres. El panel no referencia `contexto-local`, así que mide otra cosa.
+- CTX-52 DUDOSO: no hay escritor del mapa en `app/electron`, `windows/src` ni `motor/bin/pa`. Lectores: `lanzar.ts:422` (`mapaDe`, usa `~/.config`, no `configTrama`), `lanzar.ts:464`, `otros-motores.ts:63`. Lo escribiría el worker por instrucción del prompt. Cierre: en Windows, después de una corrida, ver si aparece `%USERPROFILE%\.config\trama\mapa\<slug>.md`.
+- CTX-56 DUDOSO con corrección: la comparación de rutas está en `hilos.ts:460-466` (`esperado` = `C.ruta_trabajo` sin barra final contra `u.cwd` del transcript, literal). `contexto-desglose.ts:616-628` normaliza `\` a `/` pero compara sin mayúsculas: eso sí está confirmado. `lanzar.ts:225-227` respeta `CLAUDE_CONFIG_DIR`; `contexto-local.ts:54` no. Cierre: `pa --hilos` en Windows con `c:\` contra `C:\`, y comparar `ruta_trabajo=` de la `.corrida` con el `cwd` del transcript.
+- CTX-59 CONFIRMADO con corrección: no hay CHARS_POR_TOKEN de 4. Hay 3 (`contexto-local.ts:17`) y 3,5 (`contexto-sesion.ts:8`, piso `Math.max(3.5,k)` en `historial-parser.ts:538`). La diferencia máxima es 16,7 % (no 33 %). Cambia topes en locales (`TOPE_PARTE`, `recortar` en `contexto-local.ts:25,46-48`); en el panel de Claude sólo mueve el número de piezas estimadas.
+- CTX-60 CONFIRMADO con corrección: `ramas.ts:400` usa `env.ComSpec || env.COMSPEC || "cmd.exe"` con `/d /s /c` en Windows y `bash -c` en Linux. No hay PowerShell. Para cerrar en Windows no sirve `npm test && ls` (corre igual en cmd): usar `$VAR`, `./x.sh` o `2>/dev/null`.
+
 ## Qué falta auditar
 
 - Medir en Windows (sin máquina aquí): CTX-48 a 60 quedan con veredicto de código; las pruebas de DUDOSO y de «sin verificar» se listan arriba.
