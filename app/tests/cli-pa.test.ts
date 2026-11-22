@@ -173,6 +173,7 @@ test("--hilos: el código de salida durable manda: una corrida con rc≠0 o is_e
     [`${dia}-000203-4503`, false, ".listo", "salida=x\nrc=0\n"], // sano
     [`${dia}-000204-4504`, false, ".entregado", "salida=x\nrc=0\n"], // ya cobrado: el rc sigue a mano
     [`${dia}-000205-4505`, false, ".listo", "salida=x\n"], // corrida vieja sin rc
+    [`${dia}-000206-4506`, false, ".listo", "salida=x\nrc=130\n"], // cortada (SIGINT, como un agy): rc 130
   ];
   for (const [id, isError, ext, listo] of casos) {
     writeFileSync(path.join(dir, `${id}.hilo`), `inicio=${ahora - 60}\ntarea=t ${id}\n`);
@@ -187,6 +188,10 @@ test("--hilos: el código de salida durable manda: una corrida con rc≠0 o is_e
   assert.deepEqual([f.get(casos[2]![0])!.estado, f.get(casos[2]![0])!.rc], ["listo", 0]);
   assert.deepEqual([f.get(casos[3]![0])!.estado, f.get(casos[3]![0])!.rc], ["entregado", 0]);
   assert.deepEqual([f.get(casos[4]![0])!.estado, f.get(casos[4]![0])!.rc], ["listo", null]);
+  // B149: `fallo` marca al entregado que falló (rc ≠ 0 o is_error); el sano y el cobrado con rc 0 no.
+  const fallo = (i: number) => (f.get(casos[i]![0]) as { fallo?: boolean }).fallo;
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(fallo), [true, true, false, false, false, true]);
+  assert.deepEqual([f.get(casos[5]![0])!.estado, f.get(casos[5]![0])!.rc], ["entregado", 130]);
 });
 
 test("--hilos: una corrida en cola (sin .hilo ni .running) muestra su tarea, modelo, effort, cuenta y jefe desde el .jefe (B084)", async () => {
