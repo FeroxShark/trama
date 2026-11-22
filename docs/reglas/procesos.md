@@ -35,3 +35,14 @@ Nada de `path.join(…, "..", "motor")` suelto. Si un worker sale siempre con el
 - **Cómo se barre:** cada líder sale con `TRAMA_LIDER_ETIQUETA=<pid motor>:<arranque motor>:<azar>` en el entorno (`electron/huerfanos.ts`, `lider.ts`). Al salir el líder se manda TERM (KILL a los 3 s) a todo proceso con esa etiqueta; al arrancar el motor se barre lo de los motores que ya no están. `pa --async` sale con la etiqueta vacía: sus workers sobreviven a los relanzos del motor a propósito.
 - **No hay `pactl` en el repo:** el watcher lo lanza una herramienta del líder o un script del usuario. «Un solo suscriptor» no se puede imponer desde el motor; lo que sí garantiza el motor es que no queden huérfanos.
 - Sólo Linux (lee `/proc`); en Windows es no-op. Test: `app/tests/huerfanos.test.ts`.
+
+## Consolas en Windows (medido en el CI de Windows, 2026-11-22)
+
+- Un proceso de consola lanzado con `windowsHide` (SW_HIDE) queda oculto, también con Windows Terminal como terminal por defecto.
+- La ventana visible sale cuando un proceso **sin consola** (lanzado `detached`, o una app GUI como Electron) lanza un programa de consola
+  **sin** `windowsHide`: Windows le crea una consola nueva y la muestra. Así abrían un CMD los intentos de `-m a,b,c` y de `--objetivo`
+  (`relanzar` en `cli/pa.ts`, dentro del runner suelto). Por eso todo `spawn`/`execFile` lleva `windowsHide` (`tests/rutas.test.ts`).
+- `lanzarSuelto` y el lanzador de WMI siguen con `detached` en Windows: libuv mete a cada hijo no-detached en un job que lo mata al salir
+  el padre, y ningún hijo no-detached sobrevivió a un padre que sale enseguida.
+- WMI (`Win32_Process.Create`) rechaza `CREATE_NO_WINDOW` en `CreateFlags` (devuelve 21); con `ShowWindow=0` su `cmd.exe` queda oculto.
+- Los servidores MCP que arranca Claude Code salen sin ventana en todos los casos medidos.
