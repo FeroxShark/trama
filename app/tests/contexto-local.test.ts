@@ -158,12 +158,9 @@ test("argv local: el contexto va en el prompt de sistema, después del prompt co
   assert.ok(!argvLider({ ...base, modelo: "claude-opus-5-5", effort: "high" }).join(" ").includes("Contexto de Ana"));
 });
 
-test("prefacioGemini: las instrucciones de un líder de Gemini más los CLAUDE.md con lo del jefe (`pa`), sin hooks ni memoria", async () => {
+test("prefacioGemini: las instrucciones de un líder de Gemini más los CLAUDE.md con lo del jefe (`pa`)", async () => {
   const home = await casa();
   try {
-    const memo = memoriaDe(home, home);
-    await mkdir(path.dirname(memo), { recursive: true });
-    await writeFile(memo, "- [Trato](trato.md) — privado\n");
     const p = await prefacioGemini({ home, cwd: home });
     assert.ok(p.startsWith(PROMPT_GEMINI));
     assert.match(PROMPT_GEMINI, /`pa`/);
@@ -172,12 +169,59 @@ test("prefacioGemini: las instrucciones de un líder de Gemini más los CLAUDE.m
     assert.match(p, /delegás con pa/);
     assert.match(p, /Modelos: se elige por situación/);
     assert.match(p, /usar la skill X/);
-    // Ni lo que corre un hook al arrancar ni el índice de memoria de Ana salen hacia Google.
-    assert.doesNotMatch(p, /Tablero en /);
-    assert.doesNotMatch(p, /\[Trato\]\(trato\.md\)/);
   } finally {
     await rm(home, { recursive: true, force: true });
   }
+});
+
+/** Una casa de mentira (sin disco ni shell): CLAUDE.md global, settings con un hook de arranque y el índice de memoria. */
+function casaFalsa() {
+  const home = path.join("fake-home");
+  const env = { CLAUDE_CONFIG_DIR: undefined };
+  const archivos: Record<string, string> = {
+    [path.join(home, ".claude", "CLAUDE.md")]: "# Globales\n- usar la skill X\n",
+    [path.join(home, ".claude", "settings.json")]: JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: "command", command: "tablero" }] }] } }),
+    [memoriaDe(home, home, env)]: "- [Trato](trato.md) — privado\n",
+  };
+  return { home, env, deps: { leer: async (f: string) => archivos[f] ?? null, hook: async () => "Tablero en fake-home: 3 pendientes" } };
+}
+
+test("memoria compartida: con el interruptor prendido (o sin decirlo) Gemini, DeepSeek, OpenCode y ChatGPT reciben la memoria y la ficha del tablero", async () => {
+  const { prefacioDsh } = await import("../electron/contexto-local.ts");
+  const { home, env, deps } = casaFalsa();
+  const gemini = [await prefacioGemini({ home, cwd: home, env, deps }), await prefacioGemini({ home, cwd: home, env, deps, compartir: true })];
+  const otros = await Promise.all((["dsh", "opencode", "codex"] as const).map((motor) => prefacioDsh({ home, cwd: home, env, deps, motor })));
+  for (const p of [...gemini, ...otros]) {
+    assert.match(p, /## Memoria sobre/);
+    assert.match(p, /\[Trato\]\(trato\.md\)/);
+    assert.match(p, /## Tablero y estado al arrancar/);
+    assert.match(p, /Tablero en fake-home: 3 pendientes/);
+    assert.match(p, /usar la skill X/, "los CLAUDE.md siguen");
+  }
+});
+
+test("memoria compartida: con el interruptor apagado el motor no recibe ni la memoria ni la ficha del tablero, pero sí lo demás", async () => {
+  const { prefacioDsh } = await import("../electron/contexto-local.ts");
+  const { home, env, deps } = casaFalsa();
+  const sin = [
+    await prefacioGemini({ home, cwd: home, env, deps, compartir: false }),
+    await prefacioDsh({ home, cwd: home, env, deps, motor: "dsh", compartir: false }),
+  ];
+  for (const p of sin) {
+    assert.doesNotMatch(p, /Memoria sobre/);
+    assert.doesNotMatch(p, /\[Trato\]\(trato\.md\)/);
+    assert.doesNotMatch(p, /Tablero y estado al arrancar/);
+    assert.doesNotMatch(p, /3 pendientes/);
+    assert.match(p, /usar la skill X/, "los CLAUDE.md siguen");
+  }
+});
+
+test("armarContexto: `compartir` decide la memoria y los hooks, no el perfil", async () => {
+  const { home, env, deps } = casaFalsa();
+  const titulos = async (x: object) => (await armarContexto({ home, ctx: 32768, env, deps, ...x })).partes.map((p) => p.titulo.split(" (")[0]);
+  assert.ok((await titulos({ perfil: "gemini" })).some((t) => t.startsWith("Memoria sobre")));
+  assert.ok((await titulos({})).some((t) => t.startsWith("Tablero y estado")));
+  assert.deepEqual((await titulos({ compartir: false })).filter((t) => /^(Memoria|Tablero)/.test(t)), []);
 });
 
 test("prefacioGemini: sin archivos queda el de las instrucciones solo", async () => {

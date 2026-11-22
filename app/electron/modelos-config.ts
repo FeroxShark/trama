@@ -17,7 +17,7 @@ import { topeAutocompact, topeDeEntorno, type TopeConf, type TopeEntorno } from 
 import { CIERRE_DEFECTO, type AjustesCierre } from "./valida-ajustes.ts";
 import { asesorDe, envDeSettings, motivoAdvisor, type AdvisorConfig, type FamiliaAdvisor, type MotivoAdvisor } from "./advisor.ts";
 import { entornoLider } from "./lider-arma.ts";
-import { destrabarActivo, leerConfig, NOTA_PCT_DEFECTO, NOTA_TAREA_PCT_DEFECTO, unir, urlOllama, validarConfig, TIPOS, type ConfigModelos, type Eleccion, type Tipo } from "./modelos-tipos.ts";
+import { destrabarActivo, leerConfig, memoriaCompartidaDe, NOTA_PCT_DEFECTO, NOTA_TAREA_PCT_DEFECTO, unir, urlOllama, validarConfig, TIPOS, type ConfigModelos, type Eleccion, type MotorMemoria, type Tipo } from "./modelos-tipos.ts";
 
 /** Dónde está el archivo (se mira cada vez: los tests lo cambian por el entorno). */
 export const rutaModelos = () =>
@@ -363,6 +363,16 @@ export function notaCompactarGuardado(): boolean {
   try {
     const { obj } = analizar(readFileSync(rutaModelos(), "utf8"), "");
     return obj ? leerConfig(obj).nota_compactar !== false : true;
+  } catch {
+    return true;
+  }
+}
+
+/** ¿Recibe este motor la memoria y la ficha del tablero (`memoria_compartida` de `modelos.json`)? Por defecto sí: sin archivo, roto o sin la clave vale `true`. */
+export function memoriaCompartidaGuardada(motor: MotorMemoria): boolean {
+  try {
+    const { obj } = analizar(readFileSync(rutaModelos(), "utf8"), "");
+    return obj ? memoriaCompartidaDe(leerConfig(obj), motor) : true;
   } catch {
     return true;
   }

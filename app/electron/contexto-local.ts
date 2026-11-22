@@ -130,14 +130,21 @@ export async function armarContexto(x: {
   ctx: number;
   env?: Record<string, string | undefined>;
   deps?: Partial<DepsContexto>;
-  /** `gemini`: un líder de agy, que sí delega con `pa` y no lee CLAUDE.md: sus secciones de jefe se quedan, y ni hooks ni memoria (el tablero y lo recordado del usuario no salen de su máquina hacia Google). */
+  /** `gemini`: un líder de agy, que sí delega con `pa` y no lee CLAUDE.md: sus secciones de jefe se quedan. Sólo decide eso; la memoria no depende del perfil. */
   perfil?: "gemini";
+  /**
+   * Si van la memoria del dueño (`MEMORY.md`) y la salida de los hooks de arranque (la ficha del tablero). Es el interruptor del motor en
+   * `memoria_compartida` de modelos.json (Ajustes > Modelos > Memoria compartida); sin decirlo vale `true`: todo motor la recibe, y lo que se
+   * manda llega al proveedor de ese motor. Apagado, esas dos partes no salen de la máquina por este camino.
+   */
+  compartir?: boolean;
 }): Promise<Contexto> {
   const home = x.home;
   const cwd = x.cwd || home;
   const leer = x.deps?.leer ?? leerODejar;
   const hook = x.deps?.hook ?? ((c: string, d: string) => correrHook(c, d, home, entornoLider(x.env ?? process.env, home), 5000));
   const gemini = x.perfil === "gemini";
+  const compartir = x.compartir !== false;
   const fuera = gemini ? /(?!)/ : ENCABEZADOS_FUERA;
   let libre = topeParaCtx(x.ctx);
   const partes: Contexto["partes"] = [];
@@ -168,11 +175,11 @@ export async function armarContexto(x: {
   const [primero, ...proyecto] = textos[0] && path.dirname(textos[0][0]) === home ? textos : [undefined, ...textos];
   if (primero) poner(`CLAUDE.md de ${path.dirname(primero[0]) === home ? "~" : path.dirname(primero[0])}`, sinSecciones(await conImports(primero[0], primero[1]), fuera), 4000, primero[0]);
 
-  const salidas = gemini ? [] : await Promise.all((await hooksDeArranque(home, leer, x.env)).map((c) => hook(c, cwd).then(textoDeHook, () => "")));
+  const salidas = !compartir ? [] : await Promise.all((await hooksDeArranque(home, leer, x.env)).map((c) => hook(c, cwd).then(textoDeHook, () => "")));
   poner("Tablero y estado al arrancar (salida de los hooks de arranque)", salidas.filter(Boolean).join("\n"), TOPE_PARTE.hook, "`tablero resumen`");
 
   const mem = memoriaDe(home, cwd, x.env);
-  const memoria = gemini ? "" : ((await leer(mem)) ?? "");
+  const memoria = !compartir ? "" : ((await leer(mem)) ?? "");
   poner(`Memoria sobre ${dueno()} (índice; cada archivo está en ${path.dirname(mem)}/, léelo con Read si hace falta)`, memoria.split("\n").slice(0, 200).join("\n"), TOPE_PARTE.memoria, mem);
 
   // AGENTS.md es la fuente única de las instrucciones del proyecto (`pa <proy> --unificar-md`): si el CLAUDE.md no lo trae (por un import),
@@ -228,7 +235,7 @@ export async function skillOrquestar(home: string, env?: Record<string, string |
 
 /**
  * Lo mismo para un líder de DeepSeek Harness (`dsh`, que tampoco lee CLAUDE.md): el prompt de Gemini con lo que cambia (quién corre y
- * con qué herramientas). Las mismas reglas de privacidad: ni hooks ni memoria, porque el modelo puede ser de un servicio en la nube.
+ * con qué herramientas). Misma regla de privacidad: la memoria y la ficha del tablero van si el interruptor del motor (`memoria_compartida` de modelos.json) está prendido, que es lo normal; el modelo puede ser de un servicio en la nube y ese servicio las recibe.
  */
 export const PROMPT_DSH = PROMPT_GEMINI.split("\n")
   .map((l) =>
@@ -240,8 +247,10 @@ export const PROMPT_DSH = PROMPT_GEMINI.split("\n")
   )
   .join("\n");
 
-async function prefacioCon(prompt: string, x: { home: string; cwd?: string; pa?: string; env?: Record<string, string | undefined>; deps?: Partial<DepsContexto> }): Promise<string> {
-  const c = await armarContexto({ home: x.home, cwd: x.cwd, ctx: 40000, perfil: "gemini", env: x.env, deps: x.deps }).catch(() => null);
+type EntradaPrefacio = { home: string; cwd?: string; pa?: string; env?: Record<string, string | undefined>; deps?: Partial<DepsContexto>; compartir?: boolean };
+
+async function prefacioCon(prompt: string, x: EntradaPrefacio): Promise<string> {
+  const c = await armarContexto({ home: x.home, cwd: x.cwd, ctx: 40000, perfil: "gemini", compartir: x.compartir, env: x.env, deps: x.deps }).catch(() => null);
   const skill = await skillOrquestar(x.home, x.env);
   const base = skill === SKILL_GENERICA ? prompt : prompt.replaceAll(SKILL_GENERICA, skill);
   const conPa = x.pa && path.isAbsolute(x.pa) ? `${base}\nSi un comando dice "pa: command not found", \`pa\` está en \`${x.pa}\`: llamalo con esa ruta.` : base;
@@ -253,7 +262,7 @@ async function prefacioCon(prompt: string, x: { home: string; cwd?: string; pa?:
  * `pa`: dónde está el binario si se encontró con ruta absoluta; se lo dice por si el PATH de la herramienta de comandos de
  * agy no lo trae (la unidad de systemd y el menú de apps arrancan sin `~/.local/bin`), así nunca queda en "pa: command not found".
  */
-export const prefacioGemini = (x: { home: string; cwd?: string; pa?: string; env?: Record<string, string | undefined>; deps?: Partial<DepsContexto> }): Promise<string> => prefacioCon(PROMPT_GEMINI, x);
+export const prefacioGemini = (x: EntradaPrefacio): Promise<string> => prefacioCon(PROMPT_GEMINI, x);
 
 /** Lo mismo para un líder de `opencode acp` (los modelos de OpenCode): que no se crea DeepSeek ni Claude. */
 export const PROMPT_OPENCODE = PROMPT_DSH.replace(
@@ -272,7 +281,7 @@ export const PROMPT_CODEX = PROMPT_DSH.replace(
  * El prefacio completo de un líder de dsh u opencode en `cwd` (ver `PROMPT_DSH`/`PROMPT_OPENCODE`). `modelo`: el id con el que lo lanzó
  * Trama; se le dice tal cual, así cuando le preguntan qué modelo es no adivina por el nombre del harness.
  */
-export const prefacioDsh = (x: { home: string; cwd?: string; pa?: string; env?: Record<string, string | undefined>; motor?: "dsh" | "opencode" | "codex"; modelo?: string; deps?: Partial<DepsContexto> }): Promise<string> => {
+export const prefacioDsh = (x: EntradaPrefacio & { motor?: "dsh" | "opencode" | "codex"; modelo?: string }): Promise<string> => {
   const base = x.motor === "opencode" ? PROMPT_OPENCODE : x.motor === "codex" ? PROMPT_CODEX : PROMPT_DSH;
   return prefacioCon(x.modelo ? `${base}\nEl modelo con el que corrés es \`${x.modelo}\`; si te preguntan qué modelo sos, decí ese.` : base, x);
 };

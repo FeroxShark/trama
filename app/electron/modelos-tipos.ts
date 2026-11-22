@@ -158,6 +158,14 @@ export type AutocompactConfig = { defecto: TopeCompactar; por_modelo: Record<str
 export type Eleccion = { modelo: string; effort?: string };
 /** Un modelo servido por Ollama: `id` es `ollama:<modelo>` y es lo que se elige en los selectores. */
 export type Local = { id: string; nombre: string; url: string; modelo: string };
+/** Los motores de líder que no son Claude y reciben (o no) la memoria del dueño: la clave de cada uno en `memoria_compartida`. */
+export const MOTORES_MEMORIA = ["gemini", "codex", "dsh", "opencode", "local"] as const;
+export type MotorMemoria = (typeof MOTORES_MEMORIA)[number];
+const esMotorMemoria = (k: string): k is MotorMemoria => (MOTORES_MEMORIA as readonly string[]).includes(k);
+
+/** ¿Este motor recibe la memoria y la ficha del tablero? Sin la clave (o sin el motor) sí. */
+export const memoriaCompartidaDe = (c: Pick<ConfigModelos, "memoria_compartida"> | undefined, motor: MotorMemoria): boolean => c?.memoria_compartida?.[motor] !== false;
+
 export type ConfigModelos = {
   lider?: Eleccion;
   reparto?: ModoReparto;
@@ -205,6 +213,12 @@ export type ConfigModelos = {
    * `CIERRE_DEFECTO` (prendido, umbral 5 %, sin retomar solo). `umbral`: % que tiene que quedar, entero de 2 a 20.
    */
   cierre?: Partial<AjustesCierre>;
+  /**
+   * Memoria compartida (2026-11-21): por motor, si el líder recibe la memoria del dueño (`MEMORY.md`) y la ficha del tablero (salida de los hooks de
+   * arranque) además de sus CLAUDE.md. Sin la clave, o sin un motor, vale `true` (prendida): sólo lo apagado hace falta anotar. Lo que se manda
+   * llega al proveedor de ese motor. Lo lee Trama al abrir un líder de Gemini, ChatGPT, DeepSeek, OpenCode o un modelo local (`contexto-local.ts`).
+   */
+  memoria_compartida?: Partial<Record<MotorMemoria, boolean>>;
   /** `cupo_max` de un archivo viejo: el motor ya no lo usa; se lee (no rompe) pero Guardar no lo vuelve a escribir. */
   gemini: { cupo_max?: number };
   /** `sin_cupo` del archivo; un `gemini.sin_claude` viejo se lee como éste y se reescribe así al guardar. */
@@ -363,6 +377,11 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
   if (notaPctValido(j.nota_compactar_pct)) c.nota_compactar_pct = j.nota_compactar_pct;
   if (topeVivosValido(j.tope_vivos)) c.tope_vivos = typeof j.tope_vivos === "number" ? j.tope_vivos : { ...j.tope_vivos };
   if (notaTareaPctValido(j.nota_compactar_tarea_pct)) c.nota_compactar_tarea_pct = j.nota_compactar_tarea_pct;
+  if (esObj(j.memoria_compartida)) {
+    const mc: Partial<Record<MotorMemoria, boolean>> = {};
+    for (const [k, v] of Object.entries(j.memoria_compartida)) if (esMotorMemoria(k) && typeof v === "boolean") mc[k] = v;
+    if (Object.keys(mc).length) c.memoria_compartida = mc;
+  }
   if (esObj(j.advisor)) {
     const ad: AdvisorConfig = {};
     for (const [k, v] of Object.entries(j.advisor)) if (esFamiliaAdvisor(k) && parValido(k, v)) ad[k] = v as FamiliaAdvisor;
@@ -413,7 +432,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "nota_compactar", "nota_compactar_pct", "nota_compactar_tarea_pct", "tope_vivos", "advisor", "cierre", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h", "planes"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "nota_compactar", "nota_compactar_pct", "nota_compactar_tarea_pct", "tope_vivos", "advisor", "cierre", "memoria_compartida", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h", "planes"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -509,6 +528,15 @@ export function validarConfig(x: unknown): ConfigModelos {
       ad[k as FamiliaAdvisor] = v as FamiliaAdvisor;
     }
     if (Object.keys(ad).length) c.advisor = ad;
+  }
+  if (x.memoria_compartida !== undefined && x.memoria_compartida !== null) {
+    if (!esObj(x.memoria_compartida)) throw errorT("main.modelosForma");
+    const mc: Partial<Record<MotorMemoria, boolean>> = {};
+    for (const [k, v] of Object.entries(x.memoria_compartida)) {
+      if (!esMotorMemoria(k) || typeof v !== "boolean") throw errorT("main.modelosForma");
+      mc[k] = v;
+    }
+    if (Object.keys(mc).length) c.memoria_compartida = mc;
   }
   if (x.cierre !== undefined && x.cierre !== null) {
     const motivo = validarCierre(x.cierre);
@@ -683,6 +711,10 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   // `advisor` lo leen Trama (líderes) y `pa` (workers): sin entradas la clave sale (sin asesor).
   if (c.advisor && Object.keys(c.advisor).length) base.advisor = { ...c.advisor };
   else delete base.advisor;
+  // `memoria_compartida` la lee Trama: sólo lo apagado se escribe (`true` es el default); sin nada, la clave sale.
+  const apagados = Object.entries(c.memoria_compartida ?? {}).filter(([, v]) => v === false);
+  if (apagados.length) base.memoria_compartida = Object.fromEntries(apagados);
+  else delete base.memoria_compartida;
   // `cierre` lo leen Trama (el vigilante) y, por la señal, `pa` y el hook: sólo lo tocado; sin nada, la clave sale.
   if (c.cierre && Object.keys(c.cierre).length) base.cierre = { ...c.cierre };
   else delete base.cierre;

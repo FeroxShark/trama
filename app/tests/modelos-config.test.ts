@@ -499,3 +499,24 @@ test("dos guardados a la vez se aplican en orden: ninguno falla con ENOENT, gana
     assert.deepEqual(readdirSync(path.dirname(ruta)), ["modelos.json"]);
   }
 });
+
+test("memoria_compartida: validarConfig acepta booleanos por motor y rechaza lo demás; sólo lo apagado se escribe; sin la clave todo vale true", async () => {
+  const { memoriaCompartidaDe } = await import("../electron/modelos-tipos.ts");
+  const ok = validarConfig({ memoria_compartida: { gemini: false, dsh: true } });
+  assert.deepEqual(ok.memoria_compartida, { gemini: false, dsh: true });
+  assert.equal(memoriaCompartidaDe(ok, "gemini"), false);
+  assert.equal(memoriaCompartidaDe(ok, "dsh"), true);
+  assert.equal(memoriaCompartidaDe(ok, "codex"), true, "un motor sin la clave vale true");
+  assert.equal(memoriaCompartidaDe(undefined, "local"), true);
+  for (const mal of [{ gemini: "no" }, { gemini: 0 }, { gemini: null }, { claude: false }, true, [true], "x"]) {
+    assert.throws(() => validarConfig({ memoria_compartida: mal }), `${JSON.stringify(mal)} no vale`);
+  }
+  // Al escribir: sólo lo apagado queda; con todo prendido la clave sale; leerConfig lo recupera.
+  const escrito = unir({ version: 1 }, ok);
+  assert.deepEqual(escrito.memoria_compartida, { gemini: false });
+  assert.deepEqual(leerConfig(escrito).memoria_compartida, { gemini: false });
+  assert.equal("memoria_compartida" in unir(escrito, validarConfig({ memoria_compartida: { gemini: true } })), false);
+  assert.equal("memoria_compartida" in unir(escrito, validarConfig({})), false);
+  // Un archivo con basura: leerConfig se queda con lo que vale.
+  assert.deepEqual(leerConfig({ memoria_compartida: { gemini: false, raro: false, codex: "x" } }).memoria_compartida, { gemini: false });
+});

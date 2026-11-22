@@ -80,7 +80,7 @@ import { paraAcp, resueltos } from "./mcp-config.ts";
 import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { partirCodex } from "./codex-stream.ts";
 import { hijoEnGrupo, interrumpir, matarArbol, plazoParar } from "./procesos.ts";
-import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, notaCompactarGuardado, notaCompactarPctGuardado, notaCompactarTareaPctGuardado, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
+import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, memoriaCompartidaGuardada, notaCompactarGuardado, notaCompactarPctGuardado, notaCompactarTareaPctGuardado, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
 import { baseNota, umbralesNota } from "./modelos-tipos.ts";
 import { VENTANA_GEMINI } from "./agy-stream.ts";
 import { cargarTextosNota, debeAutoCompactar, extraerNotaDeTexto, guardarNotaSiCambia, idiomaDeEstado, leerNotaGuardada, mtimeNota, textosNotaCargados, usoDeLineaStream, type UmbralesNota } from "./nota-compactar-main.ts";
@@ -520,7 +520,7 @@ const locales = { asegurar: (id: string) => asegurarLocal(id), destino: (id: str
  */
 async function conContexto(local: Local, cwd: string | undefined): Promise<Local> {
   try {
-    const c = await armarContexto({ home: HOME, cwd, ctx: local.ctx, env: process.env });
+    const c = await armarContexto({ home: HOME, cwd, ctx: local.ctx, compartir: memoriaCompartidaGuardada("local"), env: process.env });
     log.escribir("info", "lider", `contexto de un líder local: ~${c.tokens} tokens (${c.partes.map((p) => `${p.titulo.split(" (")[0]} ${p.tokens}${p.recortado ? "↓" : ""}`).join(", ")})`);
     return { ...local, contexto: c.texto };
   } catch (e) {
@@ -559,12 +559,12 @@ async function extraDe(modelo: string, cwd: string | undefined): Promise<Extra> 
     if (!o) throw errorT("main.ollamaNoEsta", { v: modelo });
     return { ollama: { url: o.url, modelo: o.modelo } };
   }
-  if (clase === "gemini") return { prefacio: await prefacioGemini({ home: HOME, cwd, pa: resolverPa(process.env, HOME), env: process.env }).catch((e) => (silencio("contexto-gemini")(e), "")) };
+  if (clase === "gemini") return { prefacio: await prefacioGemini({ home: HOME, cwd, compartir: memoriaCompartidaGuardada("gemini"), pa: resolverPa(process.env, HOME), env: process.env }).catch((e) => (silencio("contexto-gemini")(e), "")) };
   if (clase === "dsh") {
     // Un `dsh:` mal armado no se lanza (dsh-puente lo rechazaría igual, pero acá el error llega a la UI). dsh tampoco lee CLAUDE.md: mismo prefacio que Gemini.
     const d = parsearModelo(modelo);
     if (!d) throw errorT("main.dshModelo", { v: modelo.slice(0, 80) });
-    const prefacio = await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME), env: process.env, motor: "dsh", modelo: `${d.proveedor}/${d.modelo}` }).catch((e) => (silencio("contexto-dsh")(e), ""));
+    const prefacio = await prefacioDsh({ home: HOME, cwd, compartir: memoriaCompartidaGuardada("dsh"), pa: resolverPa(process.env, HOME), env: process.env, motor: "dsh", modelo: `${d.proveedor}/${d.modelo}` }).catch((e) => (silencio("contexto-dsh")(e), ""));
     // Un Ollama en otra máquina: la URL del local de `modelos.json` que sirve ese modelo (sin él, dsh usa el de siempre, 127.0.0.1).
     const url = d.proveedor === "ollama" ? localDeModelo(d.modelo)?.url : undefined;
     return { prefacio, ...(url ? { dshUrl: `${url.replace(/\/+$/, "")}/v1` } : {}) };
@@ -572,10 +572,10 @@ async function extraDe(modelo: string, cwd: string | undefined): Promise<Extra> 
   if (clase === "opencode") {
     // Mismo puente que dsh (dsh-puente.ts, con `opencode acp` por detrás); opencode tampoco lee CLAUDE.md de Trama: el prefacio va por el entorno.
     if (!parsearOpencode(modelo)) throw errorT("main.opencodeModelo", { v: modelo.slice(0, 80) });
-    return { prefacio: await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME), env: process.env, motor: "opencode", modelo: modelo.replace(/^opencode:/, "") }).catch((e) => (silencio("contexto-opencode")(e), "")) };
+    return { prefacio: await prefacioDsh({ home: HOME, cwd, compartir: memoriaCompartidaGuardada("opencode"), pa: resolverPa(process.env, HOME), env: process.env, motor: "opencode", modelo: modelo.replace(/^opencode:/, "") }).catch((e) => (silencio("contexto-opencode")(e), "")) };
   }
   // ChatGPT (codex-puente.ts): codex lee AGENTS.md pero no los CLAUDE.md de la persona: el mismo prefacio que dsh, con lo de codex.
-  if (clase === "codex") return { prefacio: await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME), env: process.env, motor: "codex", modelo }).catch((e) => (silencio("contexto-codex")(e), "")) };
+  if (clase === "codex") return { prefacio: await prefacioDsh({ home: HOME, cwd, compartir: memoriaCompartidaGuardada("codex"), pa: resolverPa(process.env, HOME), env: process.env, motor: "codex", modelo }).catch((e) => (silencio("contexto-codex")(e), "")) };
   return {};
 }
 
