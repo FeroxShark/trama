@@ -6,6 +6,7 @@ import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";
+import { esperarHasta } from "./esperar.ts";
 import { ClienteAcp, ErrorAcp, describirError, redactar, politicaEnWorkspace, type PedidoPermiso } from "../electron/acp.ts";
 import { escribirParche, entornoDsh, valorModeloAcp } from "../electron/dsh.ts";
 import { DSH, SIN_DSH, arrancarFalso, entornoTmp, hasta, pngValido, usuarios } from "./dsh-ayuda.ts";
@@ -83,6 +84,35 @@ test("describirError: suma error.data y la cola del stderr a un Internal error, 
   const largo = describirError(new ErrorAcp("m", -32603, "Internal error", "x ".repeat(500)), "", [], 400);
   assert.equal(largo.length, 400);
   assert.ok(largo.endsWith("…"));
+});
+
+test("PUENTES-16: describirError suma error.data a cualquier ErrorAcp, no sólo al -32603", () => {
+  assert.equal(describirError(new ErrorAcp("session/prompt", -32000, "Server error", "Free usage limit exceeded"), "ruido\n"), "session/prompt: Server error — Free usage limit exceeded");
+});
+
+test("PUENTES-20: si initialize falla, el agente lanzado se mata; y la entrada de una herramienta terminada se olvida", async () => {
+  const f = agente(`if (m.method === "initialize") return salir({ jsonrpc: "2.0", id: m.id, error: { code: -32000, message: "no" } });`);
+  const c = nuevo({ comando: process.execPath, args: [f] });
+  await assert.rejects(c.iniciar(), /no/);
+  const pid = c.pid!;
+  await esperarHasta(() => {
+    try {
+      process.kill(pid, 0);
+      return false;
+    } catch {
+      return true;
+    }
+  }, { tope: 15_000 });
+  const g = agente(`${OK_INIT}
+    if (m.method === "session/prompt") {
+      salir({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "s", update: { sessionUpdate: "tool_call", toolCallId: "t1", rawInput: { content: "archivo enorme" } } } });
+      salir({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "s", update: { sessionUpdate: "tool_call_update", toolCallId: "t1", status: "completed" } } });
+      salir({ jsonrpc: "2.0", id: m.id, result: { stopReason: "end_turn" } });
+    }`);
+  const c2 = nuevo({ comando: process.execPath, args: [g] });
+  await c2.iniciar();
+  await c2.prompt("s", [{ type: "text", text: "x" }]);
+  assert.equal((c2 as unknown as { llamadas: Map<string, unknown> }).llamadas.size, 0);
 });
 
 test("redactar: valores del entorno, sk-… y tokens largos; deja pasar rutas y texto normal", () => {

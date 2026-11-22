@@ -61,9 +61,12 @@ export function redactar(texto: string, secretos: Array<string | undefined> = []
 export function describirError(e: unknown, stderr = "", secretos: Array<string | undefined> = [], max = 400): string {
   const base = String((e as Error)?.message ?? e);
   const partes = [base];
-  if (e instanceof ErrorAcp && (e.code === -32603 || /internal error/i.test(base))) {
+  if (e instanceof ErrorAcp) {
+    // El detalle del agente (`error.data`) va con cualquier código: un -32000 de proveedor lo trae ahí y no en el mensaje.
     const d = e.data === undefined || e.data === null ? "" : typeof e.data === "string" ? e.data : JSON.stringify(e.data);
     if (d && d !== "{}" && !base.includes(d)) partes.push(d);
+  }
+  if (e instanceof ErrorAcp && (e.code === -32603 || /internal error/i.test(base))) {
     const cola = stderr
       .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
       .split("\n")
@@ -184,11 +187,19 @@ export class ClienteAcp {
       this.caer(`${path.basename(this.o.comando)} salió${codigo !== null ? ` con el código ${codigo}` : ` por ${senal}`}${dijo ? `: ${dijo}` : ""}`);
       this.o.alSalir?.(codigo, senal);
     });
-    const r = (await this.pedir(
-      "initialize",
-      { protocolVersion: 1, clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false } },
-      Math.max(this.o.tiempoMs ?? 60_000, 60_000),
-    )) as RespuestaInicio;
+    let r: RespuestaInicio;
+    try {
+      r = (await this.pedir(
+        "initialize",
+        { protocolVersion: 1, clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false } },
+        Math.max(this.o.tiempoMs ?? 60_000, 60_000),
+      )) as RespuestaInicio;
+    } catch (e) {
+      // Sin `initialize` el agente no sirve: no se lo deja vivo en segundo plano (este cliente ya no se usa: se arma otro).
+      this.matar();
+      this.vivo = false;
+      throw e;
+    }
     this.inicio = r;
     return r;
   }
@@ -315,6 +326,8 @@ export class ClienteAcp {
     if ((u.sessionUpdate === "tool_call" || u.sessionUpdate === "tool_call_update") && typeof u.toolCallId === "string" && u.rawInput && typeof u.rawInput === "object") {
       this.llamadas.set(u.toolCallId, { ...this.llamadas.get(u.toolCallId), ...u.rawInput });
     }
+    // La herramienta terminó: su entrada ya no hace falta (los `rawInput` de `write`/`edit` pueden ser archivos enteros).
+    if (u.sessionUpdate === "tool_call_update" && typeof u.toolCallId === "string" && (u.status === "completed" || u.status === "failed")) this.llamadas.delete(u.toolCallId);
     try {
       this.o.alActualizar?.(params.sessionId, u);
     } catch (e) {
