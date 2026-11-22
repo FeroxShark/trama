@@ -121,10 +121,15 @@ export function codexAJson(stream: string, err: string, modelo: string, rc: numb
     .map((i) => i.text)
     .filter(hay);
   const u = ev.filter((e) => e.type === "turn.completed").map((e) => e.usage).filter(esObj);
+  // Un `error` suelto (un reintento de red, un aviso) seguido de un `turn.completed` es un turno que se recuperó: queda como advertencia.
+  // Sólo cuenta como fallo el `turn.failed` o un `error` posterior al último `turn.completed` (o sin ninguno).
+  const ultimoOk = ev.map((e) => e.type).lastIndexOf("turn.completed");
+  const errores = ev.map((e, i) => ({ e, i })).filter(({ e }) => e.type === "error");
   const fallos = [
     ...ev.filter((e) => e.type === "turn.failed").map((e) => de(e, "error", "message")).filter(hay),
-    ...ev.filter((e) => e.type === "error").map((e) => de(e, "message")).filter(hay),
+    ...errores.filter(({ i }) => i > ultimoOk).map(({ e }) => de(e, "message")).filter(hay),
   ];
+  const advertencias = errores.filter(({ i }) => i < ultimoOk).map(({ e }) => de(e, "message")).filter(hay);
   const fallo: J = fallos.length ? fallos[fallos.length - 1] : null;
   const r: J = ultimo !== "" ? ultimo : alt(msgs.length ? msgs[msgs.length - 1] : null, "");
   const texto = (x: J) => (typeof x === "string" ? x : JSON.stringify(x));
@@ -146,6 +151,7 @@ export function codexAJson(stream: string, err: string, modelo: string, rc: numb
     num_turns: msgs.length,
     duration_ms: segundos * 1000,
     total_cost_usd: 0,
+    ...(advertencias.length ? { advertencias } : {}),
     codex_thread_id: hilo.length ? hilo[0] : null,
     modelUsage:
       u.length === 0

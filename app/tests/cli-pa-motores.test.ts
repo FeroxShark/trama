@@ -10,7 +10,7 @@ import { test } from "node:test";
 import { chequearAgy, chequearCodex, chequearDsh, chequearOpencode, dshBin, localEstado, opencodeBin, pluginCargado } from "../electron/cli/pa/motores/chequeo.ts";
 import { armarLlamada, conCuenta, contratoBase, entornoOllama, type DatosLlamada } from "../electron/cli/pa/motores/llamada.ts";
 import { motorDe, validarOtroMotor, type FlagsLanzar } from "../electron/cli/pa/motores/modelos.ts";
-import { arreglarJsonOllama, escribirAgyJson, escribirCodexJson, escribirLatido } from "../electron/cli/pa/motores/salida.ts";
+import { arreglarJsonOllama, codexAJson, escribirAgyJson, escribirCodexJson, escribirLatido } from "../electron/cli/pa/motores/salida.ts";
 import { CONTRATO, CONTRATO_AGY, CONTRATO_CODEX, SIN_JEFE } from "../electron/cli/pa/contrato.ts";
 import { comandoOriginal, correr } from "./paridad/arnes.ts";
 import { testPosix } from "./plataforma.ts";
@@ -244,6 +244,24 @@ test("conCuenta y entornoOllama: las ANTHROPIC_* del local y los modelos por def
 });
 
 // ---------------------------------------------------------------- .json al terminar y latido
+
+test("codexAJson: un error recuperado (seguido de turn.completed) es advertencia; un error terminal o un rc≠0 siguen siendo fallo (B083)", () => {
+  const ev = (...e: object[]) => e.map((x) => JSON.stringify(x)).join("\n");
+  const msg = { type: "item.completed", item: { type: "agent_message", text: "RESULTADO: listo" } };
+  const ok = { type: "turn.completed", usage: { input_tokens: 10, output_tokens: 2 } };
+  const err = { type: "error", message: "reconectando 1/5" };
+  const recuperado = codexAJson(ev({ type: "thread.started", thread_id: "t" }, err, msg, ok), "", "codex:x", 0, "", 3);
+  assert.equal(recuperado.is_error, false);
+  assert.equal(recuperado.subtype, "success");
+  assert.equal(recuperado.result, "RESULTADO: listo");
+  assert.deepEqual(recuperado.advertencias, ["reconectando 1/5"]);
+  const terminal = codexAJson(ev(msg, { type: "error", message: "se cayó" }), "", "codex:x", 0, "", 3);
+  assert.equal(terminal.is_error, true);
+  assert.match(String(terminal.result), /se cayó/);
+  assert.equal(codexAJson(ev(err, msg, ok), "", "codex:x", 1, "", 3).is_error, true, "con rc≠0 sigue siendo fallo");
+  assert.equal(codexAJson(ev(msg, ok, err), "", "codex:x", 0, "", 3).is_error, true, "un error DESPUÉS del último turn.completed cuenta");
+  assert.equal(codexAJson(ev(msg, { type: "turn.failed", error: { message: "no" } }, ok), "", "codex:x", 0, "", 3).is_error, true, "turn.failed siempre cuenta");
+});
 
 test("escribirAgyJson / escribirCodexJson: el .json de pa; sin stream queda vacío", () => {
   const r = tmp();
