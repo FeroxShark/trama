@@ -31,6 +31,8 @@ function relanzar(argv: string[], extra: Env): number {
   const r = spawnSync(process.execPath, [...process.execArgv, process.argv[1]!, ...argv], {
     env: { ...process.env, ...extra } as NodeJS.ProcessEnv,
     stdio: "inherit",
+    // En Windows el runner de `--async` corre sin consola (detached): sin `windowsHide`, cada intento (un node.exe) abría una ventana visible.
+    windowsHide: true,
   });
   return r.status ?? (r.signal ? 128 + 15 : 1);
 }
