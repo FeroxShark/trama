@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { tomar } from "../electron/cli/base/lock.ts";
+import { opcionesIniciales, parsearOpciones, topeDeTurnos } from "../electron/cli/pa/opciones.ts";
 import { argsHijo, cmdEsperar, cmdEsperarTodos, lanzarAsync, OTRA_ESPERA } from "../electron/cli/pa/async.ts";
 import { comparadorGlob, idCorrida } from "../electron/cli/pa/corridas.ts";
 import { prologo, Salida, type Pa } from "../electron/cli/pa/entorno.ts";
@@ -33,6 +34,17 @@ test("argsHijo: el orden del bash, --max-turns siempre y la tarea después de --
     argsHijo({ proyecto: "demo", modelo: "m", tarea: "t", leer: true, seguir: true, mcp: true, maxTurns: 100, maxBudget: "2", runId: "i", tipo: "debug", okDueno: true, effortPedido: "high" }),
     ["demo", "-m", "m", "--leer", "--seguir", "--mcp", "--max-turns", "100", "--max-budget-usd", "2", "--id", "i", "--tipo", "debug", "--ok-dueno", "--effort", "high", "--", "t"],
   );
+});
+
+test("argsHijo: un tope que era default del padre no viaja (el hijo lo calcula con el tipo heredado); uno pedido, incluido 0, sí (B087)", () => {
+  const sinTope = argsHijo({ proyecto: "demo", modelo: "m", tarea: "t", maxTurns: "50", maxTurnsDefault: true, retomaDe: "20261101-100000-1" });
+  assert.equal(sinTope.includes("--max-turns"), false);
+  // el hijo, sin --max-turns, no lo da por pedido y recalcula con el tipo que hereda de la corrida que retoma
+  const o = parsearOpciones(sinTope.slice(1), opcionesIniciales("demo", {}, "max"), { env: {}, io: { out: () => {}, err: () => {} }, dueno: "", anotar: () => {} });
+  assert.equal(o.maxTurnsDado, false);
+  assert.equal(String(topeDeTurnos("final", "max")), "120");
+  assert.deepEqual(argsHijo({ proyecto: "demo", modelo: "m", tarea: "t", maxTurns: 0 }).slice(3, 5), ["--max-turns", "0"]);
+  assert.deepEqual(argsHijo({ proyecto: "demo", modelo: "m", tarea: "t", maxTurns: "30" }).slice(3, 5), ["--max-turns", "30"]);
 });
 
 test("idCorrida: AAAAMMDD-HHMMSS-pid en hora local", () => {

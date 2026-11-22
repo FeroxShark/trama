@@ -488,6 +488,8 @@ export interface OpcionesHijo {
   mcp?: boolean;
   /** "" o 0 = sin tope: va SIEMPRE (si no, el hijo se aplicaría el default y `--max-turns 0` no apagaría nada). */
   maxTurns?: string | number;
+  /** El tope era un default del padre (nadie pidió `--max-turns`): no va, y el hijo lo calcula con el tipo que herede de la corrida que retoma. */
+  maxTurnsDefault?: boolean;
   maxBudget?: string;
   runId?: string;
   actualizar?: string;
@@ -516,7 +518,7 @@ export function argsHijo(o: OpcionesHijo): string[] {
   if (o.leer) a.push("--leer");
   if (o.seguir) a.push("--seguir");
   if (o.mcp) a.push("--mcp");
-  a.push("--max-turns", String(o.maxTurns || 0));
+  if (!o.maxTurnsDefault) a.push("--max-turns", String(o.maxTurns || 0));
   if (o.maxBudget) a.push("--max-budget-usd", o.maxBudget);
   if (o.runId) a.push("--id", o.runId);
   if (o.actualizar) a.push("--actualizar", o.actualizar);

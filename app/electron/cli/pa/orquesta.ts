@@ -321,6 +321,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
         seguir: l.seguir,
         mcp: l.conMcp,
         maxTurns: l.maxTurns || 0,
+        maxTurnsDefault: !l.maxTurnsDado,
         maxBudget: l.maxBudget,
         runId: l.runId,
         actualizar: l.actualizar,
