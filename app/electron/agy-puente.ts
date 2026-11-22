@@ -309,6 +309,11 @@ function pedirDirecto(m: Mensaje) {
     }, MS_DIRECTO);
 }
 
+/** ¿El mensaje de agy dice que la conversación pedida no existe o no se pudo cargar? (y no un fallo de red, de login o de cuota) */
+function textoSinConversacion(t: string): boolean {
+  return /(conversation|session|trajectory|thread)[^\n]{0,60}(not found|no such|does not exist|doesn't exist|unknown|invalid|could not (?:find|load)|failed to (?:load|resume)|no existe)|(not found|no such|unknown|invalid)[^\n]{0,30}(conversation|session|trajectory|thread)/i.test(t);
+}
+
 type Vuelta = {
   pasos: number;
   /** Se pidió retomar una conversación y agy no la tenía: el turno no avanzó y no se dijo nada (se repite en una nueva). */
@@ -372,7 +377,8 @@ function correrAgy(prompt: string, conversacion: string | null, tr: Traductor): 
         for (const o of tr.cerrarAbiertas("Trama cortó este paso: se repetía.")) escribir(o);
         return ok(v);
       }
-      const mal = motivo !== null || !!codigo;
+      // Sólo si agy dice que la conversación no existe: un binario ausente, la red caída o el login vencido NO tiran la conversación guardada.
+      const mal = motivo === null && !!codigo && textoSinConversacion(stderr);
       if (v.conversacion && !v.pasos && (mal || v.sinConversacion) && !interrumpido) {
         v.sinConversacion = true;
         return ok(v);
@@ -405,7 +411,7 @@ function emitir(linea: string, tr: Traductor, v: Vuelta) {
   if (o?.event === "result") v.exito = o.result?.status === "SUCCESS";
   if (o?.event === "step_update" && ["agent_response", "tool", "checkpoint"].includes(o.step_update?.step_type)) v.pasos++;
   // Retomando y sin un solo paso, un `result` que no es SUCCESS es "no hay tal conversación": no se muestra, se repite.
-  if (o?.event === "result" && v.conversacion && !v.pasos && o.result?.status !== "SUCCESS") {
+  if (o?.event === "result" && v.conversacion && !v.pasos && o.result?.status !== "SUCCESS" && textoSinConversacion(String(o.result?.response ?? o.result?.error ?? ""))) {
     v.sinConversacion = true;
     return;
   }

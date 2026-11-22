@@ -142,6 +142,25 @@ test("el segundo turno retoma la conversación de agy; también tras cerrar y vo
   assert.notEqual(nueva, conversacion);
 });
 
+test("PUENTES-7: un fallo de agy que no es «no existe la conversación» (red, login) no la tira ni la repite desde cero", { timeout: 60_000 }, async () => {
+  const sid = await lider.nuevo({ modelo: "gemini-4-argon", effort: "high", texto: "uno" });
+  await hasta(() => de(sid, "fin").length === 1);
+  const archivo = path.join(process.env.HILOS_STATE!, "gemini", `${sid}.json`);
+  const conversacion = JSON.parse(readFileSync(archivo, "utf8")).conversation_id as string;
+  const n0 = llamadas().length;
+  await lider.cerrarTodos(false); // el puente nuevo hereda el entorno con el fallo
+  process.env.TRAMA_FALSO_FALLA = "network timeout";
+  try {
+    await lider.mandar({ sid, texto: "dos", modelo: "gemini-4-argon", effort: "high" });
+    await hasta(() => de(sid, "fin").length === 2);
+  } finally {
+    delete process.env.TRAMA_FALSO_FALLA;
+  }
+  assert.equal(llamadas().length - n0, 1, "un solo intento: no se relanza desde cero");
+  assert.match(String(de(sid, "fin")[1].error), /network timeout/);
+  assert.equal(JSON.parse(readFileSync(archivo, "utf8")).conversation_id, conversacion, "la conversación guardada sigue siendo la misma");
+});
+
 test("parar corta el turno de agy; si agy se cae a mitad, el turno termina con el error y el líder sigue", { timeout: 40_000 }, async () => {
   const sid = await lider.nuevo({ modelo: "gemini-3.8-flash", effort: "low", texto: "despacio" });
   await hasta(() => de(sid, "hace").length > 0 || textos(sid).length > 0 || eventos.some((x) => x.sid === sid && x.e.tipo === "parcial"));

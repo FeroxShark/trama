@@ -19,6 +19,7 @@
 // Una conversación existe en $HILOS_STATE/agy-falso/<id>: `--conversation <id>` que no existe termina con un
 // result de error y ningún paso (como el de verdad, se supone); con la que existe, sigue y cuenta cuántos
 // turnos lleva ("turno N").
+//   TRAMA_FALSO_FALLA=<texto>   al retomar una conversación sale con 1 y ese texto por stderr, sin eventos.
 //   TRAMA_FALSO_LOG=<archivo>   agrega una línea JSON por arranque ({ args, cwd, claves del entorno, prompt }).
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -84,6 +85,11 @@ if (process.env.TRAMA_FALSO_LOG)
 
 const salir = (o) => process.stdout.write(JSON.stringify(o) + "\n");
 let id = pedida;
+if (pedida && process.env.TRAMA_FALSO_FALLA) {
+  // Un fallo que no es «no existe la conversación» (red, login, cuota): sale con 1 y lo dice por stderr, sin ningún evento.
+  process.stderr.write(`${process.env.TRAMA_FALSO_FALLA}\n`);
+  process.exit(1);
+}
 if (pedida && !existsSync(path.join(dir, pedida))) {
   // Sin esa conversación: sólo el resultado de error.
   salir({ event: "result", result: { conversation_id: pedida, status: "ERROR", response: "conversation not found", duration_seconds: 0.1, num_turns: 0, usage: {} } });

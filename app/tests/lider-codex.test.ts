@@ -117,6 +117,24 @@ test("el segundo turno retoma la conversación de codex; también tras cerrar y 
   assert.notEqual(hilo(sid), hiloId);
 });
 
+test("PUENTES-7: un fallo de codex que no es «no existe el hilo» (red, login) no lo tira ni lo repite desde cero", { timeout: 60_000 }, async () => {
+  const sid = await lider.nuevo({ modelo: M, effort: "high", texto: "uno" });
+  await esperarHasta(() => de(sid, "fin").length === 1, { tope: 30_000 });
+  const hiloId = hilo(sid);
+  const n0 = llamadas().length;
+  await lider.cerrarTodos(false); // el puente nuevo hereda el entorno con el fallo
+  process.env.TRAMA_FALSO_FALLA = "network timeout";
+  try {
+    await lider.mandar({ sid, texto: "dos", modelo: M, effort: "high" });
+    await esperarHasta(() => de(sid, "fin").length === 2, { tope: 30_000 });
+  } finally {
+    delete process.env.TRAMA_FALSO_FALLA;
+  }
+  assert.equal(llamadas().length - n0, 1, "un solo intento: no se relanza desde cero");
+  assert.match(String(de(sid, "fin")[1].error), /network timeout/);
+  assert.equal(hilo(sid), hiloId, "el hilo guardado sigue siendo el mismo");
+});
+
 test("parar corta el turno de codex y el líder sigue en la misma conversación; si codex se cae, el turno termina con el error", { timeout: 60_000 }, async () => {
   const sid = await lider.nuevo({ modelo: M, effort: "medium", texto: "despacio herramienta" });
   await esperarHasta(() => de(sid, "hace").some((h) => h.hace.que === "herramienta"), { tope: 30_000 });

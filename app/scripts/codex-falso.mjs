@@ -8,6 +8,7 @@
 //   "morite"       escribe en stderr y sale con 1 a mitad del turno
 // Una conversación existe en $HILOS_STATE/codex-falso/<id>: `resume <id>` que no existe sale con 1 y un error por stderr, sin
 // ningún evento (como el de verdad); con la que existe, sigue y cuenta los turnos.
+//   TRAMA_FALSO_FALLA=<texto>   al retomar un hilo sale con 1 y ese texto por stderr, sin eventos (un fallo que no es «no existe»).
 //   `codex login status`: «Logged in using ChatGPT» (TRAMA_FALSO_CODEX_LOGIN=0: «Not logged in», sale con 1).
 //   TRAMA_FALSO_LOG=<archivo>   una línea JSON por arranque ({ args, cwd, claves del entorno, prompt }).
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -50,6 +51,11 @@ if (process.env.TRAMA_FALSO_LOG)
 
 const dir = path.join(process.env.HILOS_STATE ?? "/tmp", "codex-falso");
 mkdirSync(dir, { recursive: true });
+if (pedida && process.env.TRAMA_FALSO_FALLA) {
+  // Un fallo que no es «no existe el hilo» (red, login, cuota): sale con 1 y lo dice por stderr, sin ningún evento.
+  process.stderr.write(`${process.env.TRAMA_FALSO_FALLA}\n`);
+  process.exit(1);
+}
 if (pedida && !existsSync(path.join(dir, pedida))) {
   process.stderr.write(`Error: thread/resume failed: no rollout found for thread id ${pedida}\n`);
   process.exit(1);

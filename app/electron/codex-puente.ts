@@ -225,6 +225,11 @@ function eco(texto: string) {
   salir({ type: "user", isReplay: true, parent_tool_use_id: null, session_id: sid, message: { role: "user", content: [{ type: "text", text: texto }] } });
 }
 
+/** ¿El mensaje de codex dice que el hilo pedido no existe o no se pudo retomar? (y no un fallo de red, de login o de cuota) */
+function textoSinConversacion(t: string): boolean {
+  return /no rollout found|(thread|session|conversation)[^\n]{0,60}(not found|no such|does not exist|doesn't exist|unknown|invalid|could not (?:find|load)|failed to (?:load|resume))|(not found|no such|unknown|invalid)[^\n]{0,30}(thread|session|conversation)/i.test(t);
+}
+
 type Vuelta = { pasos: number; sinConversacion: boolean; conversacion: boolean };
 
 function correrCodex(prompt: string, thread: string | null, imagenes: string[], tr: Traductor): Promise<Vuelta> {
@@ -252,7 +257,7 @@ function correrCodex(prompt: string, thread: string | null, imagenes: string[], 
       const fuera = tr.linea(o);
       if (tr.conversacion && tr.conversacion !== antes) guardarLado(tr.conversacion);
       for (const x of fuera) {
-        if (v.conversacion && !v.pasos && x.type === "result" && x.is_error) {
+        if (v.conversacion && !v.pasos && x.type === "result" && x.is_error && textoSinConversacion(String(x.result ?? ""))) {
           v.sinConversacion = true;
           continue;
         }
@@ -277,7 +282,8 @@ function correrCodex(prompt: string, thread: string | null, imagenes: string[], 
       termino = true;
       if (resto.trim()) emitir(resto);
       hijo = null;
-      const mal = motivo !== null || !!codigo;
+      // Sólo si codex dice que el hilo no existe: un binario ausente, la red caída o el login vencido NO tiran la conversación guardada.
+      const mal = motivo === null && !!codigo && textoSinConversacion(stderr);
       if (v.conversacion && !v.pasos && (mal || v.sinConversacion) && !interrumpido) {
         v.sinConversacion = true;
         return ok(v);
