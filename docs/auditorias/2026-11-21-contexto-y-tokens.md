@@ -17,7 +17,7 @@ Los hallazgos de los dos informes nuevos que ya estaban como CTX-n no se copiaro
 - El contexto por llamada es grande: líder mediana 161 521 (p90 265 722, máximo 384 715); worker mediana 94 112 (p90 165 503, máximo 230 472). Medido.
 - El caché se perdió 35 veces y se re-crearon 3,6 M tokens (mediana 76 899, máximo 286 080): 5 por cambio de modelo, 11 sin cambio y con pausa menor a 5 min (sin explicación en Trama), 19 con pausa mayor a 60 min y sólo 4 entre 5 y 60 min. Medido. Por eso el corte plano de 55 min (CTX-17) pesa poco.
 - Herramientas: Bash 4 124 usos y 2,24 M tokens (mediana 212, p95 2 243); Read 278 usos y 483 k; `estado_workers` 5 usos y 23 k, con p95 de 11 023 tokens en una sola respuesta (CTX-7). Medido.
-- Inyecciones de la plataforma que se repiten: `queued_command` 97 veces de 22 603 tokens (base64 de 38 imágenes; el texto son 24 420 tokens en total), `prompt_snapshot` 144 x 6 530 (no identificado), `skill_listing` 49 x 6 958, `invoked_skills` 16 x 9 643, `instructions` 80 x 2 874, hooks `SessionStart` de 2 229 a 3 414 tokens por evento. Medido.
+- Inyecciones de la plataforma que se repiten: `queued_command` 97 veces de 22 603 tokens (base64 de 38 imágenes; el texto son 24 420 tokens en total), `prompt_snapshot` 144 x 6 530 (es la copia en disco del prompt de sistema, no se manda de más: ver «Qué falta auditar»), `skill_listing` 49 x 6 958, `invoked_skills` 16 x 9 643, `instructions` 80 x 2 874, hooks `SessionStart` de 2 229 a 3 414 tokens por evento. Medido.
 - Compactaciones: 19 (10 automáticas y 9 manuales) con mediana de 268 613 tokens antes de compactar (mínimo 164 998, máximo 391 629). Medido.
 - Salida: 3 281 701 tokens facturados; de la parte visible, 952 752 son argumentos de herramientas y 93 937 texto (estimado, caracteres/4). Se relee en caché después.
 - Siempre cargado en el líder del home: instrucciones 4 187 tokens (global 346, `~/CLAUDE.md` 1 595, stub 36, `AGENTS.md` de Trama 2 029, `MEMORY.md` 181; estimado, caracteres/4).
@@ -78,7 +78,7 @@ Windows: sigue sin medición; los hallazgos CTX-48 a CTX-60 son lectura de códi
 
 **Contexto por llamada.** Ver el resumen. A 161 k de mediana en el líder, 1 000 tokens de más en la carga fija cuestan lo que 1 000 x 2 711 llamadas x 0,1 = 271 k tokens equivalentes por semana medida (estimado).
 
-**Caché perdido.** Ver el resumen. Lo ya explicado (modelo, pausa mayor al TTL) no se arregla; los 11 casos sin cambio y con pausa corta quedan sin causa identificada (ver «Qué falta auditar»).
+**Caché perdido.** Ver el resumen. Lo ya explicado (modelo, pausa mayor al TTL) no se arregla; los casos sin cambio y con pausa corta son el primer `ToolSearch` de la sesión, que reescribe el bloque de herramientas (ver «Qué falta auditar»).
 
 **Herramientas.** Bash domina en cantidad; los mayores individuales son lecturas de skills (`taste-skill` `app-screens.md`, 14 972 tokens, dos veces). Archivos releídos más de dos veces: 4 casos, 16 435 tokens (poco).
 
@@ -331,10 +331,13 @@ Windows contra Linux (CTX-48 a 60): 9 confirmados, 2 refutados, 2 dudosos. Nada 
 ## Qué falta auditar
 
 - Medir en Windows (sin máquina aquí): CTX-48 a 60 quedan con veredicto de código; las pruebas de DUDOSO y de «sin verificar» se listan arriba.
-- Medir en ejecución: CTX-38 (`codex exec --json`), CTX-41 (efecto de la caché 1h), CTX-43 (umbrales del panel).
+- Medir en ejecución: CTX-41 (efecto de la caché 1h). CTX-38 y CTX-43 quedaron confirmados (abajo).
 - Cerrar sin leer: CTX-43 (`autoCompact` del worker), CTX-46 (prefacios de otros motores), CTX-52 (escritor del mapa), CTX-56 (`hilos.ts:445,451`), CTX-60 (`ramas.ts:400`), CTX-59 (`CHARS_POR_TOKEN`).
-- Sin resolver: el `prompt_snapshot` (144 × 6 530 tokens) y los 11 casos de caché perdido con pausa menor a 5 min sin cambio de modelo.
-- Paquetes P1, P2, P3, P4, P6, P8 y P9: pendientes de decisión de Ferox (cambian lo que ve la persona) y de correr en Windows (P9).
+- Resuelto (2026-11-22): el `prompt_snapshot` no es contexto extra. Es la copia en disco que deja Claude Code del prompt de sistema y de las herramientas de cada pedido (lo que ya se manda igual); Trama lo cuenta una sola vez (`historial-parser.ts`, `contexto-sesion.ts`). Los 144 × 6 530 tokens de la medición eran esa copia sumada por cada pedido, no tokens enviados de más.
+- Resuelto (2026-11-22): los casos de caché perdido con pausa menor a 5 min, el mismo modelo y sin compactar son todos el primer `ToolSearch` de una sesión. Ese pedido cambia el bloque `tools` (el `DeferredToolPlaceholder` se reemplaza por las herramientas cargadas; 13 a 21 entradas en el caso medido) y, como las herramientas van antes que el sistema y los mensajes, se reescribe toda la caché una vez: 12 804 leídos y 28 834 escritos en el pedido 1, 14 686 leídos y 32 108 escritos en el 2, y de ahí en adelante se lee entero. Pasó 17 veces en 14 días (workers de `canto-estudio` que cargan las herramientas del navegador), unos 32 000 tokens escritos cada vez. Es cómo funciona la búsqueda diferida de Claude Code; cargar todo de entrada costaría más en cada pedido (Notion sola trae 70 herramientas). No se arregla en Trama. El resto de los casos de la lista son compactaciones.
+- CTX-38 CONFIRMADO con datos reales: el `turn.completed` de un worker de Codex trajo `input_tokens` 3 770 243 (acumulado del turno) mientras el último pedido tenía 127 650 en una ventana de 475 000 (`token_count.last_token_usage` del rollout de Codex). Arreglo en curso (leer el contexto del rollout).
+- CTX-43 CONFIRMADO leyendo el código: el anillo del worker usa `umbralDe(autoCompact, ventana)` del settings global y no el `--autocompact` de la corrida; el panel divide por la ventana física (`fraccionUsada`) y avisa a 85/95 %. Arreglo en curso.
+- Paquetes: P1 a P8 hechos; P9 hecho en código salvo la parte de guardias y hooks (en curso). Todo lo de Windows sigue sin correr en una máquina con Windows.
 
 ## Lo refutado
 

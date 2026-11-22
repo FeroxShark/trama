@@ -7,19 +7,19 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 ## Resumen
 
 - **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
-  - arreglado: 78
-  - pendiente: 72
-  - refutado: 5
+  - arreglado: 101
+  - pendiente: 48
+  - refutado: 6
   - arreglado a medias: 3
 - **Ideas: 102**.
 
 | Área | Bugs | Arreglados | Pendientes |
 |---|---|---|---|
 | Barra lateral y datos | 18 | 17 | 0 |
-| Debate y revisión de planes | 14 | 0 | 14 |
+| Debate y revisión de planes | 14 | 13 | 0 |
 | El hilo: la caja y el líder en la ventana | 14 | 11 | 0 |
 | Hooks y motor | 16 | 5 | 11 |
-| Núcleo y canales | 14 | 3 | 10 |
+| Núcleo y canales | 14 | 13 | 0 |
 | El CLI de `pa` | 15 | 0 | 15 |
 | Puentes a otros motores | 20 | 19 | 1 |
 | Reparto y cupos | 15 | 6 | 9 |
@@ -86,72 +86,72 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 
 ### Debate y revisión de planes
 
-**B019 · El plan mejorado se rompe si trae títulos como «Riesgos» o «Cambios»** (`DEBATE-REVISION-1`, severidad alta) · **PENDIENTE**
+**B019 · El plan mejorado se rompe si trae títulos como «Riesgos» o «Cambios»** (`DEBATE-REVISION-1`, severidad alta) · **ARREGLADO**
 - Qué pasa: Si el «Plan mejorado» del revisor tiene un subtítulo como `## Riesgos` o `### Cambios`, el parser lo toma como sección nueva. Se pierde la lista real de riesgos y el plan queda cortado. El líder recibe un mensaje deformado.
 - Dónde: `app/electron/revision-plan-texto.ts` líneas 139-145 (`parsearRevision`)
 - Arreglo: Reconocer cada sección una sola vez y sólo en el orden pedido. Después de «Plan mejorado» (la última), no reconocer más encabezados. Test en `tests/revision-plan.test.ts` con ese caso.
 
-**B020 · Un plan con «Plan de pruebas» se corta en el turno y en la conclusión del debate** (`DEBATE-REVISION-2`, severidad alta) · **PENDIENTE**
+**B020 · Un plan con «Plan de pruebas» se corta en el turno y en la conclusión del debate** (`DEBATE-REVISION-2`, severidad alta) · **ARREGLADO**
 - Qué pasa: En «Plan propuesto» o «Plan consensuado», un subtítulo como `### Plan de migración` o `## Plan de pruebas` reinicia la sección. Queda sólo lo que sigue a ese subtítulo. El líder recibe un plan consensuado truncado. La comparación de acuerdo (`acuerdoTotal`) también usa ese plan truncado.
 - Dónde: `app/electron/debate-texto.ts` líneas 117-123 (`partir`), alias en 104 y 301
 - Arreglo: Igual que el bug 1: sección única, en orden, y una vez abierta la última no se reabre. Test en `tests/debate.test.ts`.
 
-**B021 · Al cancelar o dar timeout en Linux sobreviven los procesos hijos del revisor** (`DEBATE-REVISION-3`, severidad media) · **PENDIENTE**
+**B021 · Al cancelar o dar timeout en Linux sobreviven los procesos hijos del revisor** (`DEBATE-REVISION-3`, severidad media) · **ARREGLADO**
 - Qué pasa: Cancelar o pasar los 10 minutos deja vivos los hijos de `claude`, `agy` o `codex` (comandos, servidores MCP). Si el proceso ignora SIGTERM, no hay SIGKILL y queda vivo también.
 - Dónde: `app/electron/revision-plan.ts` líneas 185 y 197-200 (`ejecutar`), con `app/electron/procesos.ts` líneas 28-40 (`matarArbol`)
 - Arreglo: `detached: hijoEnGrupo()` en el spawn y SIGKILL a los pocos segundos si no cerró. Test con `matarArbol` inyectado.
 
-**B022 · Cancelar durante la conclusión llena el debate de líneas «salió del debate» falsas** (`DEBATE-REVISION-4`, severidad media) · **PENDIENTE**
+**B022 · Cancelar durante la conclusión llena el debate de líneas «salió del debate» falsas** (`DEBATE-REVISION-4`, severidad media) · **ARREGLADO**
 - Qué pasa: Al cancelar mientras se escribe la conclusión, la lista muestra «X salió del debate: Debate cancelado…» por cada participante restante. El rechazo final es «ningún modelo pudo escribir la conclusión», no «cancelado».
 - Dónde: `app/electron/debate.ts` líneas 325-337
 - Arreglo: Al inicio del `catch`, `if (cancelada.signal.aborted) throw e;`. Test en `tests/debate.test.ts`.
 
-**B023 · Se puede lanzar una revisión simple con un debate vivo en el mismo líder** (`DEBATE-REVISION-5`, severidad media) · **PENDIENTE**
+**B023 · Se puede lanzar una revisión simple con un debate vivo en el mismo líder** (`DEBATE-REVISION-5`, severidad media) · **ARREGLADO**
 - Qué pasa: El debate sí rechaza si hay revisión corriendo, pero la revisión no mira si hay debate. Por IPC, o desde otra ventana, pueden correr las dos a la vez. Las dos niegan el plan y mandan dos mensajes al líder.
 - Dónde: `app/electron/lider.ts` líneas 2298-2311 (`revisarPlanLider`); la guarda inversa está en 2342
 - Arreglo: En `revisarPlanLider`, `if (debates.viva(sid)) throw errorT("main.revisionYaCorre")`. Test en `tests/revision-plan.test.ts` o `debate-trabajo.test.ts`.
 
-**B024 · Una revisión vieja guardada sin entregar reaparece y se puede entregar por error** (`DEBATE-REVISION-6`, severidad media) · **PENDIENTE**
+**B024 · Una revisión vieja guardada sin entregar reaparece y se puede entregar por error** (`DEBATE-REVISION-6`, severidad media) · **ARREGLADO**
 - Qué pasa: Si una revisión salió pero falló la entrega (queda guardada, «Reintentar») y la persona lanza otra, la vieja queda en `revisiones-pendientes.json` para siempre. Tras reiniciar, `estado()` devuelve `.at(-1)` y puede mostrar la vieja. «Reintentar» le entregaría al líder la revisión de un plan viejo.
 - Dónde: `app/electron/revision-trabajo.ts` líneas 71-73 y 134-149 (`iniciar`, `reintentar`)
 - Arreglo: Al iniciar, descartar las pendientes del mismo sid (o rechazar mientras haya una reintentable). En `reintentar`, rechazar si la fase es viva.
 
-**B025 · Lectura y escritura sin candado del archivo compartido de pendientes** (`DEBATE-REVISION-7`, severidad media) · **PENDIENTE**
+**B025 · Lectura y escritura sin candado del archivo compartido de pendientes** (`DEBATE-REVISION-7`, severidad media) · **ARREGLADO**
 - Qué pasa: Dos líderes con revisión o debate a la vez comparten `ARCHIVO_REVISIONES`. Cada uno lee la lista, le suma o resta lo suyo y escribe. El último pisa al otro, y se pierde una revisión guardada sin entregar, que es justo lo que el archivo debía evitar.
 - Dónde: `app/electron/lider.ts` líneas 2371-2376 (`guardar`/`entregar` del debate); `revision-trabajo.ts` líneas 95-99 y 104-107
 - Arreglo: Una cadena de promesas (mutex) para toda modificación de ese archivo.
 
-**B026 · Los planes propuestos se cortan a 6000 caracteres en lo que ven los demás modelos** (`DEBATE-REVISION-8`, severidad media) · **PENDIENTE**
+**B026 · Los planes propuestos se cortan a 6000 caracteres en lo que ven los demás modelos** (`DEBATE-REVISION-8`, severidad media) · **ARREGLADO**
 - Qué pasa: `PLAN_MAX` permite planes de 60 000 caracteres y cada modelo devuelve su plan completo. En el prompt cada turno entra con máximo 6000 caracteres, cortado por el final. Los demás y quien concluye ven el plan propuesto sin su cola.
 - Dónde: `app/electron/debate-texto.ts` líneas 17, 212-230 (`transcripcionParaPrompt`), 196-206 (`textoDeTurno`)
 - Arreglo: Subir el tope del plan (o dar tope aparte al plan y al argumento) y recortar el argumento antes que el plan.
 
-**B027 · Los archivos que se le pegan a Gemini pueden salir de la carpeta o ser secretos** (`DEBATE-REVISION-9`, severidad media) · **PENDIENTE**
+**B027 · Los archivos que se le pegan a Gemini pueden salir de la carpeta o ser secretos** (`DEBATE-REVISION-9`, severidad media) · **ARREGLADO**
 - Qué pasa: La guarda de «nunca fuera de `cwd`» es sólo de texto: un enlace simbólico dentro del proyecto hacia otro lugar se lee y se manda a Google. La lista de exclusión (`.env*`, `claves*`, `.git`, `node_modules`) no cubre `credentials.json`, `secrets.*`, `*.pem` ni `id_rsa`.
 - Dónde: `app/electron/revision-plan.ts` líneas 84-96 (`archivosDelPlan`)
 - Arreglo: `realpath` y volver a comprobar que queda dentro; ampliar la lista de nombres sensibles.
 
-**B028 · El orden por cupo del debate nunca se usa** (`DEBATE-REVISION-10`, severidad baja) · **PENDIENTE**
+**B028 · El orden por cupo del debate nunca se usa** (`DEBATE-REVISION-10`, severidad baja) · **ARREGLADO**
 - Qué pasa: El código y la documentación dicen que habla primero y concluye «quien tenga más cupo». Pero `debatesDe` no pasa `cupo`, así que el orden es siempre el de elección. Concluye el primero elegido aunque tenga el cupo agotado.
 - Dónde: `app/electron/debate.ts` líneas 44, 103-106 y 319; `lider.ts` líneas 2357-2378
 - Arreglo: Pasar `cupo` desde `estadosCupoModelos` o el uso guardado, o quitar la promesa del texto.
 
-**B029 · «(sin nada que decir)» se ve en español en la tarjeta en inglés** (`DEBATE-REVISION-11`, severidad baja) · **PENDIENTE**
+**B029 · «(sin nada que decir)» se ve en español en la tarjeta en inglés** (`DEBATE-REVISION-11`, severidad baja) · **ARREGLADO**
 - Qué pasa: Con una sección vacía, el mensaje al líder lleva el texto literal «(sin nada que decir)». Al releerlo, la tarjeta lo trata como contenido (es verdadero) y muestra el literal en español, no «Nothing to add». Si «Plan mejorado» viene vacío, se dibuja el desplegable con ese literal.
 - Dónde: `app/electron/revision-plan-texto.ts` línea 160; `app/electron/debate-texto.ts` líneas 323, 326, 329; se lee en `TarjetaRevision.tsx` línea 42 y `TarjetaDebate.tsx` línea 365
 - Arreglo: Tratar ese literal como vacío al leer.
 
-**B030 · Si Claude llega al tope de 12 turnos, se descarta lo escrito y el error es una clave cruda** (`DEBATE-REVISION-12`, severidad baja) · **PENDIENTE**
+**B030 · Si Claude llega al tope de 12 turnos, se descarta lo escrito y el error es una clave cruda** (`DEBATE-REVISION-12`, severidad baja) · **ARREGLADO**
 - Qué pasa: Un revisor que lee varios archivos puede agotar los 12 turnos. La persona ve «Claude no pudo terminar la revisión: error_max_turns», y el texto parcial se tira.
 - Dónde: `app/electron/revision-plan.ts` líneas 276-308 (`--max-turns 12`), `revision-flujo.ts` línea 67
 - Arreglo: Mapear `error_max_turns` a un texto traducido y, si hay texto con las secciones, usarlo.
 
-**B031 · Con un error al pedir revisores, la interfaz supone que todos los modelos están conectados** (`DEBATE-REVISION-13`, severidad baja) · **PENDIENTE**
+**B031 · Con un error al pedir revisores, la interfaz supone que todos los modelos están conectados** (`DEBATE-REVISION-13`, severidad baja) · **REFUTADO**
 - Qué pasa: Si `liderRevisores` falla, la lista cae a todos los modelos de `MODELOS`. Aparecen Claude, Gemini y ChatGPT aunque falten sesiones o estén desactivados. Recién al elegir sale «no se puede usar de revisor».
 - Dónde: `app/src/hilo/Lider.tsx` línea 2181
 - Arreglo: Dejar la lista vacía con un aviso, o repetir el pedido.
 
-**B032 · La columna del modelo que habla dice «Espera su turno» hasta su primer paso** (`DEBATE-REVISION-14`, severidad baja) · **PENDIENTE**
+**B032 · La columna del modelo que habla dice «Espera su turno» hasta su primer paso** (`DEBATE-REVISION-14`, severidad baja) · **ARREGLADO**
 - Qué pasa: Al empezar un turno se pone `p.vivo` pero no se emite. Hasta el primer avance, que en Gemini puede tardar, la columna sigue en «Espera su turno». En la conclusión, la columna ya tiene su turno de esa ronda y nunca muestra «Escribiendo»: sólo se ve el texto «Escribiendo la conclusión…».
 - Dónde: `app/electron/debate.ts` líneas 191-193 (`llamar`); `app/src/hilo/debate-logica.ts` líneas 93-97
 - Arreglo: `emitir(null)` al crear `vivo`, y decidir el estado «escribiendo» antes de la rama del turno ya dicho si `p.vivo`.
@@ -312,37 +312,37 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 
 ### Núcleo y canales
 
-**B063 · El PATH del usuario puede corromperse con acentos al agregar `bin\`** (`NUCLEO-IPC-5`, severidad alta) · **PENDIENTE**
+**B063 · El PATH del usuario puede corromperse con acentos al agregar `bin\`** (`NUCLEO-IPC-5`, severidad alta) · **ARREGLADO**
 - Qué pasa: si una entrada del PATH de usuario tiene caracteres no ASCII (`C:\Users\José\...`), el instalador la reescribe con caracteres rotos. Esa entrada deja de andar.
 - Dónde: `windows/src/nativo.js` líneas 400-403 (`PS_LEER_PATH`), 386 (`correr`) y 433-437 (`agregar`)
 - Arreglo: leer el valor en base64 (`[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($v))`) y decodificar en Node, o poner `[Console]::OutputEncoding=[Text.Encoding]::UTF8` antes. Lo mismo vale para `PS_LEER_RUN`.
 
-**B064 · Buscar actualización a mano con un límite de GitHub congela el actualizador de Windows** (`NUCLEO-IPC-1`, severidad media) · **PENDIENTE**
+**B064 · Buscar actualización a mano con un límite de GitHub congela el actualizador de Windows** (`NUCLEO-IPC-1`, severidad media) · **ARREGLADO**
 - Qué pasa: si la persona toca «Buscar actualizaciones» y GitHub contesta 403/429, la fase queda en "buscando" para siempre. Todas las búsquedas siguientes salen sin hacer nada y Trama no se actualiza hasta reiniciar.
 - Dónde: `windows/src/actualizar.js` líneas 75-78, 110-122 y 135 (`fallo`, `buscar`)
 - Arreglo: en `fallo`, si `esLimite` y `fase === "buscando"`, hacer `decir({fase:"al-dia"})` o volver a la fase anterior.
 
-**B065 · La confianza en la página se decide con `startsWith` sin separador** (`NUCLEO-IPC-2`, severidad media) · **PENDIENTE**
+**B065 · La confianza en la página se decide con `startsWith` sin separador** (`NUCLEO-IPC-2`, severidad media) · **ARREGLADO**
 - Qué pasa: una URL como `http://localhost:8791.sitio-ajeno.com/` o `http://localhost:87910/` cuenta como la página de Trama. Recibe el preload con `carcasa.ventana`: `app:salir`, `archivo:abrir`, `carpeta:elegir`, `cuentas:login`. Si un link del chat navega la ventana a esa URL, se la deja pasar.
 - Dónde: `windows/src/main.js` líneas 230-233 (`deConfianza`), 378-383 (`will-navigate`) y 386 (`did-fail-load`)
 - Arreglo: una función `esPropio(u)` que haga `new URL(u).origin === MOTOR_URL` o `u.startsWith("file:")`, usada en las tres líneas. Test en `windows/tests`.
 
-**B066 · «Volver a la versión anterior» puede cerrar Trama y no reabrirla** (`NUCLEO-IPC-6`, severidad media) · **PENDIENTE**
+**B066 · «Volver a la versión anterior» puede cerrar Trama y no reabrirla** (`NUCLEO-IPC-6`, severidad media) · **ARREGLADO**
 - Qué pasa: con un perfil de usuario con acentos, el guion `.cmd` lleva las rutas de `robocopy` y `start` mal leídas. Trama se cierra (`d.salir()`) y la versión anterior no se restaura ni se abre.
 - Dónde: `windows/src/version-anterior.js` líneas 102-125 (`guionDeRestauracion`, `lanzarRestauracion`)
 - Arreglo: agregar `chcp 65001 >nul` como segunda línea del guion, o rechazar rutas no ASCII en `SEGURA` y avisar antes de salir. Test: `guionDeRestauracion` con `José` debe empezar con `chcp`.
 
-**B067 · Si el motor es «adoptado», Salir y Actualizar no lo paran** (`NUCLEO-IPC-7`, severidad media) · **PENDIENTE**
+**B067 · Si el motor es «adoptado», Salir y Actualizar no lo paran** (`NUCLEO-IPC-7`, severidad media) · **ARREGLADO**
 - Qué pasa: el menú de la bandeja dice «Salir (apaga el motor y los líderes)», pero con un motor adoptado (que quedó de una carcasa caída) no lo apaga. La actualización siguiente falla con «No pude reemplazar… otro programa los tiene abiertos», porque `node.exe` sigue corriendo.
 - Dónde: `windows/src/nativo.js` líneas 236-248 (`parar`); `windows/src/pasos-nativo.js` línea 85
 - Arreglo: en `parar()`, si la fase era "adoptado", leer el pid de `rutas.dueno` y llamar a `matarArbol`.
 
-**B068 · «Reportar un bug» muestra el error de «cuentas» cuando falla** (`NUCLEO-IPC-3`, severidad baja) · **PENDIENTE**
+**B068 · «Reportar un bug» muestra el error de «cuentas» cuando falla** (`NUCLEO-IPC-3`, severidad baja) · **ARREGLADO**
 - Qué pasa: si el main devuelve algo raro o sin `error`, la persona ve «El comando cuentas falló (código {rc})», con la `{rc}` sin reemplazar.
 - Dónde: `app/src/datos/fuente.ts` línea 41 (`reporteValido`)
 - Arreglo: una clave propia (por ejemplo `main.reporteFallo`) en `es.ts` y `en.ts` con las mismas variables, y usarla acá.
 
-**B069 · `asistente:`, `actualizar:instalar` y `app:version` no pasan por `deConfianza`** (`NUCLEO-IPC-4`, severidad baja) · **PENDIENTE**
+**B069 · `asistente:`, `actualizar:instalar` y `app:version` no pasan por `deConfianza`** (`NUCLEO-IPC-4`, severidad baja) · **ARREGLADO**
 - Qué pasa: cualquier página con el preload puede pedir `actualizar:instalar` (cierra Trama e instala), `asistente:conectar` o `asistente:saltarLogin`. Sólo `actualizar:buscar` y `restos:*` están protegidos (435-438).
 - Dónde: `windows/src/main.js` líneas 424-434
 - Arreglo: envolver con `protegido` (o con `deConfianza`) todos los handlers de las líneas 424-434, menos `app:version` si hace falta.
@@ -367,17 +367,17 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/nucleo.ts` línea 1238
 - Arreglo: `String(x?.proyecto)`.
 
-**B074 · La carcasa de Windows acepta nombres como `constructor` o `toString` como proveedor de login** (`NUCLEO-IPC-12`, severidad baja) · **PENDIENTE**
+**B074 · La carcasa de Windows acepta nombres como `constructor` o `toString` como proveedor de login** (`NUCLEO-IPC-12`, severidad baja) · **ARREGLADO**
 - Qué pasa: `saltarLogin("toString")` pasa la guarda y guarda `loginSaltado.toString=true` en `estado.json`. `conectar("constructor")` intenta lanzar una consola con una función como programa y falla con un error confuso.
 - Dónde: `windows/src/pasos-nativo.js` líneas 147, 162-165 y 178-182
 - Arreglo: `Object.hasOwn(PROVEEDORES_LOGIN, proveedor)` en las dos guardas.
 
-**B075 · Una segunda instancia que llega antes de `ready` rompe la carcasa** (`NUCLEO-IPC-13`, severidad baja) · **PENDIENTE**
+**B075 · Una segunda instancia que llega antes de `ready` rompe la carcasa** (`NUCLEO-IPC-13`, severidad baja) · **ARREGLADO**
 - Qué pasa: si se abre Trama por segunda vez en el primer instante (por ejemplo mientras arranca con la sesión), `mostrarVentana()` llama a `arrancar()` antes de `app.whenReady`. Tira «Session can only be received when app is ready» y sale un diálogo de error del main.
 - Dónde: `windows/src/main.js` línea 463, y 358-359 (`arrancar`)
 - Arreglo: `app.whenReady().then(mostrarVentana)` dentro del handler, o una bandera `listo`.
 
-**B076 · Algunos errores del main se muestran con prefijo técnico, y tres preferencias no tienen tope** (`NUCLEO-IPC-14`, severidad baja) · **PENDIENTE**
+**B076 · Algunos errores del main se muestran con prefijo técnico, y tres preferencias no tienen tope** (`NUCLEO-IPC-14`, severidad baja) · **ARREGLADO**
 - Qué pasa: un `TypeError` del main llega como «TypeError: …» a la interfaz, porque la expresión sólo quita `Error: `. Aparte, `preferencias:effort` y `leidos:marcar` guardan cualquier cantidad de claves de cualquier largo. Por la tailnet, un cliente puede hacer crecer `preferencias.json` y `leidos.json` sin límite.
 - Dónde: `app/src/puente.ts` líneas 620-621 (`mensaje`); `app/electron/preferencias.ts` líneas 198-203; `app/electron/leidos.ts` líneas 30-36
 - Arreglo: regex `(?:\w*Error: )?`. En `guardarEffort`, aceptar sólo modelos conocidos o `modelo.length <= 100`. En `marcarLeido`, `id.length <= 200`.
