@@ -35,6 +35,7 @@ const MOTOR = path.join(import.meta.dirname, "..", "..", "motor");
 
 const hookMod = (await import(pathToFileURL(HOOK).href)) as {
   TAIL_BYTES: number;
+  MAX_COLA_BYTES: number;
   estadoHilos: (e?: Record<string, string | undefined>, plat?: string) => string;
   parsearArgs: (argv?: string[]) => { umbral: number | null; umbralTarea: number | null };
   leerColaTranscript: (ruta: string, maxBytes?: number) => string[];
@@ -315,6 +316,30 @@ test("SessionStart(compact) no devuelve dos veces la misma nota en llamadas cons
   assert.equal(seg2, null);
 });
 
+test("SessionStart deja la nota guardada si vence la espera por el candado", async (t) => {
+  const dir = nuevoDir();
+  const notas = path.join(dir, "notas");
+  const candado = path.join(notas, "s-ocupada.devuelta.lock.d");
+  const archivo = path.join(notas, "s-ocupada.md");
+  mkdirSync(candado, { recursive: true });
+  writeFileSync(archivo, "nota guardada");
+  const pedido = { evento: "SessionStart", source: "compact", sesion: "s-ocupada", hilos: dir, idioma: "es", ahoraMs: 0 };
+  let reloj = 0;
+  const ahora = t.mock.method(Date, "now", () => (reloj += 2_001));
+  try {
+    assert.equal(await hookMod.decidir(pedido), null);
+    assert.equal(readFileSync(archivo, "utf8"), "nota guardada");
+    assert.equal(existsSync(path.join(notas, "s-ocupada.devuelta.firma")), false);
+    assert.equal(existsSync(candado), true);
+  } finally {
+    ahora.mock.restore();
+  }
+
+  rmSync(candado, { recursive: true });
+  assert.match((await hookMod.decidir(pedido))?.hookSpecificOutput.additionalContext ?? "", /nota guardada/);
+  assert.equal(await hookMod.decidir(pedido), null);
+});
+
 test("extraerNotaDeTexto y ultimaNotaDeLineas ignoran etiquetas dentro de código inline o cercas", async () => {
   assert.equal(hookMod.extraerNotaDeTexto("Usá `[[nota-compactar]]...[[/nota-compactar]]`."), null);
   assert.equal(hookMod.extraerNotaDeTexto("```md\n[[nota-compactar]]\nejemplo en cerca\n[[/nota-compactar]]\n```"), null);
@@ -368,6 +393,19 @@ test("leerColaTranscript: recupera línea assistant grande (>256 KiB), nota dent
   const leidas2 = hookMod.leerColaTranscript(trTool);
   assert.equal(hookMod.ultimoUsoDeLineas(leidas2).tokens, 800_000);
   assert.equal(hookMod.ultimaNotaDeLineas(leidas2)?.texto, "nota previa a tool");
+});
+
+test("leerColaTranscript descarta el registro cortado y conserva el siguiente si está completo", async () => {
+  const dir = nuevoDir();
+  const tr = path.join(dir, "tool-cortada.jsonl");
+  const content = "x".repeat(hookMod.MAX_COLA_BYTES) + "\n[[nota-compactar]]nota de herramienta[[/nota-compactar]]";
+  const herramienta = JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "tool_result", content }] } });
+  const boundary = JSON.stringify({ type: "system", subtype: "compact_boundary" });
+  escribirTranscript(tr, [herramienta, boundary]);
+  const lineas = hookMod.leerColaTranscript(tr);
+  assert.equal(hookMod.ultimaNotaDeLineas(lineas, { trasCompact: true }), null);
+  assert.deepEqual(lineas, [boundary]);
+  assert.equal(await hookMod.decidir({ evento: "SessionStart", source: "compact", sesion: "s-cortada", transcript: tr, hilos: dir }), null);
 });
 
 test("leerColaTranscript: conserva la primera línea cuando el offset coincide con inicio de línea (LF y CRLF)", () => {
