@@ -2464,6 +2464,8 @@ export type Plan = { ausente: string[]; hoy: string | null; actualizado: string 
 
 export function planLeer(now: Date, ruta = rutaPlan()): Plan {
   const hoy = diaLocal(now);
+  // Una ausencia pasada sigue contando mientras pueda caer dentro de la ventana semanal vigente (168 h): se olvida a los 7 días.
+  const desde = diaLocal(new Date(now.getTime() - 7 * 86400_000));
   const out: Plan = { ausente: [], hoy: null, actualizado: null };
   let d: unknown;
   try {
@@ -2474,7 +2476,7 @@ export function planLeer(now: Date, ruta = rutaPlan()): Plan {
   if (!esDict(d)) return out;
   const fechas = get(d, "ausente");
   for (const x of Array.isArray(fechas) ? fechas : []) {
-    if (typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x) && x >= hoy && !out.ausente.includes(x)) out.ausente.push(x);
+    if (typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x) && x >= desde && !out.ausente.includes(x)) out.ausente.push(x);
   }
   out.ausente.sort();
   const h = get(d, "hoy");

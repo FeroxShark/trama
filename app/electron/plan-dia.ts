@@ -2,6 +2,7 @@
 // (`app/electron/cli/reparto.ts`) sin lanzar ningún subproceso y conservando intactos los días de ausencia vigentes.
 import { errorT } from "./errores.ts";
 import { planGrabar, planLeer, rutaPlan } from "./cli/reparto.ts";
+import { fechaLocal } from "./cli/reparto-py.ts";
 
 export const MODOS_PLAN_DIA = ["ahorrar", "normal", "gastar"] as const;
 export type ModoPlanDia = (typeof MODOS_PLAN_DIA)[number];
@@ -20,7 +21,9 @@ export function leerPlanDia(opts?: { now?: Date; ruta?: string }): EstadoPlanDia
   const ruta = opts?.ruta ?? rutaPlan();
   const plan = planLeer(now, ruta);
   const modo: ModoPlanDia = plan.hoy === "ahorrar" || plan.hoy === "gastar" ? plan.hoy : "normal";
-  return { modo, ausente: plan.ausente };
+  // `planLeer` también guarda las ausencias de los últimos 7 días (cuentan para el ritmo semanal); la lista de la persona sólo muestra las vigentes.
+  const hoy = fechaLocal(now);
+  return { modo, ausente: plan.ausente.filter((d) => d >= hoy) };
 }
 
 /**

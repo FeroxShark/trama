@@ -89,13 +89,13 @@ test("vence solo a medianoche y conserva días ausentes vigentes sin tocarlos", 
 
   assert.deepEqual(fijarPlanDia("ahorrar", { now: AHORA, ruta }), { modo: "ahorrar", ausente: ["2026-11-15", "2026-11-16"] });
   const guardado = JSON.parse(readFileSync(ruta, "utf8"));
-  assert.deepEqual(guardado.ausente, ["2026-11-15", "2026-11-16"]);
+  assert.deepEqual(guardado.ausente, ["2026-11-12", "2026-11-15", "2026-11-16"], "la ausencia de ayer se conserva en el archivo: todavía cuenta en la semana");
   assert.deepEqual(guardado.hoy, { fecha: "2026-11-13", modo: "ahorrar" });
 
   assert.deepEqual(fijarPlanDia("normal", { now: AHORA, ruta }), { modo: "normal", ausente: ["2026-11-15", "2026-11-16"] });
   assert.equal(existsSync(ruta), true, "con ausentes vigentes, normal borra sólo hoy y conserva plan.json");
   const trasNormal = JSON.parse(readFileSync(ruta, "utf8"));
-  assert.deepEqual(trasNormal.ausente, ["2026-11-15", "2026-11-16"]);
+  assert.deepEqual(trasNormal.ausente, ["2026-11-12", "2026-11-15", "2026-11-16"]);
   assert.equal("hoy" in trasNormal, false);
 });
 
