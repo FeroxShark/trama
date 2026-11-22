@@ -138,7 +138,16 @@ test("settings en Windows: hooks .mjs con node y el deny del espejo", () => {
   const cmds = [s.hooks.PreToolUse[0].hooks[0].command, s.hooks.PreToolUse[1].hooks[0].command, s.hooks.PostToolUse[0].hooks[0].command] as string[];
   assert.ok(cmds.every((c) => c.startsWith("C:/trama/node/node.exe '") && !c.includes("bash") && !c.includes(".sh'")), cmds.join("\n"));
   assert.match(cmds[1]!, /latido\.mjs' 'C:\/estado\/demo\.heartbeat' pre leer$/);
-  assert.equal(s.permissions.deny.length, 3);
+  // CTX-55: Read con la unidad en minúscula y la ruta suelta nombrada en Bash y en PowerShell, con las dos barras y con ~
+  assert.deepEqual(s.permissions.deny, [
+    "Read(//c/Users/x/estado/espejos/1/**)",
+    "Bash(*C:\\Users\\x\\estado\\espejos\\1*)",
+    "PowerShell(*C:\\Users\\x\\estado\\espejos\\1*)",
+    "Bash(*C:/Users/x/estado/espejos/1*)",
+    "PowerShell(*C:/Users/x/estado/espejos/1*)",
+    "Bash(*~/estado/espejos/1*)",
+    "PowerShell(*~/estado/espejos/1*)",
+  ]);
 });
 
 test("al_salir: .ultimo con el lock, .listo sólo en async, y el rastro vivo se borra", async () => {
