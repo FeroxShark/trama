@@ -59,6 +59,12 @@ class Puente {
   matar() {
     this.hijo.kill("SIGTERM");
   }
+  senal(s: NodeJS.Signals) {
+    this.hijo.kill(s);
+  }
+  interrumpir() {
+    this.hijo.stdin!.write(JSON.stringify({ type: "control_request", request_id: "req-parar", request: { subtype: "interrupt" } }) + "\n");
+  }
   get resultados() {
     return this.lineas.filter((l) => l.type === "result");
   }
@@ -125,4 +131,24 @@ test("PUENTES-11: los chunks sin messageId forman un solo mensaje, no un globo p
   assert.equal(asistente.length, 1, JSON.stringify(asistente));
   assert.equal(asistente[0].message.content[0].text, "Hola");
   assert.equal(p.lineas.filter((l) => l.type === "stream_event" && l.event?.type === "message_stop").length, 1);
+});
+
+test("PUENTES-12: parar con un opencode que no contesta session/cancel termina el turno antes del plazo de lider.ts (3 s), sin error", { timeout: 60_000 }, async () => {
+  const p = new Puente("colgado", { TRAMA_DSH_CANCELAR_MS: "60000", TRAMA_DSH_PARAR_MS: "100" });
+  p.mandar("hola");
+  await hasta(() => p.prompts().length === 1, 20_000, `no llegó el prompt; stderr: ${p.stderr.slice(-400)}`);
+  p.interrumpir();
+  await hasta(() => p.resultados.length === 1, 20_000, `el turno no terminó tras parar; stderr: ${p.stderr.slice(-400)}`);
+  assert.equal(p.resultados[0].is_error, false);
+});
+
+test("PUENTES-12: un SIGINT con el turno ya interrumpido mata a opencode en vez de reiniciar el plazo de cancelar", { timeout: 60_000 }, async () => {
+  const p = new Puente("colgado", { TRAMA_DSH_CANCELAR_MS: "60000", TRAMA_DSH_PARAR_MS: "60000" });
+  p.mandar("hola");
+  await hasta(() => p.prompts().length === 1, 20_000, `no llegó el prompt; stderr: ${p.stderr.slice(-400)}`);
+  p.interrumpir();
+  await hasta(() => p.pedidos("session/cancel").length === 1, 20_000, "no llegó session/cancel");
+  p.senal("SIGINT");
+  await hasta(() => p.resultados.length === 1, 20_000, `el turno no terminó tras el SIGINT; stderr: ${p.stderr.slice(-400)}`);
+  assert.equal(p.resultados[0].is_error, false);
 });

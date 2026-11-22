@@ -68,6 +68,8 @@ const SIN_REPETIR = process.env.TRAMA_SIN_REPETIR === "1";
 const TOPE_REPETIR = 12000;
 /** Lo que se espera a que dsh cierre el turno tras un `session/cancel` antes de matarlo (se retoma la sesión después). */
 const MS_CANCELAR = Number(process.env.TRAMA_DSH_CANCELAR_MS ?? 10000);
+/** Al parar (no un «Mandar ya»): si dsh no cierra el turno en esto se lo mata. Menor que el plazo de `lider.ts` (3 s), que si no mata al puente entero. */
+const MS_PARAR = Number(process.env.TRAMA_DSH_PARAR_MS ?? 2000);
 const EXTENSIONES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
 /** El motor de este puente: `dsh:<proveedor>/<modelo>` (dsh --profile acp) u `opencode:<proveedor>/<modelo>` (opencode acp; mismo puente, otro agente ACP). */
@@ -692,12 +694,12 @@ let corte = false;
 let temporizadorCancelar: NodeJS.Timeout | null = null;
 
 /** `session/cancel`; si dsh no cierra el turno a tiempo se lo mata (la sesión se retoma después). */
-function cancelarPrompt() {
+function cancelarPrompt(plazo = MS_CANCELAR) {
   if (!cliente || !acpSid) return;
   cliente.cancelar(acpSid);
   if (temporizadorCancelar) clearTimeout(temporizadorCancelar);
   const c = cliente;
-  temporizadorCancelar = setTimeout(() => c.matar(), MS_CANCELAR);
+  temporizadorCancelar = setTimeout(() => c.matar(), Math.min(plazo, MS_CANCELAR));
   temporizadorCancelar.unref();
 }
 
@@ -711,7 +713,7 @@ function pedirDirecto(m: Mensaje) {
 function interrumpir() {
   if (!ocupado) return;
   interrumpido = true;
-  cancelarPrompt();
+  cancelarPrompt(MS_PARAR);
 }
 
 /** Un `session/prompt` hasta que dsh lo cierra. Devuelve cómo terminó; si se cayó dsh, lanza. */
@@ -838,7 +840,9 @@ function terminar(codigo: number) {
 anotarSesion("idle");
 process.on("SIGTERM", () => terminar(143));
 process.on("SIGINT", () => {
-  if (ocupado) interrumpir();
+  // Un segundo corte con el turno ya interrumpido: dsh no contestó el cancel; se lo mata ya en vez de reiniciar el plazo.
+  if (ocupado && interrumpido && cliente?.activo) cliente.matar();
+  else if (ocupado) interrumpir();
   else terminar(130);
 });
 process.on("exit", () => {
