@@ -10,7 +10,7 @@ import type { Modelos } from "./modelos.ts";
 export const FLAGS_CON_VALOR = [
   "--max-turns", "--id", "--integrar", "--descartar", "--actualizar", "--nota", "--max-budget-usd", "-m", "--model", "--effort", "--tipo", "--titulo", "--indivisible",
   "--fase", "--tarea", "--subtarea", "--rubrica", "--cuenta", "--brief-archivo", "--leccion", "--auditar", "--decisiones", "--espejo",
-  "--test-inline", "--seguir-con", "--retoma-de", "--objetivo", "--verificar", "--intentos", "--tope-cupo",
+  "--test-inline", "--seguir-con", "--retoma-de", "--objetivo", "--verificar", "--intentos", "--tope-cupo", "--avisar-a",
 ];
 export const EFFORTS_VALIDOS = /^(low|medium|high|xhigh|max)$/;
 
@@ -348,6 +348,12 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
         env.PA_JEFE = "";
         env.PA_JEFE_ID = "";
         i++;
+        break;
+      case "--avisar-a":
+        // B156: un servicio no tiene la sesión del líder arriba; el aviso de fin va a ese id (lo que `PA_JEFE_ID` ya hacía por entorno)
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(valor)) error(`pa: --avisar-a quiere el id de la sesión del líder, no '${valor}'.`);
+        env.PA_JEFE_ID = valor;
+        dos();
         break;
       case "--max-turns":
         if (!/^[0-9]+$/.test(valor)) error(`pa: --max-turns quiere un entero (0 = sin tope), no '${valor}'.`);

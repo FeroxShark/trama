@@ -180,6 +180,7 @@ export const AYUDA: readonly string[] = [
   "  pa <proyecto> --force ...            saltea el chequeo de --seguir (sesión que ya compactó)",
   "  pa <proyecto> --sin-jefe ...         no buscar la sesión de Claude que lanza (PA_JEFE/PA_JEFE_ID vacíos): la corrida queda",
   "                                       sin jefe (tests, scripts, un timer)",
+  "  pa <proyecto> --avisar-a <sid> ...   avisar al terminar a esa sesión del líder (desde un servicio, que no tiene la sesión arriba)",
   "",
   "Códigos de salida: 0 ok · 1 el worker falló · 2 error de uso · 75 ya hay uno corriendo (o el tope global PA_TOPE está lleno) ·",
   "                   76 límite de sesión de la suscripción · 77 API sobrecargada ·",
