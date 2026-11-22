@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.3.29
+
+- Panel Contexto > Vista previa: «Revisar con IA». Un modelo barato lee lo que se carga en cada mensaje del proyecto (CLAUDE.md, AGENTS.md, GEMINI.md y la memoria) y marca lo repetido, lo contradictorio, lo viejo y lo largo, con el antes y el después y cuántos tokens ahorra por mensaje. Nada cambia hasta que tocás «Aplicar» (uno, los de un archivo o todos), y antes de escribir se guarda una copia. Si el archivo cambió desde la revisión, ese hallazgo no se aplica.
+- Memoria compartida: los chats de Gemini, ChatGPT, DeepSeek y OpenCode tampoco reciben las líneas de la memoria con pinta de clave, mail o teléfono. Hasta ahora sólo las sacaban los workers.
+
 ## 0.3.28
 
 - Panel Contexto: cada pieza que se carga siempre (sistema, herramientas, MCP, skills, memoria) dice «Vale», «Dudoso» o «Sobra», con ícono y la razón en una línea («nunca usada en 30 días», «duplicada con workers (user)»). Arriba va «Fijo: N k por mensaje · recuperable: M k», y cada lista empieza por lo más caro que menos se usa.
