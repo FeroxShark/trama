@@ -1,6 +1,9 @@
-// `pa --hilo <id> [--json] [-n N] [--antes N]` (cmd_hilo de motor/bin/pa): los mensajes del transcript de una corrida (user y asistente,
+// `pa --hilo <id> [--json] [-n N] [--antes N] [--tope N]` (cmd_hilo de motor/bin/pa): los mensajes del transcript de una corrida (user y asistente,
 // sin sidechain ni tool_result; los tool_use de un mismo mensaje van juntos), los N últimos (default 50) antes del índice --antes.
 // `usage`/`modelo` = los del último mensaje del asistente. Lectura pura; el jq del bash está acá en TypeScript.
+// A propósito distinto del bash congelado: el JSON va sin sangría y con un tope total de caracteres (`TOPE_HILO`, o `--tope N`,
+// o `PA_HILO_TOPE`; 0 = sin tope). Si no entra, se quedan los mensajes más nuevos y el JSON trae `recortado` con cómo pedir el resto.
+// La ventana (electron/pa.ts, paneles.ts) pasa `--tope 0`: pagina ella y no puede perder mensajes.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { leerCampo, proyectoDeId } from "./corridas.ts";
@@ -9,7 +12,9 @@ import { leerLineaSid } from "./hilo-sid.ts";
 import { comoString, cortar, ruta, transcriptDe, type J } from "./hilos.ts";
 import { mensajesDeStream } from "./hilo-stream.ts";
 
-const USO = "uso: pa --hilo <id> [--json] [-n N] [--antes N]\n";
+const USO = "uso: pa --hilo <id> [--json] [-n N] [--antes N] [--tope N]\n";
+/** Lo más que ocupa por defecto lo que imprime `pa --hilo` (caracteres del JSON). */
+export const TOPE_HILO = 16_000;
 const esObj = (v: unknown): v is J => v !== null && typeof v === "object" && !Array.isArray(v);
 
 interface Msg extends J {
@@ -128,14 +133,16 @@ export function cmdHilo(pa: Pa, args: string[]): number {
   }
   let n = "50";
   let antes = "";
+  let tope = process.env.PA_HILO_TOPE ?? String(TOPE_HILO);
   const r = args.slice(1);
   for (let i = 0; i < r.length; i++) {
     const a = r[i]!;
     if (a === "--json") continue;
-    if (a === "-n" || a === "--antes") {
+    if (a === "-n" || a === "--antes" || a === "--tope") {
       // el bash hace `shift` dos veces: con la opción de última, el segundo falla bajo `set -e` y sale 1 sin decir nada
       if (i + 1 >= r.length) return 1;
       if (a === "-n") n = r[++i]!;
+      else if (a === "--tope") tope = r[++i]!;
       else antes = r[++i]!;
     }
     else {
@@ -143,6 +150,7 @@ export function cmdHilo(pa: Pa, args: string[]): number {
       return 2;
     }
   }
+  if (!/^[0-9]+$/.test(tope)) tope = String(TOPE_HILO);
   if (!(/^[0-9]+$/.test(n) && (antes === "" || /^[0-9]+$/.test(antes)))) {
     io.err("pa: --hilo: -n y --antes son números.\n");
     return 2;
@@ -176,7 +184,24 @@ export function cmdHilo(pa: Pa, args: string[]): number {
   const desde = Math.max(0, hasta - Number(n));
   const asist = todos.filter((m) => m.rol === "assistant");
   const ult = asist[asist.length - 1];
-  const salida = {
+  const topeN = Number(tope);
+  const pagina = todos.slice(desde, hasta).map((m, k) => ({
+    i: desde + k,
+    rol: m.rol,
+    texto: m.texto,
+    herramientas: m.herramientas,
+    ts: m.ts ?? null,
+    modelo: m.modelo ?? null,
+    herramientas_det: m.herramientas_det,
+    imagenes: m.imagenes,
+    meta: m.meta,
+    resumen_compact: m.resumen_compact,
+    origen: m.origen,
+    error_api: m.error_api,
+    error: m.error,
+    ...(m.rol === "system" ? { subtipo: m.subtipo ?? null } : {}),
+  }));
+  const salida: J = {
     version: 1,
     id,
     proyecto: s,
@@ -185,25 +210,47 @@ export function cmdHilo(pa: Pa, args: string[]): number {
     total,
     desde,
     hasta,
-    mensajes: todos.slice(desde, hasta).map((m, k) => ({
-      i: desde + k,
-      rol: m.rol,
-      texto: m.texto,
-      herramientas: m.herramientas,
-      ts: m.ts ?? null,
-      modelo: m.modelo ?? null,
-      herramientas_det: m.herramientas_det,
-      imagenes: m.imagenes,
-      meta: m.meta,
-      resumen_compact: m.resumen_compact,
-      origen: m.origen,
-      error_api: m.error_api,
-      error: m.error,
-      ...(m.rol === "system" ? { subtipo: m.subtipo ?? null } : {}),
-    })),
+    mensajes: pagina,
     usage: ult?.usage ?? null,
     modelo: ult?.modelo ?? null,
   };
-  io.out(`${JSON.stringify(salida, null, 2)}\n`);
+  io.out(`${JSON.stringify(topeN > 0 ? conTope(salida, pagina, topeN) : salida)}\n`);
   return 0;
+}
+
+/**
+ * La salida con a lo sumo `tope` caracteres: se quedan los mensajes MÁS NUEVOS que entran (siempre el último, aunque haya que
+ * cortarle el texto) y `desde` pasa a ser el índice del primero que quedó; `recortado` dice cuántos quedaron afuera y cómo pedirlos.
+ */
+export function conTope(salida: J, pagina: J[], tope: number): J {
+  const largo = (v: unknown) => JSON.stringify(v).length;
+  if (largo(salida) <= tope) return salida;
+  const base = { ...salida, mensajes: [] as J[], recortado: { mensajes_omitidos: pagina.length, pedir: "" } };
+  const margen = largo(base) + 160;
+  let resto = tope - margen;
+  const quedan: J[] = [];
+  for (let k = pagina.length - 1; k >= 0; k--) {
+    let m = pagina[k]!;
+    let c = largo(m) + 1;
+    if (c > resto) {
+      if (quedan.length) break;
+      // El último solo no entra: se le corta el texto (las herramientas van al final de su lista de todos modos).
+      const sobra = c - Math.max(resto, 400);
+      m = { ...m, herramientas_det: [], texto: `${String(m.texto).slice(0, Math.max(200, String(m.texto).length - sobra))}… (cortado por el tope)` };
+      c = largo(m) + 1;
+    }
+    quedan.unshift(m);
+    resto -= c;
+  }
+  const desde = Number(quedan[0]?.i ?? salida.hasta);
+  const omitidos = desde - Number(salida.desde);
+  return {
+    ...salida,
+    desde,
+    mensajes: quedan,
+    recortado: {
+      mensajes_omitidos: omitidos,
+      pedir: `pa --hilo ${salida.id} --json --antes ${desde} -n <N> trae los anteriores; --tope <caracteres> (0 = sin tope) pide más de una vez`,
+    },
+  };
 }

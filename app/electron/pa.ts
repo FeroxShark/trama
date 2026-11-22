@@ -328,7 +328,8 @@ export async function cerrar(h: Cerrable): Promise<void> {
 
 /** `pa --hilo <id> --json -n <n> [--antes <antes>]`: una página de la conversación (sólo lectura). */
 export async function conversacion(x: { id: string; n?: number; antes?: number | null }): Promise<unknown> {
-  const args = ["--hilo", id(x.id), "--json", "-n", String(Math.max(1, Math.min(500, Math.floor(Number(x.n) || 50))))];
+  // `--tope 0`: la ventana pagina con -n/--antes y no tiene que perder mensajes por el tope de caracteres de la terminal.
+  const args = ["--hilo", id(x.id), "--json", "--tope", "0", "-n", String(Math.max(1, Math.min(500, Math.floor(Number(x.n) || 50))))];
   if (x.antes != null) args.push("--antes", String(Math.max(0, Math.floor(Number(x.antes) || 0))));
   return conLosResultados(args[1], JSON.parse(await correr(args)));
 }

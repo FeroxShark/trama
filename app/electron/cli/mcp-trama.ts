@@ -172,6 +172,29 @@ function fila(h: J): J {
   };
 }
 
+/** Lo más que ocupa (en caracteres) la respuesta de `estado_workers` o `buscar_hilos`: sin tope pasaban de 11 000 tokens por llamada. */
+export const TOPE_RESPUESTA = 12_000;
+
+/**
+ * Las filas como JSON sin sangría y con a lo sumo `TOPE_RESPUESTA` caracteres. Si no entran todas, se quedan las primeras (las más
+ * nuevas) y el final dice cuántas quedaron afuera y cómo pedirlas.
+ */
+export function respuestaConTope(filas: J[], comoPedir: string): string {
+  const completo = JSON.stringify(filas);
+  if (completo.length <= TOPE_RESPUESTA) return completo;
+  const aviso = (afuera: number) => `\n… ${afuera} ${afuera === 1 ? "fila más quedó afuera" : "filas más quedaron afuera"} por el tope de ${TOPE_RESPUESTA} caracteres; ${comoPedir}`;
+  let quedan = filas.length;
+  let texto = "";
+  // Se sacan filas del final hasta que el JSON y el aviso entran; siempre queda al menos la primera.
+  while (quedan > 1) {
+    quedan--;
+    texto = JSON.stringify(filas.slice(0, quedan));
+    if (texto.length + aviso(filas.length - quedan).length <= TOPE_RESPUESTA) break;
+  }
+  if (quedan === 1) texto = JSON.stringify(filas.slice(0, 1));
+  return texto + aviso(filas.length - quedan);
+}
+
 async function hilos(d: Deps, todo: boolean): Promise<J[]> {
   const r = await d.pa(["--hilos", "--json", ...(todo ? ["--todo"] : [])], 60_000);
   if (r.rc !== 0) falla(`pa --hilos salió con ${r.rc}: ${corto(r.err, 400)}`);
@@ -213,7 +236,7 @@ export async function llamarHerramienta(nombre: string, a: J, d: Deps, env: Env 
     const proyecto = texto(a.proyecto);
     const todos = a.todos === true;
     const l = (await hilos(d, false)).filter((h) => (!proyecto || h.proyecto === proyecto) && (todos || ACTIVOS.has(String(h.estado)) || h.en_cola === true));
-    return JSON.stringify(l.slice(0, 60).map(fila), null, 1);
+    return respuestaConTope(l.slice(0, 60).map(fila), "pedí menos con `proyecto`, o sin `todos` para ver sólo los que trabajan.");
   }
   if (nombre === "buscar_hilos") {
     const palabras = texto(a.texto).toLowerCase().split(/\s+/).filter(Boolean);
@@ -225,7 +248,7 @@ export async function llamarHerramienta(nombre: string, a: J, d: Deps, env: Env 
       const t = [h.id, h.proyecto, h.tarea, h.resultado, h.decision, h.sigue, h.rama].filter((x) => typeof x === "string").join("\n").toLowerCase();
       return palabras.every((p) => t.includes(p));
     });
-    return JSON.stringify(l.slice(0, limite).map(fila), null, 1);
+    return respuestaConTope(l.slice(0, limite).map(fila), "pedí menos con `limite` más chico, o acotá con `proyecto` o con más palabras en `texto`.");
   }
   if (nombre === "mandar_mensaje") {
     const sid = texto(a.sid);

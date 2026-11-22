@@ -408,3 +408,12 @@ test("el aviso de una lectura termina con la línea de `pa --bien` y el de una e
   assert.match(lect, /¿Sirvió\? `pa --bien l1 si\|no\|parcial`/);
   assert.doesNotMatch(escr, /pa --bien/);
 });
+
+test("una tanda con varios FALTA explica cómo resolverlo una sola vez; los demás lo referencian en una línea (CTX-19)", () => {
+  const a = (id: string) => ({ tipo: "fin", id, proyecto: "demo", tarea: `t${id}`, faltaInfo: true }) as unknown as Parameters<typeof textoParaLider>[0];
+  const texto = textoParaLider({ tipo: "tanda", lineas: [a("1"), a("2"), a("3")] } as unknown as Parameters<typeof textoParaLider>[0]);
+  assert.equal(texto.match(/no se lo pases al dueño/g)?.length, 1, "el texto largo va una vez");
+  assert.equal(texto.match(/Resolvelo como el de 1 /g)?.length, 2);
+  assert.match(texto, /--seguir --id 3 /);
+  assert.deepEqual(avisoDeTexto(texto)?.trabajos.map((x) => x.id), ["1", "2", "3"], "la línea de referencia no se lee como otro worker");
+});

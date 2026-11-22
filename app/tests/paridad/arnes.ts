@@ -97,6 +97,8 @@ export interface Caso {
   divergencia?: string;
   /** La salida diverge a propósito del python congelado (política de modelos nueva): el código de salida y el estado se comparan, stdout/stderr no. */
   divergenciaSalida?: string;
+  /** El stdout es JSON y el TS lo imprime sin sangría a propósito (`pa --hilo`): se compara el JSON, no los espacios. */
+  salidaJson?: string;
   /** Los archivos de estado divergen a propósito del bash congelado (p. ej. el TS limpia una corrida que murió antes de tomar puesto). */
   divergenciaEstado?: string;
 }
@@ -316,8 +318,18 @@ function ejecutar(caso: Caso, pa: string[], c: Contexto): Resultado {
   return res;
 }
 
+/** ¿Son el mismo JSON (sin mirar la sangría)? Lo que no es JSON se compara como texto. */
+function igualJson(a: string, b: string): boolean {
+  if (a === b) return true;
+  try {
+    return JSON.stringify(JSON.parse(a)) === JSON.stringify(JSON.parse(b));
+  } catch {
+    return false;
+  }
+}
+
 /** Las diferencias entre dos resultados, en texto legible; "" si son iguales. `ignorar` aparta una sección (argv, pasos, estado). */
-export function diferencias(a: Resultado, b: Resultado, o: { ignorar?: ("argv" | "pasos" | "estado" | "salida")[] } = {}): string {
+export function diferencias(a: Resultado, b: Resultado, o: { ignorar?: ("argv" | "pasos" | "estado" | "salida")[]; json?: boolean } = {}): string {
   const out: string[] = [];
   const ignorar = new Set(o.ignorar ?? []);
   if (!ignorar.has("pasos")) {
@@ -328,7 +340,7 @@ export function diferencias(a: Resultado, b: Resultado, o: { ignorar?: ("argv" |
       if (!x || !y) { out.push(`paso ${i + 1}: falta en uno de los dos`); continue; }
       if (x.rc !== y.rc) out.push(`paso ${i + 1}: código de salida ${x.rc} vs ${y.rc}`);
       if (ignorar.has("salida")) continue;
-      if (x.stdout !== y.stdout) out.push(`paso ${i + 1}: stdout\n--- A\n${x.stdout}\n--- B\n${y.stdout}`);
+      if (!(o.json ? igualJson(x.stdout, y.stdout) : x.stdout === y.stdout)) out.push(`paso ${i + 1}: stdout\n--- A\n${x.stdout}\n--- B\n${y.stdout}`);
       if (x.stderr !== y.stderr) out.push(`paso ${i + 1}: stderr\n--- A\n${x.stderr}\n--- B\n${y.stderr}`);
     }
   }

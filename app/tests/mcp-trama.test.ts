@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { after, test } from "node:test";
-import { atender } from "../electron/cli/mcp-trama.ts";
+import { atender, respuestaConTope, TOPE_RESPUESTA } from "../electron/cli/mcp-trama.ts";
 import { bloqueCodex, registrarEnAgy, registrarEnClaude, registrarEnCodex, registrarEnOpencode, scriptMcpTrama } from "../electron/mcp-trama-registro.ts";
 import { socketMotor } from "../electron/rutas.ts";
 
@@ -226,4 +226,20 @@ test("registro en Claude: con claude mcp add-json de usuario, y nada si ya está
 test("el script se encuentra al lado (el .ts en las fuentes) y nunca dentro de un asar", () => {
   assert.equal(scriptMcpTrama(path.dirname(SERVIDOR)), SERVIDOR);
   assert.equal(scriptMcpTrama(path.join(raiz, "no-hay")), null);
+});
+
+test("estado_workers y buscar_hilos: JSON sin sangría y tope total; al cortar dice cuántas filas quedaron afuera (CTX-7)", () => {
+  const fila = (i: number) => ({ id: `20261101-100000-${i}`, tarea: "x".repeat(240), resultado: "r".repeat(400) });
+  const pocas = respuestaConTope([fila(1), fila(2)], "pedí menos");
+  assert.equal(pocas, JSON.stringify([fila(1), fila(2)]), "sin sangría");
+  assert.doesNotMatch(pocas, /\n/);
+  const muchas = Array.from({ length: 60 }, (_, i) => fila(i));
+  const cortado = respuestaConTope(muchas, "pedí menos con `limite`");
+  assert.ok(cortado.length <= TOPE_RESPUESTA, `pesa ${cortado.length}`);
+  const [json, aviso] = cortado.split("\n");
+  const quedan = JSON.parse(json).length;
+  assert.ok(quedan > 0 && quedan < 60);
+  assert.match(aviso, new RegExp(`${60 - quedan} filas más quedaron afuera`));
+  assert.match(aviso, /`limite`/);
+  assert.equal(JSON.parse(json)[0].id, muchas[0].id, "quedan las primeras (las más nuevas)");
 });

@@ -228,7 +228,12 @@ const ID_AGY_ERROR = idDe(0, "000127", 4327);
 const ID_STREAM_VACIO = idDe(0, "000128", 4328);
 const ID_DSH = idDe(0, "000129", 4329);
 const ID_DSH_ERROR = idDe(0, "000130", 4330);
-const hilo1 = (nombre: string, args: string[], rc = 0, extra: Partial<Caso> = {}): Caso => ({ herramienta: "pa-cli", nombre: `globales: hilo ${nombre}`, args, rc, ...extra });
+// `pa --hilo --json` del TS sale sin sangría (el bash, con sangría 2): mismo JSON, distintos espacios (CTX-14).
+const hilo1 = (nombre: string, args: string[], rc = 0, extra: Partial<Caso> = {}): Caso => ({
+  herramienta: "pa-cli", nombre: `globales: hilo ${nombre}`, args, rc,
+  ...(rc === 0 ? { salidaJson: "sin sangría a propósito (CTX-14)" } : {}),
+  ...extra,
+});
 
 // ---------------------------------------------------------------- revertir
 

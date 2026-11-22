@@ -470,7 +470,7 @@ function commitsDe(ruta: string, rama: string): Promise<string[] | null> {
 
 /** La conversación del final (`pa --hilo <id> --json -n 6`), sin validar; `null` si `pa` no pudo. */
 async function finalDe(id: string): Promise<unknown> {
-  const r = await ejecutar(["--hilo", id, "--json", "-n", "6"], ENV, 60_000);
+  const r = await ejecutar(["--hilo", id, "--json", "--tope", "0", "-n", "6"], ENV, 60_000);
   if (r.rc !== 0) return null;
   try {
     return JSON.parse(r.out);

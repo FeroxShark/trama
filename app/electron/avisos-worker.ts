@@ -485,7 +485,7 @@ export function comoResolverFalta(a: Pick<AvisoWorker, "id" | "proyecto">): stri
 }
 
 /** Las líneas de más de un aviso `fin` con resultado: su integración y su resultado compacto, con sangría (así no se confunden con la línea del worker). */
-function detalleDe(a: AvisoWorker, sangria: string): string[] {
+function detalleDe(a: AvisoWorker, sangria: string, yaExplicado?: AvisoWorker): string[] {
   const extra: string[] = [];
   if (a.integracion) extra.push(`Integración: ${a.integracion}`);
   if (a.resumen) extra.push(...a.resumen.split("\n"));
@@ -493,7 +493,10 @@ function detalleDe(a: AvisoWorker, sangria: string): string[] {
   // Una lectura no se integra: lo que dice el líder (`bien`) es lo único que le dice al reparto si rindió.
   if (a.leer && a.tipo === "fin") extra.push(`¿Sirvió? \`pa --bien ${a.id} si|no|parcial\``);
   // Frenó por falta de información: lo resuelve el líder que lo lanzó, no el dueño (no entra al tablero: `faltaParaLider`, ganchos.ts).
-  if (a.tipo === "fin" && a.faltaInfo) extra.push(...comoResolverFalta(a));
+  // El texto largo va una sola vez por aviso: los demás con FALTA de la tanda lo referencian en una línea.
+  if (a.tipo === "fin" && a.faltaInfo) {
+    extra.push(...(yaExplicado ? [`Resolvelo como el de ${yaExplicado.id} (más arriba): \`pa ${a.proyecto || "<proyecto>"} --async --seguir --id ${a.id} "<la respuesta>"\`.`] : comoResolverFalta(a)));
+  }
   return extra.map((l) => sangria + l);
 }
 
@@ -512,7 +515,12 @@ export function textoParaLider(a: AvisoWorker): string {
     const cabeza = a.retomado
       ? `${MARCA_AVISO_TRAMA} Mientras no estabas terminaron ${lineas.length} ${lineas.length === 1 ? "worker" : "workers"} de los que lanzaste y no se revisaron${fallas ? `, ${fallas} con falla` : ""}:`
       : `${MARCA_AVISO_TRAMA} Terminaron los ${lineas.length} workers que lanzaste${fallas ? `, ${fallas} con falla` : ""}:`;
-    const cuerpo = lineas.flatMap((l) => [`- «${l.tarea || l.id}» (${l.id}): ${comoTermino(l)}`, ...detalleDe(l, "    ")]);
+    let explicado: AvisoWorker | undefined;
+    const cuerpo = lineas.flatMap((l) => {
+      const det = detalleDe(l, "    ", explicado);
+      if (!explicado && l.tipo === "fin" && l.faltaInfo) explicado = l;
+      return [`- «${l.tarea || l.id}» (${l.id}): ${comoTermino(l)}`, ...det];
+    });
     return [cabeza, ...cuerpo, lineas.every((l) => l.resumen) ? "Lo que falte, con `pa --hilo <id>`." : "Revisá cada uno con `pa --hilo <id>`."].join("\n");
   }
   const cabeza = `${MARCA_AVISO_TRAMA} Worker «${a.tarea || a.id}» ${comoTermino(a)} Id: ${a.id}.${a.resumen ? "" : ` Revisalo con \`pa --hilo ${a.id}\`.`}`;
