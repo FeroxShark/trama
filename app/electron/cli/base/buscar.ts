@@ -28,7 +28,10 @@ export function esEjecutable(p: string, plat: Plataforma = plataformaActual()): 
 function conExtensiones(p: string, env: Env, plat: Plataforma): string[] {
   if (!esWindows(plat)) return [p];
   const exts = (env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
-  return [p, ...exts.map((e) => p + e)];
+  // El nombre tal cual sólo si ya trae una extensión de PATHEXT: npm deja al lado de `opencode.cmd` un `opencode` sin extensión (el script
+  // para bash), que Windows no puede ejecutar; antes ganaba ése (medido en el CI de Windows con `npm i -g opencode-ai`).
+  const ya = exts.some((e) => p.toLowerCase().endsWith(e.toLowerCase()));
+  return [...(ya ? [p] : []), ...exts.map((e) => p + e)];
 }
 
 /** `shutil.which(nombre)`: un nombre con carpeta se mira tal cual; uno suelto se busca en el PATH. `extra`: carpetas a probar después. */
