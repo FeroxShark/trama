@@ -7,10 +7,10 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 ## Resumen
 
 - **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
-  - arreglado: 130
-  - refutado: 15
-  - pendiente: 9
-  - arreglado a medias: 4
+  - arreglado: 136
+  - refutado: 18
+  - pendiente: 3
+  - arreglado a medias: 1
 - **Ideas: 102**.
 
 | Área | Bugs | Arreglados | Pendientes |
@@ -21,10 +21,10 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 | Hooks y motor | 16 | 8 | 0 |
 | Núcleo y canales | 14 | 13 | 0 |
 | El CLI de `pa` | 15 | 15 | 0 |
-| Puentes a otros motores | 20 | 19 | 1 |
+| Puentes a otros motores | 20 | 20 | 0 |
 | Reparto y cupos | 15 | 15 | 0 |
 | Sistema: instalación, actualización y servicio | 16 | 16 | 0 |
-| Vistos trabajando esta noche | 16 | 7 | 8 |
+| Vistos trabajando esta noche | 16 | 9 | 3 |
 
 ## Bugs
 
@@ -394,7 +394,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/pa/puestos.ts` línea 462 (`Admision.tomarPuesto`).
 - Arreglo: después de tomar el candado del puesto y antes de aceptarlo, validar el `.running`; si su hijo sigue vivo, liberar ese puesto y tratarlo como ocupado. Agregar un test con padre muerto e hijo vivo que impida preparar el worktree.
 
-**B079 · Dos repositorios con igual carpeta comparten worktree** (`PA-CLI-3`, severidad alta) · **ARREGLADO A MEDIAS**
+**B079 · Dos repositorios con igual carpeta comparten worktree** (`PA-CLI-3`, severidad alta) · **ARREGLADO A MEDIAS**: hay guarda (sale 87 si el worktree es de otro repositorio); falta la clave de estado por ruta real, con migración (decisión del dueño).
 - Qué pasa: dos proyectos distintos llamados, por ejemplo, `/clientes/a/demo` y `/clientes/b/demo` comparten estado, puestos y worktrees. Si tienen historia compatible, el segundo puede terminar escribiendo y commiteando en el repositorio del primero.
 - Dónde: `app/electron/cli/pa/worktrees.ts` línea 538 (`asegurarWorktree`).
 - Arreglo: antes de devolver `true` en la línea 538, comparar el Git común con el del proyecto y rechazar cualquier mezcla. Dar a cada ruta real una clave de estado y worktree inequívoca, conservando una resolución compatible del estado viejo. Probar dos clones con igual basename y nombres distintos del registry.
@@ -516,7 +516,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/dsh-puente.ts` líneas 280-289 (`Traductor.trozo`)
 - Arreglo: Si `u.messageId` viene vacío (`null`), reutilizar `this.buf.id` cuando ya haya un buffer abierto del mismo mensaje (en vez de incrementar `this.n` en cada chunk) y recién asignar `m${++this.n}` cuando `this.buf` sea `null`, cerrando al llegar un `messageId` distinto, una herramienta o el fin de turno. Agregar test en…
 
-**B103 · Desfase al parar (`PARAR_MS` 3 s vs `MS_CANCELAR` 10 s): `SIGINT` reinicia el corte en Linux y `taskkill` mata el puente en Windows** (`PUENTES-12`, severidad media) · **ARREGLADO A MEDIAS**: hecho en Linux; en Windows el líder todavía mata el árbol a los 3 s.
+**B103 · Desfase al parar (`PARAR_MS` 3 s vs `MS_CANCELAR` 10 s): `SIGINT` reinicia el corte en Linux y `taskkill` mata el puente en Windows** (`PUENTES-12`, severidad media) · **ARREGLADO**: Windows espera 6 s antes de matar el árbol (`plazoParar`); Linux sigue en 3 s.
 - Qué pasa: Al apretar «Parar» en un turno que tarda en cancelarse (> 3 s): - En Windows, `lider.ts` mata a los 3 s (`PARAR_MS = 3000`) el proceso entero del puente (`dsh-puente`, `agy-puente` o `codex-puente`) con `taskkill /T /F`, sin darle tiempo a `dsh-puente` (que espera hasta 10 s con `MS_CANCELAR = 10000` antes de matar a `dsh`/`opencode`), sin emitir `result` ni cerrar herramientas abiertas en el transcript y dejando…
 - Dónde: `app/electron/dsh-puente.ts` líneas 674-681, 809-811, `app/electron/agy-puente.ts` líneas 552-558, 614-616 y `app/electron/codex-puente.ts` líneas 351-357, 372-374 (frente a `app/electron/lider.ts` líneas 123,…
 - Arreglo: Alinear los tiempos (`PARAR_MS` en `lider.ts` por clase o mayor al timeout interno del puente cuando el subproceso existe, o bajar `MS_CANCELAR` por debajo de `PARAR_MS` para que el puente mate primero al hijo y cierre el turno con `result`), y en el handler de `SIGINT` de los tres puentes escalar directamente al…
@@ -541,7 +541,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/acp.ts` líneas 61-78 (`describirError`)
 - Arreglo: Anexar `e.data` para cualquier `ErrorAcp` cuando no esté vacío y sea distinto de `base`, y anexar la cola de `stderr` cuando `e instanceof ErrorAcp` (o cuando un error genérico traiga `stderr` no reflejado en `base`). Cubrir en `app/tests/acp.test.ts`.
 
-**B108 · Cierre brusco en `dsh-puente.ts` (no usa `cliente.cerrar()`) y `taskkill` asíncrono incompleto al salir en Windows** (`PUENTES-17`, severidad baja) · **PENDIENTE**: falta en Windows: el `taskkill` al salir es asíncrono.
+**B108 · Cierre brusco en `dsh-puente.ts` (no usa `cliente.cerrar()`) y `taskkill` asíncrono incompleto al salir en Windows** (`PUENTES-17`, severidad baja) · **ARREGLADO**: `dsh-puente` cierra el stdin y espera; el `exit` de los tres puentes espera al `taskkill` en Windows.
 - Qué pasa: 1. `dsh-puente.ts` nunca llama al método `cliente.cerrar()` que existe en `acp.ts:227-239`: al cerrarse `stdin` en reposo (`860`), llama directamente a `terminar(0)` que dispara `cliente?.matar()` (`SIGKILL` / `taskkill /F`) inmediatamente en lugar de cerrar `stdin` de `dsh`/`opencode` y esperar su salida limpia (arriesgando dejar sesiones sin volcar a disco). 2. En Windows, `matarArbol()`…
 - Dónde: `app/electron/dsh-puente.ts` líneas 799-803, 813-817 (`terminar`, `exit`), `app/electron/agy-puente.ts` líneas 618-623 y `app/electron/codex-puente.ts` líneas 376-380
 - Arreglo: Volver asíncrono el cierre limpio en `dsh-puente.ts` (`await cliente?.cerrar()` cuando cierra `stdin` en reposo o en `SIGTERM`/`SIGINT` antes de `process.exit()`), y para el respaldo de `exit` en Windows evaluar `execFileSync("taskkill", ...)` acotado (o job object / `matar` previo a `process.exit`) en `procesos.ts`…
@@ -618,7 +618,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/reparto.ts` línea 2393 (`planLeer`)
 - Arreglo: en la línea 2393 conservar por lo menos las ausencias de los últimos siete días, además de las futuras; eliminarlas sólo cuando ya no puedan pertenecer a una ventana vigente. Probar el mismo plan antes y después de medianoche y su avance durante la semana.
 
-**B123 · Dos guardados usan el mismo temporal** (`REPARTO-CUPOS-12`, severidad media) · **ARREGLADO A MEDIAS**
+**B123 · Dos guardados usan el mismo temporal** (`REPARTO-CUPOS-12`, severidad media) · **ARREGLADO**: también `nvidia-nim.ts` y `opencode-go.ts` guardan en la fila.
 - Qué pasa: dos cambios simultáneos de modelos pueden hacer fallar un guardado con `ENOENT`; el contenido de uno puede reemplazar al otro. No hay una cola compartida entre el riel y las distintas ventanas de Ajustes.
 - Dónde: `app/electron/modelos-config.ts` línea 153 (`guardarModelos`)
 - Arreglo: serializar todo leer → unir → escribir por ruta real y generar temporales únicos, limpiándolos al fallar. Definir el orden de aplicación de cambios independientes para no pisarlos con un borrador anterior. Probar guardados concurrentes del perfil y de otra preferencia.
@@ -737,7 +737,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/src/hilo/Lider.tsx` y `app/src/hilo/Turno.tsx` (cómo se agrupa el texto previo a una continuación).
 - Arreglo: el texto anterior a una continuación por hook se conserva como mensaje propio; test con un transcript que tenga dos textos separados por la respuesta del hook.
 
-**B146 · La nota antes de compactar ignoraba el `autoCompactWindow` del settings** (`NOCHE-2`, severidad media) · **ARREGLADO A MEDIAS**: hecho en los líderes; faltan los workers.
+**B146 · La nota antes de compactar ignoraba el `autoCompactWindow` del settings** (`NOCHE-2`, severidad media) · **ARREGLADO**: los workers usan `leerUmbralYa` (`lanzar.ts`), como los líderes.
 - Qué pasa: sin tope de Trama, el umbral de la nota se calculaba contra la ventana entera del modelo, así que la compactación nativa (más baja en el settings de Claude Code) llegaba antes y la nota no se pedía.
 - Dónde: `app/electron/lider.ts`, `app/electron/contexto.ts`.
 - Arreglo: leer el `autoCompactWindow` del settings al abrir el líder (`leerUmbralYa`) y usarlo cuando no hay tope propio. Falta lo mismo en los workers (`app/electron/cli/pa/lanzar.ts`).
@@ -752,7 +752,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/esfuerzo-extras.ts` línea 101 (`argvFast`).
 - Arreglo: pasar el apagado explícito cuando el modelo lo soporta y la persona lo apagó; comprobar en vivo que el aviso se va.
 
-**B149 · Un worker en cola figura como «trabajando» y sin modelo** (`NOCHE-6`, severidad media) · **PENDIENTE**
+**B149 · Un worker en cola figura como «trabajando» y sin modelo** (`NOCHE-6`, severidad media) · **REFUTADO**
 - Qué pasa: un worker que espera puesto sale con estado `trabajando` y `modelo` vacío; hay que mirar `en_cola` para saberlo. La barra lo muestra como corriendo.
 - Dónde: `app/electron/cli/pa/hilo.ts` (`pa --hilos --json`) y la barra.
 - Arreglo: estado propio «en cola» con el modelo pedido.
@@ -772,22 +772,22 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/pa/motores/privacidad.ts`, `app/electron/cli/pa/orquesta.ts`.
 - Arreglo: decir en el aviso la línea exacta que lo disparó y ofrecer no lanzar (`--estricto`) en vez de cambiar de motor.
 
-**B153 · Un worker interrumpido queda como «listo»** (`NOCHE-14`, severidad media) · **PENDIENTE**
+**B153 · Un worker interrumpido queda como «listo»** (`NOCHE-14`, severidad media) · **REFUTADO**
 - Qué pasa: un worker de agy cortado desde afuera termina con el texto «agy: interrupted» y sin informe, pero su estado dice `listo`, igual que uno que terminó bien.
 - Dónde: `app/electron/cli/pa/hilo.ts` y el cierre de la corrida en `app/electron/cli/pa/otros-motores.ts`.
 - Arreglo: estado propio para la corrida interrumpida (o `murio`) cuando el motor sale por señal o sin respuesta final.
 
-**B154 · `reparto --cupos` muestra la ventana de 7 días de Gemini con el reinicio de la de 5 horas** (`NOCHE-5`, severidad baja) · **PENDIENTE**
+**B154 · `reparto --cupos` muestra la ventana de 7 días de Gemini con el reinicio de la de 5 horas** (`NOCHE-5`, severidad baja) · **REFUTADO**
 - Qué pasa: tras renovarse la ventana de 5 horas, la de 7 días apareció en 0 % con la misma hora de vuelta; un rato después volvió a su valor real.
 - Dónde: `app/electron/cli/reparto.ts` (lectura de los grupos de Google).
 - Arreglo: no pisar una ventana con los datos de otra; test con las dos ventanas del mismo grupo.
 
-**B155 · `pa --estado` arrastra «MURIÓ EN COLA» de hace semanas** (`NOCHE-9`, severidad baja) · **PENDIENTE**
+**B155 · `pa --estado` arrastra «MURIÓ EN COLA» de hace semanas** (`NOCHE-9`, severidad baja) · **ARREGLADO**
 - Qué pasa: la lista de un proyecto trae decenas de corridas muertas en cola de otros proyectos y de hace más de un mes, que tapan lo que corre ahora.
 - Dónde: `app/electron/cli/pa/estado.ts`.
 - Arreglo: mostrar sólo las del proyecto pedido y vencer las viejas (o resumirlas en una línea con la cuenta).
 
-**B156 · Los workers lanzados desde un servicio no avisan a su líder** (`NOCHE-12`, severidad baja) · **PENDIENTE**
+**B156 · Los workers lanzados desde un servicio no avisan a su líder** (`NOCHE-12`, severidad baja) · **ARREGLADO**
 - Qué pasa: un `pa --async` lanzado con un entorno sin la sesión del líder termina sin avisarle a nadie; hay que mirar `pa --hilos` a mano.
 - Dónde: `app/electron/cli/pa/lanzar.ts` (a quién se avisa al terminar).
 - Arreglo: permitir decir a qué líder avisar (`--avisar-a <sid>`) y documentarlo.
