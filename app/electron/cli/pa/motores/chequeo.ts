@@ -92,7 +92,7 @@ export const dshBin = (env: Env, plat: Plataforma = plataformaActual()) => binar
  * Windows: `%APPDATA%\npm` (y el prefijo), donde npm deja `opencode.cmd`, y `~\.local\bin`.
  */
 export function dirsOpencode(env: Env, home: string, plat: Plataforma = plataformaActual()): string[] {
-  if (plat !== "win32") return [path.join(home, ".opencode", "bin"), ...carpetasNpm(env, home, plat)];
+  if (plat !== "win32") return [path.posix.join(home, ".opencode", "bin"), ...carpetasNpm(env, home, plat)];
   return [path.win32.join(home, ".opencode", "bin"), path.win32.join(home, ".local", "bin"), ...carpetasNpmApp(env, home, plat)];
 }
 /** El binario opencode: HILOS_OPENCODE, el PATH y `dirsOpencode`. "" si no está. */
