@@ -64,8 +64,8 @@ export async function guardarModelosNim(lista: unknown, env: Env = process.env, 
     if (!ids.includes(m)) ids.push(m);
   }
   const ruta = rutaModelosOc(env, home);
-  // leer → unir → escribir en fila por archivo real, la misma de `guardarModelos` (modelos-config.ts): dos guardados no se pisan
-  const clave = await realpath(ruta).catch(() => path.resolve(ruta));
+  // leer → unir → escribir en fila por archivo, la misma de `guardarModelos` (modelos-config.ts, misma clave): dos guardados no se pisan
+  const clave = path.resolve(ruta);
   await enFilaModelos(clave, async () => {
     let texto: string | null = null;
     try {
