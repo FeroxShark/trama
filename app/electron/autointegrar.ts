@@ -13,7 +13,7 @@ import { argvIntegrarPa, ENV, ESTADO, escribirAtomico, nombrePa } from "./pa.js"
 import { enCola, ejecutar } from "./paneles.js";
 import { registro } from "./registro.js";
 import { mientrasIntegra } from "./salud.js";
-import { idLanzado, motivoNoSeguro, RC_CONFLICTO, RESUELTO, seguras, ultimasPorRama, vivo, type Contexto, type HiloSeguro } from "./seguro.js";
+import { idLanzado, motivoAlTerminar, RC_CONFLICTO, RESUELTO, seguras, ultimasPorRama, vivo, type Contexto, type HiloSeguro } from "./seguro.js";
 import { sesionesVivas } from "./sesiones.js";
 import { silencio } from "./log.js";
 
@@ -184,6 +184,6 @@ export function integracionDe(id: string): string {
   if (falla) return `espera integración: la integración sola falló (${(falla.error || `rc ${falla.rc}`).replace(/\s+/g, " ").slice(0, 80)})`;
   if (apagado() || !prendido) return "espera integración: integrar solo está apagado";
   const h = ultimaLista?.find((x) => x.id === id);
-  const motivo = h && ultimoContexto ? motivoNoSeguro(h, ultimasPorRama(ultimaLista!).get(h.rama ?? ""), ultimoContexto) : null;
+  const motivo = h && ultimoContexto ? motivoAlTerminar(h, ultimasPorRama(ultimaLista!).get(h.rama ?? ""), ultimoContexto) : null;
   return `espera integración: ${motivo ?? (h ? "la barrida todavía no la tomó" : "la integra el líder (`pa --integrar`)")}`;
 }
