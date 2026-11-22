@@ -101,6 +101,7 @@ const igual = ({ t: a, vivo: va, enCurso: ca, pensando: pa, razon: ra, fin: fa }
   !ra === !rb &&
   a.key === b.key &&
   a.texto === b.texto &&
+  a.cerrados?.length === b.cerrados?.length &&
   a.pensado === b.pensado &&
   a.pensamientos?.length === b.pensamientos?.length &&
   a.desde === b.desde &&
@@ -241,6 +242,8 @@ function Lineal({ t: turno, vivo, enCurso = false, semilla, pensando = false, ra
           </span>
         </div>
       ) : null}
+      {/* Lo que el modelo dijo al cerrar antes de que un hook lo hiciera seguir (B145): mensajes propios, no un renglón del trabajo plegado. */}
+      {turno.cerrados?.map((c, k) => <CuerpoTexto key={k} texto={c} vivo={false} turnoKey={turno.key} intermedio="" />)}
       {turno.texto ? <CuerpoTexto texto={turno.texto} vivo={enCurso} turnoKey={turno.key} /> : null}
       {/* Terminado: a qué hora contestó (el último mensaje del turno). */}
       {!vivo && !enCurso && turno.hasta !== null && (turno.texto || hayTrabajo) ? <Hora ts={turno.hasta} dura={dura} /> : null}

@@ -106,3 +106,25 @@ test("turnos(): `orden` lleva cada texto con las herramientas que usó después,
     ],
   );
 });
+
+// B145: el modelo cierra con un resumen, un hook de fin de turno lo hace seguir y el turno termina con otro texto. Con el trabajo plegado
+// (`razon`: un líder que muestra su razonamiento) el resumen era sólo el primer renglón de la lista cerrada: desaparecía del chat.
+const conHook = [
+  yo(0, "arreglá el bug", 100),
+  el(1, "", ["Bash: npm test"], 110),
+  el(2, "Listo: el bug quedó arreglado y commiteado.\n\nTocó dos archivos.", [], 120),
+  el(3, "", ["Bash: git status"], 130),
+  el(4, "Verificado: el árbol está limpio.", [], 140),
+];
+
+test("B145: el texto de antes de la continuación por un hook queda como mensaje propio con el trabajo plegado", () => {
+  cambiarIdioma("es");
+  const t = turnos(conHook).find((x) => x.tipo === "turno");
+  assert.ok(t?.tipo === "turno");
+  assert.deepEqual(t.cerrados, ["Listo: el bug quedó arreglado y commiteado.\n\nTocó dos archivos."]);
+  const html = renderToStaticMarkup(h("div", null, h(Turno, { t, vivo: false, enCurso: false, razon: true })));
+  const a = html.indexOf("Listo: el bug quedó arreglado y commiteado.");
+  assert.ok(a >= 0, "el resumen está en el chat");
+  assert.ok(html.indexOf("Tocó dos archivos.") > a, "con su texto entero, no un renglón");
+  assert.ok(html.indexOf("Verificado: el árbol está limpio.") > a, "y antes de la respuesta final");
+});

@@ -29,6 +29,12 @@ export type Item =
       orden?: Paso[];
       /** Lo que contestó: el último texto del turno (`null` si todavía no dijo nada). */
       texto: string | null;
+      /**
+       * Los textos del modelo que cerraron un mensaje sin herramientas y después el turno siguió (un hook de fin de turno lo hizo seguir): el
+       * resumen de antes de la continuación. Un turno que oculta el trabajo (`razon`) los pinta como mensajes propios; sin esto quedaban
+       * sólo como el primer renglón de la lista plegada. Falta si no hay.
+       */
+      cerrados?: string[];
       /** Epoch (s): el pedido que lo disparó o, si no está en la página, el primer mensaje. */
       desde: number | null;
       /** Epoch (s) del último mensaje. */
@@ -139,6 +145,8 @@ export function turnos(mensajes: Mensaje[], transcript: string | null = null): I
       if (!texto && prev) prev.usos.push(...usos);
       else if (texto || usos.length) orden.push({ texto, usos });
     });
+    // Un texto sin herramientas que no es el último mensaje: el modelo cerró ahí y algo (un hook) lo hizo seguir.
+    const cerrados = tanda.flatMap((x, k) => (k < tanda.length - 1 && k !== ultimo && x.texto.trim() && !todos[k].length ? [x.texto.trim()] : []));
     // Desde el pedido del usuario, o lo que lo despertó (una tarea de fondo, un mensaje de otra sesión).
     const antes = i > 0 && mensajes[i - 1].rol === "user" ? epoch(mensajes[i - 1].ts) : null;
     items.push({
@@ -147,6 +155,7 @@ export function turnos(mensajes: Mensaje[], transcript: string | null = null): I
       pasos,
       orden,
       texto: ultimo >= 0 ? tanda[ultimo].texto : null,
+      ...(cerrados.length ? { cerrados } : {}),
       desde: antes ?? epoch(tanda[0].ts),
       hasta: epoch(tanda[tanda.length - 1].ts),
       pensado: tanda.map((x) => x.pensado).filter(Boolean).join("\n\n") || null,
