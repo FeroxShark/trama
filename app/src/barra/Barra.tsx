@@ -1506,7 +1506,7 @@ export function Barra() {
     if (c === "oculta") cerrarChats();
     // Angosto se ve lo abierto; la lista, con HILOS_VARIANTE=lista (o si no hay nada que abrir).
     if (esAngosto()) setAbierta(MODO.variante === "lista" || c === "vacio" || c === "foco-barra" || c === "orden-arrastrando" || c === "orden-menu" || c === "orden-prioridad" || c === "activas" || c === "mover-menu" || (c.startsWith("maquinas") && c !== "maquinas-lider" && !c.startsWith("maquinas-selector")));
-    if (c === "ajustes" || c === "ajustes-cierre") setPanel("ajustes");
+    if (c === "ajustes" || c === "ajustes-cierre" || c === "ajustes-aros") setPanel("ajustes");
     // Las guías de pantalla: el panel que cada una necesita abierto.
     const pg = c.startsWith("guia-") ? panelDeCaptura(c.slice(5)) : null;
     if (pg) setPanel(pg.panel);

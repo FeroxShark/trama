@@ -194,8 +194,8 @@ export function AjustesMarco({ children }: { children: ReactNode }) {
   const salto = useSyncExternalStore(suscribir, pendienteDeMostrar);
   const cont = useRef<HTMLDivElement>(null);
   // Las capturas nacen en la categoría de lo que muestran.
-  if ((MODO.captura === "ajustes" || MODO.captura === "ajustes-tema" || MODO.captura === "ajustes-cierre") && pedida === null) {
-    inicial(MODO.captura === "ajustes-cierre" ? "cupos" : (deVariante(MODO.variante) ?? (MODO.captura === "ajustes-tema" ? "general" : "modelos")));
+  if ((MODO.captura === "ajustes" || MODO.captura === "ajustes-tema" || MODO.captura === "ajustes-cierre" || MODO.captura === "ajustes-aros") && pedida === null) {
+    inicial(MODO.captura === "ajustes-cierre" || MODO.captura === "ajustes-aros" ? "cupos" : (deVariante(MODO.variante) ?? (MODO.captura === "ajustes-tema" ? "general" : "modelos")));
   }
   const activa = efectiva((c) => hay(c, presentes));
   const cats = CATS.filter((c) => hay(c, presentes));

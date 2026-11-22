@@ -146,6 +146,8 @@ const CAPTURAS = [
   // La tarjeta «Cupo bajo» del cierre por cupo en el chat de un líder (HILOS_VARIANTE: `cerrando` = el turno sigue; `cerrada` = ya cerró, con «Retomar solo» prendido; `apagado` = cerrada con el interruptor apagado). `ajustes-cierre`: Ajustes > Plan y cupos con el bloque «Cierre ordenado» a la vista.
   "lider-cierre",
   "ajustes-cierre",
+  // Ajustes > Plan y cupos con el bloque «Aros del costado» a la vista (HILOS_VARIANTE=elegir: con el automático apagado y tres límites fijados).
+  "ajustes-aros",
   // Tablas del markdown en la respuesta de un líder.
   "lider-tabla",
   // Cada forma del texto de un mensaje, y lo que no tiene espacios (`HILOS_VARIANTE=pegado`).

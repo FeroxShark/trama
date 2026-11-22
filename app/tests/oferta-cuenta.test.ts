@@ -41,8 +41,7 @@ test("ofertaDeCambio: sin tope, sin a dónde pasar o sin cuenta conocida no ofre
 
 test("lineasCuentas: cada cuenta trae sus dos ventanas, también cuando una falta", () => {
   const [l] = lineasCuentas([cuenta("a", 1, 1, true), cuenta("b", 12, null)]);
-  assert.equal(l.h5?.pct, 12);
-  assert.equal(l.sem?.pct, null);
+  assert.deepEqual(l.ventanas?.map((v) => [v.clave, v.pct]), [["5h", 12], ["7d", null]]);
 });
 
 test("carrilesCompletos: 5 h y semana siempre juntas; la que falta queda sin dato", () => {

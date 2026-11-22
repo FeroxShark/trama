@@ -1376,7 +1376,7 @@ const usoFixture = (): Uso => {
   if (MODO.variante === "cupos-cuentas") return USO_CUENTAS;
   if (MODO.variante === "cupos-tres") return USO_TRES;
   if (MODO.variante === "cupos-nim") return USO_NIM;
-  if (MODO.variante?.startsWith("cupos-fable")) return USO_FABLE;
+  if (MODO.captura === "ajustes-aros" || MODO.variante?.startsWith("cupos-fable")) return USO_FABLE;
   if (MODO.variante?.startsWith("cupos-todo-dos")) return USO_TODO_DOS;
   if (MODO.variante?.startsWith("cupos-todo")) return USO_TODO;
   return USO;

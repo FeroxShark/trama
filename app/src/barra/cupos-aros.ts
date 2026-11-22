@@ -2,7 +2,10 @@
 // de 1 a 3 límites fijados a mano. Se guarda en `localStorage` de la ventana (es de la interfaz, no de `pa`): la barra y Ajustes se avisan con un
 // evento. Lo puro (`normalizarAros`) lo prueba `tests/riel.test.ts`.
 import { useEffect, useState } from "react";
-import { AROS_MAX, type PrefAros } from "./cupos-riel-logica.ts";
+import type { Uso } from "../datos/contrato";
+import { filasDeCupos } from "../datos/cuentas.ts";
+import { t } from "../i18n/index.ts";
+import { AROS_MAX, cuentasClaude, limitesRiel, type LimiteRiel, type PrefAros } from "./cupos-riel-logica.ts";
 
 export const CLAVE_AROS = "trama:cupos:aros";
 export const EVENTO_AROS = "trama:cupos:aros-cambio";
@@ -48,4 +51,12 @@ export function useAros(): PrefAros {
     };
   }, []);
   return pref;
+}
+
+/** Todos los límites que existen hoy con el uso que dice `reparto` (lo que Ajustes ofrece para fijar); sin uso, ninguno. */
+export function limitesDeUso(uso: Uso | null | undefined): LimiteRiel[] {
+  if (!uso || "error" in uso) return [];
+  const cupos = filasDeCupos(uso.suscripciones, uso.claudeNombre, t("cuentas.principal"));
+  const cuentas = cuentasClaude(uso, cupos.filas, cupos.claudeCorto ?? uso.claudeNombre ?? t("uso.claude"), null);
+  return limitesRiel(uso, cuentas, cupos.filas);
 }

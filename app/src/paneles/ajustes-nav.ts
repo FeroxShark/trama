@@ -51,6 +51,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "cupos", nombre: "cu.nvidia", que: "cu.nvidiaQue", sin: "nvidia nim build.nvidia.com gratis free cupo quota pedidos requests minuto minute tope limit 429 clave key uso usage" },
   { cat: "cupos", nombre: "cu.chatgpt", que: "cu.chatgptQue", sin: "chatgpt openai codex gpt suscripcion subscription plan cupo quota conectar connect login" },
   { cat: "cupos", nombre: "cu.topes", que: "cu.topesQue", sin: "tope limite limit cupo quota llena full umbral threshold porcentaje percent usado used dejar de usar stop using claude google gemini chatgpt codex opencode reserva reserve guardar save sesiones sessions codigo code fabrica factory" },
+  { cat: "cupos", nombre: "ajustes.aros", que: "ajustes.arosQue", sin: "aros anillos rings costado barra lateral sidebar riel rail cupos quota limites limits mas apretados tightest automatico automatic fijar pin elegir choose fable codex gemini" },
   { cat: "cupos", nombre: "ajustes.cierre", que: "ajustes.cierreQue", sin: "cierre ordenado shutdown wrap up cupo bajo low quota umbral threshold resumen summary retomar resume solo own workers" },
   { cat: "cupos", nombre: "ajustes.cierreActivo", que: "ajustes.cierreActivoQue", sin: "cierre ordenado shutdown cupo bajo low quota" },
   { cat: "cupos", nombre: "ajustes.cierreUmbral", que: "ajustes.cierreUmbralQue", sin: "umbral threshold porcentaje percent cierre ordenado shutdown cupo bajo" },

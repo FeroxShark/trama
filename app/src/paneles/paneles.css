@@ -2853,6 +2853,58 @@
 .cu-avanzado[data-abierta] .cu-av-h {
   margin-bottom: var(--esp-1);
 }
+/* Aros del costado: la lista de límites a fijar, de a una fila con su casilla, el nombre entero y lo usado (con palabras, nunca sólo el color). */
+.cu-aros-lista {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  padding: 0 0 var(--esp-2);
+  margin: 0;
+  border: 0;
+}
+.cu-aros-lista legend {
+  padding: 0 0 var(--esp-1);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.cu-aros-op {
+  display: grid;
+  min-height: 2rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--esp-2);
+  padding: 0 var(--esp-1);
+  border-radius: var(--r-sm);
+  font-size: var(--letra-5);
+  cursor: pointer;
+}
+.cu-aros-op:hover:not([data-bloqueado]),
+.cu-aros-op[data-puesto]:hover {
+  background: var(--capa-hover);
+}
+.cu-aros-op[data-bloqueado]:not([data-puesto]) {
+  color: var(--apagado);
+  cursor: default;
+}
+.cu-aros-op input {
+  accent-color: var(--acento);
+}
+.cu-aros-n {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cu-aros-p {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cu-aros-nota {
+  margin: var(--esp-1) 0 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
 .cu-av-q {
   padding-bottom: var(--esp-2);
   color: var(--apagado);

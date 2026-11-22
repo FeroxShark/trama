@@ -184,9 +184,14 @@ function Mini({ f }: { f: FilaVentana }) {
 function Linea({ l, cuentas, alCambiar, titulo }: { l: LineaRiel; cuentas: ListaCuentas | null; alCambiar: () => void; titulo?: boolean }) {
   const perfil = l.cuenta ? cuentaParaElegir(cuentas, l.cuenta.proveedor, l.cuenta.id) : null;
   const lleno = l.estado === "lleno" || l.estado === "marcado";
-  const nivel = lleno ? "rojo" : nivelCupo(l.pct);
-  const palabra = !lleno && l.pct === null;
-  const vuelve = lleno
+  // Con una sola ventana (Argon, un modelo de Claude, NVIDIA) el renglón es uno: «Fable · Semana», su barra y su cifra; con varias, el nombre y una fila por ventana.
+  const uno = l.ventanas?.length === 1 ? l.ventanas[0] : null;
+  const pct = uno ? uno.pct : l.pct;
+  const nivel = lleno ? "rojo" : nivelCupo(pct);
+  const palabra = !lleno && pct === null;
+  const vuelve = uno
+    ? textoFila(uno.pct, uno.hasta)
+    : lleno
     ? l.vuelve
       ? t("riel.sinCupoVuelve", { vuelve: t("cu.w.vuelve", { cuando: cuandoFuturo(l.vuelve) }) })
       : t("cupos.sinCupo")
@@ -195,12 +200,12 @@ function Linea({ l, cuentas, alCambiar, titulo }: { l: LineaRiel; cuentas: Lista
         ? t("riel.quedaPoco", { vuelve: t("cu.w.vuelve", { cuando: cuandoFuturo(l.cuando) }) })
         : t("cu.w.vuelve", { cuando: cuandoFuturo(l.cuando) })
       : null;
-  const dos = l.ventanas?.length ? l.ventanas : null;
+  const dos = !uno && l.ventanas?.length ? l.ventanas : null;
   const tip = l.gratis ? [l.quien, t("riel.sinLimiteTip"), l.pedidos !== undefined ? t("riel.pedidos", { n: l.pedidos.toLocaleString() }) : ""].filter(Boolean).join(" · ") : l.quien;
   return (
     <>
       <div className="v-lin" data-nivel={dos ? undefined : nivel} data-lleno={lleno ? "" : undefined} data-palabra={palabra && !dos ? "" : undefined} data-dos={dos ? "" : undefined} data-titulo={titulo ? "" : undefined} data-tip={tip}>
-        <span className="v-ln">{l.nombre}</span>
+        <span className="v-ln">{uno ? `${l.nombre} · ${uno.nombre}` : l.nombre}</span>
         {dos ? (
           <div className="v-dos">
             {dos.map((f) => (
@@ -208,11 +213,11 @@ function Linea({ l, cuentas, alCambiar, titulo }: { l: LineaRiel; cuentas: Lista
             ))}
           </div>
         ) : palabra ? (
-          <b>{l.gratis ? `${t("riel.gratis")} · ${t("riel.sinLimiteConocido")}` : l.sinLimite ? t("riel.sinLimite") : l.pedidos !== undefined ? t("riel.pedidos", { n: l.pedidos.toLocaleString() }) : "—"}</b>
+          <b>{uno?.noAplica ? t("cu.w.noAplicaCorto") : l.gratis ? `${t("riel.gratis")} · ${t("riel.sinLimiteConocido")}` : l.sinLimite ? t("riel.sinLimite") : l.pedidos !== undefined ? t("riel.pedidos", { n: l.pedidos.toLocaleString() }) : "—"}</b>
         ) : (
           <>
-            <Hilos pct={lleno ? 100 : l.pct} nivel={nivelHilos(nivel)} total={HILOS_RENGLON} />
-            <b>{l.estado === "marcado" ? "" : `${lleno ? 100 : l.pct} %`}</b>
+            <Hilos pct={lleno ? 100 : pct} nivel={nivelHilos(nivel)} total={HILOS_RENGLON} />
+            <b>{l.estado === "marcado" ? "" : `${lleno ? 100 : pct} %`}</b>
           </>
         )}
         {vuelve && !dos ? <small className="v-sub">{vuelve}</small> : null}

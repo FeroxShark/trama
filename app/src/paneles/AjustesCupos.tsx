@@ -37,6 +37,7 @@ import { esEnUso, estadoCuenta, hallazgo, ventanasDeSusc, type FilaResumen } fro
 import { PERFILES, SIN_CUPO, type Borrador, type Perfil, type SinCupo } from "./modelos-borrador";
 import { reservaDePerfil, ritmoSemanal, type Ritmo } from "./cupos-ritmo";
 import { AjustesCierre } from "./AjustesCierre";
+import { AjustesAros } from "./AjustesAros";
 
 const SIN_CUPO_CLAVES: Record<SinCupo, { nombre: ClaveSola; que: ClaveSola }> = {
   otro: { nombre: "cu.sinCupoOtro", que: "cu.sinCupoOtroQue" },
@@ -1036,6 +1037,7 @@ export function AjustesCupos({ Dato, b, cambiar, uso }: { Dato: FilaDato; b: Bor
 
   return (
     <>
+    <AjustesAros Dato={Dato} uso={uso} />
     <AjustesCierre Dato={Dato} b={b} cambiar={cambiar} />
     <section className="pn-sec pn-edita cu-avanzado" data-abierta={abierto ? "" : undefined}>
       <h3 className="pn-h cu-av-h">
