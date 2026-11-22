@@ -39,6 +39,7 @@ const hookMod = (await import(pathToFileURL(HOOK).href)) as {
   parsearArgs: (argv?: string[]) => { umbral: number | null; umbralTarea: number | null };
   leerColaTranscript: (ruta: string, maxBytes?: number) => string[];
   ultimoUsoDeLineas: (lineas: string[]) => { tokens: number | null; compactada: boolean };
+  extraerNotaDeTexto: (texto: string) => string | null;
   ultimaNotaDeLineas: (lineas: string[], o?: { trasCompact?: boolean }) => { texto: string; tsMs: number | null } | null;
   decidir: (o: {
     evento: string;
@@ -312,6 +313,29 @@ test("SessionStart(compact) no devuelve dos veces la misma nota en llamadas cons
   const seg2 = await hookMod.decidir({ evento: "SessionStart", source: "compact", sesion: "s-dup", transcript: tr, hilos: dir, idioma: "es" });
   assert.match(seg1?.hookSpecificOutput.additionalContext ?? "", /ESTADO REAL 2/);
   assert.equal(seg2, null);
+});
+
+test("extraerNotaDeTexto y ultimaNotaDeLineas ignoran etiquetas dentro de código inline o cercas", async () => {
+  assert.equal(hookMod.extraerNotaDeTexto("Usá `[[nota-compactar]]...[[/nota-compactar]]`."), null);
+  assert.equal(hookMod.extraerNotaDeTexto("```md\n[[nota-compactar]]\nejemplo en cerca\n[[/nota-compactar]]\n```"), null);
+  assert.equal(
+    hookMod.extraerNotaDeTexto("Ejemplo: `[[nota-compactar]]falso[[/nota-compactar]]`\n\n[[nota-compactar]]\nnota verdadera\n[[/nota-compactar]]"),
+    "nota verdadera",
+  );
+  assert.equal(
+    hookMod.extraerNotaDeTexto("[[nota-compactar]]\nEl cierre es `[[/nota-compactar]]` y sigue acá.\n[[/nota-compactar]]"),
+    "El cierre es `[[/nota-compactar]]` y sigue acá.",
+  );
+
+  // En el transcript, una explicación posterior con etiquetas en código no pisa la nota real anterior
+  const dir = nuevoDir();
+  const tr = path.join(dir, "s-cod.jsonl");
+  escribirTranscript(tr, [
+    linAsistente([{ type: "text", text: "[[nota-compactar]]nota real anterior[[/nota-compactar]]" }], { input_tokens: 100, cache_read_input_tokens: 100_000 }),
+    linAsistente([{ type: "text", text: "Explicación: usá `[[nota-compactar]]ejemplo[[/nota-compactar]]` para guardar." }], { input_tokens: 100, cache_read_input_tokens: 110_000 }),
+  ]);
+  await hookMod.decidir({ evento: "PreCompact", sesion: "s-cod", transcript: tr, hilos: dir });
+  assert.equal(readFileSync(path.join(dir, "notas", "s-cod.md"), "utf8"), "nota real anterior");
 });
 
 test("recorta a 12 000 caracteres con aviso de recorte (es y en)", () => {

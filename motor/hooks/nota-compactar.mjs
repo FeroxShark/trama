@@ -160,13 +160,85 @@ const textoDeContenido = (c) =>
           .join("\n")
       : "";
 
-/** Extrae el último bloque no vacío entre `[[nota-compactar]]` y `[[/nota-compactar]]` de un texto. */
+const TAG_NOTA_ABRE = "[[nota-compactar]]";
+const TAG_NOTA_CIERRA = "[[/nota-compactar]]";
+
+function abrirCerca(linea) {
+  const m = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(linea);
+  if (!m) return null;
+  const char = m[1][0];
+  if (char === "`" && m[2].includes("`")) return null;
+  return { char, largo: m[1].length };
+}
+
+function cierraCerca(linea, cerca) {
+  return new RegExp(`^ {0,3}${cerca.char}{${cerca.largo},}[ \\t]*$`).test(linea);
+}
+
+function buscarTagFueraDeCodigo(texto, objetivo, desde = 0) {
+  let i = desde;
+  let cerca = null;
+  while (i < texto.length) {
+    const enInicioLinea = i === 0 || texto[i - 1] === "\n";
+    if (enInicioLinea) {
+      const finLinea = texto.indexOf("\n", i);
+      const corte = finLinea === -1 ? texto.length : finLinea;
+      const linea = texto.slice(i, corte).replace(/\r$/, "");
+      if (cerca) {
+        if (cierraCerca(linea, cerca)) cerca = null;
+        i = finLinea === -1 ? texto.length : finLinea + 1;
+        continue;
+      }
+      const nueva = abrirCerca(linea);
+      if (nueva) {
+        cerca = nueva;
+        i = finLinea === -1 ? texto.length : finLinea + 1;
+        continue;
+      }
+    }
+    if (!cerca && texto[i] === "`") {
+      let largo = 1;
+      while (i + largo < texto.length && texto[i + largo] === "`") largo++;
+      let j = i + largo;
+      let encontroCierre = false;
+      while (j < texto.length) {
+        if (texto[j] === "`") {
+          let cierreLargo = 1;
+          while (j + cierreLargo < texto.length && texto[j + cierreLargo] === "`") cierreLargo++;
+          if (cierreLargo === largo) {
+            i = j + cierreLargo;
+            encontroCierre = true;
+            break;
+          }
+          j += cierreLargo;
+          continue;
+        }
+        j++;
+      }
+      if (encontroCierre) continue;
+      i += largo;
+      continue;
+    }
+    if (texto.startsWith(objetivo, i)) return i;
+    i++;
+  }
+  return -1;
+}
+
+/** Extrae el último bloque no vacío entre `[[nota-compactar]]` y `[[/nota-compactar]]` de un texto (ignorando código inline y cercas). */
 export function extraerNotaDeTexto(texto) {
-  if (typeof texto !== "string" || !texto.includes("[[nota-compactar]]")) return null;
+  if (typeof texto !== "string" || !texto.includes(TAG_NOTA_ABRE)) return null;
   let hallada = null;
-  for (const m of texto.matchAll(/\[\[nota-compactar\]\]([\s\S]*?)\[\[\/nota-compactar\]\]/g)) {
-    const limpio = m[1].trim();
+  let desde = 0;
+  while (desde < texto.length) {
+    const ini = buscarTagFueraDeCodigo(texto, TAG_NOTA_ABRE, desde);
+    if (ini === -1) break;
+    const despuesAbre = ini + TAG_NOTA_ABRE.length;
+    const fin = buscarTagFueraDeCodigo(texto, TAG_NOTA_CIERRA, despuesAbre);
+    if (fin === -1) break;
+    const limpio = texto.slice(despuesAbre, fin).trim();
     if (limpio) hallada = limpio;
+    desde = fin + TAG_NOTA_CIERRA.length;
   }
   return hallada;
 }
