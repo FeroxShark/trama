@@ -550,6 +550,8 @@ export interface PedidoAsync {
   hijoArgs: string[];
   /** PA_REPARTO_TIPO / PA_FALLBACK_RESTO para el hijo (lo que eligió el padre). */
   repartoTipo?: string;
+  /** El pedido, para mostrar la corrida mientras espera cupo o puesto (todavía no tiene `.hilo`): va en el `.jefe`, antes del fork. */
+  pedido?: { tarea: string; modelo: string; effort?: string; cuenta?: string };
   /** Por qué reparto no eligió (si falló): el hijo lo deja en `<id>.reparto-fallo` para que lo muestre el resultado. */
   repartoFallo?: string;
   fallbackResto?: string;
@@ -581,7 +583,13 @@ export async function lanzarAsync(pa: Pa, p: PedidoAsync): Promise<string> {
   // de quién es la corrida, ANTES del fork: mientras espera en cola no tiene `.corrida`
   const jefe = jefeNombre(pa);
   const jefeIdV = jefeId(pa);
-  if (!p.leer) writeFileSync(x("jefe"), `jefe=${jefe}\njefe_id=${jefeIdV}\n`);
+  if (!p.leer) {
+    const q = p.pedido;
+    const plano = (t: string) => t.replace(/[\r\n]+/g, " ").slice(0, 2000);
+    // la tarea y el modelo van acá porque en cola no hay `.hilo` ni `.running` de dónde sacarlos (y en Windows no hay /proc para recuperarlos)
+    const pedido = q ? `tarea=${plano(q.tarea)}\nmodelo=${plano(q.modelo)}\neffort=${plano(q.effort ?? "")}\ncuenta=${plano(q.cuenta ?? "")}\n` : "";
+    writeFileSync(x("jefe"), `jefe=${jefe}\njefe_id=${jefeIdV}\n${pedido}`);
+  }
   const cmd = p.comando ?? [process.execPath, process.argv[1]!];
   const env: Env = { ...pa.env, TRAMA_LIDER_ETIQUETA: "", PA_TS: ts, PA_JEFE: jefe, PA_JEFE_ID: jefeIdV, PA_ASYNC: "1", PA_REPARTO_TIPO: p.repartoTipo ?? "", PA_REPARTO_FALLO: p.repartoFallo ?? "", PA_FALLBACK_RESTO: p.fallbackResto ?? "" };
   let lanzado: number | undefined;

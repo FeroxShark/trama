@@ -256,6 +256,8 @@ interface Hecho {
   enCola: boolean;
   iniRun: string;
   tareaRun: string;
+  /** Lo que `pa --async` dejó en `<id>.jefe` antes del fork (tarea, modelo, effort, cuenta, jefe): lo único que se sabe de una corrida en cola. */
+  pedido: Record<string, string>;
   acc: string;
   listo: boolean;
   /** El código de salida del worker que dejó pa en `.listo` (o `.entregado` si ya se cobró); null en las corridas viejas sin él. */
@@ -389,6 +391,7 @@ class Hilos {
       enCola,
       iniRun,
       tareaRun,
+      pedido: enCola ? pedidoDeCola(path.join(d, `${id}.jefe`)) : {},
       acc: this.accDe.get(id) ?? "",
       listo: existsSync(path.join(d, `${id}.listo`)),
       rc: rcDurable(d, id),
@@ -400,6 +403,12 @@ class Hilos {
       cache,
     };
   }
+}
+
+/** Los campos del `.jefe` de una corrida en cola (`tarea=`, `modelo=`…); vacío si no hay o es de antes de que guardara el pedido. */
+function pedidoDeCola(f: string): Record<string, string> {
+  const t = leerOpt(f);
+  return t === null ? {} : campos(t);
 }
 
 /** El `rc=` de `<id>.listo`, o de `<id>.entregado` si la cobró un `--esperar`; null si no hay ninguno o no es un número. */
@@ -439,7 +448,7 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
   })();
   const esLeer = (H.leer ?? C.leer) === "1" || h.leer;
   // el modelo con más tokens de salida (en un empate, el último)
-  let modelo: string | null = noVacio(H.modelo);
+  let modelo: string | null = noVacio(H.modelo) ?? noVacio(h.pedido.modelo);
   if (modelo === null && Jo !== null) {
     const mu = Jo.modelUsage;
     let mejor: string | null = null;
@@ -519,15 +528,15 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
   return {
     id: h.id,
     proyecto: h.slug,
-    tarea: noVacio(H.tarea) ?? noVacio(h.tareaRun) ?? tareaT,
+    tarea: noVacio(H.tarea) ?? noVacio(h.tareaRun) ?? noVacio(h.pedido.tarea) ?? tareaT,
     titulo: noVacio(H.titulo),
     modelo,
-    effort: noVacio(H.effort),
-    cuenta: noVacio(H.cuenta),
+    effort: noVacio(H.effort) ?? noVacio(h.pedido.effort),
+    cuenta: noVacio(H.cuenta) ?? noVacio(h.pedido.cuenta),
     origen: noVacio(H.lanzo) ?? "jefe",
     sigue_de: noVacio(H.origen) ?? noVacio(C.origen),
-    jefe: noVacio(H.jefe) ?? noVacio(C.jefe),
-    jefe_id: noVacio(H.jefe_id) ?? noVacio(C.jefe_id),
+    jefe: noVacio(H.jefe) ?? noVacio(C.jefe) ?? noVacio(h.pedido.jefe),
+    jefe_id: noVacio(H.jefe_id) ?? noVacio(C.jefe_id) ?? noVacio(h.pedido.jefe_id),
     estado,
     en_cola: h.enCola,
     murio_en: murioEn,

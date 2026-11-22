@@ -189,6 +189,25 @@ test("--hilos: el código de salida durable manda: una corrida con rc≠0 o is_e
   assert.deepEqual([f.get(casos[4]![0])!.estado, f.get(casos[4]![0])!.rc], ["listo", null]);
 });
 
+test("--hilos: una corrida en cola (sin .hilo ni .running) muestra su tarea, modelo, effort, cuenta y jefe desde el .jefe (B084)", async () => {
+  const { env, estado } = sandbox({ TZ: "UTC" });
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  const id = `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}-000301-${process.pid}`;
+  const dir = path.join(estado, "demo");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, `${id}.pid`), `${process.pid}\n`);
+  writeFileSync(path.join(dir, `${id}.cola`), "esperando cupo");
+  writeFileSync(path.join(dir, `${id}.jefe`), "jefe=lider\njefe_id=abc\ntarea=hacer algo largo\nmodelo=claude-opus-5-5\neffort=high\ncuenta=extra\n");
+  const r = await pa(["--hilos", "--json"], env, { globales: { hilos: (a, x) => cmdHilos(x, a) } });
+  assert.equal(r.rc, 0, r.e);
+  const h = (JSON.parse(r.o) as { hilos: Record<string, unknown>[] }).hilos.find((x) => x.id === id)!;
+  assert.deepEqual(
+    [h.estado, h.en_cola, h.tarea, h.modelo, h.effort, h.cuenta, h.jefe, h.jefe_id],
+    ["trabajando", true, "hacer algo largo", "claude-opus-5-5", "high", "extra", "lider", "abc"],
+  );
+});
+
 test("--hilos: una lectura renueva el caché con el TTL de la última escritura principal", async () => {
   const { env, estado, proyecto, raiz } = sandbox();
   const sid = "11111111-2222-4333-8444-555555555555";

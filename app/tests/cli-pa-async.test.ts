@@ -60,6 +60,20 @@ test("lanzarAsync: deja .jefe/.log/.pid antes de volver, el hijo recibe PA_TS y 
   process.kill(pid, "SIGKILL");
 });
 
+test("lanzarAsync: el pedido (tarea, modelo, effort, cuenta) queda en el .jefe antes del fork, para mostrar la corrida en cola (B084)", { skip: soloPosix("hijo suelto con señales POSIX") }, async () => {
+  const { pa } = armar({ PA_JEFE: "jefe-1", PA_JEFE_ID: "id-1" });
+  const dir = path.join(pa.state, "demo");
+  mkdirSync(dir, { recursive: true });
+  // espera-justificada: proceso hijo se mantiene vivo en segundo plano hasta recibir SIGKILL
+  const cola = `require("fs").writeFileSync(require("path").join(${JSON.stringify(dir)},process.env.PA_TS+".cola"),"esperando cupo");setTimeout(()=>{},3000);`;
+  const ts = await lanzarAsync(pa, { proyecto: "demo", slug: "demo", dir, leer: false, hijoArgs: [], comando: hijoFalso(cola), pedido: { tarea: "hacer algo\ncon dos líneas", modelo: "claude-opus-5-5", effort: "high", cuenta: "extra" } });
+  assert.equal(
+    readFileSync(path.join(dir, `${ts}.jefe`), "utf8"),
+    "jefe=jefe-1\njefe_id=id-1\ntarea=hacer algo con dos líneas\nmodelo=claude-opus-5-5\neffort=high\ncuenta=extra\n",
+  );
+  process.kill(Number(readFileSync(path.join(dir, `${ts}.pid`), "utf8")), "SIGKILL");
+});
+
 test("lanzarAsync: --leer en cola (sin .jefe) y uno que muere antes de tomar puesto sale 1", { skip: soloPosix("hijo suelto con señales POSIX") }, async () => {
   const { pa, out, err } = armar();
   const dir = path.join(pa.state, "demo");

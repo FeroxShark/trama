@@ -340,6 +340,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
         espejo: l.espejo,
         effortPedido: l.esfuerzoPedido,
       }),
+      pedido: { tarea: l.tarea, modelo: l.modelo, effort: l.esfuerzo, cuenta: l.cuenta },
       repartoTipo: l.repartoTipoRelanzable,
       repartoFallo: l.repartoFallo,
       fallbackResto: l.fbResto,
