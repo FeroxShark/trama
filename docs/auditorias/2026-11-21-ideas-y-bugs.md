@@ -7,8 +7,8 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 ## Resumen
 
 - **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
-  - pendiente: 128
-  - arreglado: 28
+  - pendiente: 129
+  - arreglado: 27
   - arreglado a medias: 2
 - **Ideas: 102**.
 
@@ -19,7 +19,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 | El hilo: la caja y el líder en la ventana | 14 | 0 | 14 |
 | Hooks y motor | 16 | 0 | 16 |
 | Núcleo y canales | 14 | 0 | 14 |
-| El CLI de `pa` | 15 | 1 | 14 |
+| El CLI de `pa` | 15 | 0 | 15 |
 | Puentes a otros motores | 20 | 19 | 1 |
 | Reparto y cupos | 15 | 6 | 9 |
 | Sistema: instalación, actualización y servicio | 16 | 0 | 16 |
@@ -388,7 +388,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/pa/cli.ts` línea 475 (`correrPa`).
 - Arreglo: volver a revisar el contenido final al reemplazar la tarea en la línea 475, antes de relanzar async o despachar el motor. El mismo control debe cubrir el resumen por caché frío y el worktree que realmente se retoma. Agregar un test que niegue el envío del dato ficticio aunque el pedido extra sea inocuo.
 
-**B078 · Se reutiliza el puesto de un hijo que sigue vivo** (`PA-CLI-2`, severidad alta) · **ARREGLADO**
+**B078 · Se reutiliza el puesto de un hijo que sigue vivo** (`PA-CLI-2`, severidad alta) · **PENDIENTE**
 - Qué pasa: si muere `pa` y sobrevive su worker, otro `pa` puede ocupar el mismo worktree y cambiarle la rama mientras todavía trabaja. También borra el `.running` que permitía encontrar al worker anterior.
 - Dónde: `app/electron/cli/pa/puestos.ts` línea 462 (`Admision.tomarPuesto`).
 - Arreglo: después de tomar el candado del puesto y antes de aceptarlo, validar el `.running`; si su hijo sigue vivo, liberar ese puesto y tratarlo como ocupado. Agregar un test con padre muerto e hijo vivo que impida preparar el worktree.
