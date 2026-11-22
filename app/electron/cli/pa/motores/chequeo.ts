@@ -14,18 +14,27 @@ import { carpetaMotor } from "../entorno.ts";
 import { calza, dshGratis, dshModeloDe, dshProveedor, esNvidia, esOpencode, OC_MODELOS } from "./modelos.ts";
 import { privacidad } from "./privacidad.ts";
 
-/** Las rutas de los runners y los shims (PA_DSH_CORRER, PA_OPENCODE_CORRER, PA_CODEX_SHIMS o los de motor/). */
-export const dshCorrer = (env: Env) => env.PA_DSH_CORRER || path.join(carpetaMotor(env), "dsh", "correr.mjs");
-export const opencodeCorrer = (env: Env) => env.PA_OPENCODE_CORRER || path.join(carpetaMotor(env), "opencode", "correr.mjs");
 /**
- * La carpeta de los shims de git y cargo: `motor/codex/bin` (checkout, instalación de Linux) o, en el payload nativo de Windows
- * (`<raíz>\\{app,bin,node}`, sin `motor/`), `app\\codex\\bin`. Gana la primera que tiene `git.mjs` (o `git`).
+ * Una pieza de `motor/` (runners de dsh y opencode, shims de codex): en el checkout y la instalación de Linux está en `<motor>/…`; en el
+ * payload nativo de Windows (`<raíz>\\{app,bin,node}`, sin `motor/`) la copia `windows/src/payload-nativo.js` a `<raíz>\\app\\…`.
+ * Gana la primera donde existe `prueba` (o, si se pasa, `prueba2`); si no hay ninguna, la de `motor/` (para el «falta …»).
+ */
+function piezaMotor(env: Env, existe: (f: string) => boolean, partes: string[], prueba: string, prueba2?: string): string {
+  const dir = carpetaMotor(env);
+  const cand = [path.join(dir, ...partes), path.join(dir, "app", ...partes)];
+  return cand.find((c) => existe(path.join(c, prueba)) || (prueba2 !== undefined && existe(path.join(c, prueba2)))) ?? cand[0]!;
+}
+/** Las rutas de los runners (PA_DSH_CORRER, PA_OPENCODE_CORRER o los de motor/, también en el payload de Windows). */
+export const dshCorrer = (env: Env, existe: (f: string) => boolean = existsSync) =>
+  env.PA_DSH_CORRER || path.join(piezaMotor(env, existe, ["dsh"], "correr.mjs"), "correr.mjs");
+export const opencodeCorrer = (env: Env, existe: (f: string) => boolean = existsSync) =>
+  env.PA_OPENCODE_CORRER || path.join(piezaMotor(env, existe, ["opencode"], "correr.mjs"), "correr.mjs");
+/**
+ * La carpeta de los shims de git y cargo: `motor/codex/bin` (checkout, instalación de Linux) o, en el payload nativo de Windows,
+ * `app\\codex\\bin`. Gana la primera que tiene `git.mjs` (o `git`).
  */
 export function codexShims(env: Env, existe: (f: string) => boolean = existsSync): string {
-  if (env.PA_CODEX_SHIMS) return env.PA_CODEX_SHIMS;
-  const dir = carpetaMotor(env);
-  const cand = [path.join(dir, "codex", "bin"), path.join(dir, "app", "codex", "bin")];
-  return cand.find((c) => existe(path.join(c, "git.mjs")) || existe(path.join(c, "git"))) ?? cand[0]!;
+  return env.PA_CODEX_SHIMS || piezaMotor(env, existe, ["codex", "bin"], "git.mjs", "git");
 }
 /** `$TRAMA_CLAVES` o `$XDG_CONFIG_HOME/trama/claves.env` (el contrato con la app). */
 export const clavesEnv = (env: Env, plat: Plataforma = plataformaActual()) => env.TRAMA_CLAVES || path.join(configTrama(env, homeDe(env, plat), plat), "claves.env");
