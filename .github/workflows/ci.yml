@@ -4,20 +4,24 @@ on:
   push:
 
 jobs:
-  sondeo-opencode:
+  sondeo-cadena:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
+          path: trama
+      - uses: actions/checkout@v4
+        with:
+          path: sondeo-src
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: opencode por npm
-        run: npm i -g opencode-ai
-      - name: detección de Trama (CTX-53)
-        working-directory: app
-        run: |
-          where.exe opencode
-          node --input-type=module -e "const a=await import('./electron/opencode.ts'); const b=await import('./electron/cli/pa/motores/chequeo.ts'); console.log('resolverOpencode=' + a.resolverOpencode()); console.log('opencodeBin=' + JSON.stringify(b.opencodeBin(process.env)));"
+      - name: dependencias de la app
+        working-directory: trama/app
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm ci --ignore-scripts
+      - name: cadena de lanzar_worker
+        run: node sondeo-src/sondeo/cadena.mjs trama
