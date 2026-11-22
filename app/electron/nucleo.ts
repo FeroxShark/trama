@@ -86,6 +86,7 @@ import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
 import { estadoMcp } from "./mcp.ts";
 import { configActiva, fijarApagado, leerApagados } from "./mcp-apagados.ts";
 import { alternar as alternarConector, inventario as inventarioConectores } from "./conectores-claude.ts";
+import { aplicarHallazgoContexto, auditarContexto, auditoriaContexto } from "./auditoria-contexto.ts";
 import { capturarBaseContexto, catalogoContexto, desgloseContexto, previaContexto, fijarApagadoPanel, gastoSubagentes, leerApagadosPanel } from "./contexto-panel.ts";
 import { catalogo as catalogoDescubrir, instalar as instalarDescubrir, previa as previaDescubrir, type DepsDescubrir } from "./descubrir.ts";
 import { agregarCatalogo, estadoCatalogos, instalarPlugin, quitarPlugin, type DepsPlugins } from "./plugins-claude.ts";
@@ -155,7 +156,7 @@ const manejadores = new Map<string, Manejador>();
  * Actualizar Trama (`trama:*`) sí se puede por la tailnet: baja el release del tag de GitHub y corre el instalador del checkout,
  * igual que desde la PC (el dueño lo pidió para actualizar la máquina de otro sin estar sentado ahí).
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "planDia:fijar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "proyectos:papelera", "historialChats:borrar", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "agy:actualizar", "opencode:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "planDia:fijar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "proyectos:papelera", "historialChats:borrar", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "agy:actualizar", "opencode:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "contexto:auditar", "contexto:aplicarHallazgo", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -1354,6 +1355,11 @@ export function armarNucleo() {
   // La vista previa (qué cargaría un líder o worker nuevo) se lee desde cualquier lado; capturar el prompt base corre `claude -p ok` una vez por versión: sólo la PC.
   manejar("contexto:previa", (_e, x: unknown) => previaContexto(x));
   manejar("contexto:capturarBase", (_e, x: unknown) => capturarBaseContexto(x));
+  // «Revisar con IA» (auditoria-contexto.ts): un revisor por suscripción lee lo que se carga en cada mensaje y propone recortes exactos; aplicarlos
+  // reescribe archivos de la persona (con respaldo) y auditar gasta cupo y manda texto a un servicio: los dos, sólo desde la PC. Leer la última auditoría no.
+  manejar("contexto:auditar", (_e, x: unknown) => auditarContexto(x));
+  manejar("contexto:auditoria", (_e, x: unknown) => auditoriaContexto(x));
+  manejar("contexto:aplicarHallazgo", (_e, x: unknown) => aplicarHallazgoContexto(x));
   // Los subagentes que un líder lanzó con la herramienta Agent y lo que gastó cada uno (su desglose es `contexto:desglose` con `{ subagente }`).
   manejar("contexto:subagentes", (_e, x: unknown) => gastoSubagentes(x, subagentes));
   manejar("skills:catalogo", (_e, x: unknown) => catalogoContexto(x, historial));
