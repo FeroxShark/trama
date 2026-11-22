@@ -1,5 +1,10 @@
 # Changes
 
+## 0.3.29
+
+- Context panel > Preview: «Review with AI». A cheap model reads what the project loads on every message (CLAUDE.md, AGENTS.md, GEMINI.md and memory) and flags what is repeated, contradictory, outdated or long, with the before and after and how many tokens it saves per message. Nothing changes until you press «Apply» (one, a file's, or all), and a copy is saved before writing. If the file changed since the review, that finding is not applied.
+- Shared memory: Gemini, ChatGPT, DeepSeek and OpenCode chats no longer receive memory lines that look like a key, an email or a phone number either. Until now only workers removed them.
+
 ## 0.3.28
 
 - Context panel: every piece that is always loaded (system, tools, MCP, skills, memory) says «Worth it», «Doubtful» or «Spare», with an icon and the reason in one line («never used in 30 days», «duplicate of workers (user)»). At the top, «Fixed: N k per message · recoverable: M k», and each list starts with what costs the most and gets used the least.
