@@ -486,8 +486,13 @@ const DIVERGE_ARGON = "Argon libre, sin solo_final (sólo en el TS; reparto de p
 const DIVERGE_FABLE_RESUMEN = "--resumen: Fable con su propio «para qué sirve», no «no gasta cupo de pago» (sólo en el TS)";
 /** Sólo en el TS (2026-11-19): el bono del ritmo semanal va entero al más barato de su grupo y al resto en proporción al costo (Fable pierde puntos; en lectura Haiku le gana a Sonnet). */
 const DIVERGE_RITMO_BARATO = "el bono del ritmo va al más barato del grupo (sólo en el TS; reparto de python congelado)";
+/** Sólo en el TS (2026-11-22): con una marca de agotado, la ventana semanal conserva su reinicio medido (la marca no lo pisa con su hora), y ahí cambian el ritmo y el «vuelve en». */
+const DIVERGE_MARCA_CONSERVA_REINICIO = "con una marca de agotado, el reinicio semanal medido no se pisa con la hora de la marca (sólo en el TS; reparto de python congelado)";
 /** Los casos que cambian por esas reglas (comprobado caso por caso contra la salida de antes). */
 const DIVERGEN_2026_11_19 = new Map<string, string>([
+  ["--tipo con agotados, enfriados y plan", DIVERGE_MARCA_CONSERVA_REINICIO],
+  ["--tipo con el plan en otra zona horaria (cambio de hora)", DIVERGE_MARCA_CONSERVA_REINICIO],
+  ["--plan --json con plan guardado", DIVERGE_MARCA_CONSERVA_REINICIO],
   ["agy de otra cuenta: --tipo lectura --explicar", DIVERGE_ARGON],
   ["agy de otra cuenta: --tipo debug --explicar", DIVERGE_ARGON],
   ["agy de otra cuenta: --resumen", DIVERGE_FABLE_RESUMEN],
