@@ -58,6 +58,31 @@ const asciiMinus = (s: string) => s.replace(/[A-Z]/g, (c) => c.toLowerCase());
 const campoOpcional = (x: Json, k: string): { hay: boolean; v?: Json } =>
   esObjeto(x) ? { hay: true, v: x[k] } : x === null || x === undefined ? { hay: true, v: null } : { hay: false };
 
+/** Workers vivos por grupo de cupo (`tope_vivos`): default y máximo que acepta Ajustes. 0 = sin tope. */
+export const TOPE_VIVOS_DEFECTO = 3;
+export const TOPE_VIVOS_MAX = 50;
+const topeEntero = (x: Json) => typeof x === "number" && Number.isInteger(x) && x >= 0 && x <= TOPE_VIVOS_MAX;
+const topeVivosValido = (x: Json) =>
+  topeEntero(x) || (esObjeto(x) && Object.keys(x).length > 0 && Object.values(x).every(topeEntero));
+
+/** El `tope_vivos` ya leído: el de los grupos que no se nombran y el de cada grupo (0 = sin tope en ese grupo). */
+export interface TopeVivos {
+  defecto: number;
+  porGrupo: Record<string, number>;
+}
+
+/**
+ * El tope que rige a un grupo de cupo (`claude-oficial`, `gemini-4-argon`, `codex`… con `@<cuenta>` si la cuenta no es la de siempre), o
+ * `null` si ese grupo no tiene (0, o un grupo desconocido para reparto: Ollama y NVIDIA). Se busca el grupo con su cuenta, el grupo
+ * solo, su proveedor (lo anterior al primer guion: `claude` rige a `claude-oficial`) y por último `*`.
+ */
+export function topeDeGrupo(t: TopeVivos, grupo: string | null): number | null {
+  if (!grupo) return null;
+  const solo = grupo.split("@")[0]!;
+  const n = [grupo, solo, solo.split("-")[0]!].map((k) => t.porGrupo[k]).find((v) => v !== undefined) ?? t.defecto;
+  return n > 0 ? n : null;
+}
+
 /** El primer problema de un modelos.json ya parseado, en el orden del jq de modelos_cargar ("" = vale). */
 export function problemaModelos(c: Json, opts?: { env?: Env; home?: string; plat?: Plataforma }): string {
   if (!esObjeto(c)) return "no es un objeto JSON";
@@ -143,6 +168,8 @@ export function problemaModelos(c: Json, opts?: { env?: Env; home?: string; plat
   if (!nulo(c.perfil) && !/^(equilibrado|ahorro|agresivo|rendimiento)$/.test(tostring(c.perfil))) return `perfil ${tojson(c.perfil)} (equilibrado, ahorro, agresivo o rendimiento)`;
   if (!nulo(c.reserva_lider) && (typeof c.reserva_lider !== "number" || c.reserva_lider < 0 || c.reserva_lider >= 1))
     return `reserva_lider ${tojson(c.reserva_lider)} (un número de 0 a 1 o null)`;
+  if (!nulo(c.tope_vivos) && !topeVivosValido(c.tope_vivos))
+    return `tope_vivos ${tojson(c.tope_vivos)} (un entero de 0 a ${TOPE_VIVOS_MAX}, o un objeto {"*": 3, "claude": 2} de grupos a enteros; 0 = sin tope)`;
   if (!nulo(c.sin_cupo) && !/^(otro|esperar|fallar)$/.test(tostring(c.sin_cupo))) return `sin_cupo ${tojson(c.sin_cupo)} (otro, esperar o fallar)`;
   return "";
 }
@@ -308,6 +335,23 @@ export class Modelos {
     const k = [m, f].find((x) => x !== null && x in por);
     const v = k !== undefined ? por[k!] : typeof a.defecto === "number" ? a.defecto : f === "haiku" ? 300000 : null;
     return typeof v === "number" ? String(v) : "";
+  }
+
+  /**
+   * `tope_vivos` de modelos.json: un número (para todos los grupos) o `{"*": 3, "claude": 2}`; default 3, 0 = sin tope. `PA_TOPE_VIVOS`
+   * (un entero) lo pisa para todos los grupos: lo usa el arnés de paridad, porque el pa de bash no tiene este tope.
+   */
+  topeVivos(): TopeVivos {
+    const e = this.env.PA_TOPE_VIVOS;
+    if (e !== undefined && /^[0-9]+$/.test(e)) return { defecto: Number(e), porGrupo: {} };
+    const c = this.conf();
+    const v = c ? c.tope_vivos : undefined;
+    if (topeVivosValido(v ?? null) && v !== null && v !== undefined) {
+      if (typeof v === "number") return { defecto: v, porGrupo: {} };
+      const { "*": def, ...resto } = v as Record<string, number>;
+      return { defecto: def ?? TOPE_VIVOS_DEFECTO, porGrupo: resto };
+    }
+    return { defecto: TOPE_VIVOS_DEFECTO, porGrupo: {} };
   }
 
   /** `nota_compactar` de modelos.json: booleana, por defecto prendida (`true`). */
