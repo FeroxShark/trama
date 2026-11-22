@@ -57,6 +57,8 @@ Verificado en `main` (tsc ×2, vite, `npm test` y paridad 1361/1361 en cada tand
 | CTX-48 (PowerShell saltea guardias, `--leer` y recorte) | ARREGLADO en código: matcher `Bash\|PowerShell` en Windows (instalador y `settingsWorker`), `destructive-guard` con patrones de PowerShell (`Remove-Item -Recurse -Force`, `rd /s`, `Format-Volume`, `Clear-Disk`, `diskpart`), `latido` con las mismas guardias, `PowerShell` en las herramientas de `--leer` sólo en Windows, recorte de salidas en Node (`recortar-salida.mjs`). Linux sin cambios | `eb77b7d0` |
 | CTX-50 (instalador de Windows sin nota, resumen ni marca de compactación) | ARREGLADO en código: `hook-compactando.mjs` y `resumen-modelos.mjs` en Node para las dos plataformas (el resumen sólo en `startup` y `compact`), registrados por `registrarCompactacionEnAjustes` junto con `nota-compactar`; Linux migra lo registrado con `.sh` | `4f9a3459`, `f1022d3e` |
 | CTX-51 (comillas simples y `bash -c` en Windows) | ARREGLADO en código: `comillasShell` da comillas dobles en Windows; el espejo del statusline encadena el anterior con `--comando` en Node, sin `bash -c` | `11326023` |
+| CTX-43 (anillo y panel con límites distintos) | ARREGLADO: una sola cuenta (`lectura(usado, ventana, tope)` en `contexto-logica.ts`) para anillo y panel, con los mismos avisos 70/90; el tope de la corrida del worker queda en el `.hilo` (`autocompact=`) y lo leen los dos. Con el ejemplo del hallazgo, los dos dan 80 % | `0d616733` |
+| CTX-56 (rutas de Windows y `CLAUDE_CONFIG_DIR`) | ARREGLADO en código: `hilos.ts` compara la carpeta con `claveRuta` (sin mayúsculas ni `\` contra `/` en Windows), `excluida` sin mayúsculas en Windows, `CLAUDE_CONFIG_DIR` respetado en `contexto-local.ts`, `lanzar.ts` y `worktrees.ts`. Queda `memoriaDeSesion` comparando rutas armadas por ella misma (sin efecto práctico). FALTA EN Windows: `pa --hilos` con `c:\` contra `C:\` en una máquina real | `e5a12af3` |
 
 Paquetes del plan:
 
@@ -65,7 +67,7 @@ Paquetes del plan:
 - P3 (workers de otros motores) y P8 (ventanas y medidores): hechos e integrados. Verificado: tsc ×2, vite, `npm test` 4236/4236, paridad 1361/1361.
 - P1, P2, P4 y P6: hechos e integrados. Ferox dejó la elección de paquetes en manos del líder.
 - P9: integrado entero (P9b rutas y textos; P9a guardias y hooks). FALTA EN Windows, en una máquina real: que Claude Code corra los hooks como `"node.exe" "ruta"` y que el matcher `Bash|PowerShell` dispare la guardia con la herramienta `PowerShell`; `recortar-salida.mjs` con `powershell.exe` de verdad (salida recortada y código de salida); `resumen-modelos.mjs` llamando a `bin\reparto.cmd`; el statusline encadenado con `--comando` bajo `cmd.exe`; que `claude --tools` acepte `PowerShell` en un worker `--leer`.
-- En curso: CTX-43 y CTX-56 (un solo cálculo de porcentaje para anillo y panel; rutas de Windows sin distinguir mayúsculas).
+- P8 completo con CTX-43 y CTX-56 (ver la tabla).
 
 Prueba del worker Codex (`20261122-025216-1422372`, hilo-lider): funciona. Commit automático de `pa` (`37bc0262`), tests de cola 22/22. Lo que quedó «NO ARREGLADO» en ese reporte son HILO-LIDER-1, 2, 3 y 14: el brief prohibía tocar `app/src/` (interfaz) y los cuatro arreglos son de interfaz y traducciones. Falta un brief que sí permita `app/src/`:
 - HILO-LIDER-1: una confirmación tardía pisa la elección de modelo en la caja.
