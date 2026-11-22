@@ -41,7 +41,7 @@ const commits = (d: Pick<DatosPasar, "commits" | "tope">) =>
 
 export function promptRetomar(d: DatosRetomar): string {
   const p = arg(d.proyecto);
-  const donde = d.ruta ?? `la carpeta de ${d.proyecto}`;
+  const donde = d.ruta ? arg(d.ruta) : `la carpeta de ${d.proyecto}`;
   const integrar = `pa ${p} --integrar <id>${d.tests ? " --tests" : ""}`;
   return [
     `Retomá una corrida de \`pa\` que quedó sin cerrar. ${Dueno()} no quiere mergear a mano: hacete cargo vos.`,

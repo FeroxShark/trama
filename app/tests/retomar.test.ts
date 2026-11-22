@@ -60,3 +60,10 @@ test("con muchos commits, sólo el tope; con un número, el número; sin rama lo
   assert.ok(promptRetomar({ ...base, commits: 3 }).includes("- Commits: 3"));
   assert.ok(promptRetomar({ ...base, rama: null }).includes("- Sin rama"));
 });
+
+test("promptRetomar: escapa rutas con espacios en git -C", () => {
+  const p = promptRetomar({ ...base, ruta: "/home/ana/Mis Proyectos/atlas" });
+  assert.ok(p.includes('git -C "/home/ana/Mis Proyectos/atlas" log --oneline'));
+  assert.ok(p.includes('git -C "/home/ana/Mis Proyectos/atlas" diff HEAD...'));
+  assert.ok(p.includes("- Proyecto: Atlas Web (/home/ana/Mis Proyectos/atlas)"));
+});
