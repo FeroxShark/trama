@@ -11,7 +11,8 @@ import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { envSinNavegador, hallarAgy, hallarCodex, resolverClaude } from "../binario.ts";
+import { envSinNavegador, hallarAgy, hallarClaude, hallarCodex } from "../binario.ts";
+import { haySesionClaude } from "../credenciales-claude.ts";
 import { hijoEnGrupo, matarArbol } from "../procesos.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
@@ -1839,7 +1840,14 @@ function dshOfertas(cfg: Obj, now: Date): [string, string, string, boolean][] {
 function claudeInstalado(): boolean {
   if (E.REPARTO_CLAUDE === "0") return false;
   if (E.REPARTO_CUPOS_FIJOS) return true;
-  return resolverClaude(E, home(), accesoX) !== "claude" || [path.join(home(), ".local", "bin", "claude"), path.join(home(), ".claude", "local", "claude")].some(accesoX);
+  return hallarClaude(E, home(), accesoX) !== null || [path.join(home(), ".local", "bin", "claude"), path.join(home(), ".claude", "local", "claude")].some(accesoX);
+}
+
+/** ¿La Claude «de siempre» tiene sesión? Hay un `.credentials.json` con `claudeAiOauth` en su carpeta, o una clave/token en el entorno (sólo se mira que exista). */
+function claudeConSesion(): boolean {
+  if (E.REPARTO_CUPOS_FIJOS || E.REPARTO_CLAUDE === "1") return true; // cupos de prueba: no se mira el disco
+  if (E.ANTHROPIC_API_KEY || E.CLAUDE_CODE_OAUTH_TOKEN) return true;
+  return haySesionClaude(E.CLAUDE_CONFIG_DIR || path.join(home(), ".claude"));
 }
 
 function rateLimitsCodex(now: Date): Obj {
@@ -2751,6 +2759,8 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
 
   const ofertasDsh = dshOfertas(cfg, now);
   if (!claudeInstalado()) claudes = [];
+  // sin sesión la Claude de siempre no se ofrece; las cuentas agregadas (con `cuenta` propia) traen su propia carpeta y sesión
+  else if (!claudeConSesion()) claudes = claudes.filter((c) => suf(get(c, "cuenta")) !== "");
 
   const carga = cargaPorGrupo(now);
   const rinde = rindeDeModelos(now);
@@ -3030,6 +3040,9 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     if (calidad < minimo) {
       cand.descartado_por = `calidad ${fn(calidad)} menor que la ${fn(minimo)} que pide ${tipo}`;
       cand.duro = true;
+      // un local sin calidad medida (la 35 es una estimación) no puede dejar a la persona sin worker si es lo único que hay: si no queda
+      // ningún candidato sin descartar, `elegir` relaja la calidad (no el excluido ni el no disponible)
+      if (origen === "estimada" && !excluidoPor(loc.id, cfg.excluir, "local") && !excluidoPor(loc.id, noDisponibles(), "local")) cand.duro_calidad = true;
     } else if (excluidoPor(loc.id, cfg.excluir, "local")) {
       cand.descartado_por = `excluido en modelos.json (excluir: ${excluidoPor(loc.id, cfg.excluir, "local")})`;
       cand.duro = true;
