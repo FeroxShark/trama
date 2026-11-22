@@ -139,9 +139,11 @@ export const activo = (it: Item) => it.estado === "trabajando" || it.estado === 
  * falló y, si no hay un líder vivo que se haga cargo (`conLider`), lo que
  * espera una decisión y lo que dejó una rama con commits sin integrar.
  */
-export function seOculta(it: Item, conLider: boolean): boolean {
+export function seOculta(it: Item, conLider: boolean, ahora?: number): boolean {
   // Le falta información: no se pliega en «N terminados», el chip es lo que dice que el trabajo quedó a medias.
   if (activo(it) || it.estado === "murio" || it.estado === "falta-info") return false;
+  // Entregó pero falló hace poco: no se pliega, «No terminó» no puede verse como un «Terminó» más.
+  if (esFallo(it, ahora)) return false;
   if (conLider || cerrado(it.estado)) return true;
   // Sin líder la decisión es del usuario, aunque la haya lanzado uno (`estadoVisto` la muestra como terminada).
   if (it.estado === "decision" || it.h.estado === "decision") return false;
@@ -163,11 +165,19 @@ export const aLaVista = (it: Item, conLider: boolean): boolean => activo(it) || 
  */
 export type Atencion = "fallo" | "decision";
 
-export const esFallo = (it: Item) => it.estado === "murio" && !frenado(it);
+/** Un `entregado` que falló sólo pide atención si terminó hace menos de esto: los viejos llevan palabra e ícono, pero no chip (B149). */
+export const FALLO_RECIENTE_S = 86400;
+
+/** Un worker entregado que falló (rc ≠ 0 o `is_error`): «No terminó». */
+export const noTermino = (it: Item) => it.estado === "entregado" && it.h.fallo === true;
+
+/** Falló y todavía cuenta: murió sin que lo frenara `pa --parar`, o entregó fallado hace menos de 24 h. `ahora` en epoch s (inyectable en tests). */
+export const esFallo = (it: Item, ahora: number = Math.floor(Date.now() / 1000)) =>
+  (it.estado === "murio" && !frenado(it)) || (noTermino(it) && ahora - fin(it.h) < FALLO_RECIENTE_S);
 
 /** `resueltos` (`atencion-vigente.ts`): los workers que ya no piden atención (fallo relanzado, visto, decisión contestada). */
-export const atencionItem = (it: Item, resueltos?: ReadonlySet<string>): Atencion | null =>
-  resueltos?.has(it.h.id) ? null : esFallo(it) ? "fallo" : it.estado === "decision" ? "decision" : null;
+export const atencionItem = (it: Item, resueltos?: ReadonlySet<string>, ahora?: number): Atencion | null =>
+  resueltos?.has(it.h.id) ? null : esFallo(it, ahora) ? "fallo" : it.estado === "decision" ? "decision" : null;
 
 /** El líder espera tu respuesta: terminó su turno o pide algo (no cuenta si responde ni si no tiene proceso). */
 export const liderEspera = (l: Lider) => !!l.espera && !l.ocupado && !l.caido;
@@ -575,7 +585,7 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
   // Lo que no trabaja de una carpeta con los terminados ocultos, plegado siempre.
   // Buscando, también lo que falló y lo cerrado: los resultados no se despliegan todos.
   const plegar = (it: Item, p: string, conLider: boolean) =>
-    (ocultos?.has(p) && !activo(it)) || seOculta(it, conLider) || (buscando && !activo(it) && (it.estado === "murio" || cerrado(it.estado)));
+    (ocultos?.has(p) && !activo(it)) || seOculta(it, conLider, ahora) || (buscando && !activo(it) && (it.estado === "murio" || cerrado(it.estado)));
 
   const sueltos: Item[] = [];
   for (const h of hilos) {
