@@ -59,6 +59,12 @@ Verificado en `main` (tsc ×2, vite, `npm test` y paridad 1361/1361 en cada tand
 | CTX-51 (comillas simples y `bash -c` en Windows) | ARREGLADO en código: `comillasShell` da comillas dobles en Windows; el espejo del statusline encadena el anterior con `--comando` en Node, sin `bash -c` | `11326023` |
 | CTX-43 (anillo y panel con límites distintos) | ARREGLADO: una sola cuenta (`lectura(usado, ventana, tope)` en `contexto-logica.ts`) para anillo y panel, con los mismos avisos 70/90; el tope de la corrida del worker queda en el `.hilo` (`autocompact=`) y lo leen los dos. Con el ejemplo del hallazgo, los dos dan 80 % | `0d616733` |
 | CTX-56 (rutas de Windows y `CLAUDE_CONFIG_DIR`) | ARREGLADO en código: `hilos.ts` compara la carpeta con `claveRuta` (sin mayúsculas ni `\` contra `/` en Windows), `excluida` sin mayúsculas en Windows, `CLAUDE_CONFIG_DIR` respetado en `contexto-local.ts`, `lanzar.ts` y `worktrees.ts`. Queda `memoriaDeSesion` comparando rutas armadas por ella misma (sin efecto práctico). FALTA EN Windows: `pa --hilos` con `c:\` contra `C:\` en una máquina real | `e5a12af3` |
+| CTX-19 (cómo resolver una FALTA, repetido) | ARREGLADO con CTX-7 y CTX-14: va una vez por aviso | `7c7fef32` |
+| CTX-29 (`resumen-modelos` en cada `SessionStart`) | ARREGLADO con CTX-50: sólo en `startup` y `compact` | `4f9a3459`, `f1022d3e` |
+| CTX-32 (lectura del flujo de Codex) | ARREGLADO con CTX-38 | `20a53d1d` |
+| CTX-33 (`PowerShell` fuera de `--leer` y de las guardias) | ARREGLADO con CTX-48 | `eb77b7d0` |
+| CTX-26 (la tarea al 60 % compacta antes del tope si ya hay nota) | Así está pensado: con la nota ya escrita, compactar en el fin de turno es más barato que esperar a la compactación nativa a mitad de una tarea | — |
+| CTX-27, CTX-28 | REFUTADO (ver la tabla de hallazgos) | — |
 
 Paquetes del plan:
 
