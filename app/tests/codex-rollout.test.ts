@@ -136,7 +136,8 @@ test("disco real: CODEX_HOME, sessions/AAAA/MM/DD y la cola de un archivo que cr
   mkdirSync(path.join(tmp, "cx", "sessions", "2026", "9", "3"), { recursive: true });
   const archivo = path.join(dia, `rollout-2026-11-22T03-56-27-${TH}.jsonl`);
   writeFileSync(archivo, [otra, tc(127_650, { cacheado: 127_000, ventana: 475_000, total: 3_770_243 })].join("\n") + "\n");
-  const o = { env: { CODEX_HOME: path.join(tmp, "cx") }, plat: "linux" as const };
+  // disco real: la plataforma de la máquina (una ruta de Windows nunca va con "linux")
+  const o = { env: { CODEX_HOME: path.join(tmp, "cx") }, plat: process.platform === "win32" ? ("win32" as const) : ("linux" as const) };
   assert.equal(hallarRollout(TH, o), archivo);
   assert.deepEqual(contextoDeThread(TH, o), { contexto: 127_650, cacheado: 127_000, salida: 50, ventana: 475_000 });
   appendFileSync(archivo, tc(131_000) + "\n");
