@@ -133,7 +133,17 @@ function leerLado(): { thread_id: string | null; contexto: number | null } {
 
 function guardarLado(id: string, contexto: number | null = leerLado().contexto) {
   try {
-    writeFileSync(LADO, JSON.stringify({ version: 1, sid, thread_id: id, modelo, ...(contexto ? { contexto } : {}) }) + "\n");
+    const texto = JSON.stringify({ version: 1, sid, thread_id: id, modelo, ...(contexto ? { contexto } : {}) }) + "\n";
+    // Entero o nada: el main lo lee mientras el puente lo escribe, y un archivo a medias se leería como «sin conversación».
+    const tmp = `${LADO}.${process.pid}.tmp`;
+    try {
+      writeFileSync(tmp, texto);
+      renameSync(tmp, LADO);
+    } catch {
+      // Windows no deja renombrar encima de un archivo que otro tiene abierto: se escribe directo.
+      rmSync(tmp, { force: true });
+      writeFileSync(LADO, texto);
+    }
   } catch {
     /* se pierde la continuidad: la próxima vez se repite lo hablado */
   }
@@ -321,15 +331,18 @@ async function turno(m: Mensaje) {
   const imagenes = guardarImagenes(m);
   const lado = leerLado();
   const previo = hablado();
-  anotar({ type: "user", message: { role: "user", content: m.texto } });
+  // Sin esto un mensaje de sólo imágenes quedaba vacío en el transcript (y en lo hablado que se repite).
+  anotar({ type: "user", message: { role: "user", content: m.imagenes.length ? `${m.texto}\n[${m.imagenes.length} imagen(es) adjunta(s)]`.trim() : m.texto } });
+  // Si alguna imagen no se pudo guardar, codex lo sabe (si no, contestaría como si no hubiera venido nada).
+  const textoCodex = imagenes.length < m.imagenes.length ? `${m.texto}\n[${dueno()} adjuntó ${m.imagenes.length} imagen(es), pero no se pudieron guardar para que las veas; pedile que las describa.]`.trim() : m.texto;
   const tr = new Traductor({ sid, modelo, contextoPrevio: lado.contexto });
   tr.conversacion = lado.thread_id;
-  const v = await correrCodex(lado.thread_id ? m.texto : conPrefacio(m.texto, previo), lado.thread_id, imagenes, tr);
+  const v = await correrCodex(lado.thread_id ? textoCodex : conPrefacio(textoCodex, previo), lado.thread_id, imagenes, tr);
   let ultimo = tr;
   if (v.sinConversacion && !interrumpido) {
     // codex no encontró la conversación: una nueva con lo hablado.
     ultimo = new Traductor({ sid, modelo, contextoPrevio: lado.contexto });
-    await correrCodex(conPrefacio(m.texto, previo), null, imagenes, ultimo);
+    await correrCodex(conPrefacio(textoCodex, previo), null, imagenes, ultimo);
   }
   if (ultimo.conversacion && ultimo.contexto) guardarLado(ultimo.conversacion, ultimo.contexto);
   cerrarTurno();
