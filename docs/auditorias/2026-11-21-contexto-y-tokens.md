@@ -23,7 +23,7 @@ Los hallazgos de los dos informes nuevos que ya estaban como CTX-n no se copiaro
 - Siempre cargado en el líder del home: instrucciones 4 187 tokens (global 346, `~/CLAUDE.md` 1 595, stub 36, `AGENTS.md` de Trama 2 029, `MEMORY.md` 181; estimado, caracteres/4).
 - Lo que hoy se puede achicar sin cambiar lo que ve la persona: podas del líder (CTX-1, CTX-6), AGENTS.md duplicado en agy y codex (CTX-5), MCP y skills en workers de otros motores (CTX-4), tope total del MCP `trama` (CTX-7).
 - Cuentas y ventanas: lo más serio es que hay dos `ventanaDe` que no coinciden (CTX-37) y que el panel, el anillo y el hook de la nota usan bases distintas para el mismo porcentaje (CTX-43, CTX-44). Ninguno gasta tokens: cambian cuándo se avisa o se compacta.
-- Windows contra Linux: en Windows las guardias y el recorte de salidas sólo miran la herramienta `Bash`, y la terminal por defecto es PowerShell (CTX-48); `--resume` entre árboles pierde la sesión (CTX-49); el instalador nativo no registra la nota ni el resumen de modelos (CTX-50). Es lectura de código: no se corrió nada en Windows.
+- Windows contra Linux: en Windows las guardias y el recorte de salidas sólo miran la herramienta `Bash`, y la terminal por defecto es PowerShell (CTX-48); `--resume` entre árboles perdía la sesión (CTX-49, arreglado en la 0.3.19); el instalador nativo no registra la nota ni el resumen de modelos (CTX-50). Es lectura de código: no se corrió nada en Windows.
 - Del carril de `nota-compactar` ya se arregló en `main` (662a943c) que el líder use el `autoCompactWindow` del settings; sigue sin hacerlo el worker (CTX-2) y Gemini subestima su contexto porque descarta el caché leído (CTX-3).
 
 ## A dónde van los tokens hoy
