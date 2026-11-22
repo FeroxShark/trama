@@ -36,7 +36,7 @@ const ultimaMedicion = new Map<string, Medicion>();
 const ultimoDesglose = new Map<string, { firma: string; d: Desglose }>();
 /** Dónde está el transcript de cada worker: no cambia mientras viva su sesión, así que no se vuelve a buscar en `projects/` en cada refresco. */
 const rutaWorker = new Map<string, string>();
-/** Un pedido por vez por líder o worker: si el refresco automático se cruza con otro, el segundo espera al primero. */
+/** Un pedido por vez por líder, worker o subagente: si se cruza con otro, el segundo espera al primero. */
 const enVuelo = new Map<string, Promise<Desglose>>();
 const TOPE = 40;
 
@@ -84,12 +84,15 @@ async function conTopeDeLider(d: Desglose, sid: string): Promise<Desglose> {
 }
 
 /**
- * El desglose de un líder (`{ lider: sid }`) o de un worker de `pa` (`{ worker: id }`). Líder de Claude vivo: su `/context` (exacto). Si no:
- * su transcript (estimado). Gemini, dsh y OpenCode: sin desglose. `fresco` (el botón de refrescar) salta lo guardado.
+ * El desglose de un líder (`{ lider: sid }`), un worker (`{ worker: id }`) o un subagente (`{ subagente: { lider: sid, id } }`).
+ * Líder de Claude vivo: su `/context` (exacto). Si no: su transcript (estimado). `fresco` salta lo guardado.
  */
 export async function desgloseContexto(x: unknown): Promise<Desglose> {
   const o = x && typeof x === "object" ? (x as Record<string, unknown>) : {};
-  const clave = typeof o.lider === "string" ? `lider:${o.lider}` : typeof o.worker === "string" ? `worker:${o.worker}` : null;
+  const sub = o.subagente && typeof o.subagente === "object" ? (o.subagente as Record<string, unknown>) : null;
+  const clave = typeof o.lider === "string" ? `lider:${o.lider}`
+    : sub ? `subagente:${typeof sub.lider === "string" ? sub.lider : ""}:${typeof sub.id === "string" ? sub.id : ""}`
+    : typeof o.worker === "string" ? `worker:${o.worker}` : null;
   if (!clave) throw errorT("main.apagadoRaro", { v: "?" });
   const en = enVuelo.get(clave);
   if (en) return en;

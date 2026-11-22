@@ -499,6 +499,24 @@ test("CLI por spawnSync: siempre sale con 0, sin salida si no corresponde, y flu
 
 // ============================================================================ Configuración nota_compactar, porcentajes y umbralesNota
 
+test("el aviso suave muestra la ocupación con el porcentaje configurado o el 85 por defecto", async (t) => {
+  const dir = nuevoDir();
+  const tr = path.join(dir, "sesion.jsonl");
+  const modelos = path.join(dir, "modelos.json");
+  const anterior = process.env.TRAMA_MODELOS;
+  t.after(() => {
+    if (anterior === undefined) delete process.env.TRAMA_MODELOS;
+    else process.env.TRAMA_MODELOS = anterior;
+  });
+  process.env.TRAMA_MODELOS = modelos;
+  escribirTranscript(tr, [linAsistente([{ type: "text", text: "trabajando" }], { input_tokens: 120_000 })]);
+  const aviso = (sesion: string, umbral: number) =>
+    hookMod.decidir({ evento: "PostToolUse", sesion, transcript: tr, umbral, umbralTarea: 120_000, hilos: dir, idioma: "es" });
+  assert.match((await aviso("predeterminado", 170_000))?.hookSpecificOutput.additionalContext ?? "", /al 60 %/);
+  writeFileSync(modelos, JSON.stringify({ nota_compactar_pct: 70 }));
+  assert.match((await aviso("configurado", 140_000))?.hookSpecificOutput.additionalContext ?? "", /al 60 %/);
+});
+
 test("nota_compactar, nota_compactar_pct y nota_compactar_tarea_pct en modelos.json y umbralesNota", async () => {
   assert.equal(leerConfig({}).nota_compactar, undefined);
   assert.equal(leerConfig({ nota_compactar: false }).nota_compactar, false);

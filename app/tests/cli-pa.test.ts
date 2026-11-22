@@ -153,6 +153,35 @@ test("--hilos: un resultado con FALTA (no vacía ni «nada») queda en falta-inf
   assert.equal(est.get(casos[2]![0]), "decision", "FALTA vacía no cuenta");
 });
 
+test("--hilos: una lectura renueva el caché con el TTL de la última escritura principal", async () => {
+  const { env, estado, proyecto, raiz } = sandbox();
+  const sid = "11111111-2222-4333-8444-555555555555";
+  const id = "20261121-000100-4401";
+  const dir = path.join(estado, "demo");
+  const proyectosClaude = path.join(raiz, "proyectos-claude");
+  const transcripts = path.join(proyectosClaude, "demo");
+  const desde = Date.now() - 2 * 60 * 1000;
+  mkdirSync(dir, { recursive: true });
+  mkdirSync(transcripts, { recursive: true });
+  writeFileSync(path.join(dir, `${id}.hilo`), `inicio=${Math.floor(desde / 1000)}\ntarea=una tarea\n`);
+  writeFileSync(path.join(dir, `${id}.sid`), sid);
+  const mensaje = (min: number, usage: object, isSidechain = false) =>
+    JSON.stringify({ type: "assistant", cwd: proyecto, timestamp: new Date(desde + min * 60_000).toISOString(), isSidechain, message: { usage } });
+  const escrituraLarga = { cache_creation: { ephemeral_1h_input_tokens: 30 } };
+  writeFileSync(path.join(transcripts, `${sid}.jsonl`), [
+    mensaje(0, escrituraLarga),
+    mensaje(1, { cache_creation: { ephemeral_5m_input_tokens: 30 } }),
+    mensaje(1.25, { cache_read_input_tokens: 300 }),
+    mensaje(1.5, escrituraLarga, true),
+    mensaje(1.75, { input_tokens: 100 }),
+  ].join("\n") + "\n");
+  const r = await pa(["--hilos", "--json", "--todo"], { ...env, PA_PROJ: proyectosClaude }, { globales: { hilos: (a, x) => cmdHilos(x, a) } });
+  assert.equal(r.rc, 0, r.e);
+  const hilo = JSON.parse(r.o).hilos.find((h: { id: string }) => h.id === id);
+  assert.equal(hilo?.cache_ttl_s, 300);
+  assert.equal(hilo?.cache_vence, Math.floor((desde + 75_000) / 1000) + 300);
+});
+
 // ------------------------------------------------------------------------------------------- parseo
 
 test("parseo: valores, flags que exportan y la tarea", () => {

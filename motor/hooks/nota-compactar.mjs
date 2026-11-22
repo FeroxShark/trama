@@ -36,6 +36,18 @@ const leerJson = (f) => {
   }
 };
 
+/** El porcentaje fuerte guardado en la misma configuración que usan la app y `pa`. */
+function porcentajeNota() {
+  const win = process.platform === "win32";
+  const casa = win ? env.USERPROFILE || env.HOME || homedir() : env.HOME || homedir();
+  const dir = win
+    ? path.join(env.LOCALAPPDATA || path.join(casa, "AppData", "Local"), "trama", "config")
+    : path.join(env.XDG_CONFIG_HOME || path.join(casa, ".config"), "trama");
+  const archivo = env.TRAMA_MODELOS ?? env.HILOS_MODELOS ?? path.join(dir, "modelos.json");
+  const pct = leerJson(archivo)?.nota_compactar_pct;
+  return Number.isInteger(pct) && pct >= 50 && pct <= 95 ? pct : 85;
+}
+
 /** El idioma de la app (`preferencias.json` de su estado); sin él, el de la terminal; por defecto `es`. */
 function idiomaDeLaApp(hilos = estadoHilos()) {
   const p = leerJson(path.join(hilos, "preferencias.json"));
@@ -560,7 +572,7 @@ export async function decidir({
     } catch {
       return null;
     }
-    const pct = conFuerte ? Math.min(99, Math.max(1, Math.round((uso.tokens * 85) / umbral))) : null;
+    const pct = conFuerte ? Math.min(99, Math.max(1, Math.round((uso.tokens * porcentajeNota()) / umbral))) : null;
     const { textoPedidoNotaSuave } = await cargarTextos();
     return {
       hookSpecificOutput: {

@@ -7,6 +7,7 @@ import {
   desdeClaude,
   desdeTranscript,
   medirConRespaldo,
+  pedidosDe,
   ultimaCompactacion,
   usosDe,
   type Desglose,
@@ -298,6 +299,20 @@ test("compactar: el panel estimado dice con cuánto quedó, no lo de antes", () 
   assert.equal(desdeTranscript([pedido("a", 20_000), borde("2026-11-05T07:29:55.244Z", 25_578), pedido("c", 31_000)], compactar).usado, 31_000);
   // Sin `postTokens` no se sabe: nunca el número viejo.
   assert.equal(desdeTranscript([pedido("a", 262_863), borde("2026-11-05T07:29:55.244Z")], compactar).usado, null);
+});
+
+test("compactar: los sintéticos, los errores y el uso en cero dejan vigente postTokens", () => {
+  const hastaCompactar = [pedido("a", 180_000), borde("2026-11-05T07:29:55.244Z", 20_000)];
+  const siguientes = [
+    pedido("sin-uso", 0),
+    pedido("sintetico", 50).replace("claude-opus-5-5", "<synthetic>"),
+    JSON.stringify({ ...JSON.parse(pedido("error", 100)), isApiErrorMessage: true }),
+  ];
+  for (const linea of siguientes) {
+    const lineas = [...hastaCompactar, linea];
+    assert.equal(desdeTranscript(lineas, compactar).usado, 20_000);
+    assert.deepEqual(pedidosDe(lineas).map((p) => p.total), [180_000]);
+  }
 });
 
 test("compactar: una medición de antes de compactar no sirve de respaldo", async () => {

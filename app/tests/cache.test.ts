@@ -144,6 +144,6 @@ test("TTL medido del transcript: manda lo que escribió el pedido (1 h o 5 min),
   assert.equal(dice(cacheDe(null, { ultimo: AHORA - 6 * MIN, pedido: 0, ttl: t5 }, "claude-opus-5-5"), AHORA), "Uncached");
   // Un pedido que sólo leyó caché no cambia el TTL medido antes (lo conserva `ttl` de la app).
   assert.equal(pedidoDe(linea({ ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 }))!.ttl, null);
-  // Un usage con mezcla (1 h primero, 5 min después en el prompt): el pedido cuenta como 1 h.
-  assert.equal(ttlDeUso({ cache_creation: { ephemeral_1h_input_tokens: 10, ephemeral_5m_input_tokens: 10 } }), HORA);
+  // Si escribió ambos, el prefijo de 1 h va primero y la última escritura dura 5 min.
+  assert.equal(pedidoDe(linea({ ephemeral_1h_input_tokens: 10, ephemeral_5m_input_tokens: 10 }))!.ttl, 300);
 });

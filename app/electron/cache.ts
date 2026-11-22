@@ -70,10 +70,10 @@ export function cacheDe(sl: DeStatusline | null, app: DeApp | null, modelo?: str
   return { cache_ttl_s: ttl, cache_vence: Math.max(deApp ?? 0, deSl ?? 0) };
 }
 
-/** El TTL con el que un pedido escribió el caché (`usage.cache_creation`); `null` si sólo leyó. */
+/** El TTL de la última escritura del pedido (la de 5 min va después de la de 1 h); `null` si no se conoce. */
 export function ttlDeUso(usage: any): number | null {
   const cc = usage?.cache_creation ?? {};
-  return cc.ephemeral_1h_input_tokens > 0 ? 3600 : cc.ephemeral_5m_input_tokens > 0 ? 300 : null;
+  return cc.ephemeral_5m_input_tokens > 0 ? 300 : cc.ephemeral_1h_input_tokens > 0 ? 3600 : null;
 }
 
 /**
@@ -89,7 +89,12 @@ export function pedidoDe(linea: string): { ttl: number | null } | null {
   } catch {
     return null;
   }
-  if (o?.type !== "assistant" || o.parent_tool_use_id) return null;
+  return pedidoDeMensaje(o);
+}
+
+/** La misma detección para un mensaje ya parseado del transcript. */
+export function pedidoDeMensaje(o: any): { ttl: number | null } | null {
+  if (o?.type !== "assistant" || o.isSidechain === true || o.parent_tool_use_id || o.isApiErrorMessage === true || o.message?.model === "<synthetic>") return null;
   const u = o.message?.usage;
   if (!u) return null;
   const ttl = ttlDeUso(u);

@@ -68,12 +68,13 @@ test("sin ruta o sin archivo: nada", async () => {
 
 // El panel de contexto de un worker, de punta a punta: el transcript crece y el desglose lo sigue; sin cambios no se recalcula; `fresco`
 // salta lo guardado. Va con un HOME, un PA_STATE y un CLAUDE_CONFIG_DIR de mentira (el main los lee al cargarse).
+const casa = tmp();
+process.env.HOME = casa;
+process.env.XDG_CONFIG_HOME = path.join(casa, "config");
+process.env.CLAUDE_CONFIG_DIR = path.join(casa, "claude");
+process.env.PA_STATE = path.join(casa, "pa");
+
 test("el desglose de un worker sigue a su transcript que crece", async () => {
-  const casa = tmp();
-  process.env.HOME = casa;
-  process.env.XDG_CONFIG_HOME = path.join(casa, "config");
-  process.env.CLAUDE_CONFIG_DIR = path.join(casa, "claude");
-  process.env.PA_STATE = path.join(casa, "pa");
   const { desgloseContexto } = await import("../electron/contexto-panel.ts");
 
   const sid = "7f1c2a40-0000-4000-8000-000000000001";
@@ -107,4 +108,25 @@ test("el desglose de un worker sigue a su transcript que crece", async () => {
   const [a, b] = await Promise.all([desgloseContexto({ worker: ID_W }), desgloseContexto({ worker: ID_W })]);
   assert.equal(a, b);
   assert.equal(a.usado, 7000);
+});
+
+test("el panel lee cada subagente aunque los pedidos lleguen juntos", async () => {
+  const { desgloseContexto } = await import("../electron/contexto-panel.ts");
+  const dir = path.join(casa, "claude", "projects", "proyecto-con-subagentes");
+  const lider = "7f1c2a40-0000-4000-8000-000000000002";
+  const otroLider = "7f1c2a40-0000-4000-8000-000000000003";
+  const pedidos = [
+    { lider, id: "agente-uno", tokens: 1000 },
+    { lider, id: "agente-dos", tokens: 2000 },
+    { lider: otroLider, id: "agente-uno", tokens: 3000 },
+  ];
+  for (const p of pedidos) {
+    const subagents = path.join(dir, p.lider, "subagents");
+    mkdirSync(subagents, { recursive: true });
+    writeFileSync(path.join(dir, `${p.lider}.jsonl`), "{}\n");
+    const linea = JSON.stringify({ type: "assistant", isSidechain: true, message: { id: "m1", usage: { input_tokens: p.tokens } } });
+    writeFileSync(path.join(subagents, `agent-${p.id}.jsonl`), linea + "\n");
+  }
+  const desgloses = await Promise.all(pedidos.map(({ lider, id }) => desgloseContexto({ subagente: { lider, id } })));
+  assert.deepEqual(desgloses.map((d) => [d.quien.tipo, d.quien.id, d.usado]), pedidos.map((p) => ["subagente", p.id, p.tokens]));
 });

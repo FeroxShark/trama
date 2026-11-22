@@ -4,6 +4,7 @@
 // hay jq), con las mismas reglas: `//` sólo cae con null (un "" cuenta), `.[a:b]` cuenta caracteres y el JSON sale con sangría de 2.
 import { closeSync, existsSync, fstatSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import path from "node:path";
+import { pedidoDeMensaje } from "../../cache.ts";
 import { registroProyectos } from "../../rutas.ts";
 import { git } from "../base/git.ts";
 import { resolverProyecto } from "../proyecto-ruta.ts";
@@ -223,16 +224,17 @@ function deIso(t: unknown): number | null {
   return Date.UTC(a, mo - 1, d, h, mi, s) / 1000;
 }
 
-/** El último mensaje del asistente que creó caché da el TTL y la hora. */
+/** La última escritura con TTL conocido da la duración; la última lectura o escritura da la hora. */
 function cacheCreada(as: J[]): { ttl: number; desde: number } | null {
-  const pos = (m: J, k: string) => {
-    const v = ruta(m, "message", "usage", "cache_creation", k);
-    return typeof v === "number" && v > 0;
-  };
-  const cc = as.findLast((m) => pos(m, "ephemeral_1h_input_tokens") || pos(m, "ephemeral_5m_input_tokens"));
-  if (!cc) return null;
-  const desde = deIso(cc.timestamp);
-  return desde === null ? null : { desde, ttl: pos(cc, "ephemeral_1h_input_tokens") ? 3600 : 300 };
+  let desde: number | null = null;
+  for (let i = as.length - 1; i >= 0; i--) {
+    const m = as[i]!;
+    const pedido = pedidoDeMensaje(m);
+    if (!pedido) continue;
+    desde ??= deIso(m.timestamp);
+    if (pedido.ttl !== null && desde !== null) return { desde, ttl: pedido.ttl };
+  }
+  return null;
 }
 
 const esAsistente = (m: J) => m.type === "assistant" && m.isSidechain !== true;
@@ -442,7 +444,7 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
     }
     modelo = mejor;
   }
-  // caché: el último mensaje del asistente (no sidechain) que creó caché da el TTL y la hora
+  // La lectura también renueva el caché con el TTL conocido.
   const msgs = h.cache.map(parse).filter(esObj);
   const as = msgs.filter(esAsistente);
   const cache = cacheCreada(as);

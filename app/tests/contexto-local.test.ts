@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { argvLider } from "../electron/lider-arma.ts";
 import { armarContexto, carpetasDe, hooksDeArranque, memoriaDe, prefacioGemini, PROMPT_GEMINI, recortar, sinSecciones, skillOrquestar, textoDeHook, tokensDe, topeParaCtx } from "../electron/contexto-local.ts";
+import { tokensAprox } from "../electron/contexto-sesion.ts";
 process.env.TRAMA_DUENO = "Ana"; // los títulos del contexto nombran al dueño: aquí es siempre el mismo
 
 const MD = `# Asistente
@@ -47,6 +48,8 @@ test("sinSecciones: saca Jefe y Modelos (con sus subsecciones) y deja lo demás,
 });
 
 test("recortar y tokens: corta en una línea y dice dónde está el archivo entero", () => {
+  assert.equal(tokensDe, tokensAprox);
+  assert.equal(tokensDe("a".repeat(84_000)), 24_000);
   const largo = Array.from({ length: 200 }, (_, i) => `línea ${i}`).join("\n");
   const r = recortar(largo, 50, "/x/CLAUDE.md");
   assert.ok(tokensDe(r) <= 50);
@@ -232,7 +235,7 @@ test("prefacioDsh con opencode: dice opencode (no DeepSeek) y el modelo real", a
 
 test("PUENTES-19: un proyecto fuera de ~ usa el tope de proyecto (no el de 4000 tokens de ~) y un AGENTS.md que el recorte dejó afuera va aparte", async () => {
   const archivos: Record<string, string> = {
-    [path.join("proj", "CLAUDE.md")]: "intro\n" + "a\n".repeat(15000) + "reglas de agents",
+    [path.join("proj", "CLAUDE.md")]: "intro\n" + "a\n".repeat(17500) + "reglas de agents",
     [path.join("proj", "AGENTS.md")]: "reglas de agents",
   };
   const ctx = await armarContexto({ home: "fake-home", cwd: "proj", ctx: 40000, perfil: "gemini", deps: { leer: async (f: string) => archivos[f] ?? null, hook: async () => "" } } as any);

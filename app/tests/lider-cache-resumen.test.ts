@@ -117,6 +117,8 @@ test("Claude: «resumen» abre un líder nuevo con el relevo (sesión fresca, si
   assert.match(relevo, /Ana: primeroQX/);
   assert.match(relevo, /otraQX/);
   const o = (await lider.lideresApp()).find((x) => x.sid === sid)!;
+  // El falso trae TTL sólo en `result`, que suma el uso del turno entero.
+  assert.equal(o.cache_ttl_s, null);
   assert.equal(o.cortes, undefined);
   assert.equal((await lider.lideresApp()).find((x) => x.sid === nuevo)!.heredado?.de, sid);
   // Un valor raro de `empezar` es un mandar normal.

@@ -837,7 +837,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           clearTimeout(x.parando);
           x.pedidos.clear();
           g.ultimo = Math.floor(Date.now() / 1000);
-          if (e.ttl) g.cache_ttl_s = e.ttl;
+          // El TTL queda en el último pedido principal: el resultado acumula escrituras de todo el turno.
           // Una rama ya tiene su transcript: de acá en más se retoma como cualquier otro.
           delete g.rama;
           void guardar();

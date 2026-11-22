@@ -9,13 +9,12 @@ import { entornoLider } from "./lider-arma.ts";
 import { deDueno, dueno } from "./dueno.ts";
 import { shellDe } from "./procesos.ts";
 import { resolverImports } from "./instrucciones-md.ts";
+import { CHARS_POR_TOKEN, tokensAprox } from "./contexto-sesion.ts";
 
 /** Los encabezados que no le tocan a un local: él no delega (no hay `pa`) ni elige workers. */
 export const ENCABEZADOS_FUERA = /^(jefe|modelos)\b/i;
 
-/** Caracteres por token: conservador para español con un tokenizador de la familia Qwen (medido ≈ 3,3 en prosa; el código rinde menos). */
-export const CHARS_POR_TOKEN = 3;
-export const tokensDe = (texto: string) => Math.ceil(texto.length / CHARS_POR_TOKEN);
+export { CHARS_POR_TOKEN, tokensAprox as tokensDe } from "./contexto-sesion.ts";
 
 /** Tope de todo el contexto: ~15k tokens, y nunca más de un cuarto de lo que el local tiene cargado (`-c`). */
 export const TOPE_TOKENS = 15000;
@@ -43,9 +42,9 @@ export function sinSecciones(md: string, fuera: RegExp = ENCABEZADOS_FUERA): str
 
 /** Recorta en un límite de línea a `tokens`; dice dónde está lo entero. */
 export function recortar(texto: string, tokens: number, donde: string): string {
-  if (tokensDe(texto) <= tokens) return texto;
+  if (tokensAprox(texto) <= tokens) return texto;
   const aviso = `\n[recortado por el tamaño; el archivo entero: ${donde}]`;
-  const corte = texto.slice(0, Math.max(0, tokens - tokensDe(aviso)) * CHARS_POR_TOKEN);
+  const corte = texto.slice(0, Math.max(0, tokens - tokensAprox(aviso)) * CHARS_POR_TOKEN);
   const fin = corte.lastIndexOf("\n");
   return (fin > 0 ? corte.slice(0, fin) : corte).trimEnd() + aviso;
 }
@@ -144,7 +143,7 @@ export async function armarContexto(x: {
   const poner = (titulo: string, cuerpo: string, tope: number, donde: string): string => {
     if (!cuerpo.trim() || libre <= 0) return "";
     const t = recortar(cuerpo.trim(), Math.min(tope, libre), donde);
-    const tokens = tokensDe(t);
+    const tokens = tokensAprox(t);
     libre -= tokens;
     partes.push({ titulo, tokens, recortado: t !== cuerpo.trim() });
     bloques.push(`## ${titulo}\n${t}`);

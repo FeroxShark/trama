@@ -382,6 +382,15 @@ export async function medirConRespaldo(
 
 type Pedido = { total: number; modelo: string | null };
 
+function pedidoReal(o: J): (Pedido & { id: string | null }) | null {
+  if (o.type !== "assistant" || o.isSidechain === true || o.isApiErrorMessage === true || !obj(o.message) || !obj(o.message.usage)) return null;
+  const modelo = str(o.message.model);
+  if (modelo === "<synthetic>") return null;
+  const u = o.message.usage;
+  const total = (num(u.input_tokens) ?? 0) + (num(u.cache_creation_input_tokens) ?? 0) + (num(u.cache_read_input_tokens) ?? 0);
+  return total > 0 ? { id: str(o.message.id), total, modelo } : null;
+}
+
 /** Los pedidos al modelo de un transcript (sin los de subagentes), en orden: cuántos tokens de entrada llevó cada uno. */
 export function pedidosDe(lineas: string[]): Pedido[] {
   const r: Pedido[] = [];
@@ -395,14 +404,13 @@ export function pedidosDe(lineas: string[]): Pedido[] {
     } catch {
       continue;
     }
-    if (o.type !== "assistant" || o.isSidechain === true || !obj(o.message) || !obj(o.message.usage)) continue;
+    const pedido = pedidoReal(o);
+    if (!pedido) continue;
     // Un mensaje con varios bloques se escribe en varias líneas con el mismo id y el mismo usage: cuenta una vez.
-    const id = str(o.message.id);
+    const { id, total, modelo } = pedido;
     if (id && vistos.has(id)) continue;
     if (id) vistos.add(id);
-    const u = o.message.usage;
-    const total = (num(u.input_tokens) ?? 0) + (num(u.cache_creation_input_tokens) ?? 0) + (num(u.cache_read_input_tokens) ?? 0);
-    if (total > 0) r.push({ total, modelo: str(o.message.model) });
+    r.push({ total, modelo });
   }
   return r;
 }
@@ -426,7 +434,7 @@ export function ultimaCompactacion(lineas: string[]): { en: number; pendiente: b
       continue;
     }
     if (o.isSidechain === true) continue;
-    if (o.type === "assistant" && obj(o.message) && obj(o.message.usage)) pendiente = false;
+    if (pendiente && pedidoReal(o)) pendiente = false;
     if (o.type !== "system" || o.subtype !== "compact_boundary") continue;
     const en = Date.parse(str(o.timestamp) ?? "");
     if (!Number.isFinite(en)) return null;
