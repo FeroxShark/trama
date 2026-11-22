@@ -388,6 +388,10 @@ export type OpcionesSuelto = {
 /**
  * `setsid nohup cmd args >>log 2>&1 & disown`: el proceso sigue vivo cuando muere el que lo lanzó. Linux: `detached` (Node hace
  * setsid: sin terminal de control, no le llega SIGHUP) + stdin cerrado + `unref`. Windows: `detached` + `windowsHide` (sin consola).
+ * En Windows `detached` NO se saca: libuv mete a cada hijo no-detached en un job que lo mata cuando sale el padre, y quien lanza (pa, el
+ * lanzador de WMI) sale enseguida; medido en el CI de Windows el 2026-11-22, ningún hijo no-detached sobrevivió. El precio: el proceso
+ * suelto no tiene consola, así que TODO lo que lance tiene que llevar `windowsHide` (SW_HIDE). Un hijo de consola sin eso abre una
+ * ventana visible (pasaba con los intentos de `-m a,b,c` y de `--objetivo`, que relanzan `pa` con stdio heredado). Lo controla rutas.test.ts.
  * Devuelve el pid (puede ser undefined si el spawn falló de forma asíncrona: ENOENT; el 'error' se traga para no tirar el proceso).
  */
 export function lanzarSuelto(cmd: string, args: string[], o: OpcionesSuelto = {}): number | undefined {
