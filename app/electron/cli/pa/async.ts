@@ -47,10 +47,23 @@ const pad = (s: string, n: number) => s + " ".repeat(Math.max(0, n - [...s].leng
 
 // ============================================================================ --estado
 
+/** Una corrida que murió en cola hace más de esto ya no es un pendiente: `pa --estado` la cuenta en una línea en vez de listarla (B155). */
+const VENCE_MURIO_EN_COLA_MS = 7 * 86_400_000;
+
+/** ¿El `.pid` de una corrida muerta en cola tiene más de `VENCE_MURIO_EN_COLA_MS`? (sin poder leerlo, no vence). */
+function murioHaceMucho(pid: string): boolean {
+  try {
+    return Date.now() - statSync(pid).mtimeMs > VENCE_MURIO_EN_COLA_MS;
+  } catch {
+    return false;
+  }
+}
+
 /** `pa --estado`. */
 export async function cmdEstado(pa: Pa): Promise<void> {
   const { state, io } = pa;
   let hubo = false;
+  let viejas = 0;
   for (const n of listar(state, (x) => x.endsWith(".running"))) {
     const f = path.join(state, n);
     if (!esArchivo(f)) continue;
@@ -91,8 +104,16 @@ export async function cmdEstado(pa: Pa): Promise<void> {
           io.out(`EN COLA    ${pad(slug, 20)} (--leer id: ${ts}, ${leerTexto(x("cola"))})\n`);
           continue;
         }
+        if (murioHaceMucho(path.join(d, n))) {
+          viejas++;
+          continue;
+        }
         hubo = true;
         io.out(`MURIÓ      ${pad(slug, 20)} (--leer id: ${ts}, murió antes de arrancar; mirá ${x("log")})\n`);
+        continue;
+      }
+      if (!enCola && murioHaceMucho(path.join(d, n))) {
+        viejas++;
         continue;
       }
       hubo = true;
@@ -101,6 +122,7 @@ export async function cmdEstado(pa: Pa): Promise<void> {
     }
   }
   if (!hubo) io.out("no hay workers corriendo.\n");
+  if (viejas > 0) io.out(`MURIÓ EN COLA hace más de 7 días: ${viejas} (no se listan).\n`);
 
   // RAM: lo que decide si entra otro worker; sin lugares tomados entra siempre
   const vivos = (await lugaresTomados(pa)) + workersSueltos(state);
