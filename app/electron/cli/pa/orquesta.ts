@@ -377,7 +377,12 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
   });
   // sin_cupo=esperar con todo lleno (el hijo de --async): cola sin puesto hasta que reparto ofrezca un candidato con cupo
   const sinCupo = await esperarCupo(pa, l, adm, dir, ts);
-  if (sinCupo !== null) return sinCupo;
+  if (sinCupo !== null) {
+    // vencida la espera sin puesto ni .running: el `.listo` deja el 96 y su causa, si no `--esperar` ve un pid muerto sin resultado (82)
+    if (env.PA_ASYNC)
+      await escribirAtomico(path.join(dir, `${ts}.listo`), `salida=\nrc=${sinCupo}\nsid=${sid}\nmotivo=sin cupo: venció la espera de cupo (sin_cupo=esperar), no corrió nada\n`).catch(() => {});
+    return sinCupo;
+  }
   // la espera pudo cambiar el modelo y con él el motor y la cuenta: lo que sigue (ficha, autocompact, la llamada) lo usa
   motor = l.motor;
   conClaude = motor === "claude" || motor === "ollama";

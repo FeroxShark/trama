@@ -295,6 +295,7 @@ export async function cmdEsperar(pa: Pa, args: string[], oe: OpcionesEsperar = {
     const rc = leerCampo(e, "rc");
     const out = leerCampo(e, "salida");
     if (out && esArchivo(out)) await mostrarResultado(pa, out);
+    else if (leerCampo(e, "motivo")) io.err(`pa: ${leerCampo(e, "motivo")}.\n`);
     if (rc === "81" || rc === "84") claudeFalla(pa, rc);
     // el id va visible: si este resultado ya había llegado por mensaje, acá se nota
     io.out(`— corrida ${path.basename(f).replace(/\.listo$/, "")} · rc=${rc || "0"}\n`);

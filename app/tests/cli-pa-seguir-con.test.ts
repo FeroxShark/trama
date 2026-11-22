@@ -279,3 +279,24 @@ test("--seguir-con: un secreto del transcript no se manda a otra empresa aunque 
   const ok = await pa(["demo", "--sin-jefe", "--seguir-con", "claude-haiku-5-5", "--id", ID, "Terminá el test."], s.env, { motores });
   assert.equal(ok.rc, 0, ok.e);
 });
+
+testPosix("vence la espera de cupo del hijo --async: deja .listo con rc 96 y su motivo, y --esperar conserva el 96 (B090)", async () => {
+  const s = sandbox();
+  const reparto = path.join(s.raiz, "reparto-lleno");
+  writeFileSync(reparto, `#!/bin/sh\ncase "$1" in --tipo) echo '{"modelo":"","todo_lleno":true}';; esac\nexit 0\n`);
+  chmodSync(reparto, 0o755);
+  const env: Env = { ...s.env, PA_ASYNC: "1", PA_TS: "20261101-140000-7", PA_REPARTO: reparto, PA_REPARTO_TIPO: "codigo-acotado", PA_REPARTO_ESPERAR: "1", PA_GEMINI_ESPERA_MAX_MIN: "0", PA_GEMINI_ESPERA_S: "0" };
+  const io = captura();
+  const rc = await main(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "tarea"], env, io, { ...depsReales, reparto: () => repartoFalso() });
+  assert.equal(rc, 96, io.e);
+  const listo = path.join(s.estado, "demo", "20261101-140000-7.listo");
+  assert.ok(existsSync(listo), "dejó .listo");
+  const txt = readFileSync(listo, "utf8");
+  assert.match(txt, /^salida=\nrc=96\n/);
+  assert.match(txt, /motivo=sin cupo/);
+  writeFileSync(path.join(s.estado, "demo", "20261101-140000-7.log"), ""); // lo deja el padre de --async antes del fork
+  const e = captura();
+  const rcE = await main(["--esperar", "demo", "--id", "20261101-140000-7"], { ...s.env, PA_JEFE: "", PA_JEFE_ID: "" }, e, { ...depsReales, reparto: () => repartoFalso() });
+  assert.equal(rcE, 96, e.e);
+  assert.match(e.e, /sin cupo: venció la espera/);
+});
