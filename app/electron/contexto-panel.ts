@@ -8,7 +8,7 @@ import { fijarApagadoTrama, HERRAMIENTAS_PROTEGIDAS, leerApagadosTrama, TIPOS_AP
 import { inventario, rutasClaude } from "./conectores-claude.ts";
 import { capturarBase } from "./contexto-base.ts";
 import { skillsDeSesion, vistaPrevia, type VistaPrevia } from "./contexto-previa.ts";
-import { sidDeWorker, transcriptDe as transcriptPorSid, TRANSCRIPTS } from "./consumo.ts";
+import { sidDeWorker, topeDeWorker, transcriptDe as transcriptPorSid, TRANSCRIPTS } from "./consumo.ts";
 import { conTope, cwdDe, desdeClaude, desdeTranscript, medirConRespaldo, memoriaDeSesion, sinDesglose, ultimaCompactacion, usosDe, type Desglose, type Medicion } from "./contexto-desglose.ts";
 import { leerTranscript, type Transcript } from "./contexto-jsonl.ts";
 import { leerSesion } from "./contexto-sesion.ts";
@@ -83,6 +83,11 @@ async function conTopeDeLider(d: Desglose, sid: string): Promise<Desglose> {
   return conTope(d, topeDeLider(l.modelo));
 }
 
+// El tope con que `pa` lanzó a ese worker (`--autocompact`): el panel lo lee igual que el anillo (CTX-43).
+async function conTopeDeWorker(d: Desglose, id: string): Promise<Desglose> {
+  return d.fuente === "sin-desglose" || !ID_WORKER.test(id) ? d : conTope(d, await topeDeWorker(PA_STATE, id));
+}
+
 /**
  * El desglose de un líder (`{ lider: sid }`), un worker (`{ worker: id }`) o un subagente (`{ subagente: { lider: sid, id } }`).
  * Líder de Claude vivo: su `/context` (exacto). Si no: su transcript (estimado). `fresco` salta lo guardado.
@@ -97,7 +102,7 @@ export async function desgloseContexto(x: unknown): Promise<Desglose> {
   const en = enVuelo.get(clave);
   if (en) return en;
   const pedido = calcularDesglose(o, clave, o.fresco === true)
-    .then((d) => (typeof o.lider === "string" ? conTopeDeLider(d, o.lider) : d))
+    .then((d) => (typeof o.lider === "string" ? conTopeDeLider(d, o.lider) : typeof o.worker === "string" ? conTopeDeWorker(d, o.worker) : d))
     .finally(() => enVuelo.delete(clave));
   enVuelo.set(clave, pedido);
   return pedido;

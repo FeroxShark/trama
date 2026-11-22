@@ -4,7 +4,7 @@
 // interruptor. Apagar vale para TODO Trama (`apagados:fijar`): se aplica a workers nuevos y al líder desde el próximo mensaje. La otra pestaña
 // es el catálogo de skills (buscar, filtrar, ver tokens, prender y apagar). Los datos: src/datos/contexto.ts; la cuenta y el mapa: contexto-vista.ts.
 // En el celular ocupa la pantalla y sólo se mira (apagar es de la PC).
-import { createContext, Fragment, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { createContext, Fragment, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleDashed, Info, Lock, Minimize2, PanelRightClose, RefreshCw, Search, X, Zap } from "lucide-react";
 import type { Hilo, Lider } from "../datos/contrato";
 import type { Categoria, Desglose } from "../../electron/contexto-desglose";
@@ -16,6 +16,7 @@ import type { SubagenteGasto } from "../../electron/subagentes-gasto";
 import { fuenteContexto, type Quien } from "../datos/contexto";
 import { crearRefresco, mismoDesglose } from "./contexto-refresco";
 import { tareaDe, tipoDe } from "../barra/piezas";
+import { leerUmbral, suscribirUmbral, umbralLeido } from "../hilo/contextoVivo";
 import { MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo, useModelosVivos } from "../hilo/opciones";
 import { useCompactar } from "../hilo/compactar";
 import { useGastoSubagentes } from "../hilo/gasto-sub";
@@ -34,6 +35,7 @@ import {
   estaApagado,
   filtrarSkills,
   fraccionUsada,
+  lecturaUsada,
   itemsDe,
   usadoNeto,
   pluginDeSkill,
@@ -417,13 +419,21 @@ function FilaCompactar({ c, sinLider }: { c: ReturnType<typeof useCompactar>; si
   );
 }
 
+/** El `autoCompactWindow` del settings (el que lee el anillo): el tope del panel cuando el desglose no trae uno propio (CTX-43). */
+function useAutoCompact(): number | null {
+  useEffect(leerUmbral, []);
+  return useSyncExternalStore(suscribirUmbral, umbralLeido).autoCompact;
+}
+
 /** El desglose entero de uno: resumen, barra, mapa y las categorías con sus ítems. `lider`: si es el de un líder, deja compactarlo; `sub`: es el de un subagente (no se compacta). */
 function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; uid: string; inicial?: Categoria | null; lider?: Lider | null; alRefrescar: () => void; sub?: boolean }) {
   const { protegidas, apagados, recientes } = useContext(Acc);
   const [abierta, setAbierta] = useState<Categoria | null>(inicial ?? null);
   const [foco, setFoco] = useState<string | null>(null);
   const cats = useMemo(() => categorias(d, apagados), [d, apagados]);
-  const frac = fraccionUsada(d, apagados);
+  const autoCompact = useAutoCompact();
+  const lec = lecturaUsada(d, apagados, autoCompact);
+  const frac = lec === null ? null : lec.pct / 100;
   const usado = usadoNeto(d, apagados);
   const total = d.ventana ?? d.usado ?? 0;
   const compactar = useCompactar(lider ?? null, d, alRefrescar);
@@ -450,7 +460,7 @@ function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; ui
     <div className="cp-det">
       <div className="cp-det-izq">
       {usado !== null && d.ventana ? (
-        <div className="cp-ventana" data-nivel={frac !== null && frac >= 0.95 ? "lleno" : frac !== null && frac >= 0.85 ? "casi" : undefined}>
+        <div className="cp-ventana" data-nivel={lec?.nivel === "rojo" ? "lleno" : lec?.nivel === "ambar" ? "casi" : undefined}>
           {frac !== null ? (
             <svg className="cp-anillo" viewBox="0 0 36 36" aria-hidden>
               <circle className="cp-anillo-pista" cx="18" cy="18" r="15" pathLength="100" />
@@ -466,12 +476,12 @@ function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; ui
                 </b>
               </>
             ) : null}
-            <span className="cp-num">
+            <span className="cp-num" data-tip={lec && lec.umbral < d.ventana ? t("ctxp.ventanaModelo", { ventana: miles(d.ventana) }) : undefined}>
               {d.estimado ? <span data-tip={t("ctxp.estimado")}>≈</span> : null}
-              {t("ctxp.usadoDe", { usado: miles(usado), ventana: miles(d.ventana) })}
+              {t("ctxp.usadoDe", { usado: miles(usado), ventana: miles(lec?.umbral ?? d.ventana) })}
               {d.ventanaEstimada ? <span data-tip={t("ctxp.ventanaSupuesta")}>*</span> : null}
             </span>
-            {frac !== null && frac >= 0.85 ? <span className="cp-nivel">{t(frac >= 0.95 ? "ctxp.ventanaLlena" : "ctxp.ventanaCasi")}</span> : null}
+            {lec && lec.nivel !== "normal" ? <span className="cp-nivel">{t(lec.nivel === "rojo" ? "ctxp.ventanaLlena" : "ctxp.ventanaCasi")}</span> : null}
           </p>
         </div>
       ) : usado !== null ? (
@@ -566,7 +576,8 @@ function FilaWorker({ h, carga, abierto, alAlternar, alAbrir, alReintentar, alRe
   const { apagados } = useContext(Acc);
   const d = carga?.d ?? null;
   const cats = useMemo(() => (d ? categorias(d, apagados) : []), [d, apagados]);
-  const frac = d ? fraccionUsada(d, apagados) : null;
+  const autoCompact = useAutoCompact();
+  const frac = d ? fraccionUsada(d, apagados, autoCompact) : null;
   const tipo = h.en_cola ? "cola" : (tipoDe(h, h.estado)?.tipo ?? "");
   const estado = h.en_cola ? t("ctxp.enCola") : (tipoDe(h, h.estado)?.texto ?? h.estado);
   return (

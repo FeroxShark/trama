@@ -1695,6 +1695,7 @@ export const en = {
   "ctxp.usadoDe": "{usado} of {ventana} tokens",
   "ctxp.usado": "{usado} tokens used",
   "ctxp.pctVentana": "{pct}% of the window",
+  "ctxp.ventanaModelo": "Model window: {ventana} tokens",
   "ctxp.ventanaCasi": "Almost full: consider compacting soon.",
   "ctxp.ventanaLlena": "Nearly full: compact now.",
   "ctxp.estimado": "Estimated from the conversation, not the exact count",

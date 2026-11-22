@@ -3,6 +3,7 @@
 // Los datos son los de `contexto:desglose` y `skills:catalogo` (electron/contexto-desglose.ts, electron/contexto-panel.ts).
 import type { Categoria, Desglose, TipoSistema } from "../../electron/contexto-desglose";
 import type { SkillCatalogo, UsosCatalogo } from "../../electron/skills-catalogo";
+import { lectura, type Nivel } from "../hilo/contexto-logica.ts";
 
 export type TipoApagado = "skills" | "mcp" | "herramientas" | "memoria";
 export type Apagados = Record<TipoApagado, string[]>;
@@ -22,11 +23,22 @@ export function usadoNeto(d: Desglose, apagados?: Apagados | null): number | nul
   return Math.max(0, d.usado - libre);
 }
 
-/** Cuánto ocupa lo usado respecto de la ventana (0 a 1); `null` si no se sabe. */
-export function fraccionUsada(d: Desglose, apagados?: Apagados | null): number | null {
+/**
+ * La lectura de lo usado contra el tope efectivo (la misma cuenta del anillo: `lectura` de src/hilo/contexto-logica.ts, CTX-43): el tope de la
+ * corrida o de «Contexto antes de compactar» (`d.tope`) y, sin él, `autoCompact` (el del settings), nunca más que la ventana física.
+ * `null`: no se sabe lo usado o la ventana.
+ */
+export function lecturaUsada(d: Desglose, apagados?: Apagados | null, autoCompact?: number | null): { pct: number; nivel: Nivel; umbral: number } | null {
   const u = usadoNeto(d, apagados);
   if (u === null || !d.ventana) return null;
-  return Math.min(1, u / d.ventana);
+  return lectura(u, d.ventana, d.tope ?? autoCompact);
+}
+
+/** Cuánto ocupa lo usado respecto del tope efectivo (0 a 1); `null` si no se sabe. */
+export function fraccionUsada(d: Desglose, apagados?: Apagados | null, autoCompact?: number | null): number | null {
+  const l = lecturaUsada(d, apagados, autoCompact);
+  const u = usadoNeto(d, apagados);
+  return l === null || u === null ? null : Math.min(1, u / l.umbral);
 }
 
 /** Lo que pesa lo apagado en cada categoría: ya no entra en la cuenta ni en el mapa (los ítems se siguen viendo, grises y tachados). */

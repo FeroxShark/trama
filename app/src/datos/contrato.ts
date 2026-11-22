@@ -62,6 +62,8 @@ export type Hilo = {
   cache_vence: number | null;
   cache_frio: CacheFrio;
   cache_modelo: string | null;
+  /** Tope `--autocompact` (tokens) con que `pa` lanzó la corrida; `null` o ausente: la ventana nativa (vale el settings). */
+  autocompact?: number | null;
   /**
    * `pa --hilos --json`: el RESULTADO trajo VERIFICACION con comando y salida (`true`), no la trajo (`false`) o `pa` todavía no lo sabe
    * (`null`, o el campo no viene: un `pa` viejo). Sólo `false` se marca: la UI no dice nada de los demás.

@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { leerUmbral, umbralDeSettings } from "../electron/contexto.ts";
 import { conversacionDe, parsearLinea } from "../electron/lider-arma.ts";
-import { cuenta, nivel, umbralDe, usados, ventanaDe, ventanaDicha } from "../src/hilo/contexto-logica.ts";
+import { cuenta, lectura, nivel, umbralDe, usados, ventanaDe, ventanaDicha } from "../src/hilo/contexto-logica.ts";
 
 test("cuenta: usage → tokens usados, % y lo que falta", () => {
   const u = { input_tokens: 3, cache_creation_input_tokens: 1240, cache_read_input_tokens: 61872, output_tokens: 410 };
@@ -121,4 +121,17 @@ test("transcript: cuenta las compactaciones (compact_boundary), sin las de subag
   assert.equal(sigue.compactada, false);
   assert.deepEqual(sigue.usage, { input_tokens: 9 });
   assert.equal(conversacionDe("00000000-0000-4000-8000-000000000000", "/t.jsonl", "").compactaciones, 0);
+});
+
+test("CTX-43: lectura da el mismo porcentaje y nivel con el tope de la corrida, el global o la ventana", () => {
+  // El ejemplo del hallazgo: worker con tope 150 000, global 200 000, ventana 1 M, entrada 120 000.
+  assert.deepEqual(lectura(120_000, 1_000_000, 150_000), { umbral: 150_000, pct: 80, nivel: "ambar" });
+  // Sin tope de la corrida manda el global; sin ninguno, la ventana.
+  assert.deepEqual(lectura(120_000, 1_000_000, 200_000), { umbral: 200_000, pct: 60, nivel: "normal" });
+  assert.deepEqual(lectura(120_000, 1_000_000, null), { umbral: 1_000_000, pct: 12, nivel: "normal" });
+  // Un tope mayor que la ventana no la pasa.
+  assert.equal(lectura(120_000, 200_000, 1_000_000).umbral, 200_000);
+  // El anillo (`cuenta`) y la lectura son la misma cuenta.
+  const c = cuenta({ input_tokens: 120_000 }, 150_000);
+  assert.deepEqual({ umbral: c.umbral, pct: c.pct, nivel: c.nivel }, lectura(120_000, 1_000_000, 150_000));
 });

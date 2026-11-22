@@ -127,8 +127,18 @@ export type Cuenta = {
   nivel: Nivel;
 };
 
+/**
+ * Una sola lectura del contexto para el anillo y el panel (CTX-43): cuánto pesa lo usado contra el tope efectivo, nunca más que la ventana
+ * física. `tope` es el de la corrida (worker), el de «Contexto antes de compactar» (líder) o el `autoCompactWindow` del settings, en ese orden;
+ * sin ninguno vale la ventana. Un solo par de umbrales para el nivel (`nivel`: ámbar desde 70 %, rojo desde 90 %).
+ */
+export function lectura(usado: number, ventana: number, tope: number | null | undefined): Pick<Cuenta, "umbral" | "pct" | "nivel"> {
+  const umbral = umbralDe(tope, ventana);
+  const pct = umbral > 0 ? Math.max(0, Math.min(100, Math.round((usado / umbral) * 100))) : 0;
+  return { umbral, pct, nivel: nivel(pct) };
+}
+
 export function cuenta(u: Tokens | null | undefined, umbral: number): Cuenta {
   const n = usados(u);
-  const pct = umbral > 0 ? Math.max(0, Math.min(100, Math.round((n / umbral) * 100))) : 0;
-  return { usados: n, umbral, pct, falta: Math.max(0, umbral - n), nivel: nivel(pct) };
+  return { usados: n, ...lectura(n, umbral, null), falta: Math.max(0, umbral - n) };
 }

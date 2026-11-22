@@ -22,6 +22,8 @@ type Props = {
   sid?: string;
   /** Un worker: el `usage` de `pa --hilo <id> --json`. */
   usage?: Tokens | null;
+  /** Un worker: el tope `--autocompact` con que `pa` lanzó esa corrida (`Hilo.autocompact`); sin él vale el settings. */
+  tope?: number | null;
   modelo: string | null;
   /** El cache: cuándo vence (epoch s; `null`, no se sabe) y si ya no va a pegar. */
   vence?: number | null;
@@ -41,7 +43,7 @@ const pintorVence =
     return { texto: r < 60 ? t("contexto.venceMenos") : t("contexto.vence", { m: Math.floor(r / 60) }), en: r < 60 ? r : r % 60 || 60 };
   };
 
-export function Contexto({ sid, usage: fijo = null, modelo, vence = null, frio = false, lado = "der", abierto: deEntrada = false }: Props) {
+export function Contexto({ sid, usage: fijo = null, tope: topeCorrida = null, modelo, vence = null, frio = false, lado = "der", abierto: deEntrada = false }: Props) {
   useIdioma();
   const vivo = useSyncExternalStore(
     useCallback((fn: () => void) => suscribirContexto(sid ?? "", fn), [sid]),
@@ -64,8 +66,8 @@ export function Contexto({ sid, usage: fijo = null, modelo, vence = null, frio =
 
   const usage = sid === undefined ? fijo : vivo.usage;
   const ventana = ventanaDicha(vivo.ventanas, modelo) ?? ventanaDe(modelo);
-  // Un líder compacta en el tope de su familia («Contexto antes de compactar»); un worker, por lo que diga el settings de Claude.
-  const c = cuenta(usage, esLider ? umbralDeLider(modelo, tope, autoCompact, ventana) : umbralDe(autoCompact, ventana));
+  // Un líder compacta en el tope de su familia («Contexto antes de compactar»); un worker, en el de su corrida o, sin él, por lo que diga el settings de Claude.
+  const c = cuenta(usage, esLider ? umbralDeLider(modelo, tope, autoCompact, ventana) : umbralDe(topeCorrida ?? autoCompact, ventana));
   const cache = useMemo(() => (vence === null || !cacheAplica(modelo) ? null : pintorVence(vence, frio)), [vence, frio, modelo]);
 
   const cerrar = (conFoco = true) => {

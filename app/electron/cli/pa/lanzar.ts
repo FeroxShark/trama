@@ -758,6 +758,8 @@ export function escribirHilo(l: Lanzamiento): void {
     ["rubrica", c.rubrica ?? ""],
     ["subtarea", c.subtarea ?? ""],
     ["titulo", plano(c.titulo ?? "")],
+    // El tope de compactación de esta corrida: el anillo y el panel de contexto leen lo mismo que Claude Code (CTX-43).
+    ["autocompact", c.autocompact],
   ];
   try {
     writeFileSync(f, campos.map(([k, v]) => `${k}=${v}\n`).join(""));

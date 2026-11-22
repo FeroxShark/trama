@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CATALOGO_FALSO, desgloseFalso, previaFalsa } from "../src/datos/fixtures-contexto.ts";
-import { bloques, categorias, claveSkill, estaApagado, filtrarSkills, fraccionUsada, itemsDe, ORDEN, pluginsDe, porcentaje, sabeUsos, treemap, usadas } from "../src/paneles/contexto-vista.ts";
+import { bloques, categorias, claveSkill, estaApagado, filtrarSkills, fraccionUsada, itemsDe, lecturaUsada, ORDEN, pluginsDe, porcentaje, sabeUsos, treemap, usadas } from "../src/paneles/contexto-vista.ts";
 
 const lider = desgloseFalso({ lider: "s-1" });
 const worker = desgloseFalso({ worker: "20261003-103620-49377" });
@@ -250,4 +250,19 @@ test("vista previa: cada texto del panel existe en español y en inglés con las
     assert.ok(b, `en: falta ${k}`);
     assert.equal(vars(a), vars(b), `${k}: las variables no coinciden`);
   }
+});
+
+test("CTX-43: el panel de un worker lee el tope de su corrida y avisa en los mismos niveles que el anillo", () => {
+  // Ventana 1 M, entrada 120 000, tope de la corrida 150 000, global 200 000: las dos vistas dicen 80 %.
+  const d = { ...structuredClone(worker), ventana: 150_000, tope: 150_000, usado: 120_000 };
+  assert.equal(fraccionUsada(d, null, 200_000), 0.8);
+  assert.deepEqual(lecturaUsada(d, null, 200_000), { umbral: 150_000, pct: 80, nivel: "ambar" });
+  // Sin tope propio vale el global (y no la ventana física).
+  const sinTope = { ...structuredClone(worker), ventana: 1_000_000, tope: undefined, usado: 120_000 };
+  assert.equal(fraccionUsada(sinTope, null, 200_000), 0.6);
+  assert.equal(fraccionUsada(sinTope, null, null), 0.12);
+  // Un solo par de umbrales: 70 y 90, no 85 y 95.
+  assert.equal(lecturaUsada({ ...sinTope, usado: 700_000 }, null, null)?.nivel, "ambar");
+  assert.equal(lecturaUsada({ ...sinTope, usado: 900_000 }, null, null)?.nivel, "rojo");
+  assert.equal(lecturaUsada({ ...sinTope, usado: null }, null, null), null);
 });

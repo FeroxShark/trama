@@ -559,6 +559,10 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
     cache_vence: vence,
     cache_frio: frio,
     cache_modelo: cmod,
+    autocompact: (() => {
+      const n = num(H.autocompact);
+      return n !== null && n > 0 ? n : null;
+    })(),
   };
 }
 

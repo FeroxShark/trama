@@ -474,7 +474,7 @@ function Cuerpo({ h, estado, settle, alCerrar, alRetomar, alPasar, alAbrirHilo, 
         </div>
         {errorPie ? <div className="caja-error" role="alert">{errorPie}</div> : null}
         <div className="meta">
-          {pag?.usage ? <Contexto usage={pag.usage} modelo={h.modelo} vence={vive ? null : h.cache_vence} frio={h.cache_frio !== null} lado="izq" /> : null}
+          {pag?.usage ? <Contexto usage={pag.usage} tope={h.autocompact ?? null} modelo={h.modelo} vence={vive ? null : h.cache_vence} frio={h.cache_frio !== null} lado="izq" /> : null}
           {h.puesto ? <span>{puesto(h.puesto)}</span> : null}
           <span>{h.rama ?? (h.en_cola || arrancando(h, Math.floor(Date.now() / 1000)) ? "…" : tr("comun.sinRama"))}</span>
           {h.cache_vence !== null && !vive && cacheAplica(h.modelo) ? <Reloj pintor={barato} /> : null}

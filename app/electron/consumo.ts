@@ -70,6 +70,19 @@ export async function sidDeWorker(paState: string, id: string): Promise<string |
   return null;
 }
 
+/** El tope `--autocompact` con que `pa` lanzó un worker (`autocompact=` de su `<proyecto>/<id>.hilo`). `null`: ventana nativa, una corrida de antes del campo o sin `.hilo`. */
+export async function topeDeWorker(paState: string, id: string): Promise<number | null> {
+  if (!ID.test(id)) return null;
+  for (const c of await readdir(paState).catch(() => [] as string[])) {
+    const texto = await readFile(path.join(paState, c, `${id}.hilo`), "utf8").catch(() => "");
+    if (!texto) continue;
+    const m = /^autocompact=(\d+)\s*$/m.exec(texto);
+    const n = m ? Number(m[1]) : 0;
+    return n > 0 ? n : null;
+  }
+  return null;
+}
+
 /** El transcript de una sesión, buscado en `projects/*` (donde lo guarda Claude Code por carpeta de trabajo). */
 export async function transcriptDe(proyectos: string, sid: string): Promise<string | null> {
   if (!SID.test(sid)) return null;
