@@ -28,10 +28,18 @@ Object.assign(globalThis, {
   window: { hilos: { hilos: { leer, guardados: async () => null, alCambiar: sinSoltar, alEvento: sinSoltar } } },
 });
 
-const { fuente } = await import("../src/datos/fuente.ts");
+const { fuente, planDiaValido } = await import("../src/datos/fuente.ts");
 const { t } = await import("../src/i18n/index.ts");
 
 test("pa --hilos sin version: el error previsto, también al volver a pedir", async () => {
   await assert.rejects(fuente.hilos(), { message: t("error.sinVersion") });
   await assert.rejects(fuente.hilos(), { message: t("error.sinVersion") });
+});
+
+test("planDiaValido: conserva fechas ISO YYYY-MM-DD en ausente y descarta formatos inválidos", () => {
+  assert.deepEqual(planDiaValido({ modo: "ahorrar", ausente: ["2026-11-22", "2026-11-23", "mal", "2026-1-2", 123] }), {
+    modo: "ahorrar",
+    ausente: ["2026-11-22", "2026-11-23"],
+  });
+  assert.deepEqual(planDiaValido(null), { modo: "normal", ausente: [] });
 });

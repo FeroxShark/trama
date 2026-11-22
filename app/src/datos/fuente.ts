@@ -1359,10 +1359,10 @@ let planDiaFijo: EstadoPlanDia = {
 };
 
 const esModoPlanDia = (x: unknown): x is ModoPlanDia => x === "ahorrar" || x === "normal" || x === "gastar";
-const planDiaValido = (x: unknown): EstadoPlanDia => {
+export const planDiaValido = (x: unknown): EstadoPlanDia => {
   const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
   const modo: ModoPlanDia = esModoPlanDia(o.modo) ? o.modo : "normal";
-  const reFecha = new RegExp("^\d{4}-\d{2}-\d{2}$");
+  const reFecha = /^\d{4}-\d{2}-\d{2}$/;
   const ausente = Array.isArray(o.ausente) ? o.ausente.filter((d): d is string => typeof d === "string" && reFecha.test(d)) : [];
   return { modo, ausente };
 };
