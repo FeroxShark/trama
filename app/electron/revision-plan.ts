@@ -5,7 +5,7 @@
 // (`correrRevisor`) usa la suscripción de siempre (claude / agy), nunca una clave de API. Diseño de lo que sigue (el modo debate):
 // docs/modo-debate-diseno.md.
 import { spawn } from "node:child_process";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, realpath, stat } from "node:fs/promises";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -64,6 +64,9 @@ export function rutasDelPlan(plan: string): string[] {
   return [...vistas];
 }
 
+/** Lo que nunca se le pega a un revisor: secretos y carpetas que no son del plan (`.env*`, claves, credenciales, llaves privadas, `.git`, `node_modules`). */
+const SENSIBLE = /(?:^|[\\/])(?:\.env[^\\/]*|claves[^\\/]*|credentials?[^\\/]*|secrets?(?:\.[^\\/]*)?|id_(?:rsa|dsa|ecdsa|ed25519)[^\\/]*|[^\\/]*\.(?:pem|key|p12|pfx|keystore)|\.npmrc|\.netrc|\.ssh|\.aws|\.git|node_modules)(?:[\\/]|$)/i;
+
 /**
  * Los archivos que el plan nombra y existen DENTRO de `cwd` (nunca fuera: ni `..` ni rutas absolutas ajenas), para pegarlos en el
  * prompt de un revisor que no puede leer el proyecto. Con topes (`ADJUNTOS_MAX`, `ADJUNTO_BYTES`, `ADJUNTOS_TOTAL`): lo que
@@ -72,20 +75,27 @@ export function rutasDelPlan(plan: string): string[] {
 export async function archivosDelPlan(
   plan: string,
   cwd: string | undefined,
-  d: { leer?: (ruta: string) => Promise<string>; esArchivo?: (ruta: string) => Promise<boolean> } = {},
+  d: { leer?: (ruta: string) => Promise<string>; esArchivo?: (ruta: string) => Promise<boolean>; real?: (ruta: string) => Promise<string> } = {},
 ): Promise<ArchivoAdjunto[]> {
   if (!cwd) return [];
+  // Con el disco inyectado no hay enlaces que seguir; con el real, la ruta final (sin enlaces simbólicos) también tiene que quedar dentro.
+  const real = d.real ?? (d.leer || d.esArchivo ? async (r: string) => r : (r: string) => realpath(r));
   const leer = d.leer ?? ((r: string) => readFile(r, "utf8"));
   const esArchivo = d.esArchivo ?? ((r: string) => stat(r).then((s) => s.isFile(), () => false));
   const base = path.resolve(cwd);
+  const baseReal = await real(base).catch(() => base);
   const fuera: ArchivoAdjunto[] = [];
   let total = 0;
   for (const r of rutasDelPlan(plan)) {
     if (fuera.length >= ADJUNTOS_MAX || total >= ADJUNTOS_TOTAL) break;
     const abs = path.resolve(base, r);
     const rel = path.relative(base, abs);
-    if (!rel || rel.startsWith("..") || path.isAbsolute(rel) || /(?:^|[\\/])(?:\.env[^\\/]*|claves[^\\/]*|\.git|node_modules)(?:[\\/]|$)/.test(rel)) continue;
+    if (!rel || rel.startsWith("..") || path.isAbsolute(rel) || SENSIBLE.test(rel)) continue;
     if (!(await esArchivo(abs))) continue;
+    // Un enlace simbólico dentro del proyecto hacia otro lugar no es «dentro»: se mira adónde llega de verdad.
+    const dest = await real(abs).catch(() => null);
+    const relReal = dest === null ? null : path.relative(baseReal, dest);
+    if (relReal === null || !relReal || relReal.startsWith("..") || path.isAbsolute(relReal) || SENSIBLE.test(relReal)) continue;
     let texto: string;
     try {
       texto = await leer(abs);

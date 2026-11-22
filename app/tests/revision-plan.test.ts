@@ -2,7 +2,7 @@
 // revisores permitidos y la orquestación de punta a punta con un revisor simulado (sin gastar cupo).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { crearCola, type Encolado } from "../electron/cola.ts";
@@ -122,6 +122,29 @@ test("archivosDelPlan: sólo lo que está dentro del proyecto, con topes y sin s
   const m = Object.fromEntries(muchos.map((f) => [en(f), "y".repeat(9000)]));
   const rr = await archivosDelPlan(muchos.join(" "), dir, { leer: async (r) => m[r], esArchivo: async (r) => r in m });
   assert.ok(rr.length <= ADJUNTOS_MAX && rr.reduce((n, a) => n + a.texto.length, 0) <= ADJUNTOS_TOTAL);
+});
+
+test("archivosDelPlan: un enlace simbólico hacia afuera no se lee, y credenciales, llaves y secretos tampoco (B027)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "trama-adj-"));
+  try {
+    const afuera = path.join(dir, "afuera");
+    const proyecto = path.join(dir, "proyecto");
+    mkdirSync(afuera);
+    mkdirSync(path.join(proyecto, "src"), { recursive: true });
+    writeFileSync(path.join(afuera, "ajeno.txt"), "DE-AFUERA");
+    writeFileSync(path.join(proyecto, "src", "a.ts"), "propio");
+    for (const n of ["credentials.json", "secrets.yml", "server.pem", "id_rsa", "app.key"]) writeFileSync(path.join(proyecto, n), "SECRETO");
+    let enlace = true;
+    try {
+      symlinkSync(path.join(afuera, "ajeno.txt"), path.join(proyecto, "src", "enlace.txt"));
+    } catch {
+      enlace = false; // Windows sin permiso para enlaces: se prueba sólo lo de los nombres
+    }
+    const r = await archivosDelPlan("src/a.ts src/enlace.txt credentials.json secrets.yml server.pem id_rsa app.key", proyecto);
+    assert.deepEqual(r.map((a) => a.ruta), ["src/a.ts"], enlace ? "ni el enlace ni los secretos" : "ni los secretos");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("revisarPlan: los archivos que pide `archivos` van pegados en el prompt del revisor", async () => {
