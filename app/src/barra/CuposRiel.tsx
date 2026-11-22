@@ -1,6 +1,8 @@
-// Los cupos en el riel (rediseño 0.4): dos anillos con la cifra, 5 h y semana de la cuenta de Claude en uso (con su tooltip: «5 horas: 5 % usado,
-// vuelve en 4 h 48 min»). Al tocarlos se abre el detalle, agrupado por suscripción: Claude (esas dos ventanas en grande y sus otras cuentas),
-// Google (Gemini, Argon, «Claude y GPT por Google»), OpenCode… Ámbar desde 80 %, rojo sólo sin cupo (y sólo en su renglón), y lo agotado
+// Los cupos en el riel (rediseño 0.4): dos anillos con la cifra, los dos límites más apretados de TODAS las suscripciones conectadas (Claude 5 h y
+// semana, el límite propio de un modelo como Fable, Codex, cada grupo de Google…) o los que la persona fijó en Ajustes > Plan y cupos. Cada uno dice
+// qué es debajo («Fable · sem») y con su nombre entero en el tooltip: «Claude · 5 horas: 5 % usado, vuelve en 4 h 48 min». Al tocarlos se abre el
+// detalle, agrupado por suscripción y con UNA FILA POR VENTANA (5 h, semana, por modelo), cada una con su barra, su % usado y cuándo vuelve: Claude (sus
+// dos ventanas en grande, sus modelos y sus otras cuentas), Google (Gemini, Argon, «Claude y GPT por Google»), Codex, OpenCode… Ámbar desde 80 %, rojo sólo sin cupo (y sólo en su renglón), y lo agotado
 // lo dice en palabras: nunca sólo el color. Cada renglón dice cuándo vuelve, salvo con 0 % usado. La cuenta la elige la persona: Trama no
 // cambia de cuenta sola. Un dato de hace más de 15 min se apaga (`data-viejo`) y su nota dice de cuándo es. El botón de releer le pide a
 // `claude` el uso como lo dice claude.ai (`get_usage`); si no puede, lo dice y deja lo viejo apagado, nunca como si fuera de ahora.
@@ -15,13 +17,14 @@ import { abrirAjustes } from "../paneles/ajustes-nav";
 import type { Pintor } from "../reloj";
 import { VIEJO_S, cuandoFuturo, pintorHace, pintorVisto } from "../tiempo";
 import { IcAtencion, IcCerrar, IcOk } from "../ui/iconos";
-import { AMBAR_DESDE, bloquesMotores, cuentasClaude, estadoAnillo, lineasCuentas, marcaAnillo, nivelCupo, type LineaRiel, type NivelAnillo, type VentanaRiel } from "./cupos-riel-logica";
+import { useAros } from "./cupos-aros";
+import { AMBAR_DESDE, arosVisibles, bloquesMotores, cuentasClaude, estadoAnillo, limitesRiel, lineasCuentas, lineasModelos, marcaAnillo, nivelCupo, type FilaVentana, type LimiteRiel, type LineaRiel, type NivelAnillo, type VentanaRiel } from "./cupos-riel-logica";
 import { textoVuelve } from "./cuposNota";
 import { ElegirCuenta, useCuentasBarra } from "./ElegirCuenta";
 import { PerfilRiel } from "./PerfilRiel";
 import { Reloj } from "./piezas";
 import { pintorActualizado, useUso } from "./useUso";
-import { formatearFalta, formatearFaltaMini, type Unidades } from "./usoFila";
+import { formatearFalta, type Unidades } from "./usoFila";
 
 
 /** Las capturas `uso*` dejan el detalle abierto. */
@@ -96,18 +99,13 @@ const pintorNota = (v: VentanaRiel, ts: number): Pintor =>
     true,
   );
 
-/** Debajo del anillo: cuánto falta para que vuelva el cupo («2h 8m», «3d 4h»); sin uso o sin hora, el nombre de la ventana («5 h», «sem»). */
-const pintorEtiqueta =
-  (v: VentanaRiel, etiqueta: string): Pintor =>
-  (a) => {
-    if (v.pct === null || v.pct <= 0 || !v.hasta || v.hasta <= a) return { texto: etiqueta, en: Infinity };
-    return formatearFaltaMini(v.hasta - a, unidades(), t("tiempo.unidadMinCorta"));
-  };
-
-export function Anillo({ v, etiqueta, ventana, ts, semanal = false, ahora }: { v: VentanaRiel; etiqueta: string; ventana: string; ts: number; semanal?: boolean; ahora?: number }) {
+/**
+ * Un aro: el porcentaje usado adentro y, debajo, qué es en dos renglones («Fable» / «sem»; el nombre entero va en el tooltip y en el `aria-label` del botón).
+ * `ventana`: el nombre entero («Claude · 5 horas»), para el tooltip.
+ */
+export function Anillo({ v, quien, corta, ventana, ts, semanal = false, ahora }: { v: VentanaRiel; quien: string; corta: string; ventana: string; ts: number; semanal?: boolean; ahora?: number }) {
   const numero = useMemo(() => pintorNumero(v.pct ?? 0, ts), [v.pct, ts]);
   const tip = useMemo(() => pintorAnilloTip(ventana, v, ts, semanal), [ventana, v, ts, semanal]);
-  const resto = useMemo(() => pintorEtiqueta(v, etiqueta), [v, etiqueta]);
   const estado = estadoAnillo(v, ahora ?? Math.floor(Date.now() / 1000), semanal);
   const marca = semanal && v.pct !== null && estado.esperado !== null ? marcaAnillo(estado.esperado, ANILLO_R) : null;
   return (
@@ -121,7 +119,10 @@ export function Anillo({ v, etiqueta, ventana, ts, semanal = false, ahora }: { v
         {v.pct === null ? <span className="an-n">—</span> : <Reloj pintor={numero} className="an-n" />}
         {v.pct !== null ? <Insignia nivel={estado.nivel} /> : null}
       </span>
-      <Reloj pintor={resto} className="an-e" />
+      <span className="an-e" aria-hidden="true">
+        <span className="an-q">{quien}</span>
+        <span className="an-w">{corta}</span>
+      </span>
       <Reloj pintor={tip} className="an-tip" />
     </span>
   );
@@ -148,14 +149,30 @@ function Ventana({ nombre, v, ts }: { nombre: string; v: VentanaRiel; ts: number
 /** Los hilos del panel de Ajustes hablan de «poco» y «sin»: el ámbar y el rojo de acá. */
 const nivelHilos = (n: "ambar" | "rojo" | undefined) => (n === "rojo" ? "sin" : n === "ambar" ? "poco" : "ok");
 
-/** Una de las dos ventanas de una cuenta (5 h o semana): nombre, hilos y cifra, o «sin dato» en palabras si falta; nunca queda vacía. */
-function Mini({ nombre, v }: { nombre: string; v: VentanaRiel }) {
-  const nivel = nivelCupo(v.pct);
+/** Lo que dice debajo de una ventana: cuándo vuelve, con la advertencia si queda poco o se acabó; con 0 % usado no hay nada que esperar. */
+function textoFila(pct: number | null, hasta: number): string | null {
+  if (pct === null) return null;
+  if (pct >= 100) return hasta ? t("riel.sinCupoVuelve", { vuelve: t("cu.w.vuelve", { cuando: cuandoFuturo(hasta) }) }) : t("cupos.sinCupo");
+  if (pct <= 0) return null;
+  if (!hasta) return pct >= AMBAR_DESDE ? t("cupos.pocoCupo") : null;
+  const vuelve = t("cu.w.vuelve", { cuando: cuandoFuturo(hasta) });
+  return pct >= AMBAR_DESDE ? t("riel.quedaPoco", { vuelve }) : vuelve;
+}
+
+/** Una ventana de un renglón (5 h, semana, por modelo…): nombre, hilos y cifra, y debajo cuándo vuelve; «sin dato» o «no aplica» en palabras, nunca vacía. */
+function Mini({ f }: { f: FilaVentana }) {
+  const nivel = nivelCupo(f.pct);
+  const vuelve = textoFila(f.pct, f.hasta);
   return (
-    <div className="v-mini" data-nivel={nivel} data-sin={v.pct === null ? "" : undefined}>
-      <span>{nombre}</span>
-      <Hilos pct={v.pct} nivel={nivelHilos(nivel)} total={HILOS_RENGLON} />
-      <b>{v.pct === null ? t("riel.sinDato") : `${Math.round(v.pct)} %`}</b>
+    <div className="v-mini" data-nivel={nivel} data-sin={f.pct === null ? "" : undefined}>
+      <span>{f.nombre}</span>
+      <Hilos pct={f.pct} nivel={nivelHilos(nivel)} total={HILOS_RENGLON} />
+      <b>{f.noAplica ? t("cu.w.noAplicaCorto") : f.pct === null ? t("riel.sinDato") : `${Math.round(f.pct)} %`}</b>
+      {vuelve ? (
+        <small className="v-sub" data-nivel={nivel}>
+          {vuelve}
+        </small>
+      ) : null}
     </div>
   );
 }
@@ -178,7 +195,7 @@ function Linea({ l, cuentas, alCambiar, titulo }: { l: LineaRiel; cuentas: Lista
         ? t("riel.quedaPoco", { vuelve: t("cu.w.vuelve", { cuando: cuandoFuturo(l.cuando) }) })
         : t("cu.w.vuelve", { cuando: cuandoFuturo(l.cuando) })
       : null;
-  const dos = l.h5 && l.sem ? ([[t("cu.tj.5h"), l.h5], [t("cu.tj.7d"), l.sem]] as const) : null;
+  const dos = l.ventanas?.length ? l.ventanas : null;
   const tip = l.gratis ? [l.quien, t("riel.sinLimiteTip"), l.pedidos !== undefined ? t("riel.pedidos", { n: l.pedidos.toLocaleString() }) : ""].filter(Boolean).join(" · ") : l.quien;
   return (
     <>
@@ -186,8 +203,8 @@ function Linea({ l, cuentas, alCambiar, titulo }: { l: LineaRiel; cuentas: Lista
         <span className="v-ln">{l.nombre}</span>
         {dos ? (
           <div className="v-dos">
-            {dos.map(([nom, v]) => (
-              <Mini key={nom} nombre={nom} v={v} />
+            {dos.map((f) => (
+              <Mini key={f.clave} f={f} />
             ))}
           </div>
         ) : palabra ? (
@@ -198,11 +215,7 @@ function Linea({ l, cuentas, alCambiar, titulo }: { l: LineaRiel; cuentas: Lista
             <b>{l.estado === "marcado" ? "" : `${lleno ? 100 : l.pct} %`}</b>
           </>
         )}
-        {vuelve ? (
-          <small className="v-sub" data-nivel={dos ? nivel : undefined}>
-            {vuelve}
-          </small>
-        ) : null}
+        {vuelve && !dos ? <small className="v-sub">{vuelve}</small> : null}
       </div>
       {perfil ? (
         <div className="g-acc">
@@ -249,11 +262,14 @@ export function CuposRiel() {
   const enUso = todas[0];
   const varias = todas.length > 1;
   const otras = lineasCuentas(todas);
+  const modelos = lineasModelos(datos);
+  const pref = useAros();
+  const aros = arosVisibles(limitesRiel(datos, todas, cupos.filas), pref);
   const bloques = bloquesMotores(cupos.filas, Date.now() / 1000);
   // «Trama no cambia de cuenta sola» sólo dice algo cuando hay una cuenta para cambiar.
   const hayCuentas = varias || cupos.filas.some((f, i, todas) => todas.findIndex((x) => x.proveedor === f.proveedor) !== i);
   const actualizado = useMemo(() => pintorActualizado(datos?.ts ?? 0, fallo), [datos?.ts, fallo]);
-  const dice = (v: VentanaRiel) => (v.pct === null ? t("riel.sinDato") : `${v.pct} %`);
+  const dice = (l: LimiteRiel) => (l.v.pct === null ? t("riel.anilloSinDato", { ventana: l.nombre }) : t("riel.anilloTipSolo", { ventana: l.nombre, pct: Math.round(l.v.pct) }));
   const verPlan = () => {
     setAbierto(false);
     abrirAjustes("cupos");
@@ -268,12 +284,13 @@ export function CuposRiel() {
         data-guia="uso"
         aria-expanded={abierto}
         aria-haspopup="dialog"
-        aria-label={t("riel.cuposAria", { h5: dice(enUso.h5), sem: dice(enUso.sem) })}
+        aria-label={t("riel.cuposAria", { lista: aros.map(dice).join("; ") })}
         data-tip={abierto ? undefined : t("cupos.titulo")}
         onClick={() => setAbierto((x) => !x)}
       >
-        <Anillo v={enUso.h5} etiqueta={t("cupos.w5h")} ventana={t("riel.cinco")} ts={enUso.ts} />
-        <Anillo v={enUso.sem} etiqueta={t("riel.sem")} ventana={t("riel.semana")} ts={enUso.ts} semanal />
+        {aros.map((l) => (
+          <Anillo key={l.clave} v={l.v} quien={l.quien} corta={l.ventana} ventana={l.nombre} ts={l.ts} semanal={l.semanal} />
+        ))}
       </button>
       <PerfilRiel alAbrir={() => setAbierto(false)} />
       {abierto ? (
@@ -300,6 +317,14 @@ export function CuposRiel() {
                 <Ventana nombre={t("riel.semana")} v={enUso.sem} ts={enUso.ts} />
               </div>
             )}
+            {modelos.length && !error ? (
+              <>
+                <h4>{t("riel.porModelo")}</h4>
+                {modelos.map((l) => (
+                  <Linea key={l.clave} l={l} cuentas={cuentas} alCambiar={releerCuentas} />
+                ))}
+              </>
+            ) : null}
             {otras.length ? (
               <>
                 <h4>{t("riel.otrasCuentas")}</h4>

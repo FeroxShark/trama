@@ -325,8 +325,19 @@
   width: 0.5625rem;
   height: 0.5625rem;
 }
+/* Qué es el aro, en dos renglones: el nombre («Fable», «Codex») y su ventana («sem», «5 h»). Lo largo se corta con «…»: el nombre entero va en el tooltip. */
 .an-e {
+  display: grid;
+  max-width: 3.5rem;
+  justify-items: center;
   white-space: nowrap;
+}
+.an-q {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--texto);
+  font-weight: 500;
+  text-overflow: ellipsis;
 }
 /* El tooltip del anillo («5 horas: 5 % usado · va bien», «vuelve en…») cubre todo el anillo; el clic pasa al botón. */
 .an-tip {
@@ -662,7 +673,7 @@
 .v-mini {
   display: grid;
   min-height: 1.5rem;
-  grid-template-columns: 3.25rem minmax(0, 1fr) 3.75rem;
+  grid-template-columns: 3.5rem minmax(0, 1fr) 3.75rem;
   align-items: center;
   column-gap: var(--esp-2);
 }

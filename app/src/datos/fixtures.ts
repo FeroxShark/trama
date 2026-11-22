@@ -1512,6 +1512,15 @@ export const USO_TODO: Uso = {
   ],
 };
 
+/** La variante `cupos-fable`: lo de `cupos-todo` más el límite semanal propio de Fable (91 % usado) y el de Opus: los aros son Fable y Gemini Hydrogen, los más apretados de todas las suscripciones. */
+export const USO_FABLE: Uso = {
+  ...USO_TODO,
+  por_modelo: [
+    { modelo: "Fable", pct: 91, resets_at: AHORA + 2 * DIA + 6 * HORA },
+    { modelo: "Opus", pct: 24, resets_at: AHORA + 2 * DIA + 6 * HORA },
+  ],
+};
+
 USO_TRES.suscripciones!.push(...USO_TODO.suscripciones!.filter((x) => x.id !== "chatgpt"));
 
 export const USO_TODO_DOS: Uso = {

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { armarArbol, type Arbol, type Carpeta, type Item, type Rama } from "../src/barra/arbol.ts";
 import { aRiel, actualizarOrdenProyectos, atencionCarpeta, carpetaViva, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, filasCarpeta, segunLista } from "../src/barra/riel-logica.ts";
 import { ORDEN0, reordenar } from "../src/barra/orden.ts";
-import { arosVisibles, bloquesMotores, cuentasClaude, estadoAnillo, limitesRiel, lineasCuentas, marcaAnillo, masApretados, nivelCupo, vueltaDe } from "../src/barra/cupos-riel-logica.ts";
+import { arosVisibles, bloquesMotores, cuentasClaude, estadoAnillo, limitesRiel, lineasCuentas, lineasModelos, marcaAnillo, masApretados, nivelCupo, vueltaDe } from "../src/barra/cupos-riel-logica.ts";
 import { normalizarAros } from "../src/barra/cupos-aros.ts";
 import { PALETA_RIEL, tonoRiel } from "../src/barra/logo-logica.ts";
 import { pintorHace } from "../src/tiempo.ts";
@@ -445,4 +445,12 @@ test("bloquesMotores: una fila por ventana (5 h y semana de Codex) con cuándo v
   // Los gratis sin tope no tienen ventanas que dibujar: siguen diciendo su palabra.
   const libre = fila("casa", "opencode", { ventanas: [{ id: "5h", pct: null, vuelve: null, pedidos: 37 }] }, "Casa");
   assert.equal(bloquesMotores([libre], AHORA)[0].lineas[0].ventanas, undefined);
+});
+
+test("lineasModelos: cada modelo de Claude con su ventana semanal; agotado dice cuándo vuelve", () => {
+  cambiarIdioma("es");
+  const ls = lineasModelos({ por_modelo: [{ modelo: "Fable", pct: 100, resets_at: AHORA + 3600 }, { modelo: "Claude Opus", pct: 12, resets_at: null }] });
+  assert.deepEqual(ls.map((l) => [l.nombre, l.pct, l.estado, l.vuelve]), [["Fable", 100, "lleno", AHORA + 3600], ["Opus", 12, "ok", null]]);
+  assert.deepEqual(ls[0].ventanas, [{ clave: "7d", nombre: "Semana", pct: 100, hasta: AHORA + 3600 }]);
+  assert.deepEqual(lineasModelos(null), []);
 });

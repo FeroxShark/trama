@@ -4127,6 +4127,7 @@ export const en = {
   "riel.sem": "wk",
   "riel.cuposAria": "Tightest quotas: {lista}. Open the details",
   "riel.minuto": "Minute",
+  "riel.porModelo": "Per-model limits",
   "riel.sinDato": "no data",
   "riel.cinco": "5 hours",
   "riel.semana": "Week",

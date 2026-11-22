@@ -4,7 +4,7 @@
 import type { Uso, VentanaCupo } from "../datos/contrato";
 import { t } from "../i18n/index.ts";
 import { MARCA, type FilaSusc, type ListaCuentas } from "../datos/cuentas.ts";
-import { columnas, estadoVentana, renglonesDeGrupos, resumenVentanas, type EstadoGrupo } from "./cuposVista.ts";
+import { columnas, estadoVentana, renglonesDeGrupos, resumenVentanas, USO_BAJO, type EstadoGrupo } from "./cuposVista.ts";
 import { ritmoSemanal } from "../paneles/cupos-ritmo.ts";
 import { nombreGrupo, nombreGrupoCorto, nombreGrupoDetalle } from "./cuposNombres.ts";
 import { filaDe } from "./usoFila.ts";
@@ -161,6 +161,25 @@ export function lineasCuentas(cuentas: readonly CuentaRiel[]): LineaRiel[] {
         ],
       };
     });
+}
+
+/** Los límites semanales propios de cada modelo de Claude (Fable…) como renglones del detalle: el nombre del modelo y su ventana semanal. */
+export function lineasModelos(uso: Pick<UsoLimites, "por_modelo"> | null | undefined): LineaRiel[] {
+  return (uso?.por_modelo ?? []).map((m) => {
+    const corto = m.modelo.replace(/^claude\s+/i, "");
+    const lleno = m.pct >= 100;
+    const hasta = m.resets_at ?? 0;
+    return {
+      clave: `modelo:${m.modelo}`,
+      nombre: corto,
+      quien: `Claude ${corto}`,
+      pct: m.pct,
+      estado: lleno ? "lleno" : m.pct >= USO_BAJO ? "bajo" : "ok",
+      vuelve: lleno && hasta ? hasta : null,
+      cuando: m.pct > 0 && hasta ? hasta : null,
+      ventanas: [{ clave: "7d", nombre: nombreVentanaRiel("7d", true), pct: m.pct, hasta }],
+    } satisfies LineaRiel;
+  });
 }
 
 /** Lo que se ofrece cuando la cuenta de un chat está en el tope: cuál es, qué ventana pesa y a qué otra cuenta se puede pasar. */

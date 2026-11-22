@@ -4113,6 +4113,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "riel.sem": "sem",
   "riel.cuposAria": "Cupos más apretados: {lista}. Abrir el detalle",
   "riel.minuto": "Minuto",
+  "riel.porModelo": "Límites por modelo",
   "riel.sinDato": "sin dato",
   "riel.cinco": "5 horas",
   "riel.semana": "Semana",

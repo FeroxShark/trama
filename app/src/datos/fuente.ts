@@ -31,7 +31,7 @@ import { cambioDe, vistaDe, type CambioPasos, type VistaPasos } from "./pasos";
 import { pasosFijos, pasosRutasFijos, pasosSubFijos, pasosHiloFijos, type VarianteHilo } from "./pasos-fixture";
 import { crearCola, type AvisoCola, type Encolado } from "../../electron/cola";
 import type { Aviso as AvisoProgramados, Estado as EstadoProgramados } from "../../electron/programados";
-import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaLimite, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaNotaCompactar, charlaPensando, charlaDejado, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_ATENCION, HILOS_ATENCION_RESUELTO, HILOS_EN_COLA, HILOS_RIEL, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDERES_ATENCION, LIDERES_ATENCION_RESUELTO, LIDERES_RIEL, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_TRES, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_CUPO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
+import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaLimite, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaNotaCompactar, charlaPensando, charlaDejado, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_ATENCION, HILOS_ATENCION_RESUELTO, HILOS_EN_COLA, HILOS_RIEL, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDERES_ATENCION, LIDERES_ATENCION_RESUELTO, LIDERES_RIEL, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_TRES, USO_NIM, USO_FABLE, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_CUPO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
 
 /** Lo que vuelve de «Reportar un bug»: la carpeta escrita y la URL del issue, o el error. */
 export type ReporteArmado = { ok: true; carpeta: string; url: string } | { ok: false; error: string };
@@ -1376,6 +1376,7 @@ const usoFixture = (): Uso => {
   if (MODO.variante === "cupos-cuentas") return USO_CUENTAS;
   if (MODO.variante === "cupos-tres") return USO_TRES;
   if (MODO.variante === "cupos-nim") return USO_NIM;
+  if (MODO.variante?.startsWith("cupos-fable")) return USO_FABLE;
   if (MODO.variante?.startsWith("cupos-todo-dos")) return USO_TODO_DOS;
   if (MODO.variante?.startsWith("cupos-todo")) return USO_TODO;
   return USO;
