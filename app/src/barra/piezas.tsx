@@ -45,11 +45,16 @@ const COLA = tipo("cola", "estado.enCola");
 /** Murió en la cola sin llegar a arrancar: no hay tarea que mostrar ni nada que se haya hecho. */
 const NO_ARRANCO = tipo("fallo", "estado.noArranco");
 
-type ParaTipo = Pick<Hilo, "frenado_en"> & Partial<Pick<Hilo, "en_cola" | "sin_arrancar">>;
+/** Entregó, pero con código de salida ≠ 0 o `is_error` (B149): palabra «No terminó» y glifo de fallo, no «Terminó». */
+const NO_TERMINO = tipo("fallo", "estado.noTermino");
+
+type ParaTipo = Pick<Hilo, "frenado_en"> & Partial<Pick<Hilo, "fallo">> & Partial<Pick<Hilo, "en_cola" | "sin_arrancar">>;
 
 /** El tipo de una fila: el de su estado, salvo `murio` frenado a propósito o sin arrancar, y `trabajando` en cola. */
 export const tipoDe = (h: ParaTipo, estado: Estado) =>
-  estado === "murio" ? (h.frenado_en != null ? FRENADO : h.sin_arrancar ? NO_ARRANCO : TIPO[estado]) : estado === "trabajando" && h.en_cola ? COLA : TIPO[estado];
+  estado === "entregado" && h.fallo
+    ? NO_TERMINO
+    : estado === "murio" ? (h.frenado_en != null ? FRENADO : h.sin_arrancar ? NO_ARRANCO : TIPO[estado]) : estado === "trabajando" && h.en_cola ? COLA : TIPO[estado];
 
 /** La palabra del estado; en cola, con su motivo ("En cola · tope global: 5 workers vivos"). */
 export const textoEstado = (h: ParaTipo & Pick<Hilo, "cola_motivo">, estado: Estado): string | undefined => {
