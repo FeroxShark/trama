@@ -80,7 +80,9 @@ async function main() {
   } catch {
     return 0;
   }
-  if (!esObjeto(d) || d.tool_name !== "Bash") return 0;
+  // `PowerShell` es la herramienta de shell de Claude Code en Windows (terminal por defecto de Trama); el .sh sólo mira Bash.
+  const esPowerShell = esObjeto(d) && d.tool_name === "PowerShell";
+  if (!esObjeto(d) || (d.tool_name !== "Bash" && !esPowerShell)) return 0;
   // Se aplica en todos lados (ver el .sh): los patrones son sólo de cosas catastróficas, así que no cuesta falsos positivos.
   const cmdBruto = (esObjeto(d.tool_input) ? d.tool_input.command : "") || "";
   const cmd = typeof cmdBruto === "string" ? cmdBruto : "";
@@ -222,10 +224,21 @@ async function main() {
     }
   }
 
-  for (const p of patrones) {
+  // PowerShell: los mismos patrones y, además, los de sus cmdlets (sin distinguir mayúsculas, como PowerShell).
+  const patronesPS = esPowerShell
+    ? [
+        // Remove-Item (y sus alias) con -Recurse y -Force, en cualquier orden y abreviados (-r, -fo): el borrado recursivo de PowerShell.
+        R`(?<![\w-])(?:remove-item|ri|rm|del|erase|rd|rmdir)\b(?=[^|;&]*\s-r(?:e(?:c(?:u(?:r(?:s(?:e)?)?)?)?)?)?(?![\w-]))(?=[^|;&]*\s-fo(?:r(?:c(?:e)?)?)?(?![\w-]))`,
+        // cmd.exe desde PowerShell: borrado recursivo con /s
+        R`(?<![\w-])(?:rd|rmdir|del|erase)\s+(?:/\w+\s+)*/s\b`,
+        R`\b(?:format-volume|clear-disk|remove-partition|initialize-disk|diskpart)\b`,
+        R`(?<![\w-])format\s+[a-z]:`,
+      ]
+    : [];
+  for (const p of [...patrones, ...patronesPS]) {
     let re;
     try {
-      re = new RegExp(p);
+      re = new RegExp(p, patronesPS.includes(p) ? "i" : "");
     } catch {
       continue; // un patrón de la config que JavaScript no entiende: no frena nada por eso
     }

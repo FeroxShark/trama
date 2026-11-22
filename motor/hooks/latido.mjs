@@ -16,6 +16,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, openSync, closeSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync, accessSync, constants, writeSync } from "node:fs";
 import { homedir, uptime, userInfo } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 
 const env = process.env;
@@ -40,6 +41,8 @@ try {
   doc = undefined;
 }
 
+/** Un texto entre comillas simples de PowerShell (la comilla simple se duplica). */
+const comillasPS = (t) => `'${String(t).replace(/'/g, "''")}'`;
 /** Texto como lo deja `$(...)`: sin los saltos de línea del final. */
 const sinFinales = (s) => s.replace(/\n+$/, "");
 /** `a.b.c` de jq: null si falta o pasa por null; tira si pasa por algo que no es objeto. */
@@ -315,6 +318,8 @@ function otroWriterVivo() {
 }
 
 const herramienta = campo("tool_name");
+// La herramienta de shell: `Bash`, y en Windows `PowerShell` (la terminal por defecto de Trama allá). Las mismas guardias para las dos.
+const esShell = herramienta === "Bash" || herramienta === "PowerShell";
 const cmd = campo("tool_input", "command");
 let desc = campo("tool_input", "description");
 if (!desc) desc = cmd;
@@ -362,7 +367,7 @@ function renombrar(de, a) {
 }
 
 // --- guardia de --leer (va antes que las otras: acá todo lo que no es git de lectura muere) ---
-if (modo === "leer" && fase === "pre" && herramienta === "Bash" && !gitDeLectura(cmd)) {
+if (modo === "leer" && fase === "pre" && esShell && !gitDeLectura(cmd)) {
   bloquear(
     "BLOQUEADO: estás en modo LECTURA (pa --leer). Bash sólo acepta git de lectura: log, diff, show, status, rev-list, rev-parse, merge-base, ls-files, ls-tree, blame, shortlog, describe, cat-file, grep, branch --list, worktree list, stash list/show. Usá 'git -C <ruta>' en vez de cd, y como mucho un pipe a head/tail/grep/wc/cut. Nada de ;, &&, redirecciones, $(...) ni otros comandos. Para leer archivos usá Read/Grep/Glob.",
   );
@@ -373,7 +378,7 @@ const INI = "(^|[;&|\\s])";
 const GIT_OPS = "git\\s+((-C\\s+[^\\s]+|-[^\\s]+)\\s+)*";
 
 // --- guardia de git (sólo antes de ejecutar, y sólo sobre Bash) --------------------------
-if (fase === "pre" && herramienta === "Bash" && cmd) {
+if (fase === "pre" && esShell && cmd) {
   // run_in_background: en un worker `-p` NADIE re-invoca al modelo cuando el background termina (BUGS.md bug 1).
   if (bg === "true") {
     bloquear(
@@ -446,7 +451,11 @@ if (fase === "pre" && herramienta === "Bash" && cmd) {
     !cmd.includes("$(") &&
     !cmd.includes("\n")
   ) {
-    const nuevo = `set -o pipefail; ( ${cmd} ) 2>&1 | awk -v n=${recorte} '{a[NR%n]=$0} END{if(NR>n) print "[recortado por el hook: se omitieron las primeras " NR-n " líneas; si te falta algo, volvé a correr filtrando con grep]"; s=(NR>n)?NR-n+1:1; for(i=s;i<=NR;i++) print a[i%n]}'`;
+    // Bash: awk con pipefail (el .sh). PowerShell no tiene ni uno ni otro: lo recorta `recortar-salida.mjs` (Node), que devuelve el código del comando.
+    const nuevo =
+      herramienta === "PowerShell"
+        ? `& ${comillasPS(process.execPath)} ${comillasPS(path.join(path.dirname(fileURLToPath(import.meta.url)), "recortar-salida.mjs"))} ${recorte} ${comillasPS(cmd)}`
+        : `set -o pipefail; ( ${cmd} ) 2>&1 | awk -v n=${recorte} '{a[NR%n]=$0} END{if(NR>n) print "[recortado por el hook: se omitieron las primeras " NR-n " líneas; si te falta algo, volvé a correr filtrando con grep]"; s=(NR>n)?NR-n+1:1; for(i=s;i<=NR;i++) print a[i%n]}'`;
     const ti = doc && typeof doc === "object" && doc.tool_input && typeof doc.tool_input === "object" ? doc.tool_input : {};
     escribir(1, `${JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", updatedInput: { ...ti, command: nuevo } } })}\n`);
     salir(0);
@@ -460,7 +469,7 @@ let aviso = "";
 // El harness puede mandar a background un comando que el modelo pidió en foreground: el aviso tiene que salir del RESULTADO.
 // Se mira SÓLO el principio del .tool_response de un Bash, y con la frase entera del harness.
 let respuestaHead = "";
-if (fase === "post" && herramienta === "Bash") {
+if (fase === "post" && esShell) {
   let r = null;
   try {
     r = doc === undefined ? null : ruta(doc, "tool_response");

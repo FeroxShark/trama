@@ -9,7 +9,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
-import { alSalir, argsCierre, argsClaude, armarLanzamiento, configClaudeDe, contratoClaude, envDeLaLlamada, lineaSkillsDiseno, promptDe, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
+import { alSalir, argsCierre, argsClaude, armarLanzamiento, configClaudeDe, contratoClaude, envDeLaLlamada, HERRAMIENTAS_LEER, lineaSkillsDiseno, promptDe, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
 import { plataformaActual } from "../electron/rutas.ts";
 import { anotarTablero, faltaParaLider, medir } from "../electron/cli/pa/ganchos.ts";
 import { campoDe, decisionEsNada, epochReset, verificadoDe } from "../electron/cli/pa/resultado-lanzar.ts";
@@ -269,6 +269,25 @@ test("PA_RECORTE: 150 en plan pro y 300 en max", () => {
   assert.equal(envDeLaLlamada(pa, corrida(raiz)).PA_RECORTE, "150");
   assert.equal(envDeLaLlamada({ ...pa, plan: "max" }, corrida(raiz)).PA_RECORTE, "300");
   assert.equal(envDeLaLlamada({ ...pa, plan: "max", env: { ...pa.env, PA_RECORTE: "42" } }, corrida(raiz)).PA_RECORTE, "42");
+});
+
+test("CTX-48: en Windows la guardia cubre Bash y PowerShell y un --leer lleva PowerShell; en Linux no cambia", () => {
+  const win = paFalso("C:\\Users\\x", "win32");
+  win.home = "C:\\Users\\x";
+  win.bin = "C:\\trama\\app\\motor\\bin";
+  const sw = JSON.parse(settingsWorker(win, { hb: "C:\\estado\\demo.heartbeat", leer: false, node: "C:\\trama\\node\\node.exe" }));
+  assert.equal(sw.hooks.PreToolUse[0].matcher, "Bash|PowerShell");
+  assert.match(sw.hooks.PreToolUse[0].hooks[0].command, /destructive-guard\.mjs/);
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-ps-"));
+  const lin = paFalso(raiz);
+  const sl = JSON.parse(settingsWorker(lin, { hb: "/e/hb", leer: false }));
+  assert.equal(sl.hooks.PreToolUse[0].matcher, "Bash");
+  const o = { contrato: "k", settings: "{}", nombre: "n" };
+  const tools = (pa: typeof lin) => argsClaude(pa, corrida(raiz, { leer: true }), o)[argsClaude(pa, corrida(raiz, { leer: true }), o).indexOf("--tools") + 1]!.split(",");
+  assert.ok(tools(win).includes("PowerShell") && tools(win).includes("Bash"));
+  assert.ok(!tools(lin).includes("PowerShell"));
+  assert.equal(tools(lin).join(","), HERRAMIENTAS_LEER);
+  for (const t of ["Edit", "Write"]) assert.ok(!tools(win).includes(t), t);
 });
 
 test("la guardia: si el settings del usuario ya la tiene, la nuestra no se registra (corre una vez por Bash)", () => {

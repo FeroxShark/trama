@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { soloPosix } from "./plataforma.ts";
 
 const HOOKS = path.join(import.meta.dirname, "..", "..", "motor", "hooks");
 const hook = (nombre: string) => path.join(HOOKS, `${nombre}.mjs`);
@@ -35,7 +36,7 @@ const conTemporal = (f: (dir: string) => void) => {
 };
 
 test("hooks .mjs: todos pasan node --check", () => {
-  for (const n of ["latido", "destructive-guard", "statusline-espejo", "agy-pa", "docker-guard", "cierre-cupo", "cierre-cupo-textos", "nota-compactar", "nota-compactar-textos"]) {
+  for (const n of ["latido", "destructive-guard", "statusline-espejo", "agy-pa", "docker-guard", "cierre-cupo", "cierre-cupo-textos", "nota-compactar", "nota-compactar-textos", "recortar-salida"]) {
     const r = spawnSync(process.execPath, ["--check", hook(n)], { encoding: "utf8" });
     assert.equal(r.status, 0, `${n}.mjs: ${r.stderr}`);
   }
@@ -221,6 +222,64 @@ test("latido: PA_RECORTE reescribe el comando de los tests y respeta el resto de
   });
 });
 
+const powershell = (command: string, extra: Record<string, unknown> = {}) => ({ tool_name: "PowerShell", tool_input: { command, ...extra } });
+
+test("CTX-48 latido: PowerShell recibe las mismas guardias que Bash (leer, background, git, release, timeout)", () => {
+  conTemporal((dir) => {
+    const hb = path.join(dir, "w1.heartbeat");
+    const env = entorno(dir);
+    const rc = (modo: string[], doc: unknown) => correr("latido", [hb, "pre", ...modo], doc, env).rc;
+    assert.equal(rc(["leer"], powershell("git -C . log --oneline")), 0);
+    assert.equal(rc(["leer"], powershell("Remove-Item x")), 2, "un lector no ejecuta nada que no sea git de lectura");
+    assert.equal(rc(["leer"], powershell("git status; git push")), 2);
+    assert.equal(rc([], powershell("git stash")), 2);
+    assert.equal(rc([], powershell("git add -A")), 2);
+    assert.equal(rc([], powershell("cargo build --release", { timeout: 1 })), 2);
+    assert.equal(rc([], powershell("npm test")), 2, "sin timeout del tool");
+    assert.equal(rc([], powershell("npm test", { timeout: 300000 })), 0);
+    assert.equal(rc([], powershell("Get-ChildItem", { run_in_background: "true" })), 2);
+    // El par en Linux: otras herramientas siguen sin guardia, y Bash sigue bloqueando lo mismo.
+    assert.equal(rc([], { tool_name: "Read", tool_input: { command: "git stash" } }), 0);
+    assert.equal(rc([], bash("git stash")), 2);
+    // post: el aviso de background también sale de una respuesta de PowerShell
+    const post = correr("latido", [hb, "post"], { ...powershell("x"), tool_response: "did not complete within its 120000ms timeout and was moved to the background" }, env);
+    assert.match(post.stdout, /AVISO DEL ORQUESTADOR/);
+  });
+});
+
+test("CTX-48 latido: PA_RECORTE en PowerShell reescribe a recortar-salida.mjs (sin awk ni pipefail); en Bash sigue el awk", () => {
+  conTemporal((dir) => {
+    const hb = path.join(dir, "w1.heartbeat");
+    const env = entorno(dir, { PA_RECORTE: "150" });
+    const o = JSON.parse(correr("latido", [hb, "pre"], powershell("npm test", { timeout: 300000, description: "tests" }), env).stdout);
+    const cmd = o.hookSpecificOutput.updatedInput.command as string;
+    assert.equal(cmd, `& '${process.execPath.replace(/'/g, "''")}' '${hook("recortar-salida").replace(/'/g, "''")}' 150 'npm test'`);
+    assert.doesNotMatch(cmd, /awk|pipefail/);
+    assert.deepEqual(Object.keys(o.hookSpecificOutput.updatedInput), ["command", "timeout", "description"]);
+    // la comilla simple del comando se duplica (PowerShell)
+    const q = JSON.parse(correr("latido", [hb, "pre"], powershell("cargo test -- 'a b'", { timeout: 1 }), env).stdout);
+    assert.ok(q.hookSpecificOutput.updatedInput.command.endsWith(" 150 'cargo test -- ''a b'''"));
+    for (const sin of ["npm test | Select-Object -Last 5", "npm test; ls", "Get-ChildItem"]) {
+      assert.equal(correr("latido", [hb, "pre"], powershell(sin, { timeout: 1 }), env).stdout, "", sin);
+    }
+    const b = JSON.parse(correr("latido", [hb, "pre"], bash("npm test", { timeout: 1 }), env).stdout);
+    assert.match(b.hookSpecificOutput.updatedInput.command, /^set -o pipefail; \( npm test \) 2>&1 \| awk -v n=150 /);
+  });
+});
+
+test("CTX-48 recortar-salida: deja las últimas N líneas con el aviso y devuelve el código del comando", { skip: soloPosix("usa /bin/sh como shell") }, () => {
+  const run = (n: string, cmd: string) => spawnSync(process.execPath, [hook("recortar-salida"), n, cmd], { encoding: "utf8", env: { ...process.env, PA_RECORTE_SHELL: "/bin/sh" } });
+  const r = run("3", "for i in 1 2 3 4 5; do echo l$i; done; echo e1 >&2; exit 7");
+  assert.equal(r.status, 7);
+  assert.match(r.stdout, /^\[recortado por el hook: se omitieron las primeras 3 líneas; si te falta algo, volvé a correr filtrando con grep\]\n/);
+  assert.equal(r.stdout.split("\n").slice(1).filter(Boolean).length, 3);
+  assert.match(r.stdout, /l5\n/);
+  assert.doesNotMatch(r.stdout, /l1\n/);
+  const corta = run("50", "echo uno; echo dos");
+  assert.deepEqual([corta.status, corta.stdout], [0, "uno\ndos\n"]);
+  assert.equal(run("0", "echo x").status, 2);
+});
+
 test("latido: --leer sólo deja pasar git de lectura", () => {
   conTemporal((dir) => {
     const hb = path.join(dir, "w1.heartbeat");
@@ -282,6 +341,36 @@ test("latido: el aviso de «movido a background» sólo mira el principio de la 
 });
 
 // ============================================================================ destructive-guard y docker-guard
+
+test("CTX-48 destructive-guard: PowerShell frena sus borrados y formateos y lo de git; en Bash esos cmdlets no son patrones", () => {
+  conTemporal((dir) => {
+    const env = entorno(dir);
+    const ps = (cmd: string) => correr("destructive-guard", [], powershell(cmd), env);
+    for (const mal of [
+      "Remove-Item -Recurse -Force C:\\Users\\x",
+      "remove-item C:\\x -force -recurse",
+      "rm -r -fo build",
+      "ri -Recurse -Fo .\\x",
+      "Get-ChildItem | Remove-Item -Recurse -Force",
+      "rd /s /q C:\\x",
+      "Format-Volume -DriveLetter D",
+      "Clear-Disk -Number 1 -RemoveData",
+      "git push --force origin main",
+      "git push origin main -f",
+    ]) {
+      const r = ps(mal);
+      assert.equal(r.rc, 2, mal);
+      assert.match(r.stderr, /destructivo/, mal);
+    }
+    for (const bien of ["Get-ChildItem -Recurse", "Remove-Item foo.txt", "Remove-Item -Recurse build", "Remove-Item x -Force", "git push origin main", "npm test", "Write-Output 'rd /sin'"]) {
+      const r = ps(bien);
+      assert.deepEqual([r.rc, r.stderr], [0, ""], bien);
+    }
+    // El par en Linux: un cmdlet de PowerShell dicho a Bash no es un patrón (el .sh no lo conoce); lo de Bash sigue igual.
+    assert.equal(correr("destructive-guard", [], bash("Remove-Item -Recurse -Force x"), env).rc, 0);
+    assert.equal(correr("destructive-guard", [], bash("rm -rf x"), env).rc, 2);
+  });
+});
 
 test("destructive-guard: bloquea con exit 2 y deja el patrón en stderr; lo demás pasa", () => {
   conTemporal((dir) => {

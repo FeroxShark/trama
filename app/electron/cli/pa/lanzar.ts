@@ -17,7 +17,7 @@ import { esEjecutable } from "../base/buscar.ts";
 import { paraLanzar, resolverClaude } from "../../binario.ts";
 import { tomar } from "../base/lock.ts";
 import { matarArbol } from "../base/proc.ts";
-import { comandoCierreCupo, comandoHook, comandoNotaCompactar, entreComillas, EVENTOS_NOTA_COMPACTAR, type VarianteHook } from "../hooks.ts";
+import { comandoCierreCupo, comandoHook, comandoNotaCompactar, entreComillas, EVENTOS_NOTA_COMPACTAR, matcherShell, type VarianteHook } from "../hooks.ts";
 import { CIERRE_TAREA, CIERRE_TURNOS, SIN_JEFE, conJefe } from "./contrato.ts";
 import { contratoActualizar } from "./auditar.ts";
 import { caminoDe, configTrama, type Plataforma } from "../../rutas.ts";
@@ -325,7 +325,7 @@ export function settingsWorker(
     enabledPlugins: { "caveman@caveman": false },
     hooks: {
       PreToolUse: [
-        ...(guardOtro ? [] : [{ matcher: "Bash", hooks: [{ type: "command", command: guard }] }]),
+        ...(guardOtro ? [] : [{ matcher: matcherShell(pa.plat), hooks: [{ type: "command", command: guard }] }]),
         { hooks: [{ type: "command", command: `${latido} ${hb} pre${modo}` }] },
       ],
       PostToolUse: [{ hooks: [{ type: "command", command: `${latido} ${hb} post` }] }, ...cierreCupo, ...(porEventoNota.PostToolUse ?? [])],
@@ -516,6 +516,12 @@ const sinMcp = (c: Pick<Corrida, "conMcp">) => !c.conMcp;
 
 /** Las únicas herramientas de un `--leer`: leer, git de lectura por Bash y buscar en internet (WebSearch/WebFetch no escriben archivos). */
 export const HERRAMIENTAS_LEER = "Read,Grep,Glob,Bash,ToolSearch,ListAgents,SendMessage,WebSearch,WebFetch";
+/**
+ * Las de un `--leer` según la plataforma. En Windows la shell de Claude Code es `PowerShell` (terminal por defecto, `terminal-agentes.ts`;
+ * sin Git para Windows ni existe `Bash`): sin ella el lector no podría correr ni el `git` de lectura. No abre nada: el latido le aplica a
+ * `PowerShell` la misma lista de git de lectura que a `Bash` (`latido.mjs`, `esShell`). En Linux no cambia.
+ */
+export const herramientasLeer = (plat: Plataforma): string => (plat === "win32" ? HERRAMIENTAS_LEER.replace(",Bash,", ",Bash,PowerShell,") : HERRAMIENTAS_LEER);
 
 /** ¿Este worker usa las skills (frontend y diseño las cargan con la herramienta Skill)? Entonces no se le apagan los comandos. */
 export const usaSkills = (c: Pick<Corrida, "tipo">): boolean => c.tipo === "frontend" || c.tipo === "diseno";
@@ -562,7 +568,7 @@ export function argsClaude(pa: Pa, c: Corrida, o: { contrato: string; settings: 
   if (c.autocompact) a.push("--autocompact", c.autocompact);
   a.push("--settings", o.settings, "--name", o.nombre);
   if (sinMcp(c)) a.push(...mcpApagado);
-  if (c.leer) a.push("--tools", HERRAMIENTAS_LEER);
+  if (c.leer) a.push("--tools", herramientasLeer(pa.plat));
   // Sin subagentes (el abanico de Haikus ya no aplica) y sin las skills y comandos: sólo el worker de diseño los carga.
   if (!c.leer) a.push("--disallowedTools", HERRAMIENTAS_APAGADAS);
   if (!usaSkills(c)) a.push("--disable-slash-commands");

@@ -63,6 +63,28 @@ test("comandoNotaCompactar y EVENTOS_NOTA_COMPACTAR: con y sin --umbral, en Linu
   assert.deepEqual(ARCHIVOS_NOTA_COMPACTAR, ["nota-compactar.mjs", "nota-compactar-textos.mjs"]);
 });
 
+test("CTX-48 registrarEnAjustes: el guard cubre Bash|PowerShell en Windows (también el ya registrado) y Bash en Linux", () => {
+  const win: OpcionesRegistro = { carpeta: "C:\\Users\\ana\\.claude\\hooks", variante: "mjs", plataforma: "win32" };
+  const nuevo: Record<string, any> = {};
+  registrarEnAjustes(nuevo, win);
+  assert.equal(nuevo.hooks.PreToolUse[0].matcher, "Bash|PowerShell");
+  const lin: Record<string, any> = {};
+  registrarEnAjustes(lin, { ...mjs, plataforma: "linux" });
+  assert.equal(lin.hooks.PreToolUse[0].matcher, "Bash");
+  // Ya registrado sólo para Bash (instalación anterior): en Windows se amplía una vez; en Linux no se toca. Lo de otros no cambia.
+  const viejo = () => ({
+    hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "node 'C:/h/destructive-guard.mjs'" }] }, { matcher: "Bash", hooks: [{ type: "command", command: "otro" }] }] },
+    statusLine: { type: "command", command: "node 'C:/h/statusline-espejo.mjs'" },
+  });
+  const a: Record<string, any> = viejo();
+  assert.equal(registrarEnAjustes(a, win), true);
+  assert.deepEqual(a.hooks.PreToolUse.map((g: any) => g.matcher), ["Bash|PowerShell", "Bash"]);
+  assert.equal(registrarEnAjustes(a, win), false, "idempotente");
+  const b: Record<string, any> = viejo();
+  assert.equal(registrarEnAjustes(b, { ...mjs, plataforma: "linux" }), false);
+  assert.deepEqual(b.hooks.PreToolUse.map((g: any) => g.matcher), ["Bash", "Bash"]);
+});
+
 test("hooksJsonAgy: la variante sh es exactamente el hooks.json del plugin", () => {
   assert.deepEqual(hooksJsonAgy("sh"), JSON.parse(readFileSync(path.join(MOTOR, "agy", "pa-worker", "hooks.json"), "utf8")));
   assert.match(JSON.stringify(hooksJsonAgy("mjs")), /node \.\/agy-pa\.mjs pre/);

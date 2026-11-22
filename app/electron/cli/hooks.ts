@@ -2,7 +2,7 @@
 // Linux) o los de Node (`.mjs`, sin jq ni bash; los de Windows y, desde la etapa 11, los de todos). Port a TypeScript de
 // `registrar_hooks` de motor/scripts/instalar-producto.sh (que usa jq): mismo resultado en el settings, sin pisar lo que haya.
 //
-//   - PreToolUse (matcher Bash): destructive-guard, una sola vez.
+//   - PreToolUse (matcher Bash; en Windows `Bash|PowerShell`): destructive-guard, una sola vez.
 //   - statusLine: statusline-espejo envuelve al statusline de la persona (`<espejo> bash -c '<el de antes>'`) o, si no había,
 //     va solo. Si ya lo envuelve, no se toca.
 //
@@ -70,6 +70,12 @@ export type OpcionesComando = {
   plataforma?: NodeJS.Platform;
 };
 
+/**
+ * La herramienta de shell sobre la que van las guardias (matcher de PreToolUse): `Bash`, y en Windows también `PowerShell`, la
+ * terminal por defecto de Trama allá (`terminal-agentes.ts`). En Linux no cambia.
+ */
+export const matcherShell = (plataforma: NodeJS.Platform = process.platform): string => (plataforma === "win32" ? "Bash|PowerShell" : "Bash");
+
 /** `@sh` de jq: siempre entre comillas simples. */
 export const entreComillas = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
 
@@ -133,7 +139,7 @@ export function registrarEnAjustes(ajustes: Json, o: OpcionesRegistro): boolean 
   const hooks = (ajustes.hooks as Json | undefined) ?? undefined;
   const existentes = comandosDe(hooks?.PreToolUse).filter((h) => typeof h.command === "string" && marca("destructive-guard").test(h.command));
   if (existentes.length === 0) {
-    const nuevoGrupo = { matcher: "Bash", hooks: [{ type: "command", command: guard }] };
+    const nuevoGrupo = { matcher: matcherShell(o.plataforma), hooks: [{ type: "command", command: guard }] };
     const todos = (ajustes.hooks && esObjeto(ajustes.hooks) ? ajustes.hooks : (ajustes.hooks = {})) as Json;
     if (todos.PreToolUse !== undefined && todos.PreToolUse !== null && !Array.isArray(todos.PreToolUse)) throw new Error("hooks.PreToolUse no es una lista");
     todos.PreToolUse = [...((todos.PreToolUse as unknown[] | null | undefined) ?? []), nuevoGrupo];
@@ -143,6 +149,16 @@ export function registrarEnAjustes(ajustes: Json, o: OpcionesRegistro): boolean 
       if (varianteDe(h.command as string, "destructive-guard") !== o.variante) {
         h.command = guard;
         cambio = true;
+      }
+    }
+    // En Windows, un guard registrado antes sólo para `Bash` pasa a cubrir también `PowerShell` (sin tocar el matcher de otros hooks).
+    const matcher = matcherShell(o.plataforma);
+    if (matcher !== "Bash" && Array.isArray(hooks?.PreToolUse)) {
+      for (const g of hooks.PreToolUse) {
+        if (esObjeto(g) && g.matcher === "Bash" && Array.isArray(g.hooks) && g.hooks.filter(esObjeto).some((h) => typeof h.command === "string" && marca("destructive-guard").test(h.command))) {
+          g.matcher = matcher;
+          cambio = true;
+        }
       }
     }
   }
