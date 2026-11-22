@@ -2,6 +2,7 @@
 // al tocarlos: las otras cuentas de Claude y los otros motores. Nada de acá supone qué grupos hay: salen como vienen de `reparto`.
 // Puro: lo prueba `tests/riel.test.ts`.
 import type { Uso, VentanaCupo } from "../datos/contrato";
+import { t } from "../i18n/index.ts";
 import { MARCA, type FilaSusc, type ListaCuentas } from "../datos/cuentas.ts";
 import { columnas, estadoVentana, renglonesDeGrupos, resumenVentanas, type EstadoGrupo } from "./cuposVista.ts";
 import { ritmoSemanal } from "../paneles/cupos-ritmo.ts";
@@ -127,10 +128,12 @@ export type LineaRiel = {
   gratis?: boolean;
   /** La cuenta del control «En uso» / «Usar primero», sólo en el primer renglón de cada una. */
   cuenta?: { proveedor: string; id: string };
-  /** Las dos ventanas de una cuenta de Claude, juntas: si falta una se dice «sin dato», nunca queda el renglón vacío. */
-  h5?: VentanaRiel;
-  sem?: VentanaRiel;
+  /** Una fila por ventana (5 h, semana…) con su barra y cuándo vuelve; si falta una se dice «sin dato», nunca queda el renglón vacío. Sin ellas: la palabra o el número del renglón. */
+  ventanas?: FilaVentana[];
 };
+
+/** Una ventana de un renglón del detalle: `pct` null = sin dato; `hasta` en epoch s (0: no se sabe); `noAplica`: no rige ahora (Google con la semana agotada). */
+export type FilaVentana = { clave: string; nombre: string; pct: number | null; hasta: number; noAplica?: boolean };
 
 /** Las otras cuentas de Claude como renglones: el número es lo más lleno de sus dos ventanas. */
 export function lineasCuentas(cuentas: readonly CuentaRiel[]): LineaRiel[] {
@@ -152,8 +155,10 @@ export function lineasCuentas(cuentas: readonly CuentaRiel[]): LineaRiel[] {
         vuelve: lleno && peor?.hasta ? peor.hasta : null,
         cuando: (peor?.pct ?? 0) > 0 && peor?.hasta ? peor.hasta : null,
         cuenta: { proveedor: "claude", id: c.id },
-        h5: c.h5,
-        sem: c.sem,
+        ventanas: [
+          { clave: "5h", nombre: t("cu.tj.5h"), ...c.h5 },
+          { clave: "7d", nombre: t("cu.tj.7d"), ...c.sem },
+        ],
       };
     });
 }
@@ -188,6 +193,22 @@ export type BloqueRiel = { clave: string; proveedor: string; titulo: string; lin
 
 const sinTope = (v: VentanaCupo) => v.pedidos !== undefined && !v.tope;
 
+/** El nombre de una ventana: `5h` y `7d` de siempre, `1m` (NVIDIA: pedidos por minuto); una que no conocemos se dice con su id. `largo`: «5 horas», «Semana»; si no, «5 h», «sem». */
+export function nombreVentanaRiel(id: string, largo = false): string {
+  if (id === "5h") return largo ? t("riel.cinco") : t("cupos.w5h");
+  if (id === "7d") return largo ? t("riel.semana") : t("riel.sem");
+  if (id === "1m") return t("riel.minuto");
+  return id;
+}
+
+/** Las ventanas de un renglón del detalle, una fila cada una, en el orden de `reparto`; sin ninguna que se pueda dibujar (gratis, sin límite), nada: el renglón dice su palabra. */
+const filasDeVentanas = (ventanas: readonly VentanaCupo[]): FilaVentana[] | undefined => {
+  const filas = ventanas
+    .filter((v) => v.pct !== null || v.deshabilitada)
+    .map((v): FilaVentana => ({ clave: v.id, nombre: nombreVentanaRiel(v.id, true), pct: v.deshabilitada ? null : v.pct, hasta: v.vuelve ?? 0, ...(v.deshabilitada ? { noAplica: true } : null) }));
+  return filas.length ? filas : undefined;
+};
+
 /** Los otros motores agrupados por suscripción, un renglón por grupo (o por cuenta si no trae grupos), en el orden de `reparto`. */
 export function bloquesMotores(filas: readonly FilaSusc[], ahoraS: number): BloqueRiel[] {
   const otras = filas.filter((f) => f.proveedor !== "claude");
@@ -206,6 +227,7 @@ export function bloquesMotores(filas: readonly FilaSusc[], ahoraS: number): Bloq
       const ventanas = f.s.ventanas ?? [];
       const r = resumenVentanas(ventanas, f.s.agotado, ahoraS);
       const gratis = r.pct === null && r.pedidos !== undefined && ventanas.some(sinTope);
+      const filas = r.estado === "marcado" ? undefined : filasDeVentanas(ventanas);
       b.lineas.push({
         clave: f.s.id,
         nombre: f.corto,
@@ -216,12 +238,14 @@ export function bloquesMotores(filas: readonly FilaSusc[], ahoraS: number): Bloq
         cuando: vueltaDe(ventanas),
         ...(r.pedidos !== undefined ? { pedidos: r.pedidos } : null),
         ...(gratis ? { gratis } : null),
+        ...(filas ? { ventanas: filas } : null),
         cuenta,
       });
       continue;
     }
     renglonesDeGrupos(grupos, ahoraS).forEach(({ g, r, sinLimite }, i) => {
       const gratis = r.pct === null && r.pedidos !== undefined && g.ventanas.some(sinTope);
+      const filas = r.estado === "marcado" ? undefined : filasDeVentanas(g.ventanas);
       b!.lineas.push({
         clave: `${f.s.id}:${g.id}`,
         nombre: cuantas(f.proveedor) > 1 ? `${f.corto} · ${nombreGrupoCorto(g)}` : nombreGrupoDetalle(g),
@@ -233,9 +257,110 @@ export function bloquesMotores(filas: readonly FilaSusc[], ahoraS: number): Bloq
         ...(r.pedidos !== undefined ? { pedidos: r.pedidos } : null),
         ...(sinLimite ? { sinLimite } : null),
         ...(gratis ? { gratis } : null),
+        ...(filas ? { ventanas: filas } : null),
         ...(i === 0 ? { cuenta } : null),
       });
     });
   }
   return bloques;
+}
+
+// --- Los aros del costado: los límites que existen hoy y cuáles se ven ---
+
+/** Un límite que puede ir en un aro: una ventana de una cuenta, de un modelo de Claude o de un grupo de otra suscripción. `v.pct` null = sin dato. */
+export type LimiteRiel = {
+  /** Estable entre lecturas (lo guarda la preferencia): `claude:<cuenta>:5h`, `claude:modelo:<modelo>`, `<suscripción>:<grupo>:<ventana>`. */
+  clave: string;
+  proveedor: string;
+  /** El nombre entero, para el tooltip y el `aria-label`: «Claude · 5 horas». */
+  nombre: string;
+  /** El rótulo corto de debajo del aro, en dos partes: «Fable» y «sem». */
+  quien: string;
+  ventana: string;
+  v: VentanaRiel;
+  /** Su cuenta de uso es semanal: el aro lleva la rayita del ritmo parejo. */
+  semanal: boolean;
+  /** Cuándo se leyó (epoch s). */
+  ts: number;
+};
+
+/** Cuántos aros caben en la preferencia (el riel tiene lugar para tres) y cuántos salen solos. */
+export const AROS_MAX = 3;
+export const AROS_AUTO = 2;
+
+type UsoLimites = Pick<Extract<Uso, { ts: number }>, "por_modelo" | "ts">;
+
+/**
+ * Todos los límites con los que cuenta el riel hoy: las dos ventanas de cada cuenta de Claude, el límite semanal propio de cada modelo de Claude
+ * (`por_modelo`, sólo de la cuenta de siempre) y cada ventana de cada grupo de las demás suscripciones. Una ventana que no rige ahora (Google con la
+ * semana agotada) no es un límite; un grupo marcado sin cupo por un 429 cuenta como 100 %. En el orden de la barra: Claude primero.
+ */
+export function limitesRiel(uso: UsoLimites | null | undefined, cuentas: readonly CuentaRiel[], filas: readonly FilaSusc[]): LimiteRiel[] {
+  const out: LimiteRiel[] = [];
+  const variasClaude = cuentas.length > 1;
+  for (const c of cuentas) {
+    const quien = variasClaude ? c.nombre : t("uso.claude");
+    for (const [id, v] of [["5h", c.h5], ["7d", c.sem]] as const) {
+      out.push({ clave: `claude:${c.id}:${id}`, proveedor: "claude", nombre: `${quien} · ${nombreVentanaRiel(id, true)}`, quien, ventana: nombreVentanaRiel(id), v, semanal: id === "7d", ts: c.ts });
+    }
+    if (c.id === "claude") {
+      for (const m of uso?.por_modelo ?? []) {
+        const corto = m.modelo.replace(/^claude\s+/i, "");
+        out.push({ clave: `claude:modelo:${m.modelo}`, proveedor: "claude", nombre: `Claude ${corto} · ${nombreVentanaRiel("7d", true)}`, quien: corto, ventana: nombreVentanaRiel("7d"), v: { pct: m.pct, hasta: m.resets_at ?? 0 }, semanal: true, ts: uso?.ts ?? 0 });
+      }
+    }
+  }
+  const cuantas = (p: string) => filas.filter((f) => f.proveedor === p).length;
+  for (const f of filas) {
+    if (f.proveedor === "claude") continue;
+    const ts = f.s.ts ?? 0;
+    // ChatGPT son los límites de Codex: así los llama la barra.
+    const sinGrupos = f.proveedor === "chatgpt" ? t("cu.gc.codex") : f.corto;
+    const partes: { id: string; quien: string; entero: string; ventanas: readonly VentanaCupo[]; agotado?: number }[] = f.s.grupos?.length
+      ? f.s.grupos.map((g) => ({ id: g.id, quien: cuantas(f.proveedor) > 1 ? `${f.corto} · ${nombreGrupoCorto(g)}` : nombreGrupoCorto(g), entero: `${f.nombre} · ${nombreGrupo(g)}`, ventanas: g.ventanas, agotado: g.agotado }))
+      : [{ id: "", quien: sinGrupos, entero: f.proveedor === "chatgpt" ? `${f.nombre} · ${sinGrupos}` : f.nombre, ventanas: f.s.ventanas ?? [], agotado: f.s.agotado }];
+    for (const p of partes) {
+      const base = `${f.s.id}:${p.id}`;
+      if (p.agotado !== undefined && p.agotado > 0) {
+        out.push({ clave: `${base}:marca`, proveedor: f.proveedor, nombre: `${p.entero} · ${t("cu.tj.marcada")}`, quien: p.quien, ventana: t("cu.w.marcadoCorto"), v: { pct: 100, hasta: p.agotado }, semanal: false, ts });
+        continue;
+      }
+      for (const w of p.ventanas) {
+        if (w.deshabilitada) continue;
+        out.push({ clave: `${base}:${w.id}`, proveedor: f.proveedor, nombre: `${p.entero} · ${nombreVentanaRiel(w.id, true)}`, quien: p.quien, ventana: nombreVentanaRiel(w.id), v: ventanaCupo(w), semanal: w.id === "7d", ts });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Los `n` límites más apretados (por defecto dos): primero lo agotado (100 %), después el mayor porcentaje usado; con empate, el que vuelve más
+ * tarde (uno sin hora va al final). Sin dato no entra: un aro vacío no le dice nada a nadie. Con menos de `n` con dato salen los que haya.
+ */
+export function masApretados(limites: readonly LimiteRiel[], n = AROS_AUTO): LimiteRiel[] {
+  const agotado = (l: LimiteRiel) => ((l.v.pct ?? 0) >= 100 ? 1 : 0);
+  return limites
+    .filter((l) => l.v.pct !== null)
+    .map((l, i) => ({ l, i }))
+    .sort((a, b) => agotado(b.l) - agotado(a.l) || (b.l.v.pct ?? 0) - (a.l.v.pct ?? 0) || b.l.v.hasta - a.l.v.hasta || a.i - b.i)
+    .slice(0, n)
+    .map((x) => x.l);
+}
+
+/** La preferencia de los aros: `auto` (los más apretados) o la lista de claves que la persona fijó (1 a `AROS_MAX`). */
+export type PrefAros = "auto" | string[];
+
+/**
+ * Los aros que se dibujan: los fijados que existen hoy (en el orden que se fijaron; uno sin dato se ve con «—»: lo pidió la persona) o, en
+ * automático o si ya no existe ninguno de los fijados, los más apretados. Con límites que existen, nunca queda el riel sin aros.
+ */
+export function arosVisibles(limites: readonly LimiteRiel[], pref: PrefAros): LimiteRiel[] {
+  if (pref !== "auto") {
+    const fijados = pref.flatMap((k) => limites.filter((l) => l.clave === k)).slice(0, AROS_MAX);
+    if (fijados.length) return fijados;
+  }
+  const solos = masApretados(limites);
+  // Sin ningún dato (nada conectado todavía) quedan los dos de siempre, con «—»: el riel no cambia de forma.
+  return solos.length ? solos : limites.slice(0, AROS_AUTO);
 }

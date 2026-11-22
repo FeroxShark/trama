@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { armarArbol, type Arbol, type Carpeta, type Item, type Rama } from "../src/barra/arbol.ts";
 import { aRiel, actualizarOrdenProyectos, atencionCarpeta, carpetaViva, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, filasCarpeta, segunLista } from "../src/barra/riel-logica.ts";
 import { ORDEN0, reordenar } from "../src/barra/orden.ts";
-import { bloquesMotores, cuentasClaude, estadoAnillo, lineasCuentas, marcaAnillo, nivelCupo, vueltaDe } from "../src/barra/cupos-riel-logica.ts";
+import { arosVisibles, bloquesMotores, cuentasClaude, estadoAnillo, limitesRiel, lineasCuentas, marcaAnillo, masApretados, nivelCupo, vueltaDe } from "../src/barra/cupos-riel-logica.ts";
+import { normalizarAros } from "../src/barra/cupos-aros.ts";
 import { PALETA_RIEL, tonoRiel } from "../src/barra/logo-logica.ts";
 import { pintorHace } from "../src/tiempo.ts";
 import { cambiarIdioma } from "../src/i18n/index.ts";
@@ -357,4 +358,91 @@ test("estadoAnillo: ok, ámbar desde 80 o ritmo adelantado en sem, rojo en 100 y
 
   assert.deepEqual(marcaAnillo(0.5, 19.5), { x1: 24, y1: 40, x2: 24, y2: 47 });
   assert.deepEqual(marcaAnillo(0.25, 19.5), { x1: 40, y1: 24, x2: 47, y2: 24 });
+});
+
+// --- Los aros del costado: los dos límites más apretados de todas las suscripciones ---
+
+const usoClaude = (extra: Record<string, unknown> = {}) => ({ ts: AHORA, five_hour: { pct: 10, resets_at: AHORA + 3600 }, seven_day: { pct: 20, resets_at: AHORA + 5 * 86400 }, ...extra }) as Parameters<typeof limitesRiel>[0] & Parameters<typeof cuentasClaude>[0];
+const limitesDe = (uso: ReturnType<typeof usoClaude>, filas: FilaSusc[] = []) => limitesRiel(uso, cuentasClaude(uso, filas, "Claude", null), filas);
+const claves = (ls: { clave: string }[]) => ls.map((l) => l.clave);
+
+test("aros: sólo Claude conectado son sus dos ventanas, 5 h y semana, como siempre", () => {
+  cambiarIdioma("es");
+  const ls = limitesDe(usoClaude());
+  assert.deepEqual(claves(arosVisibles(ls, "auto")), ["claude:claude:7d", "claude:claude:5h"]);
+  assert.deepEqual(arosVisibles(ls, "auto").map((l) => [l.quien, l.ventana]), [["Claude", "sem"], ["Claude", "5 h"]]);
+});
+
+test("aros: con Claude, Codex y Google salen los dos más usados de todos, no siempre los de Claude", () => {
+  cambiarIdioma("es");
+  const codex = { ...fila("chatgpt", "chatgpt", { ventanas: [{ id: "5h", pct: 70, vuelve: AHORA + 600 }, { id: "7d", pct: 35, vuelve: AHORA + 86400 }] }, "ChatGPT"), nombre: "ChatGPT" };
+  const google = fila("google", "google", { grupos: [{ id: "gemini", nombre: "Gemini", ventanas: [{ id: "5h", pct: 6, vuelve: AHORA + 600 }, { id: "7d", pct: 88, vuelve: AHORA + 86400 }] }] }, "Google AI Pro");
+  const ls = limitesDe(usoClaude(), [codex, google]);
+  const aros = arosVisibles(ls, "auto");
+  assert.deepEqual(aros.map((l) => [l.quien, l.ventana, l.v.pct]), [["Gemini", "sem", 88], ["Codex", "5 h", 70]]);
+  assert.equal(aros[1].nombre, "ChatGPT · Codex · 5 horas");
+  assert.equal(aros[0].semanal, true);
+});
+
+test("aros: Fable agotado va primero aunque otra ventana tenga el mismo porcentaje; empate, el que vuelve más tarde", () => {
+  cambiarIdioma("es");
+  const uso = usoClaude({ por_modelo: [{ modelo: "Fable", pct: 100, resets_at: AHORA + 2 * 86400 }], seven_day: { pct: 100, resets_at: AHORA + 4 * 86400 } });
+  const aros = arosVisibles(limitesDe(uso), "auto");
+  assert.deepEqual(aros.map((l) => [l.quien, l.ventana]), [["Claude", "sem"], ["Fable", "sem"]]);
+  assert.equal(aros[1].nombre, "Claude Fable · Semana");
+  // Con 90 % en dos ventanas, gana la que vuelve más tarde.
+  const empate = masApretados([
+    { clave: "a", proveedor: "x", nombre: "a", quien: "a", ventana: "5 h", v: { pct: 90, hasta: AHORA + 100 }, semanal: false, ts: 0 },
+    { clave: "b", proveedor: "x", nombre: "b", quien: "b", ventana: "sem", v: { pct: 90, hasta: AHORA + 900 }, semanal: true, ts: 0 },
+  ]);
+  assert.deepEqual(claves(empate), ["b", "a"]);
+});
+
+test("aros: sin dato no entra, lo que no rige no es un límite, y un grupo marcado cuenta como agotado", () => {
+  cambiarIdioma("es");
+  const google = fila("google", "google", {
+    grupos: [
+      { id: "claude-gpt", nombre: "x", ventanas: [{ id: "5h", pct: 0, vuelve: null, deshabilitada: true }, { id: "7d", pct: null, vuelve: null }] },
+      { id: "gemini", nombre: "Gemini", ventanas: [], agotado: AHORA + 600 },
+    ],
+  }, "Google AI Pro");
+  const ls = limitesDe(usoClaude({ five_hour: null }), [google]);
+  assert.ok(!ls.some((l) => l.clave.includes("claude-gpt:5h")), "la ventana que no rige no es un límite");
+  const aros = arosVisibles(ls, "auto");
+  assert.equal(aros[0].quien, "Gemini");
+  assert.equal(aros[0].v.pct, 100);
+  assert.ok(aros.every((l) => l.v.pct !== null));
+});
+
+test("aros: nada conectado deja los dos de Claude con «—» (el riel no cambia de forma)", () => {
+  const ls = limitesDe(usoClaude({ five_hour: null, seven_day: null }));
+  assert.deepEqual(claves(arosVisibles(ls, "auto")), ["claude:claude:5h", "claude:claude:7d"]);
+  assert.ok(arosVisibles(ls, "auto").every((l) => l.v.pct === null));
+});
+
+test("aros fijados: salen en el orden fijado, uno sin dato se ve igual, y si ya no existen ninguno vuelve el automático", () => {
+  const uso = usoClaude({ seven_day: null, por_modelo: [{ modelo: "Fable", pct: 40, resets_at: AHORA + 86400 }] });
+  const ls = limitesDe(uso);
+  assert.deepEqual(claves(arosVisibles(ls, ["claude:modelo:Fable", "claude:claude:7d", "claude:claude:5h", "otro"])), ["claude:modelo:Fable", "claude:claude:7d", "claude:claude:5h"]);
+  assert.deepEqual(claves(arosVisibles(ls, ["ya-no-existe"])), claves(arosVisibles(ls, "auto")));
+});
+
+test("normalizarAros: lo raro es automático; sin repetidos y a lo sumo tres", () => {
+  assert.equal(normalizarAros(null), "auto");
+  assert.equal(normalizarAros("x"), "auto");
+  assert.equal(normalizarAros([]), "auto");
+  assert.equal(normalizarAros([1, "", {}]), "auto");
+  assert.deepEqual(normalizarAros(["a", "a", "b", "c", "d"]), ["a", "b", "c"]);
+});
+
+test("bloquesMotores: una fila por ventana (5 h y semana de Codex) con cuándo vuelve; lo que no rige dice que no aplica", () => {
+  cambiarIdioma("es");
+  const codex = fila("chatgpt", "chatgpt", { ventanas: [{ id: "5h", pct: 42, vuelve: AHORA + 600 }, { id: "7d", pct: 18, vuelve: AHORA + 86400 }] }, "ChatGPT");
+  const google = fila("google", "google", { grupos: [{ id: "claude-gpt", nombre: "x", ventanas: [{ id: "5h", pct: 0, vuelve: null, deshabilitada: true }, { id: "7d", pct: 100, vuelve: AHORA + 7200 }] }] });
+  const bs = bloquesMotores([codex, google], AHORA);
+  assert.deepEqual(bs[0].lineas[0].ventanas?.map((v) => [v.nombre, v.pct, v.hasta]), [["5 horas", 42, AHORA + 600], ["Semana", 18, AHORA + 86400]]);
+  assert.deepEqual(bs[1].lineas[0].ventanas?.map((v) => [v.nombre, v.pct, v.noAplica]), [["5 horas", null, true], ["Semana", 100, undefined]]);
+  // Los gratis sin tope no tienen ventanas que dibujar: siguen diciendo su palabra.
+  const libre = fila("casa", "opencode", { ventanas: [{ id: "5h", pct: null, vuelve: null, pedidos: 37 }] }, "Casa");
+  assert.equal(bloquesMotores([libre], AHORA)[0].lineas[0].ventanas, undefined);
 });
