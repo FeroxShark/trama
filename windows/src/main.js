@@ -9,7 +9,7 @@ const { app, BrowserWindow, ipcMain, session, shell, Menu, Tray, dialog, clipboa
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { ErrorPaso, MOTOR_URL } = require("./pasos-comun");
+const { ErrorPaso, esPropio } = require("./pasos-comun");
 const { entornoWindows } = require("./entorno-windows");
 const { armarCorrector } = require("./corrector");
 const { crearGuardiaFoco } = require("./foco");
@@ -228,8 +228,7 @@ const actualizador = { instalar() {}, buscar: async () => {}, refrescar: async (
 
 // Los pedidos de la página (Ajustes) sólo valen si vienen del asistente o de la Trama de localhost.
 const deConfianza = (e) => {
-  const u = e?.senderFrame?.url || "";
-  return u.startsWith("file:") || u.startsWith(MOTOR_URL);
+  return esPropio(e?.senderFrame?.url);
 };
 const protegido = (fn) => (e, ...a) => (deConfianza(e) ? fn(...a) : Promise.reject(new Error("No autorizado")));
 const textoError = (e) => ({ error: e instanceof Error ? e.message : String(e), detalle: e?.detalle || "" });
@@ -376,14 +375,13 @@ function arrancar() {
     return { action: "deny" };
   });
   ventana.webContents.on("will-navigate", (e, url) => {
-    const propio = url.startsWith("file:") || url.startsWith(MOTOR_URL);
-    if (!propio) {
+    if (!esPropio(url)) {
       e.preventDefault();
       if (/^https?:\/\//.test(url)) shell.openExternal(url);
     }
   });
   ventana.webContents.on("did-fail-load", (_e, _c, desc, url, principal) => {
-    if (principal && enMotor && url.startsWith(MOTOR_URL)) {
+    if (principal && enMotor && esPropio(url) && !url.startsWith("file:")) {
       log(`falló la carga de ${url}: ${desc}`);
       mostrarAsistente();
     }

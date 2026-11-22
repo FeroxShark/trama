@@ -36,4 +36,14 @@ function parsearEstado(texto) {
   };
 }
 
-module.exports = { OLLAMA_URL, MOTOR_URL, ErrorPaso, ultimasLineas, parsearEstado };
+/** ¿Es una página nuestra? `file:` (el asistente) o el origen exacto del motor: `localhost:87910` o `localhost:8791.otro.com` no. */
+function esPropio(url, motorUrl = MOTOR_URL) {
+  try {
+    const u = new URL(String(url));
+    return u.protocol === "file:" || u.origin === new URL(motorUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { OLLAMA_URL, MOTOR_URL, esPropio, ErrorPaso, ultimasLineas, parsearEstado };
