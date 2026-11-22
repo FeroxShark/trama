@@ -52,7 +52,9 @@ const dirname = (p) => {
   if (h && h !== "/".repeat(h.length)) h = h.replace(/\/+$/, "");
   return h;
 };
-const unir = (a, b) => (b.startsWith("/") ? b : !a || a.endsWith("/") ? a + b : `${a}/${b}`);
+// En Windows una ruta absoluta es «D:\…»: si no se reconoce, se pega al cwd y el archivo no existe.
+const esAbsoluta = (p) => p.startsWith("/") || /^[A-Za-z]:[\\/]/.test(p);
+const unir = (a, b) => (esAbsoluta(b) ? b : !a || /[\\/]$/.test(a) ? a + b : `${a}/${b}`);
 function normpath(p) {
   if (!p) return ".";
   const r = path.posix.normalize(p);
