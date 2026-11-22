@@ -228,6 +228,7 @@ test("argv: sin subagentes, sin comandos de slash (salvo diseño), y las seccion
   // el cierre: mismo criterio
   const cierre = argsCierre(pa, corrida(raiz), { contrato: "k", settings: "{}", nombre: "n", sid: "x" });
   assert.ok(cierre.includes("--disable-slash-commands"));
+  assert.ok(cierre.includes("--exclude-dynamic-system-prompt-sections"), "el cierre también excluye las secciones de la máquina");
   assert.equal(apagadas(cierre).join(","), apagadas(escritor).join(","), "el cierre apaga lo mismo");
   assert.ok(!apagadas(argsClaude(pa, corrida(raiz, { tipo: "frontend" }), o)).includes("Skill"), "frontend conserva Skill");
 });
@@ -248,6 +249,9 @@ test("el system prompt es idéntico entre corridas y lo que cambia va al final d
   assert.ok(p1.includes("20260101-000000-2"), "los otros writers van en el prompt");
   assert.ok(promptDe(pa, c2).includes("otro-jefe"), "el jefe va en el prompt");
   assert.ok(p1.trimEnd().endsWith("se resuelve al integrar."), "el bloque variable va al final del prompt");
+  const reanudacion = argsClaude(pa, { ...c1, resume: true, ficha: "ficha del proyecto" }, { contrato: k1, settings: "{}", nombre: "n" });
+  assert.ok(reanudacion.includes("--resume"));
+  assert.deepEqual(reanudacion.slice(0, 2), ["-p", c1.tarea], "al reanudar sólo se manda la tarea");
 });
 
 test("PA_RECORTE: 150 en plan pro y 300 en max", () => {

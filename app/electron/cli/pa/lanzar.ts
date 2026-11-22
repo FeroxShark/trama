@@ -523,7 +523,7 @@ export const HERRAMIENTAS_APAGADAS = [
 export function promptDe(pa: Pa, c: Corrida): string {
   let p = c.tarea;
   if (!c.resume && c.ficha) p += `\n\nDónde quedó este proyecto:\n${c.ficha}`;
-  const v = bloqueVariable(pa, c);
+  const v = c.resume ? "" : bloqueVariable(pa, c);
   if (v) p += `\n\n${v}`;
   return p;
 }
@@ -560,6 +560,7 @@ export function argsCierre(_pa: Pa, c: Corrida, o: { contrato: string; settings:
   if (sinMcp(c)) a.push(...mcpApagado);
   if (!c.leer) a.push("--disallowedTools", HERRAMIENTAS_APAGADAS);
   if (!usaSkills(c)) a.push("--disable-slash-commands");
+  a.push("--exclude-dynamic-system-prompt-sections");
   if (c.maxBudget) a.push("--max-budget-usd", c.maxBudget);
   return a;
 }
