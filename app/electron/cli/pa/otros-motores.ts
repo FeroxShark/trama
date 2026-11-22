@@ -16,6 +16,7 @@ import { mapaDe, promptDe, usaSkills, type Corrida, type Lanzamiento, type Opcio
 import { chequeoAgy, chequeoCodex, chequeoDsh, localEstado, type Local } from "./motores/chequeo.ts";
 import { armarLlamada, conCuenta, type EntornoCuenta, type Llamada } from "./motores/llamada.ts";
 import { esOpencode, Modelos } from "./modelos.ts";
+import { motorMemoria } from "./motores/modelos.ts";
 import type { Llamada as LlamadaPa, Motores } from "./politica.ts";
 import { escribirAgyJson, escribirCodexJson, latir, pasosDeCodex } from "./motores/salida.ts";
 import { type MotorSkills, sincronizarSkillsParaMotor } from "./skills-motores.ts";
@@ -68,6 +69,7 @@ export function llamadaDe(l: Lanzamiento): Llamada {
     ocEffort: c.ocEffort,
     locales: c.locales,
     cuenta: cuentaDe(c),
+    compartir: new Modelos(pa.env, { out: () => {}, err: () => {} }, pa.home, pa.plat).memoriaCompartida(motorMemoria(c.motor ?? "", c.modelo)),
     // bash exporta PA_RECORTE y PA_MAX_TURNS en el entorno de pa antes de armar la llamada: lo heredan todos los motores
     env: { ...pa.env, ...l.envClaude },
     io: pa.io,

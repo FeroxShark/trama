@@ -5,6 +5,7 @@
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import type { Env, Io } from "../entorno.ts";
+import { secretoEn } from "./privacidad.ts";
 
 export const AGENTS_MAX_DEFECTO = 20000;
 
@@ -130,11 +131,41 @@ export function agentsMdBloque(carpetas: string[], env: Env, io: Pick<Io, "err">
 /** El CLAUDE.md del dueño (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md`). */
 export const claudeMdDueno = (env: Env, home: string) => path.join(env.CLAUDE_CONFIG_DIR || path.join(home, ".claude"), "CLAUDE.md");
 
+/** Las líneas del índice de la memoria que van al prompt, como mucho. */
+export const MEMORIA_MAX_LINEAS = 200;
+
+/**
+ * El `MEMORY.md` de la memoria del dueño para el proyecto principal `cwd`: `<claude>/projects/<cwd con todo lo que no es
+ * [a-zA-Z0-9] cambiado por "-">/memory/MEMORY.md` (la misma ruta que `memoriaDe` de contexto-local.ts, sin importar esa pila).
+ */
+export const memoriaDueno = (env: Env, home: string, cwd: string) =>
+  path.join(env.CLAUDE_CONFIG_DIR || path.join(home, ".claude"), "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"), "memory", "MEMORY.md");
+
+/**
+ * El bloque de memoria para el prompt, o "" (sin archivo o vacío). Hasta 200 líneas, con CRLF normalizado; una línea con pinta de
+ * secreto (`secretoEn`) se saca antes de mandarlo. Nunca hace rebotar la corrida: sólo quita.
+ */
+export function bloqueMemoria(f: string): string {
+  let txt: string;
+  try {
+    if ((tamano(f) ?? 0) <= 0) return "";
+    txt = leer(f).replace(/\r\n?/g, "\n");
+  } catch {
+    return "";
+  }
+  const lineas = sinSaltosFinales(txt).split("\n");
+  const cortas = lineas.slice(0, MEMORIA_MAX_LINEAS).filter((l) => secretoEn(l) === "");
+  if (mdVacio(cortas.join("\n"))) return "";
+  let cuerpo = cortas.join("\n");
+  if (lineas.length > MEMORIA_MAX_LINEAS) cuerpo += `\n[… truncado: el índice tiene ${lineas.length} líneas y acá van las primeras ${MEMORIA_MAX_LINEAS}; leé el resto con Read si lo necesitás]`;
+  return `\n\nMEMORIA DEL DUEÑO (índice de su memoria de este proyecto, archivo ${f}; los archivos que enlaza están en esa misma carpeta, leelos con la herramienta de lectura si hace falta):\n${cuerpo}`;
+}
+
 /**
  * El prompt entero de un worker de otro motor: el contrato como «system prompt», los CLAUDE.md que le tocan (`mds`: el del
  * dueño, o ninguno si la tarea sale a otra empresa que no debe verlo), las reglas del proyecto si hacen falta y la tarea.
  */
-export function promptOtroMotor(o: { contrato: string; mds: string[]; carpetas: string[]; tarea: string; env: Env; io: Pick<Io, "err"> }): string {
+export function promptOtroMotor(o: { contrato: string; mds: string[]; carpetas: string[]; tarea: string; env: Env; io: Pick<Io, "err">; memoria?: string | null }): string {
   let p = `INSTRUCCIONES DEL ORQUESTADOR (valen como system prompt):\n${o.contrato}`;
   for (const md of o.mds) {
     if ((tamano(md) ?? 0) <= 0) continue;
@@ -146,6 +177,7 @@ export function promptOtroMotor(o: { contrato: string; mds: string[]; carpetas: 
     }
     p += instruccionesMd(md, txt, o.env, o.io);
   }
+  if (o.memoria) p += bloqueMemoria(o.memoria);
   p += agentsMdBloque(o.carpetas, o.env, o.io);
   p += `\n\nTAREA:\n${o.tarea}`;
   return p;

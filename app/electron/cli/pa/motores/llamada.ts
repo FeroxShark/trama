@@ -10,7 +10,7 @@ import { CONTRATO, CONTRATO_AGY, CONTRATO_CODEX, SIN_JEFE } from "../contrato.ts
 import type { Env, Io } from "../entorno.ts";
 import { codexShims, dshBin, dshClave, dshCorrer, localDe, opencodeBin, opencodeCorrer, type Local } from "./chequeo.ts";
 import { dshModeloDe, dshProveedor, esNvidia, esOpencode, type Motor } from "./modelos.ts";
-import { claudeMdDueno, promptOtroMotor } from "./prompt.ts";
+import { claudeMdDueno, memoriaDueno, promptOtroMotor } from "./prompt.ts";
 
 /**
  * El contrato de un motor antes de `conDueno`: agy y codex/dsh tienen el suyo y corren sin jefe (no tienen SendMessage).
@@ -61,6 +61,11 @@ export interface DatosLlamada {
   /** `locales` de modelos.json (dsh:ollama sale de ahí, o del Ollama de siempre). */
   locales?: Local[] | null;
   cuenta?: EntornoCuenta;
+  /**
+   * `memoria_compartida` de modelos.json para el motor de esta corrida (ver `motorMemoria`): prendido (default, también sin la
+   * clave) van el CLAUDE.md del dueño y su memoria; apagado, ninguno de los dos.
+   */
+  compartir?: boolean;
   env: Env;
   io: Pick<Io, "err">;
   plat?: Plataforma;
@@ -122,12 +127,24 @@ export function armarLlamada(d: DatosLlamada): Llamada {
   const stderr = path.join(d.dir, `${d.ts}.err`);
   // Codex lee el AGENTS.md del cwd. Si falta en ese árbol, conservá el respaldo de pa (el principal o un CLAUDE.md).
   const carpetas = d.motor === "codex" && existeArchivo(path.join(d.rutaTrabajo, "AGENTS.md")) ? [] : [d.rutaTrabajo, d.ruta];
-  const promptCon = (mds: string[]) => promptOtroMotor({ contrato: d.contrato, mds, carpetas, tarea: d.prompt, env: d.env, io: d.io });
+  const compartir = d.compartir !== false;
+  // La memoria es la del proyecto principal (`d.ruta`), no la del worktree. Lo que va de memoria o del CLAUDE.md del dueño nunca
+  // pasa por los candados de privacidad (sólo el pedido): una línea de la memoria con pinta de secreto se saca en `bloqueMemoria`.
+  const promptCon = () =>
+    promptOtroMotor({
+      contrato: d.contrato,
+      mds: compartir ? [claudeMdDueno(d.env, home)] : [],
+      memoria: compartir ? memoriaDueno(d.env, home, d.ruta) : null,
+      carpetas,
+      tarea: d.prompt,
+      env: d.env,
+      io: d.io,
+    });
 
   if (d.motor === "agy") {
     // Mismo formato de entrada que el líder. El plugin pa-worker recibe por entorno los datos del worktree.
     const { args, stdin } = llamadaAgy({
-      prompt: promptCon([claudeMdDueno(d.env, home)]),
+      prompt: promptCon(),
       modelo: d.modelo.startsWith("agy:") ? d.modelo.slice(4) : d.modelo,
       conversacion: null,
       timeout: `${d.env.PA_AGY_TIMEOUT || "3600"}s`,
@@ -159,7 +176,7 @@ export function armarLlamada(d: DatosLlamada): Llamada {
 
   if (d.motor === "codex") {
     // El sandbox protege el .git del worktree aun con --add-dir. El commit lo hace pa al cerrar.
-    const p = promptCon([claudeMdDueno(d.env, home)]) + (d.leer ? "" :
+    const p = promptCon() + (d.leer ? "" :
       "\n\nPara esta corrida de Codex, este párrafo tiene prioridad sobre las indicaciones anteriores sobre commits y tests. " +
       "No corras `git add` ni `git commit`: el sandbox no deja escribir en git. Dejá los cambios en el árbol y, si estás en un worktree de la corrida, pa los commitea al terminar. " +
       "Los tests que abren sockets locales no corren en el sandbox. Corré los archivos de prueba que tocaste con `node scripts/test.mjs <archivo>` y decí en VERIFICACION cuáles no pudiste correr.");
@@ -205,9 +222,9 @@ export function armarLlamada(d: DatosLlamada): Llamada {
     };
   }
 
-  // dsh y opencode: el CLAUDE.md del dueño sólo va a Ollama (con opencode y deepseek la tarea sale a otra empresa).
+  // dsh y opencode: el CLAUDE.md y la memoria del dueño van a todos, con el interruptor por motor como única llave.
   const prov = dshProveedor(d.modelo);
-  const p = promptCon(prov === "ollama" ? [claudeMdDueno(d.env, home)] : []);
+  const p = promptCon();
   const oc = esOpencode(d.modelo);
   const args = ["--modelo", d.modelo, "--cwd", d.rutaTrabajo, "--stream", transcript, "--salida", out];
   if (oc && d.ocEffort) args.push("--effort", d.ocEffort);

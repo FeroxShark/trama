@@ -47,6 +47,16 @@ export const dshProveedor = (m: string) => {
   const i = r.indexOf("/");
   return i < 0 ? r : r.slice(0, i);
 };
+/**
+ * La clave de `memoria_compartida` (modelos.json) que manda sobre un worker: agy → gemini; codex → codex; opencode → opencode;
+ * dsh con Ollama → local; dsh con otro proveedor → dsh.
+ */
+export function motorMemoria(motor: string, modelo: string): "gemini" | "codex" | "dsh" | "opencode" | "local" {
+  if (motor === "agy") return "gemini";
+  if (motor === "codex") return "codex";
+  if (esOpencode(modelo)) return "opencode";
+  return dshProveedor(modelo) === "ollama" ? "local" : "dsh";
+}
 /** `dsh:opencode/big-pickle` → `big-pickle`. */
 export const dshModeloDe = (m: string) => {
   const r = m.slice(m.indexOf(":") + 1);

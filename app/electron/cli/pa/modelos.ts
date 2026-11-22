@@ -253,6 +253,12 @@ export class Modelos {
     return { modelo: typeof v.modelo === "string" ? v.modelo : "", effort: typeof v.effort === "string" ? v.effort : "", clave: k };
   }
 
+  /** `memoria_compartida.<motor>` de modelos.json: ¿va la memoria y el CLAUDE.md del dueño a ese motor? Sin la clave (o sin archivo) vale true. */
+  memoriaCompartida(motor: string): boolean {
+    const m = this.conf()?.memoria_compartida;
+    return !(esObjeto(m) && m[motor] === false);
+  }
+
   /** `modelos_clave`: el valor de una clave de primer nivel (texto o JSON compacto), o "". */
   clave(k: string): string {
     const c = this.conf();
