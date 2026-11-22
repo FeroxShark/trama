@@ -359,9 +359,8 @@ function FilaItem({ it, uid, foco, estimado, cat, hijo }: { it: Item; uid: strin
       </span>
       {it.sis || it.cortados !== null ? <span className="cp-sw-hueco" /> : <Interruptor x={it.apaga} nombre={nombre} protegida={it.protegida} />}
       <div className="cp-it-det">
-        {cat && !hijo && !apagado ? <Veredicto it={it} cat={cat} /> : null}
-        {/* Con el veredicto «nunca usada» ya va en su razón: no se repite. */}
-        {cat && !hijo && !apagado && it.nunca && !it.porHook ? null : <Uso it={it} />}
+        {/* Con veredicto, su razón ya dice los usos (o que nunca, o que la carga un hook): no se repite. Sin veredicto (apagada, hija de un MCP) sigue el uso de siempre. */}
+        {cat && !hijo && !apagado && veredictoDe({ ...it, cat }) ? <Veredicto it={it} cat={cat} /> : <Uso it={it} />}
         {it.sis ? <Ayuda k={ayudaSis(it)} nombre={nombre} /> : null}
         {it.nunca && !it.porHook ? <Ayuda k="ctxp.ayuda.nunca" nombre={t("ctxp.usos0")} /> : null}
         {it.cortados ? (
