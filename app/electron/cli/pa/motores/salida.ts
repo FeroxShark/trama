@@ -111,7 +111,7 @@ export function agyAJson(stream: string, err: string, modelo: string, rc: number
  * is_error (rc, turn.failed o error), num_turns (mensajes del modelo), modelUsage con los tokens de turn.completed (input_tokens
  * de codex incluye lo cacheado) y total_cost_usd 0 (suscripción de ChatGPT). Sin session_id.
  */
-export function codexAJson(stream: string, err: string, modelo: string, rc: number, ultimo: string, segundos: number): Obj {
+export function codexAJson(stream: string, err: string, modelo: string, rc: number, ultimo: string, segundos: number, cortadoPorTurnos = false): Obj {
   const ev = eventos(stream);
   const msgs = ev
     .filter((e) => e.type === "item.completed")
@@ -137,8 +137,8 @@ export function codexAJson(stream: string, err: string, modelo: string, rc: numb
   return {
     type: "result",
     motor: "codex",
-    subtype: fallo === null && rc === 0 ? "success" : "error",
-    is_error: fallo !== null || rc !== 0,
+    subtype: cortadoPorTurnos ? "error_max_turns" : fallo === null && rc === 0 ? "success" : "error",
+    is_error: fallo !== null || rc !== 0 || cortadoPorTurnos,
     result:
       fallo !== null
         ? [r, fallo]
@@ -176,9 +176,21 @@ export function escribirAgyJson(o: { transcript: string; err: string; modelo: st
 }
 
 /** `codex_a_json stream err modelo rc ultimo segundos >out`. */
-export function escribirCodexJson(o: { transcript: string; err: string; modelo: string; rc: number; ultimo: string; segundos: number; out: string }): void {
+export function escribirCodexJson(o: { transcript: string; err: string; modelo: string; rc: number; ultimo: string; segundos: number; out: string; cortadoPorTurnos?: boolean }): void {
   const txt = existsSync(o.transcript) ? readFileSync(o.transcript, "utf8") : null;
-  writeFileSync(o.out, txt === null ? "" : comoJq(codexAJson(txt, colaDe(o.err), o.modelo, o.rc, leerSinFinal(o.ultimo), o.segundos)) + "\n");
+  writeFileSync(o.out, txt === null ? "" : comoJq(codexAJson(txt, colaDe(o.err), o.modelo, o.rc, leerSinFinal(o.ultimo), o.segundos, o.cortadoPorTurnos)) + "\n");
+}
+
+/**
+ * Cuántos pasos dio un worker de codex: cada `item.completed` que no es un mensaje ni un razonamiento (comandos, cambios de archivos,
+ * herramientas MCP, búsquedas). Codex no tiene `--max-turns`: es lo que pa cuenta para hacer cumplir el tope.
+ */
+export function pasosDeCodex(stream: string): number {
+  return eventos(stream).filter((e) => {
+    if (e.type !== "item.completed") return false;
+    const t = esObj(e.item) ? e.item.type : null;
+    return t !== "agent_message" && t !== "reasoning";
+  }).length;
 }
 
 /** Un local: el .json de claude dice motor "ollama", el modelo de pa (ollama:…) y no cuesta US$ (el CLI podría inventar un precio). */

@@ -93,3 +93,40 @@ process.stdout.write(JSON.stringify({ event: "result", result: { status: "SUCCES
   await correr({ ...c, ts: "3", conMcp: true });
   assert.ok(JSON.parse(readFileSync(mcp, "utf8")).mcpServers.trama);
 });
+
+test("codex: el tope de --max-turns corta al worker que pasa de esos pasos; sin tope (0) lo deja correr (B088)", { skip: process.platform === "win32" }, async (t) => {
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "otros-motores-"));
+  t.after(() => rmSync(raiz, { recursive: true, force: true }));
+  const bin = path.join(raiz, "bin");
+  mkdirSync(bin, { recursive: true });
+  // un codex ficticio: emite 5 pasos y, si FAKE_SALIR=1, termina solo; si no, queda vivo hasta que lo corten
+  writeFileSync(path.join(bin, "codex"), `#!/usr/bin/env node
+for (let i = 0; i < 5; i++) process.stdout.write(JSON.stringify({ type: "item.completed", item: { type: "command_execution", command: "ls " + i } }) + "\\n");
+process.stdout.write(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "hola" } }) + "\\n");
+if (process.env.FAKE_SALIR === "1") process.exit(0);
+setTimeout(() => process.exit(0), 15000); // red: si nadie lo corta, sale solo y el test falla en vez de colgarse
+`, { mode: 0o755 });
+  const env = { PATH: `${bin}${path.delimiter}${process.env.PATH}`, HOME: raiz, USERPROFILE: raiz, PA_STATE: path.join(raiz, "estado"), PA_CODEX_PASOS_MS: "20" };
+  const correr = async (ts: string, maxTurns: string, extra: Record<string, string> = {}) => {
+    const pa = prologo([], { ...env, ...extra }, { out: () => {}, err: () => {} });
+    const c: Corrida = {
+      proyecto: "demo", slug: "demo", ts, ruta: raiz, rutaTrabajo: raiz, rama: "", base: "", origen: "", puesto: "",
+      leer: true, usaWorktree: false, tengoLock: false, modelo: "codex:gpt-6-sol-high", motor: "codex", esfuerzo: "", cuenta: "chatgpt",
+      tarea: "x", tareaJefe: "", lanzo: "jefe", sid: "sesion", resume: false, conMcp: false, maxTurns,
+      maxBudget: "", autocompact: "", baseDelta: [], jefe: "", jefeId: "", async: false,
+    };
+    const l = armarLanzamiento(pa, c);
+    mkdirSync(l.dir, { recursive: true });
+    const rc = await ejecutarOtro(l, { alArrancar: () => {} });
+    return { rc, json: JSON.parse(readFileSync(l.out, "utf8")) as { subtype: string; is_error: boolean }, err: readFileSync(l.err, "utf8") };
+  };
+  const cortada = await correr("1", "3");
+  assert.notEqual(cortada.rc, 0);
+  assert.equal(cortada.json.subtype, "error_max_turns");
+  assert.match(cortada.err, /pasó el tope de 3 pasos/);
+  const libre = await correr("2", "0", { FAKE_SALIR: "1" });
+  assert.equal(libre.rc, 0);
+  assert.equal(libre.json.subtype, "success");
+  const holgada = await correr("3", "50", { FAKE_SALIR: "1" });
+  assert.equal(holgada.json.subtype, "success", "dentro del tope no corta");
+});

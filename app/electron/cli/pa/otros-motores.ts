@@ -8,6 +8,7 @@ import { closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { enPath, esEjecutable } from "../base/buscar.ts";
+import { matarArbol } from "../base/proc.ts";
 import { hallarCodex, paraLanzar, resolverAgy } from "../../binario.ts";
 import { homeDe } from "../../rutas.ts";
 import type { Env, Pa } from "./entorno.ts";
@@ -16,7 +17,7 @@ import { chequearAgy, chequearCodex, chequearDsh, localEstado, type Local } from
 import { armarLlamada, conCuenta, type EntornoCuenta, type Llamada } from "./motores/llamada.ts";
 import { esOpencode, Modelos } from "./modelos.ts";
 import type { Llamada as LlamadaPa, Motores } from "./politica.ts";
-import { escribirAgyJson, escribirCodexJson, latir } from "./motores/salida.ts";
+import { escribirAgyJson, escribirCodexJson, latir, pasosDeCodex } from "./motores/salida.ts";
 import { type MotorSkills, sincronizarSkillsParaMotor } from "./skills-motores.ts";
 import { registrarParaMotor, scriptMcpTrama } from "../../mcp-trama-registro.ts";
 
@@ -155,18 +156,23 @@ export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
   const entorno = motor === "opencode" ? { ...ll.env, OPENCODE_DISABLE_CLAUDE_CODE_SKILLS: "1" } : ll.env;
   return new Promise<number>((resolve) => {
     let timer: NodeJS.Timeout | undefined;
+    let vigia: NodeJS.Timeout | undefined;
+    let remate: NodeJS.Timeout | undefined;
+    let cortado = false;
     let listo = false;
     const fin = (rc: number) => {
       if (listo) return;
       listo = true;
       if (timer) clearInterval(timer);
+      if (vigia) clearInterval(vigia);
+      if (remate) clearTimeout(remate);
       if (ll.tareaArchivo) rmSync(ll.tareaArchivo.ruta, { force: true });
       try {
         // `>"$out" 2>/dev/null || true`
         if (ll.json === "agy") escribirAgyJson({ transcript: ll.transcript, err: ll.stderr, modelo: c.modelo, rc, out: ll.out });
         if (ll.json === "codex") {
           const ultimo = path.join(l.dir, `${c.ts}.codex-ultimo`);
-          escribirCodexJson({ transcript: ll.transcript, err: ll.stderr, modelo: c.modelo, rc, ultimo, segundos: Math.floor((Date.now() - t0) / 1000), out: ll.out });
+          escribirCodexJson({ transcript: ll.transcript, err: ll.stderr, modelo: c.modelo, rc, ultimo, segundos: Math.floor((Date.now() - t0) / 1000), out: ll.out, cortadoPorTurnos: cortado });
         }
       } catch {
         /* queda sin .json: la clasificación mira el stderr */
@@ -186,6 +192,38 @@ export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
       h.stdin?.end(ll.stdin);
       if (h.pid) {
         o.alArrancar(h.pid);
+        // codex no tiene --max-turns: pa cuenta los pasos del stream y, al pasar el tope (0 = sin tope), baja el árbol y deja error_max_turns
+        const tope = c.motor === "codex" ? Number(c.maxTurns) : 0;
+        if (tope > 0) {
+          const pid = h.pid;
+          vigia = setInterval(() => {
+            if (cortado) return;
+            let txt = "";
+            try {
+              txt = readFileSync(ll.transcript, "utf8");
+            } catch {
+              return;
+            }
+            if (pasosDeCodex(txt) <= tope) return;
+            cortado = true;
+            aErr(ll.stderr, `pa: el worker de codex pasó el tope de ${tope} pasos (--max-turns): lo corto.\n`);
+            // el árbol (kill(-pid) en Linux sólo alcanza si el hijo es líder de su grupo; en Windows, taskkill /T) y el proceso mismo
+            const cortar = (senal: NodeJS.Signals) => {
+              matarArbol(pid, senal, { plat: pa.plat });
+              if (pa.plat !== "win32") {
+                try {
+                  process.kill(pid, senal);
+                } catch {
+                  /* ya salió */
+                }
+              }
+            };
+            cortar("SIGTERM");
+            remate = setTimeout(() => cortar("SIGKILL"), 5000);
+            remate.unref();
+          }, Number(pa.env.PA_CODEX_PASOS_MS) > 0 ? Number(pa.env.PA_CODEX_PASOS_MS) : 1000);
+          vigia.unref();
+        }
         // codex, dsh y opencode no tienen hooks: pa escribe el latido mientras viven (agy lo hace su plugin)
         if (ll.latido) {
           const { tool, cadaS } = ll.latido;
