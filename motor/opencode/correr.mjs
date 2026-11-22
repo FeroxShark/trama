@@ -77,9 +77,18 @@ export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, trun
   const pasos = eventos.filter((e) => e.type === "step_finish");
   const error = eventos.findLast?.((e) => e.type === "error") ?? [...eventos].reverse().find((e) => e.type === "error");
   const textos = eventos.filter((e) => e.type === "text" && typeof e.part?.text === "string" && e.part.text.trim());
-  // Lo que dijo en el último paso (el resto es lo que fue contando entre herramientas).
+  // Lo que dijo en el último paso: TODAS sus partes de texto, en orden (el resto es lo que fue contando entre herramientas, antes de la última
+  // herramienta). Una misma parte (`part.id`) que llega actualizada cuenta una vez, con su última versión.
   const ultimoFin = [...eventos].reverse().find((e) => e.type === "step_finish");
-  const dicho = (textos.at(-1)?.part?.text ?? "").trim();
+  const iHerr = eventos.findLastIndex((e) => e.type === "tool_use");
+  const partes = new Map();
+  eventos.forEach((e, i) => {
+    if (i <= iHerr || e.type !== "text" || typeof e.part?.text !== "string" || !e.part.text.trim()) return;
+    partes.set(typeof e.part.id === "string" && e.part.id ? e.part.id : `#${i}`, e.part.text.trim());
+  });
+  const dichoFinal = [...partes.values()].join("\n\n");
+  // Sin texto en el paso final, para un error queda lo último que dijo (da contexto); un éxito exige respuesta (abajo).
+  const dicho = dichoFinal || (textos.at(-1)?.part?.text ?? "").trim();
   const razon = ultimoFin?.part?.reason;
   // El paso abierto es lo que viene después del último step_finish. opencode 2.x no emite el step_finish del último paso, y a veces tampoco
   // el step_start del paso que sigue a una herramienta (carrera de opencode: 2 de cada 25 con un falso veloz). Si ese paso dijo algo, cuenta como turno cerrado.
@@ -88,7 +97,8 @@ export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, trun
   const dijoAbierto = abiertos.some((e) => e.type === "text" && typeof e.part?.text === "string" && e.part.text.trim());
   const cerrado = truncado === 0 && !error && rc === 0 && dijoAbierto;
   const cortado = !cerrado && truncado === 0 && !error && rc === 0 && eventos.length > 0 && razon !== undefined && razon !== "stop";
-  const malo = truncado > 0 || rc !== 0 || !!error || (!ultimoFin && !cerrado) || cortado;
+  const sinRespuesta = !dichoFinal;
+  const malo = truncado > 0 || rc !== 0 || !!error || (!ultimoFin && !cerrado) || cortado || sinRespuesta;
   let motivo = truncado > 0 ? `se llegó al tope de ${truncado} pasos del modelo (--max-pasos)` : error ? textoDeError(error) : cortado ? `opencode terminó sin cerrar el turno (razón: ${razon})` : stderr.trim() ? stderr.trim().split("\n").slice(-3).join(" · ") : rc !== 0 ? `opencode salió con el código ${rc}` : "opencode no devolvió respuesta";
   // El corte por cupo dice qué hacer, y debajo va el texto crudo del error: pa lo pasa a `reparto --opencode-limite`, que necesita
   // distinguir el cupo gratis de TODA la cuenta ("Free usage limit" / "usage limit") de un 429 de un solo modelo. En los modelos de

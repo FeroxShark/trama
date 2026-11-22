@@ -171,6 +171,57 @@ test("aResultado: opencode a veces no emite el step_start del paso que sigue a u
   assert.equal(r.num_turns, 2);
 });
 
+test("aResultado: la respuesta final junta todas sus partes de texto y deja afuera lo que dijo antes de la última herramienta (HOOKS-MOTOR-13)", () => {
+  const paso1 = [
+    { type: "step_start", sessionID: "ses_4", part: {} },
+    { type: "text", sessionID: "ses_4", part: { id: "p1", text: "voy a mirar el repo" } },
+    { type: "tool_use", sessionID: "ses_4", part: { tool: "bash" } },
+    { type: "step_finish", sessionID: "ses_4", part: { reason: "tool-calls", cost: 0, tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } } },
+    { type: "step_start", sessionID: "ses_4", part: {} },
+  ];
+  const final = [
+    { type: "text", sessionID: "ses_4", part: { id: "p2", text: "RESULTADO: hecho" } },
+    { type: "text", sessionID: "ses_4", part: { id: "p3", text: "ARCHIVOS: a.ts" } },
+    { type: "text", sessionID: "ses_4", part: { id: "p4", text: "DECISION: nada" } },
+  ];
+  const con = (extra: unknown[]) => aResultado({ eventos: [...paso1, ...extra], modelo: "m", rc: 0, stderr: "", segundos: 1, gratis: false });
+  // con step_finish final y sin él (opencode 2.x)
+  const cerrado = con([...final, { type: "step_finish", sessionID: "ses_4", part: { reason: "stop", cost: 0, tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } } }]);
+  const abierto = con(final);
+  for (const r of [cerrado, abierto]) {
+    assert.equal(r.is_error, false);
+    assert.equal(r.result, "RESULTADO: hecho\n\nARCHIVOS: a.ts\n\nDECISION: nada");
+    assert.doesNotMatch(r.result, /voy a mirar/);
+  }
+  // la misma parte que llega actualizada cuenta una vez, con su última versión
+  const act = con([{ type: "text", part: { id: "p2", text: "RESULTADO: ha" } }, { type: "text", part: { id: "p2", text: "RESULTADO: hecho" } }, final[1]]);
+  assert.equal(act.result, "RESULTADO: hecho\n\nARCHIVOS: a.ts");
+});
+
+test("aResultado: un turno sin texto de respuesta es un error, no un éxito vacío (HOOKS-MOTOR-14)", () => {
+  const fin = { type: "step_finish", sessionID: "ses_5", part: { reason: "stop", cost: 0, tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } } };
+  const sinTexto = aResultado({ eventos: [{ type: "step_start", part: {} }, fin], modelo: "m", rc: 0, stderr: "", segundos: 1, gratis: false });
+  assert.equal(sinTexto.is_error, true);
+  assert.equal(sinTexto.subtype, "error");
+  assert.match(sinTexto.result, /no devolvió respuesta/);
+  // sólo razonamiento, con step_finish final y sin él
+  const razono = [{ type: "step_start", part: {} }, { type: "reasoning", part: { id: "r", text: "pienso" } }];
+  for (const eventos of [razono, [...razono, fin]]) {
+    const r = aResultado({ eventos, modelo: "m", rc: 0, stderr: "", segundos: 1, gratis: false });
+    assert.equal(r.is_error, true);
+    assert.equal(r.subtype, "error");
+  }
+  // un comentario de antes de la última herramienta no hace de respuesta
+  const comentario = [{ type: "text", part: { id: "c", text: "voy a leer" } }, { type: "tool_use", part: { tool: "bash" } }, { ...fin, part: { ...fin.part, reason: "tool-calls" } }, { type: "step_start", part: {} }, { ...fin }];
+  assert.equal(aResultado({ eventos: comentario, modelo: "m", rc: 0, stderr: "", segundos: 1, gratis: false }).is_error, true);
+  // con texto: éxito, con o sin step_finish
+  for (const eventos of [[{ type: "text", part: { text: "listo" } }, fin], [{ type: "step_start", part: {} }, { type: "text", part: { text: "listo" } }]]) {
+    const r = aResultado({ eventos, modelo: "m", rc: 0, stderr: "", segundos: 1, gratis: false });
+    assert.equal(r.is_error, false);
+    assert.equal(r.result, "listo");
+  }
+});
+
 test("config.mjs (pa) y opencode.ts (app) dicen lo mismo", () => {
   for (const id of ["opencode:opencode/beam-free", "opencode:openrouter/qwen/qwen3:free", "opencode:", "opencode:x", "dsh:opencode/big-pickle", "opencode:a b/c"]) assert.deepEqual(cfg.parsearModelo(id), app.parsearModelo(id), id);
   for (const id of ["opencode/beam-free", "opencode:opencode/big-pickle", "opencode/gpt-5", "anthropic/claude"]) assert.equal(cfg.esGratis(id), app.esGratis(id), id);
