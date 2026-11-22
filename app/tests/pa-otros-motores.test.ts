@@ -104,7 +104,7 @@ test("codex: el tope de --max-turns corta al worker que pasa de esos pasos; sin 
 for (let i = 0; i < 5; i++) process.stdout.write(JSON.stringify({ type: "item.completed", item: { type: "command_execution", command: "ls " + i } }) + "\\n");
 process.stdout.write(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "hola" } }) + "\\n");
 if (process.env.FAKE_SALIR === "1") process.exit(0);
-setTimeout(() => process.exit(0), 15000); // red: si nadie lo corta, sale solo y el test falla en vez de colgarse
+setTimeout(() => process.exit(0), 15000); // espera-justificada: red del codex ficticio; si nadie lo corta, sale solo y el test falla en vez de colgarse
 `, { mode: 0o755 });
   const env = { PATH: `${bin}${path.delimiter}${process.env.PATH}`, HOME: raiz, USERPROFILE: raiz, PA_STATE: path.join(raiz, "estado"), PA_CODEX_PASOS_MS: "20" };
   const correr = async (ts: string, maxTurns: string, extra: Record<string, string> = {}) => {
