@@ -30,7 +30,7 @@ import { cacheDeSesion } from "./hilos.ts";
 import { fijarProyecto as fijarProy } from "./ramas-base.ts";
 import { campoJson, contarCompactaciones, horaMinuto, leerSalida, textoResultado } from "./resultado-lanzar.ts";
 import { edadSucios, suciosDe } from "./sucios.ts";
-import { prepararWorktree, type Proyecto as ProyectoWt } from "./worktrees.ts";
+import { guardarDuenoDelEstado, prepararWorktree, type Proyecto as ProyectoWt } from "./worktrees.ts";
 import type { Llamada } from "./politica.ts";
 import { ORDEN_PARAR } from "./matar.ts";
 import { Modelos } from "./modelos.ts";
@@ -161,6 +161,10 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
   // --- motor
   let motor = l.motor;
   let conClaude = motor === "claude" || motor === "ollama";
+
+  // --- dueño del estado: dos carpetas con el mismo nombre comparten `$STATE/<slug>` (también con --leer y --aca, que no pasan por el
+  // worktree). Va acá y no en un helper común: `--hilos` consulta el mismo estado y no puede salir 87.
+  if (!(await guardarDuenoDelEstado({ pa, proyecto: l.proyecto, ruta, slug, dir, ts: "", motor }))) return 87;
 
   // --- --leer --seguir
   if (leer && l.seguir) {
