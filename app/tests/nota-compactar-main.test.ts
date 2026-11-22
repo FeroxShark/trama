@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { esperarHasta } from "./esperar.ts";
+import { soloPosix } from "./plataforma.ts";
 import { debeAutoCompactar, extraerNotaDeTexto, guardarNotaSiCambia, consumirNotaParaDevolver, tokensDeUso, usoDeLineaStream } from "../electron/nota-compactar-main.ts";
 import type { EstadoModelos } from "../electron/modelos-config.ts";
 
@@ -102,7 +103,7 @@ test("ajustes-nota-compactar y modelos-borrador: defaults limpios, rangos 50..95
   assert.equal(configDe(bOff)?.nota_compactar, false);
 });
 
-test("flujo Claude de la app (solo Claude, claude-falso): nota escrita + umbral suave encola /compact al frente antes de cola usuario", { timeout: 20_000 }, async () => {
+test("flujo Claude de la app (solo Claude, claude-falso): nota escrita + umbral suave encola /compact al frente antes de cola usuario", { timeout: 20_000, skip: soloPosix("claude falso por shebang") }, async () => {
   const dir = nuevoDir();
   const prev = {
     HILOS_STATE: process.env.HILOS_STATE,
@@ -176,7 +177,7 @@ test("flujo Claude de la app (solo Claude, claude-falso): nota escrita + umbral 
   }
 });
 
-test("flujo Gemini (solo Gemini, agy-falso): al pasar umbral fuerte pide nota, encola /compact y la pega al próximo mensaje sin turno extra", { timeout: 20_000 }, async () => {
+test("flujo Gemini (solo Gemini, agy-falso): al pasar umbral fuerte pide nota, encola /compact y la pega al próximo mensaje sin turno extra", { timeout: 20_000, skip: soloPosix("agy falso por shebang") }, async () => {
   const dir = nuevoDir();
   const prev = {
     HILOS_STATE: process.env.HILOS_STATE,
