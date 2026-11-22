@@ -28,7 +28,7 @@ Los hallazgos de los dos informes nuevos que ya estaban como CTX-n no se copiaro
 
 ## Estado al 2026-11-22 (manda sobre el plan de abajo)
 
-Verificado en `main` (tsc ×2 y `npm test` 4221 pasan, `check:changed` verde en cada arreglo):
+Verificado en `main` (tsc ×2, vite, `npm test` y paridad 1361/1361 en cada tanda; `check:changed` verde en cada arreglo):
 
 | Hallazgo | Estado | Commit |
 |---|---|---|
@@ -41,15 +41,26 @@ Verificado en `main` (tsc ×2 y `npm test` 4221 pasan, `check:changed` verde en 
 | CTX-8 (prompt por `argv` en Codex y agy) | ARREGLADO: el prompt va por stdin (prueba de 40 000 caracteres con argumentos de Windows). FALTA EN Windows: probarlo con los binarios nativos | `592d4212` |
 | CTX-37 (dos `ventanaDe`) | REFUTADO: `contexto-previa.ts` ya reconoce la ventana de 1 M | — |
 | CTX-40, CTX-41, CTX-42, CTX-45, CTX-46 | ARREGLADO (desglose con `postTokens`, TTL que prefiere 5 min, lecturas que renuevan la caché, panel de subagentes, un solo estimador de 3,5 caracteres por token) | `a7a35ff9` |
-| CTX-44 (porcentaje del aviso de la nota) | A MEDIAS: el hook usa el porcentaje configurado (`nota_compactar_pct`, 85 por defecto); en modo nativo falta pasarle el techo efectivo (va en P2) | `a7a35ff9` |
+| CTX-44 (porcentaje del aviso de la nota) | ARREGLADO: el hook recibe `--base` y el porcentaje que ve el modelo es el real | `a7a35ff9`, `1d53e85c` |
+| CTX-2, CTX-3, CTX-18, CTX-25 (P2: nota y medidor) | ARREGLADO: la nota del worker usa el `autoCompactWindow` del settings, agy suma la caché al contexto, textos unificados, TTL supuesto en la pregunta de caché | `1d53e85c` |
+| CTX-21 (lo apagado en el panel de contexto no llegaba al líder) | ARREGLADO y CONFIRMADO en vivo: con dos `--settings` Claude Code usa sólo el último, y el del apagado iba primero. Ahora `settingsLider` junta hooks y apagado en un solo archivo | `3d48c75c` a `47eb0c6f` |
+| CTX-1 (carga fija del líder de Claude) | ARREGLADO: `--disallowedTools` con tres herramientas sin uso, `--exclude-dynamic-system-prompt-sections` y `ENABLE_TOOL_SEARCH=true`. Medido con `get_context_usage`: 24 536 a 22 751 tokens; herramientas diferidas 21 018 a 12 967. ReportFindings, DesignSync y RemoteTrigger siguen prendidas (las piden /code-review, /design y /schedule) | `7bd2e2d1`, `dbb8e59a` |
+| CTX-6 (líder de Ollama con todo lo de Claude) | ARREGLADO: `--bare --strict-mcp-config`; 21 347 a 1 624 tokens. El login sigue andando | `7bd2e2d1` |
+| CTX-16 (cierre por cupo dos veces) | ARREGLADO: el `--settings` del líder no lo repite si el `settings.json` de la cuenta ya lo registra | `7bd2e2d1` |
+| CTX-7, CTX-14 (respuestas grandes del MCP y de `pa --hilo`) | ARREGLADO: JSON sin sangría, tope de 12 000 caracteres en `estado_workers` y `buscar_hilos`, 16 000 en `pa --hilo` (`--tope N`, `PA_HILO_TOPE`; la ventana pasa `--tope 0`); el «cómo resolver una FALTA» va una vez por aviso | `d121184e`, `7c7fef32` |
+| CTX-9 (Claude ofrecido sin sesión) | A MEDIAS: sin credenciales ni clave en el entorno no se ofrece la Claude de siempre; sin instalar ya estaba. Supuesto: un login fuera de `.credentials.json` se ve como sin sesión | `2c7d1795` |
+| CTX-10, CTX-11, CTX-15 (P6: suscripciones) | ARREGLADO: un local sin calidad medida se lanza si es lo único; el plan de `pa` sale del tipo de suscripción de las credenciales (nunca el token); los prompts de líderes sin Claude no afirman una suscripción | `2c7d1795`, `5c7bc764`, `3a26e47a` |
+| CTX-52, CTX-57, CTX-58, CTX-59, CTX-60, CTX-61 (P9b: Windows, rutas y textos) | ARREGLADO en código: `USERPROFILE` y rutas sin mayúsculas en `cierre-cupo.mjs`, `configTrama()` en vez de `~/.config`, escritura en el lugar con enlaces duros, `node` propio en el chequeo, CRLF normalizado, `tests_windows`/`tests_linux` en el registro. FALTA EN Windows: probar `pa --espejo` y una cuenta agregada con enlace duro | `6c6107c3`, `be9c2871` |
+| CTX-55 (rutas de Windows en espejo y privacidad) | A MEDIAS: `deny` del espejo con `Read(//c/...)` y PowerShell, filtro de privacidad con unidad, UNC y `%VAR%`; faltan `LINEA_CHAT` y `rutasDelPlan` | `6c6107c3`, `74bc9536` |
+| Límite semanal propio por modelo (Fable) | ARREGLADO en datos: `weekly_scoped` de `get_usage` llega a `uso.json` (`por_modelo`), a `reparto` (no elige un modelo con su límite agotado) y al cierre por cupo del líder. La interfaz (aros y panel) está en curso | `a8720810`, `ec8610da`, `ad029f17` |
 
 Paquetes del plan:
 
 - P5 (workers Claude): hecho, salvo la medición del efecto de CTX-13.
 - P7 (menores): hecho (CTX-17 y CTX-20). Verificado: `npm test` 4223/4223, tsc ×2 OK, `check:changed` verde.
 - P3 (workers de otros motores) y P8 (ventanas y medidores): hechos e integrados. Verificado: tsc ×2, vite, `npm test` 4236/4236, paridad 1361/1361.
-- P2 (nota y medidor, con el resto de CTX-44) y P6 (suscripciones): en curso. Ferox dejó la elección de paquetes en manos del líder.
-- P1 (podas del líder) y P4 (MCP y avisos): sin empezar. P9 (paridad con Windows) necesita correr en Windows.
+- P1, P2, P4 y P6: hechos e integrados. Ferox dejó la elección de paquetes en manos del líder.
+- P9: la parte de rutas y textos (P9b) está integrada; la de guardias y hooks (CTX-48, CTX-50, CTX-51) está en curso. Medir en Windows sigue pidiendo una máquina con Windows.
 
 Prueba del worker Codex (`20261122-025216-1422372`, hilo-lider): funciona. Commit automático de `pa` (`37bc0262`), tests de cola 22/22. Lo que quedó «NO ARREGLADO» en ese reporte son HILO-LIDER-1, 2, 3 y 14: el brief prohibía tocar `app/src/` (interfaz) y los cuatro arreglos son de interfaz y traducciones. Falta un brief que sí permita `app/src/`:
 - HILO-LIDER-1: una confirmación tardía pisa la elección de modelo en la caja.
