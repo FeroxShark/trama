@@ -26,7 +26,8 @@ const prompts = () => (log && existsSync(log) ? readFileSync(log, "utf8").split(
 const chunk = (tipo, text) => enviar({ method: "session/update", params: { sessionId: "ses_falsa", update: { sessionUpdate: tipo, content: { type: "text", text } } } });
 const opciones = [{ id: "model", name: "Model", type: "select", currentValue: "opencode/deepseek-v4.1-flash-free", options: [] }];
 
-createInterface({ input: process.stdin }).on("line", (l) => {
+// Si el puente le cierra el stdin (salida limpia) lo anota: así los tests distinguen eso de un SIGKILL en seco.
+createInterface({ input: process.stdin }).on("close", () => anotar({ method: "stdin/cerrado" })).on("line", (l) => {
   let m;
   try {
     m = JSON.parse(l);

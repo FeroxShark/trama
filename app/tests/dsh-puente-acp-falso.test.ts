@@ -59,6 +59,12 @@ class Puente {
   matar() {
     this.hijo.kill("SIGTERM");
   }
+  /** Cierra el stdin del puente (lo que hace el líder al cerrar el chat) y espera a que salga. */
+  async cerrarStdin() {
+    const salio = new Promise<void>((ok) => this.hijo.once("close", () => ok()));
+    this.hijo.stdin!.end();
+    await salio;
+  }
   senal(s: NodeJS.Signals) {
     this.hijo.kill(s);
   }
@@ -151,4 +157,12 @@ test("PUENTES-12: un SIGINT con el turno ya interrumpido mata a opencode en vez 
   p.senal("SIGINT");
   await hasta(() => p.resultados.length === 1, 20_000, `el turno no terminó tras el SIGINT; stderr: ${p.stderr.slice(-400)}`);
   assert.equal(p.resultados[0].is_error, false);
+});
+
+test("B108: con el stdin cerrado en reposo el puente le cierra el stdin a opencode y espera su salida, no lo mata en seco", { timeout: 60_000 }, async () => {
+  const p = new Puente("sin-modelo");
+  p.mandar("hola");
+  await hasta(() => p.resultados.length === 1, 30_000, `el turno no terminó; stderr: ${p.stderr.slice(-400)}`);
+  await p.cerrarStdin();
+  assert.equal(p.pedidos("stdin/cerrado").length, 1, `opencode no vio el stdin cerrado (lo mataron en seco): ${JSON.stringify(p.pedidos().map((x) => x.method))}`);
 });

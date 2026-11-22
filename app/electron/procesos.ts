@@ -2,7 +2,7 @@
 // corre un `-c`. Node puro (sin `electron`); en Linux es exactamente lo de siempre (el grupo de procesos con `kill(-pid)`,
 // `bash -c` y `/bin/sh -c`). Windows no tiene grupos de procesos como POSIX: el árbol se mata con `taskkill /T /F` y el
 // shell es `cmd.exe` (la versión nativa de Windows no lleva bash en ninguna forma). Lo prueba tests/procesos.test.ts con la plataforma inyectada.
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { esWindows, type Plataforma, plataformaActual } from "./rutas.ts";
 
 type Env = Record<string, string | undefined>;
@@ -20,6 +20,23 @@ const taskkillReal = (args: string[]) => {
     /* ya no estaba: nada que matar */
   });
 };
+
+/** `taskkill` y espera: al salir el proceso no hay después donde esperar (un `execFile` asíncrono puede no llegar a correr). Acotado a 3 s. */
+const taskkillSincrono = (args: string[]) => {
+  try {
+    execFileSync("taskkill", args, { windowsHide: true, timeout: 3000, stdio: "ignore" });
+  } catch {
+    /* ya no estaba: nada que matar */
+  }
+};
+
+/**
+ * Lo de `matarArbol(pid, "SIGKILL")` pero para el `exit` de un puente: en Windows el `taskkill` se espera (B108), en Linux es el mismo `kill(-pid)`
+ * (síncrono).
+ */
+export function matarArbolAlSalir(pid: number | undefined, o: OpcionesArbol = {}): void {
+  matarArbol(pid, "SIGKILL", { ...o, taskkill: o.taskkill ?? taskkillSincrono });
+}
 
 /**
  * Manda `senal` a todo el árbol que empezó `pid`. Linux: el grupo (`kill(-pid)`; el líder y sus hijos salen `detached`, su propio

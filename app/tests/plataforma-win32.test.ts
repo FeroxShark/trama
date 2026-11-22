@@ -6,7 +6,7 @@ import { carpetasNpm, paraLanzar, resolverNpm } from "../electron/binario.ts";
 import { capacidades } from "../electron/capacidades.ts";
 import { resolverDsh } from "../electron/dsh.ts";
 import { carpetasDatosOpencode, proveedoresConLogin, resolverOpencode } from "../electron/opencode.ts";
-import { interrumpir, plazoParar, shellDe } from "../electron/procesos.ts";
+import { interrumpir, matarArbolAlSalir, plazoParar, shellDe } from "../electron/procesos.ts";
 import { detectarUnits } from "../electron/locales-deteccion.ts";
 import { envoltorioWindows, resolverTerminal } from "../electron/terminal-lanzar.ts";
 
@@ -120,4 +120,13 @@ test("carpeta de datos de opencode: XDG, ~/.local/share y, en Windows, LOCALAPPD
 test("B103: en Windows el líder espera más que el puente (2 s para matar a su hijo) antes de matar el árbol; en Linux, los 3 s de siempre", () => {
   assert.equal(plazoParar("linux"), 3000);
   assert.ok(plazoParar("win32") >= 5000, "más que MS_PARAR (2 s) del puente más lo que tarda taskkill");
+});
+
+test("B108: al salir el puente, en Windows el taskkill del árbol se espera (síncrono); en Linux es el kill del grupo", () => {
+  const llamadas: string[] = [];
+  matarArbolAlSalir(4321, { plat: "win32", taskkill: (a) => llamadas.push(a.join(" ")) });
+  assert.deepEqual(llamadas, ["/T /F /PID 4321"]);
+  const senales: [number, string][] = [];
+  matarArbolAlSalir(4321, { plat: "linux", kill: (pid, s) => senales.push([pid, s]) });
+  assert.deepEqual(senales, [[-4321, "SIGKILL"]]);
 });

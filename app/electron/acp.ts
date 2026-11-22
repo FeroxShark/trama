@@ -14,7 +14,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
 import path from "node:path";
 import { paraLanzar } from "./binario.ts";
-import { hijoEnGrupo, matarArbol } from "./procesos.ts";
+import { hijoEnGrupo, matarArbol, matarArbolAlSalir } from "./procesos.ts";
 
 type Obj = Record<string, any>;
 
@@ -252,6 +252,11 @@ export class ClienteAcp {
   /** Mata al agente y su árbol ya (grupo en POSIX, taskkill /T /F en Windows). */
   matar(): void {
     matarArbol(this.hijo?.pid, "SIGKILL");
+  }
+
+  /** Lo mismo para el `exit` del proceso: en Windows espera al `taskkill` (si no, el agente podía quedar vivo). */
+  matarAlSalir(): void {
+    matarArbolAlSalir(this.hijo?.pid);
   }
 
   // --- JSON-RPC -------------------------------------------------------------------------------------------------

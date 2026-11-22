@@ -28,7 +28,7 @@ import { argsCodex, partirCodex, sandboxDe, Traductor } from "./codex-stream.ts"
 import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
 import { deDueno, dueno } from "./dueno.ts";
 import { ESTADO } from "./estado.ts";
-import { hijoEnGrupo, matarArbol } from "./procesos.ts";
+import { hijoEnGrupo, matarArbol, matarArbolAlSalir } from "./procesos.ts";
 import { SESIONES } from "./sesiones.ts";
 
 const CODEX = resolverCodex(process.env, os.homedir());
@@ -409,7 +409,7 @@ process.on("SIGINT", () => {
   else terminar(130);
 });
 process.on("exit", () => {
-  matarArbol(hijo?.pid, "SIGKILL");
+  matarArbolAlSalir(hijo?.pid);
   limpiar();
   limpiarImagenes();
 });

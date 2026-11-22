@@ -33,7 +33,7 @@ import { destrabarModelo, modeloAgy, notaCompactarGuardado } from "./modelos-con
 import { carpetaHooksNota } from "./cierre-cupo-texto.ts";
 import { cargarTextosNota, consumirNotaParaDevolver, idiomaDeEstado, textosNotaCargados } from "./nota-compactar-main.ts";
 import { ESTADO } from "./estado.ts";
-import { hijoEnGrupo, matarArbol } from "./procesos.ts";
+import { hijoEnGrupo, matarArbol, matarArbolAlSalir } from "./procesos.ts";
 import { SESIONES } from "./sesiones.ts";
 
 /** El `agy` de verdad: bajo la unidad de systemd el PATH no trae `~/.local/bin` y el binario pelado no se encuentra. */
@@ -648,7 +648,7 @@ process.on("SIGINT", () => {
 });
 process.on("exit", () => {
   // agy corre en su propio grupo (detached): si el puente se va (exit, SIGTERM, error sin atrapar), no queda huérfano hasta el tope de 6 h.
-  matarArbol(hijo?.pid, "SIGKILL");
+  matarArbolAlSalir(hijo?.pid);
   limpiar();
   limpiarImagenes();
 });

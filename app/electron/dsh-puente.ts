@@ -826,13 +826,29 @@ function cerrarTurno() {
   // Un turno que arranca solo (sale de la cola) no pasa por `mandar` de lider.ts: este aviso es lo que lo vuelve a poner como ocupado.
   if (siguiente !== undefined) salir({ type: "system", subtype: "status", status: "requesting", session_id: sid });
   if (siguiente !== undefined) void turnoSeguro(siguiente);
-  else if (stdinCerrado) terminar(0);
+  else if (stdinCerrado) void terminarLimpio(0);
 }
 
 function terminar(codigo: number) {
   limpiar();
   cliente?.matar();
   process.exit(codigo);
+}
+
+let cerrando = false;
+/**
+ * Salir sin cortar a dsh/opencode en seco (B108): se le cierra el stdin y se espera a que se vaya solo (`cerrar` lo mata si pasa de 2 s),
+ * para que alcance a volcar la sesión a disco. Para el stdin cerrado en reposo y un SIGINT en reposo; lo urgente (SIGTERM, SIGHUP, un error) sigue en `terminar`.
+ */
+async function terminarLimpio(codigo: number) {
+  if (cerrando) return;
+  cerrando = true;
+  try {
+    await cliente?.cerrar();
+  } catch {
+    /* terminar lo mata igual */
+  }
+  terminar(codigo);
 }
 
 // --- stdin: el protocolo de claude -------------------------------------------------------------------------------
@@ -843,11 +859,11 @@ process.on("SIGINT", () => {
   // Un segundo corte con el turno ya interrumpido: dsh no contestó el cancel; se lo mata ya en vez de reiniciar el plazo.
   if (ocupado && interrumpido && cliente?.activo) cliente.matar();
   else if (ocupado) interrumpir();
-  else terminar(130);
+  else void terminarLimpio(130);
 });
 process.on("exit", () => {
   // dsh es hijo directo y no tiene stdin: si el puente se va (exit, SIGTERM, error sin atrapar), no queda huérfano.
-  cliente?.matar();
+  cliente?.matarAlSalir();
   limpiar();
 });
 process.on("SIGHUP", () => terminar(129));
@@ -892,5 +908,5 @@ lector.on("line", (linea) => {
 });
 lector.on("close", () => {
   stdinCerrado = true;
-  if (!ocupado) terminar(0);
+  if (!ocupado) void terminarLimpio(0);
 });
