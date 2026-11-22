@@ -161,6 +161,10 @@ export function crearSandbox(): Contexto {
     };
     for (const d of [path.join(c.home, ".config", "proyectos"), c.proyecto, c.estado, c.aux, path.join(raiz, "shim")]) mkdirSync(d, { recursive: true });
     writeFileSync(path.join(raiz, "meminfo-sobrada"), "MemTotal:       64000000 kB\nMemAvailable:    48000000 kB\n");
+    // una sesión de Claude (sin plan ni tokens) para el claude falso: el pa de TS sólo cae a Claude si hay una con sesión (B152); el de bash
+    // no lo mira, así que sin esto los dos lados divergen en todo caso que cae al equivalente Claude
+    mkdirSync(path.join(c.home, ".claude"), { recursive: true });
+    writeFileSync(path.join(c.home, ".claude", ".credentials.json"), JSON.stringify({ claudeAiOauth: {} }));
     const git = (...a: string[]) => spawnSync("git", ["-C", c.proyecto, "-c", "user.email=a@b", "-c", "user.name=x", ...a], { encoding: "utf8" });
     git("init", "-q", "-b", "main");
     git("commit", "-q", "--allow-empty", "-m", "init");
