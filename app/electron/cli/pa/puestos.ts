@@ -14,6 +14,7 @@ import path from "node:path";
 import { tomar, probar, type AlMensaje, type Lock } from "../base/lock.ts";
 import { pidDeCampoRunning, pidDeRunning } from "../base/proc.ts";
 import { salir } from "./entorno.ts";
+import { topeDeGrupo, type TopeVivos } from "./modelos.ts";
 import { leerCampo, puestoParaRetomar, sufPuesto, tieneHead, tocar, type Proyecto } from "./worktrees.ts";
 
 const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -134,6 +135,34 @@ export function workersSueltos(state: string): number {
   return n;
 }
 
+/** Las cuentas «de siempre» de cada proveedor: no llevan sufijo en el grupo (la cuenta agregada sí, porque tiene su propia ventana). */
+const CUENTAS_DE_SIEMPRE = ["", "claude", "google", "chatgpt", "openai", "opencode"];
+/** Sin tope de workers vivos: corren en la máquina o contra una API por minuto, no contra una ventana de suscripción. */
+const GRUPOS_SIN_TOPE = ["dsh-ollama", "nvidia-nim"];
+
+/**
+ * El grupo de cupo con que cuenta el tope de vivos (`tope_vivos`): el de reparto (`grupoDeModelo`) más `@<cuenta>` si la cuenta es una
+ * agregada. `null` si el modelo no tiene grupo (Ollama, NVIDIA): no se frena ni se cuenta. `grupoDeModelo` viene de afuera para que este
+ * archivo no cargue a reparto.
+ */
+export function grupoDeTope(modelo: string, cuenta: string, grupoDeModelo: (m: string) => string | null): string | null {
+  const g = modelo ? grupoDeModelo(modelo) : null;
+  if (!g || GRUPOS_SIN_TOPE.includes(g)) return null;
+  return CUENTAS_DE_SIEMPRE.includes(cuenta) ? g : `${g}@${cuenta}`;
+}
+
+/** Los workers sueltos (su pa ya no está, su claude sigue) de cada grupo, por el `modelo` y la `cuenta` de su `.running`. */
+function sueltosPorGrupo(state: string, grupoDe: (modelo: string, cuenta: string) => string | null): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const f of runnings(state)) {
+    if (!/^[0-9]+$/.test(leerCampo(f, "pid")) || !/^[0-9]+$/.test(leerCampo(f, "pa_pid"))) continue;
+    if (pidDeCampoRunning(f, "pa_pid") !== null || pidDeCampoRunning(f, "pid") === null) continue;
+    const g = grupoDe(leerCampo(f, "modelo"), leerCampo(f, "cuenta"));
+    if (g) m.set(g, (m.get(g) ?? 0) + 1);
+  }
+  return m;
+}
+
 // ---------------------------------------------------------------- RAM
 
 /** `mem_disponible_mb`: MemAvailable en MB (PA_MEMINFO o /proc/meminfo; fuera de Linux, `libre()`, que por defecto es `os.freemem()`). -1 si no se puede leer. */
@@ -223,6 +252,15 @@ export interface OpcionesPuesto {
   async?: boolean;
   /** Canal de control del puesto (`--parar` / `--matar` en Windows, ver base/lock.ts). */
   alMensaje?: AlMensaje;
+  /**
+   * El tope de workers vivos por grupo de cupo (`tope_vivos` de modelos.json). Sin él no hay tope por grupo. `actual` dice con qué modelo
+   * y cuenta corre la corrida AHORA (puede cambiar mientras espera) y `grupoDe` saca el grupo de un modelo y su cuenta (`grupoDeTope`).
+   */
+  cupo?: {
+    topes: TopeVivos;
+    grupoDe: (modelo: string, cuenta: string) => string | null;
+    actual: () => { modelo: string; cuenta: string };
+  };
 }
 
 /**
@@ -241,6 +279,8 @@ export class Admision {
   puesto = "";
   motivoTope = "";
   ocupadosTope = 0;
+  /** El grupo con que se tomó el lugar (el de `<lugar>.grupo`), o "". */
+  private grupoTomado = "";
   /** Segundos desde el primer intento fallido de lugar/puesto hasta que lo tomó (0 si no esperó): lo anotan el `.hilo` y `medicion.tsv`. */
   espera = 0;
   /** Cuándo falló el primer intento (0 mientras no falló ninguno: sin espera no hay segundos que contar). */
@@ -262,6 +302,38 @@ export class Admision {
   /** `$LOCKDIR/@tope…` */
   private f(n: string) {
     return path.join(this.x.pa.lockdir, n);
+  }
+
+  /** `lock/@tope@<k>.grupo`: el grupo de cupo de quien tiene ese lugar. Se escribe y se lee bajo el candado `@tope`. */
+  private archivoGrupo(k: string) {
+    return this.f(`@tope@${k}.grupo`);
+  }
+
+  /** El grupo de cupo de esta corrida ahora ("" = sin grupo o sin tope configurado); con `de`, el de ese modelo y cuenta. */
+  private grupoActual(de?: { modelo: string; cuenta: string }): string {
+    const c = this.o.cupo;
+    if (!c) return "";
+    const { modelo, cuenta } = de ?? c.actual();
+    return c.grupoDe(modelo, cuenta) ?? "";
+  }
+
+  /**
+   * El modelo cambió con el lugar ya tomado (`cupo.ts` relanzó con otro): reescribe el `.grupo` para que los demás cuenten bien. Va
+   * bajo el candado `@tope` (si no, otro podría estar contando justo en el medio).
+   */
+  async cambiarGrupo(modelo: string, cuenta: string): Promise<void> {
+    if (!this.lugar || !this.lugarLock) return;
+    const g = this.grupoActual({ modelo, cuenta });
+    if (g === this.grupoTomado) return;
+    tocar(this.f("@tope"));
+    const cand = await tomar(this.f("@tope"), { ...this.lockOpc(), esperarMs: 30_000 });
+    try {
+      if (g) writeFileSync(this.archivoGrupo(this.lugar), g);
+      else rmSync(this.archivoGrupo(this.lugar), { force: true });
+      this.grupoTomado = g;
+    } finally {
+      await cand?.liberar();
+    }
   }
 
   /** ¿Tengo el puesto (el `tengo_lock` del bash)? */
@@ -288,6 +360,8 @@ export class Admision {
     const l = this.lugarLock;
     this.lugarLock = null;
     this.lugar = "";
+    this.grupoTomado = "";
+    // el `.grupo` se queda: sólo se lee con el lugar ocupado y quien lo toma lo reescribe (o lo borra) bajo el candado
     await l?.liberar();
     ramSoltar(this.x);
   }
@@ -326,26 +400,47 @@ export class Admision {
     let mio: Lock | null = null;
     let mioK = "";
     let ocupados = 0;
+    const porGrupo = new Map<string, number>();
     for (let k = 1; k <= max; k++) {
       tocar(this.f(`@tope@${k}`));
       const l = await tomar(this.f(`@tope@${k}`), this.lockOpc());
-      if (!l) ocupados++;
-      else if (!mio) {
+      if (!l) {
+        ocupados++;
+        // el grupo de quien lo tiene: lo dejó él bajo este mismo candado al tomarlo (un pa bash no lo deja: sólo cuenta para el global)
+        let g = "";
+        try {
+          g = readFileSync(this.archivoGrupo(String(k)), "utf8").trim();
+        } catch {
+          g = "";
+        }
+        if (g) porGrupo.set(g, (porGrupo.get(g) ?? 0) + 1);
+      } else if (!mio) {
         mio = l;
         mioK = String(k);
       } else await l.liberar();
     }
     const vivos = ocupados + workersSueltos(pa.state);
-    if (mio && vivos < pa.tope) {
+    // el tope del grupo de cupo: los lugares ocupados de ese grupo más los workers sueltos que corren en él
+    const grupo = this.grupoActual();
+    const topeGrupo = grupo && this.o.cupo ? topeDeGrupo(this.o.cupo.topes, grupo) : null;
+    let enGrupo = 0;
+    if (grupo && topeGrupo !== null) {
+      enGrupo = (porGrupo.get(grupo) ?? 0) + (sueltosPorGrupo(pa.state, this.o.cupo!.grupoDe).get(grupo) ?? 0);
+    }
+    if (mio && vivos < pa.tope && !(topeGrupo !== null && enGrupo >= topeGrupo)) {
       const ram = ramAlcanza(this.x, vivos);
       if (!ram.motivo) {
         this.lugarLock = mio;
         this.lugar = mioK;
+        this.grupoTomado = grupo;
+        if (grupo) writeFileSync(this.archivoGrupo(mioK), grupo);
+        else rmSync(this.archivoGrupo(mioK), { force: true });
         ramReservar(this.x);
         return true;
       }
       this.motivoTope = ram.motivo;
-    } else this.motivoTope = `tope global: ${pa.tope} workers vivos`;
+    } else if (mio && vivos < pa.tope) this.motivoTope = `cupo: ${enGrupo} workers vivos en ${grupo} (tope ${topeGrupo})`;
+    else this.motivoTope = `tope global: ${pa.tope} workers vivos`;
     this.ocupadosTope = vivos;
     await mio?.liberar();
     await this.soltarTope();
@@ -355,7 +450,9 @@ export class Admision {
   /** `tope_lleno_75`: en primer plano con el tope lleno o sin RAM. Sale 75. */
   topeLleno75(): never {
     const io = this.x.pa.io;
-    if (this.motivoTope.startsWith("RAM:"))
+    if (this.motivoTope.startsWith("cupo:"))
+      io.err(`pa: ${this.motivoTope}. Entre todos los proyectos ya están los que ese cupo aguanta a la vez (tope_vivos de modelos.json; 0 lo apaga):\n`);
+    else if (this.motivoTope.startsWith("RAM:"))
       io.err(`pa: sin RAM para otro worker (${this.ocupadosTope} vivos entre todos los proyectos): ${this.motivoTope}.\n`);
     else
       io.err(`pa: tope global: ya hay ${this.ocupadosTope} worker(s) vivos entre todos los proyectos y el tope es ${this.x.pa.tope} (PA_TOPE):\n`);
