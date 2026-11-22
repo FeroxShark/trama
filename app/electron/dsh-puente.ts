@@ -281,7 +281,8 @@ class Traductor {
     const t = typeof u.content?.text === "string" ? u.content.text : "";
     if (!t) return [];
     const out: Obj[] = [];
-    const id = texto(u.messageId) ?? `m${++this.n}`;
+    // Sin `messageId` (opcional en ACP) el chunk sigue el mensaje abierto; sólo abre uno nuevo si no hay (lo cierra una herramienta o el fin del turno).
+    const id = texto(u.messageId) ?? this.buf?.id ?? `m${++this.n}`;
     if (this.buf && this.buf.id !== id) out.push(...this.vaciar());
     if (!this.buf) {
       this.buf = { id, pensado: "", texto: "", bloque: "", indice: -1 };

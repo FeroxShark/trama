@@ -116,3 +116,13 @@ test("PUENTES-10: si opencode no trae la opción `model` en configOptions, el pu
   assert.equal(cambios.length, 1, JSON.stringify(p.pedidos().map((x) => x.method)));
   assert.equal(cambios[0].params.value, "falso/fake-model");
 });
+
+test("PUENTES-11: los chunks sin messageId forman un solo mensaje, no un globo por pedazo", { timeout: 60_000 }, async () => {
+  const p = new Puente("sin-id");
+  p.mandar("hola");
+  await hasta(() => p.resultados.length === 1, 30_000, `el turno no terminó; stderr: ${p.stderr.slice(-400)}`);
+  const asistente = p.lineas.filter((l) => l.type === "assistant");
+  assert.equal(asistente.length, 1, JSON.stringify(asistente));
+  assert.equal(asistente[0].message.content[0].text, "Hola");
+  assert.equal(p.lineas.filter((l) => l.type === "stream_event" && l.event?.type === "message_stop").length, 1);
+});

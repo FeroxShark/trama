@@ -11,6 +11,7 @@
 //   "stderr-partido"  el error de uso gratis por stderr en dos escrituras (sin cerrar el prompt)
 //   "error-data"      el prompt responde un error JSON-RPC cuyo detalle (cuota) viene sólo en `error.data`
 //   "sin-modelo"      session/new y session/resume traen `configOptions: []` (sin la opción `model`); los prompts contestan
+//   "sin-id"          contesta "Ho" + "la" en dos agent_message_chunk SIN messageId y cierra el turno
 // Sólo para las pruebas (tests/lider-opencode-colgado.test.ts, tests/dsh-puente-acp-falso.test.ts).
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
@@ -47,6 +48,11 @@ createInterface({ input: process.stdin }).on("line", (l) => {
       if (modo === "corte" || modo === "sin-modelo") {
         if (modo === "corte" && prompts() <= 1) return; // el primero (ya anotado) queda colgado
         chunk("agent_message_chunk", "listo");
+        return enviar({ id: m.id, result: { stopReason: "end_turn" } });
+      }
+      if (modo === "sin-id") {
+        chunk("agent_message_chunk", "Ho");
+        chunk("agent_message_chunk", "la");
         return enviar({ id: m.id, result: { stopReason: "end_turn" } });
       }
       if (modo === "pensando") {
