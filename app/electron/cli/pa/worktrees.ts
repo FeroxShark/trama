@@ -556,9 +556,29 @@ export async function commitearHuerfano(x: Proyecto, wt: string): Promise<void> 
 
 // ---------------------------------------------------------------- crear / reusar
 
+/** El directorio git común (el `.git` del repo, sea el tree principal o uno de sus worktrees), como ruta real; "" si no se puede leer. */
+async function gitComun(x: Proyecto, cwd: string): Promise<string> {
+  const r = await g(x, cwd, ["rev-parse", "--git-common-dir"]);
+  if (r.codigo !== 0) return "";
+  const d = path.resolve(cwd, r.salida.replace(/\n$/, ""));
+  try {
+    return realpathSync(d);
+  } catch {
+    return d;
+  }
+}
+
 /** `asegurar_worktree`: el worktree de un puesto, creado (en HEAD suelto) si no existe. Requiere el candado de git. */
 export async function asegurarWorktree(x: Proyecto, wt: string): Promise<boolean> {
-  if (existsSync(path.join(wt, ".git"))) return true;
+  if (existsSync(path.join(wt, ".git"))) {
+    // Dos proyectos con la misma carpeta final (`/a/demo` y `/b/demo`) comparten slug y por tanto este worktree: si es de OTRO repo, no se usa.
+    const [suyo, mio] = [await gitComun(x, wt), await gitComun(x, x.ruta)];
+    if (!suyo || !mio || !mismaRuta(x.pa, suyo, mio)) {
+      x.pa.io.err(`pa: el worktree ${wt} es de otro repositorio (${suyo || "desconocido"}), no de '${x.ruta}': dos proyectos comparten el nombre de carpeta '${x.slug}'. No arranco.\n`);
+      return false;
+    }
+    return true;
+  }
   mkdirSync(path.dirname(wt), { recursive: true });
   // si alguien borró el directorio a mano, git lo sigue teniendo registrado y el `add` falla
   await g(x, x.ruta, ["worktree", "prune"]);

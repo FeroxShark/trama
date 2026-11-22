@@ -129,6 +129,24 @@ testPosix("preparar: un worker de otro proveedor no ve el .env ni las instruccio
   assert.equal(lstatSync(path.join(t.rutaTrabajo, ".venv")).isSymbolicLink(), true);
 });
 
+testPosix("preparar: dos repos con la misma carpeta final no comparten worktree: el segundo sale 87 y no toca el primero (B079)", async () => {
+  const s = armar();
+  const a = await prepararWorktree(s.proy("t1"), "", "1");
+  assert.equal(a.codigo, 0);
+  // otro clon de la misma historia, también en una carpeta `demo`
+  const otra = path.join(s.raiz, "otro", "demo");
+  mkdirSync(path.dirname(otra), { recursive: true });
+  spawnSync("git", ["clone", "-q", s.ruta, otra]);
+  const y: Proyecto = { ...s.proy("t2"), ruta: otra };
+  const antes = s.git(a.rutaTrabajo, "rev-parse", "--abbrev-ref", "HEAD").stdout.trim();
+  const b = await prepararWorktree(y, "", "1");
+  assert.equal(b.codigo, 87);
+  assert.match(s.err(), /es de otro repositorio/);
+  assert.equal(s.git(a.rutaTrabajo, "rev-parse", "--abbrev-ref", "HEAD").stdout.trim(), antes, "el worktree del primero sigue en su rama");
+  // el mismo repo sí lo reusa
+  assert.equal((await prepararWorktree(s.proy("t3"), "", "1")).codigo, 0);
+});
+
 testPosix("preparar: --leer, --aca y un proyecto sin commits corren en el tree principal", async () => {
   const s = armar();
   const x = s.proy("t1");
