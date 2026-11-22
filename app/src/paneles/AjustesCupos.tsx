@@ -5,7 +5,7 @@
 // escribe el reloj, no React.
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Ban, CalendarClock, Check, ChevronDown, Clock, ExternalLink, Info, Minus, RotateCcw, TrendingDown, TrendingUp, TriangleAlert } from "lucide-react";
-import { Boton, Chip } from "../ui/componentes";
+import { Boton, Chip, Interruptor } from "../ui/componentes";
 import { LogoCaja, type Proveedor } from "../ui/logos";
 import type { GrupoCupo, SuscripcionCupo, Uso, VentanaCupo } from "../datos/contrato";
 import { fuente, type CuentaEstado, type EstadoCuentas } from "../datos/fuente";
@@ -34,7 +34,7 @@ import { GrupoAjustes, FilaAjuste } from "./AjustesPiezas";
 import { irA, pendienteDeMostrar, suscribir } from "./ajustes-nav";
 import { FilaCuenta, FilaFija, LimiteCupo, LineaHallazgo, LineaNota, nombreVentanaMin } from "./CuentaCupo";
 import { esEnUso, estadoCuenta, hallazgo, ventanasDeSusc, type FilaResumen } from "./cupos-tejido";
-import { PERFILES, SIN_CUPO, type Borrador, type Perfil, type SinCupo } from "./modelos-borrador";
+import { PERFILES, SIN_CUPO, TOPE_VIVOS_DEFECTO, TOPE_VIVOS_UI_MAX, ponerTopeVivos, topeVivosDe, type Borrador, type Perfil, type SinCupo } from "./modelos-borrador";
 import { reservaDePerfil, ritmoSemanal, type Ritmo } from "./cupos-ritmo";
 import { AjustesCierre } from "./AjustesCierre";
 import { AjustesAros } from "./AjustesAros";
@@ -1053,7 +1053,36 @@ export function AjustesCupos({ Dato, b, cambiar, uso }: { Dato: FilaDato; b: Bor
 }
 
 /** Lo que el buscador de Ajustes encuentra dentro de «Avanzado» (perfil, topes y qué hacer sin cupo). */
-const esDeAvanzado = (opc: string) => opc === "ajustes.cuposPerfil" || opc === "ajustes.cuposSinCupo" || opc === "cu.topes" || opc.startsWith("cu.tope.");
+const esDeAvanzado = (opc: string) => opc === "ajustes.cuposPerfil" || opc === "ajustes.cuposSinCupo" || opc === "ajustes.cuposTopeVivos" || opc === "cu.topes" || opc.startsWith("cu.tope.");
+
+/** «Workers a la vez por cupo» (`tope_vivos`): un interruptor (apagado = sin tope) y el número de 1 a 10. */
+function TopeVivos({ b, cambiar }: { b: Borrador; cambiar: (b: Borrador) => void }) {
+  const n = topeVivosDe(b);
+  const activo = n > 0;
+  return (
+    <div className="pn-campo-fila">
+      <Interruptor activo={activo} alCambiar={(v) => cambiar(ponerTopeVivos(b, v ? TOPE_VIVOS_DEFECTO : 0))} aria-label={t("cu.topeVivosActivo")} />
+      {activo ? (
+        <>
+          <input
+            className="pn-campo pn-campo-num"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={TOPE_VIVOS_UI_MAX}
+            step={1}
+            value={n}
+            aria-label={t("cu.topeVivosLabel", { max: TOPE_VIVOS_UI_MAX })}
+            onChange={(e) => (e.target.value === "" ? undefined : cambiar(ponerTopeVivos(b, Math.max(1, Number(e.target.value)))))}
+          />
+          <span className="pn-unidad">{t("cu.topeVivosUnidad")}</span>
+        </>
+      ) : (
+        <span className="pn-unidad">{t("cu.topeVivosApagado")}</span>
+      )}
+    </div>
+  );
+}
 
 function AvanzadoCuerpo({ Dato, b, cambiar, grupos, chatgpt, reserva }: { Dato: FilaDato; b: Borrador; cambiar: (b: Borrador) => void; grupos: { id: string; nombre: string }[]; chatgpt: boolean; reserva: number }) {
   return (
@@ -1112,6 +1141,10 @@ function AvanzadoCuerpo({ Dato, b, cambiar, grupos, chatgpt, reserva }: { Dato: 
             reserva={SIN_CUPO.flatMap((id) => enOtros(SIN_CUPO_CLAVES[id].nombre))}
           />
         </div>
+      </Dato>
+
+      <Dato nombre="ajustes.cuposTopeVivos" que="ajustes.cuposTopeVivosQue">
+        <TopeVivos b={b} cambiar={cambiar} />
       </Dato>
     </>
   );
