@@ -52,6 +52,19 @@ export const NOTA_TAREA_PCT_MAX = 90;
 export const NOTA_TAREA_PCT_DEFECTO = 60;
 const NOTA_NATIVO_TECHO_PCT = 75;
 
+/** Workers vivos a la vez por grupo de cupo (`tope_vivos`): fábrica y máximo. 0 = sin tope. Lo lee `pa` (cli/pa/modelos.ts, `topeVivos`). */
+export const TOPE_VIVOS_DEFECTO = 3;
+export const TOPE_VIVOS_MAX = 50;
+/** Lo que Ajustes ofrece (1 a 10 y apagado); a mano en el archivo vale hasta `TOPE_VIVOS_MAX`. */
+export const TOPE_VIVOS_UI_MAX = 10;
+const topeVivosEntero = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 0 && x <= TOPE_VIVOS_MAX;
+/** Un entero (para todos los grupos) o un objeto `{"*": 3, "claude": 2}` de grupos a enteros. */
+export const topeVivosValido = (x: unknown): x is TopeVivosConfig =>
+  topeVivosEntero(x) || (typeof x === "object" && x !== null && !Array.isArray(x) && Object.keys(x).length > 0 && Object.values(x).every(topeVivosEntero));
+export type TopeVivosConfig = number | Record<string, number>;
+/** El número que muestra Ajustes: el del número solo, o el `*` de un objeto (sin `*` vale la fábrica). */
+export const topeVivosGeneral = (t: TopeVivosConfig | undefined): number => (typeof t === "number" ? t : (t?.["*"] ?? TOPE_VIVOS_DEFECTO));
+
 export const notaPctValido = (x: unknown): x is number =>
   typeof x === "number" && Number.isInteger(x) && x >= NOTA_PCT_MIN && x <= NOTA_PCT_MAX;
 
@@ -181,6 +194,8 @@ export type ConfigModelos = {
   nota_compactar?: boolean;
   /** Porcentaje del tope (50..95, entero, default 85) desde el cual se pide sí o sí la nota antes de compactar. */
   nota_compactar_pct?: number;
+  /** Workers vivos a la vez por grupo de cupo (`tope_vivos`); sin la clave vale `TOPE_VIVOS_DEFECTO`, 0 = sin tope. Lo lee `pa`. */
+  tope_vivos?: TopeVivosConfig;
   /** Porcentaje del tope (0 = apagado, o 30..90 entero, default 60) desde el cual se sugiere la nota al terminar una tarea. */
   nota_compactar_tarea_pct?: number;
   /** Advisor de Claude Code: por familia del modelo principal, la del asesor (`--advisor`). Sin entradas la clave no se escribe (ver advisor.ts). */
@@ -346,6 +361,7 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
   if (esObj(j.autocompact_lider)) c.autocompact_lider = leerTope(j.autocompact_lider);
   if (typeof j.nota_compactar === "boolean") c.nota_compactar = j.nota_compactar;
   if (notaPctValido(j.nota_compactar_pct)) c.nota_compactar_pct = j.nota_compactar_pct;
+  if (topeVivosValido(j.tope_vivos)) c.tope_vivos = typeof j.tope_vivos === "number" ? j.tope_vivos : { ...j.tope_vivos };
   if (notaTareaPctValido(j.nota_compactar_tarea_pct)) c.nota_compactar_tarea_pct = j.nota_compactar_tarea_pct;
   if (esObj(j.advisor)) {
     const ad: AdvisorConfig = {};
@@ -397,7 +413,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "nota_compactar", "nota_compactar_pct", "nota_compactar_tarea_pct", "advisor", "cierre", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h", "planes"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "nota_compactar", "nota_compactar_pct", "nota_compactar_tarea_pct", "tope_vivos", "advisor", "cierre", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h", "planes"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -476,6 +492,10 @@ export function validarConfig(x: unknown): ConfigModelos {
   if (x.nota_compactar_pct !== undefined && x.nota_compactar_pct !== null) {
     if (!notaPctValido(x.nota_compactar_pct)) throw errorT("main.modelosNotaPct", { min: NOTA_PCT_MIN, max: NOTA_PCT_MAX });
     c.nota_compactar_pct = x.nota_compactar_pct;
+  }
+  if (x.tope_vivos !== undefined && x.tope_vivos !== null) {
+    if (!topeVivosValido(x.tope_vivos)) throw errorT("main.modelosTopeVivos", { max: TOPE_VIVOS_MAX });
+    c.tope_vivos = typeof x.tope_vivos === "number" ? x.tope_vivos : { ...x.tope_vivos };
   }
   if (x.nota_compactar_tarea_pct !== undefined && x.nota_compactar_tarea_pct !== null) {
     if (!notaTareaPctValido(x.nota_compactar_tarea_pct)) throw errorT("main.modelosNotaTareaPct", { min: NOTA_TAREA_PCT_MIN, max: NOTA_TAREA_PCT_MAX });
@@ -657,6 +677,9 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   else if (c.nota_compactar_pct !== undefined) base.nota_compactar_pct = c.nota_compactar_pct;
   if (c.nota_compactar_tarea_pct === NOTA_TAREA_PCT_DEFECTO) delete base.nota_compactar_tarea_pct;
   else if (c.nota_compactar_tarea_pct !== undefined) base.nota_compactar_tarea_pct = c.nota_compactar_tarea_pct;
+  // `tope_vivos` lo lee `pa`: el 3 de fábrica no se escribe; 0 (sin tope), otro número o un objeto sí.
+  if (c.tope_vivos === undefined || c.tope_vivos === TOPE_VIVOS_DEFECTO) delete base.tope_vivos;
+  else base.tope_vivos = typeof c.tope_vivos === "number" ? c.tope_vivos : { ...c.tope_vivos };
   // `advisor` lo leen Trama (líderes) y `pa` (workers): sin entradas la clave sale (sin asesor).
   if (c.advisor && Object.keys(c.advisor).length) base.advisor = { ...c.advisor };
   else delete base.advisor;
