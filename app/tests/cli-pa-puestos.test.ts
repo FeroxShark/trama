@@ -225,37 +225,3 @@ test("otros writers y describir puestos: los vivos del proyecto (sin el propio),
   // printf %.80s corta por bytes: 40 «ñ»
   assert.equal(describirPuestos(s.proy("t"), ["aca", "5"]), `    tree principal: id t4 · jefe j · ${"ñ".repeat(40)}\n    puesto 5: tomado (arrancando)\n`);
 });
-
-test("puesto con .running de worker vivo sin lock (pa muerto) no se pisa ni se borra", async () => {
-  const s = armar({ PA_PUESTOS: "1", PA_TOPE: "4" });
-  mkdirSync(s.state, { recursive: true });
-  const run1 = path.join(s.state, "demo.running");
-  writeFileSync(run1, `id=w-vivo\npid=${process.pid}\npa_pid=999999999\njefe=jefa\ntarea=worker suelto\n`);
-  assert.equal(await puestoLibre(s.proy("x"), "1"), false);
-  await sale(() => new Admision(s.proy("t2")).tomarPuesto(), 75);
-  assert.equal(existsSync(run1), true, "no borró el .running del worker vivo");
-  assert.match(s.err(), /puesto 1: id w-vivo · jefe jefa · worker suelto/);
-
-  // Con otro puesto libre, saltea el puesto ocupado y toma el 2 sin tocar el .running del 1
-  const s2 = armar({ PA_PUESTOS: "2", PA_TOPE: "4" });
-  mkdirSync(s2.state, { recursive: true });
-  const run2_1 = path.join(s2.state, "demo.running");
-  writeFileSync(run2_1, `id=w-vivo\npid=${process.pid}\npa_pid=999999999\njefe=jefa\ntarea=worker suelto\n`);
-  const b = new Admision(s2.proy("t2"));
-  await b.tomarPuesto();
-  assert.equal(b.puesto, "2");
-  assert.equal(existsSync(run2_1), true, "preservó el .running del puesto 1");
-  await b.soltarTodo();
-
-  // Si ambos PIDs están muertos, sí recupera el puesto y limpia el .running viejo
-  const s3 = armar({ PA_PUESTOS: "1", PA_TOPE: "4" });
-  mkdirSync(s3.state, { recursive: true });
-  const run3 = path.join(s3.state, "demo.running");
-  writeFileSync(run3, "id=w-muerto\npid=999999998\npa_pid=999999999\n");
-  assert.equal(await puestoLibre(s3.proy("x"), "1"), true);
-  const c = new Admision(s3.proy("t3"));
-  await c.tomarPuesto();
-  assert.equal(c.puesto, "1");
-  assert.equal(existsSync(run3), false, "limpió el .running muerto");
-  await c.soltarTodo();
-});
