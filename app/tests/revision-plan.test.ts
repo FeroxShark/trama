@@ -28,6 +28,11 @@ test("parsearRevision: parte las cuatro secciones; sin encabezados queda todo en
   assert.equal(parsearRevision("Está bien, dale.").libre, "Está bien, dale.");
 });
 
+test("una sección vacía va y vuelve vacía: el literal «(sin nada que decir)» no llega a la tarjeta (B029)", () => {
+  const v = leerMensajeRevision(mensajeParaLider("m", "M", parsearRevision("## Qué está bien\n- A\n\n## Riesgos y huecos\n\n## Mejoras concretas\n- M\n\n## Plan mejorado\n")))!;
+  assert.deepEqual([v.bien, v.riesgos, v.mejoras, v.plan], ["- A", "", "- M", ""]);
+});
+
 test("parsearRevision: un «## Riesgos» o «### Cambios» dentro del plan mejorado es parte del plan (B019)", () => {
   const r = parsearRevision("## Qué está bien\n- A\n\n## Riesgos y huecos\n- R1\n\n## Mejoras concretas\n- M1\n\n## Plan mejorado\n1. Paso\n\n## Riesgos\n- del plan\n\n### Cambios\n- otros");
   assert.equal(r.riesgos, "- R1");

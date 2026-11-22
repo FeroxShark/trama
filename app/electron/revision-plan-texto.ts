@@ -149,9 +149,13 @@ export function parsearRevision(texto: string): Revision {
     } else if (actual) partes[actual]!.push(linea);
   }
   if (!hallo) return { bien: "", riesgos: "", mejoras: "", plan: "", libre: limpio };
-  const g = (k: (typeof SECCIONES)[number]["clave"]) => (partes[k] ?? []).join("\n").trim();
+  const g = (k: (typeof SECCIONES)[number]["clave"]) => sinNada((partes[k] ?? []).join("\n").trim());
   return { bien: g("bien"), riesgos: g("riesgos"), mejoras: g("mejoras"), plan: g("plan") };
 }
+
+/** Lo que lleva el mensaje al líder en una sección vacía; al releerlo vuelve a ser vacío (la tarjeta dice «Sin nada que decir» en el idioma de la persona). */
+export const SIN_NADA = "(sin nada que decir)";
+const sinNada = (t: string) => (t === SIN_NADA ? "" : t);
 
 const MARCA = /^\[\[revision-de-plan modelo="([^"\n]*)" nombre="([^"\n]*)"\]\]\n/;
 const LIBRE = "## Lo que dijo el revisor";
@@ -161,7 +165,7 @@ export const sinComillas = (s: string) => s.replace(/["\n\r]/g, " ").trim();
 export function mensajeParaLider(modelo: string, nombre: string, r: Revision): string {
   const cuerpo = r.libre
     ? [LIBRE, r.libre]
-    : SECCIONES.flatMap((s) => [`## ${s.titulo}`, r[s.clave] || "(sin nada que decir)", ""]);
+    : SECCIONES.flatMap((s) => [`## ${s.titulo}`, r[s.clave] || SIN_NADA, ""]);
   return [
     `[[revision-de-plan modelo="${sinComillas(modelo)}" nombre="${sinComillas(nombre)}"]]`,
     ...cuerpo,

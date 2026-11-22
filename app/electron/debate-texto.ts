@@ -2,7 +2,7 @@
 // prompt de un turno y el de la conclusión, cómo se lee lo que contesta cada modelo (Postura / Argumento / Plan propuesto / Pregunta
 // para el dueño), la cuenta de si coinciden del todo y el mensaje que recibe el líder (con una marca, como la revisión de la etapa 1).
 // Sin imports de Node: lo prueba tests/debate.test.ts. El moderador (rondas, turnos, cortes): debate.ts. Diseño: docs/modo-debate-diseno.md.
-import { PLAN_MAX, sinComillas, type ArchivoAdjunto, type PasoRevision } from "./revision-plan-texto.ts";
+import { PLAN_MAX, SIN_NADA, sinComillas, type ArchivoAdjunto, type PasoRevision } from "./revision-plan-texto.ts";
 
 /** Rondas: de 1 a 3 (default 2). En cada una habla cada participante una vez. */
 export const RONDAS_MIN = 1;
@@ -312,7 +312,8 @@ export function parsearConclusion(texto: string): ConclusionDebate {
   const limpio = texto.replace(/\r\n/g, "\n").trim();
   const { partes, hallo } = partir(limpio, SECCIONES_CONCLUSION);
   if (!hallo) return { acuerdos: "", desacuerdos: "", plan: "", libre: limpio };
-  return { acuerdos: partes.acuerdos ?? "", desacuerdos: partes.desacuerdos ?? "", plan: partes.plan ?? "" };
+  const g = (t: string | undefined) => (t === SIN_NADA ? "" : (t ?? ""));
+  return { acuerdos: g(partes.acuerdos), desacuerdos: g(partes.desacuerdos), plan: g(partes.plan) };
 }
 
 // ───────────────────────── El mensaje para el líder ─────────────────────────
@@ -326,13 +327,13 @@ export function mensajeDebateParaLider(v: DebateVista): string {
     ? [LIBRE, v.libre]
     : [
         "## Acuerdos",
-        v.acuerdos || "(sin nada que decir)",
+        v.acuerdos || SIN_NADA,
         "",
         "## Desacuerdos que quedan",
-        v.desacuerdos || "(sin nada que decir)",
+        v.desacuerdos || SIN_NADA,
         "",
         "## Plan consensuado",
-        v.plan || "(sin nada que decir)",
+        v.plan || SIN_NADA,
         "",
       ];
   const quienes = v.nombres.map(sinComillas).join(", ");

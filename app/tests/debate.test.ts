@@ -80,6 +80,12 @@ test("la transcripción no corta el plan propuesto: se recorta el argumento ante
   assert.ok(!t.includes("a".repeat(2000)), "el argumento largo sí se recorta");
 });
 
+test("el mensaje del debate con secciones vacías vuelve vacío, no con el literal en español (B029)", () => {
+  const m = mensajeDebateParaLider({ acuerdos: "- A", desacuerdos: "", plan: "", modelos: ["a", "b"], nombres: ["A", "B"], motivo: "acuerdo", rondas: 1 });
+  const l = leerMensajeDebate(m)!;
+  assert.deepEqual([l.acuerdos, l.desacuerdos, l.plan], ["- A", "", ""]);
+});
+
 test("acuerdo total en la ronda 1 corta: no hay ronda 2, concluye y entrega al líder", async () => {
   const { d, hecho } = armar({ a: [turno("acuerdo"), CONCLUSION], b: [turno("acuerdo")] });
   const deb = iniciarDebate({ sid: "s", plan: "# Plan", participantes: [P("a", "low"), P("b", "xhigh")], rondas: 3 }, d);
