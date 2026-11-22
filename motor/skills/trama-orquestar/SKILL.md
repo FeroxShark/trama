@@ -16,6 +16,7 @@ proyecto, en un worktree y una rama propios. Si tu sesión corre en un proyecto,
 | Leer o buscar en un proyecto | `pa <p> --leer --tipo lectura "<p>"` |
 | Lectura que el líder necesita ya | subagente nativo Explore en Haiku |
 | Cambio de 1-2 archivos con test | `codigo-acotado` |
+| Varios arreglos en un worker | hasta 3 por `codigo-acotado`; más, partí en otro worker o pasá `--max-turns` |
 | Frontend o varias partes | pedazos de ≤ ~40 turnos, archivos disjuntos |
 | Tiene chequeo determinista | `pa <p> --objetivo "<meta>" --verificar "<cmd>"` |
 | Falló | `--seguir` (< 55 min) o `--seguir-con <modelo> --id`; Opus nunca de cero |
