@@ -694,6 +694,7 @@ export const en = {
   "main.revisorNoEncontrado": "The {v} program was not found on this machine",
   "main.revisorFalloDetalle": "{v} could not finish the review: {d}",
   "main.revisorFallo": "{v} could not finish the review: try another model",
+  "main.revisorMaxTurnos": "{v} kept reading files without getting to write the review: try another model or a shorter plan",
   "main.revisorFalloGeneral": "The review could not finish: try another model",
   "main.debateParticipantes": "The debate needs between {min} and {max} different models",
   "main.debateCancelado": "Debate cancelled. The plan is still waiting for your answer.",

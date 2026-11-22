@@ -2,7 +2,7 @@
 // revisores permitidos y la orquestación de punta a punta con un revisor simulado (sin gastar cupo).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { crearCola, type Encolado } from "../electron/cola.ts";
@@ -471,4 +471,30 @@ test("cancelar al revisor: sale en su propio grupo y, si ignora el TERM, recibe 
       return true;
     }
   });
+});
+
+test("Claude llega al tope de turnos: con las secciones escritas se aprovecha; sin ellas el error es un texto traducible (B030)", noWin, async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "trama-maxturns-"));
+  const antes = process.env.HILOS_CLAUDE;
+  try {
+    const falso = (nombre: string, texto: string) => {
+      const f = path.join(dir, nombre);
+      const lineas = [
+        { type: "stream_event", event: { type: "message_start" } },
+        { type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: texto } } },
+        { type: "result", subtype: "error_max_turns", is_error: false },
+      ];
+      writeFileSync(f, `#!/usr/bin/env node\nfor (const l of ${JSON.stringify(lineas.map((x) => JSON.stringify(x)))}) console.log(l);\n`);
+      chmodSync(f, 0o755);
+      return f;
+    };
+    process.env.HILOS_CLAUDE = falso("con-secciones", RESPUESTA);
+    assert.equal(await correrRevisor("claude-fable-5-2", "low", "x", dir), RESPUESTA);
+    process.env.HILOS_CLAUDE = falso("sin-secciones", "Voy a leer otro archivo");
+    await assert.rejects(correrRevisor("claude-fable-5-2", "low", "x", dir), /i18n:main\.revisorMaxTurnos/);
+  } finally {
+    if (antes === undefined) delete process.env.HILOS_CLAUDE;
+    else process.env.HILOS_CLAUDE = antes;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

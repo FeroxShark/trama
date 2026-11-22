@@ -683,6 +683,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "main.revisorNoEncontrado": "No se encontró el programa de {v} en esta máquina",
   "main.revisorFalloDetalle": "{v} no pudo terminar la revisión: {d}",
   "main.revisorFallo": "{v} no pudo terminar la revisión: probá con otro modelo",
+  "main.revisorMaxTurnos": "{v} se quedó leyendo archivos sin llegar a escribir la revisión: probá con otro modelo o con un plan más corto",
   "main.revisorFalloGeneral": "La revisión no pudo terminar: probá con otro modelo",
   "main.debateParticipantes": "El debate necesita entre {min} y {max} modelos distintos",
   "main.debateCancelado": "Debate cancelado. El plan sigue esperando tu respuesta.",

@@ -258,6 +258,7 @@ const comandoDe = (clase: "claude" | "gemini" | "codex") => (clase === "claude" 
  */
 export function falloDeRevisor(clase: "claude" | "gemini" | "codex", dijo: string): Error {
   const servicio = servicioDe(clase);
+  if (/\berror_max_turns\b/.test(dijo)) return errorT("main.revisorMaxTurnos", { v: servicio });
   const linea = dijo.trim().split("\n").filter(Boolean).pop()?.replace(/^error:\s*/i, "").trim() ?? "";
   if (/authentication|not logged|log ?in|sign ?in|unauthori[sz]ed|credential|\b401\b|token (?:has )?expired|session expired/i.test(dijo)) return errorT("main.revisorSinSesion", { v: servicio, c: comandoDe(clase) });
   if (linea && linea.length <= 140 && !/^salió \d+/.test(linea)) return errorT("main.revisorFalloDetalle", { v: servicio, d: linea });
@@ -321,6 +322,8 @@ export async function correrRevisor(modelo: string, effort: string, prompt: stri
         if (a) o.avance(a);
       },
     });
+    // Tope de turnos (leyó varios archivos): si lo último que escribió ya trae las secciones, se aprovecha en vez de tirarlo.
+    if (lector.falla && /\berror_max_turns\b/.test(lector.falla) && !parsearRevision(lector.ultimoTexto).libre?.trim() && lector.ultimoTexto.trim()) return lector.ultimoTexto;
     if (lector.falla) throw falloDeRevisor("claude", lector.falla);
     const r = lector.final ?? lector.ultimoTexto;
     if (r.trim()) return r;
