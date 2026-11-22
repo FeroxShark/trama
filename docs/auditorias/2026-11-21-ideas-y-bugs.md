@@ -7,10 +7,10 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 ## Resumen
 
 - **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
-  - arreglado: 101
-  - pendiente: 48
-  - refutado: 6
-  - arreglado a medias: 3
+  - arreglado: 126
+  - refutado: 14
+  - pendiente: 13
+  - arreglado a medias: 5
 - **Ideas: 102**.
 
 | Área | Bugs | Arreglados | Pendientes |
@@ -18,11 +18,11 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 | Barra lateral y datos | 18 | 17 | 0 |
 | Debate y revisión de planes | 14 | 13 | 0 |
 | El hilo: la caja y el líder en la ventana | 14 | 11 | 0 |
-| Hooks y motor | 16 | 5 | 11 |
+| Hooks y motor | 16 | 8 | 0 |
 | Núcleo y canales | 14 | 13 | 0 |
-| El CLI de `pa` | 15 | 0 | 15 |
+| El CLI de `pa` | 15 | 15 | 0 |
 | Puentes a otros motores | 20 | 19 | 1 |
-| Reparto y cupos | 15 | 6 | 9 |
+| Reparto y cupos | 15 | 15 | 0 |
 | Sistema: instalación, actualización y servicio | 16 | 15 | 1 |
 | Vistos trabajando esta noche | 16 | 5 | 11 |
 
@@ -230,12 +230,12 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 
 ### Hooks y motor
 
-**B047 · Leer un enlace permite salir del worktree** (`HOOKS-MOTOR-1`, severidad alta) · **PENDIENTE**
+**B047 · Leer un enlace permite salir del worktree** (`HOOKS-MOTOR-1`, severidad alta) · **REFUTADO**
 - Qué pasa: un worker remoto puede leer un archivo ajeno al proyecto mediante un enlace simbólico que está dentro del worktree. El contenido queda disponible para enviarlo al proveedor aunque el hook prometa impedir esa lectura.
 - Dónde: `motor/hooks/agy-pa.mjs` línea 446 (validación de argumentos de lectura).
 - Arreglo: resolver el destino real de cada argumento de lectura antes de compararlo con las carpetas permitidas, como se hace para escribir; usar también esa validación para Cwd y las rutas explícitas de comandos. Agregar una prueba con un enlace a un archivo externo y otra con un enlace interno permitido; en Windows cubrir…
 
-**B048 · Una guardia hija rota deja pasar la herramienta** (`HOOKS-MOTOR-2`, severidad alta) · **PENDIENTE**
+**B048 · Una guardia hija rota deja pasar la herramienta** (`HOOKS-MOTOR-2`, severidad alta) · **REFUTADO**
 - Qué pasa: si destructive-guard o latido falta, falla o no puede arrancar, agy permite el comando. Se pierden las restricciones de borrado, git, builds o lectura sin mostrar un error a la persona.
 - Dónde: `motor/hooks/agy-pa.mjs` línea 164 (PreToolUse; también línea 529).
 - Arreglo: conservar `error`/`signal` y denegar cualquier resultado que no sea una ejecución exitosa de la guardia, con un motivo que identifique el módulo. Agregar pruebas para código 1, `ENOENT`, señal y código 2 en ambas guardias; ninguna debe permitir la herramienta.
@@ -250,17 +250,17 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `motor/hooks/docker-guard.mjs` línea 688 (`revisarComposeArchivos`).
 - Arreglo: distribuir un parser YAML resoluble desde los hooks en Linux y Windows y, si falta, rechazar los verbos de Compose que crean contenedores con un mensaje explícito. Probar el YAML privilegiado con parser y el mismo comando en un payload sin parser.
 
-**B051 · El runner no puede lanzar el shim de npm en Windows** (`HOOKS-MOTOR-5`, severidad media) · **PENDIENTE**
+**B051 · El runner no puede lanzar el shim de npm en Windows** (`HOOKS-MOTOR-5`, severidad media) · **REFUTADO**
 - Qué pasa: un worker de OpenCode falla al arrancar si la instalación encontrada es `opencode.cmd`, aun cuando el chequeo previo lo haya encontrado correctamente.
 - Dónde: `motor/opencode/correr.mjs` línea 192 (`main`; también línea 183).
 - Arreglo: adaptar el binario y sus argumentos para Windows antes de las dos llamadas, usando el equivalente de `paraLanzar` o resolver el ejecutable real del paquete. Probar un shim `.cmd` ubicado en una ruta con espacios que sólo devuelva ayuda y eventos falsos, sin conectar un modelo.
 
-**B052 · OpenCode guarda sus datos fuera del estado nativo de Windows** (`HOOKS-MOTOR-6`, severidad media) · **PENDIENTE**
+**B052 · OpenCode guarda sus datos fuera del estado nativo de Windows** (`HOOKS-MOTOR-6`, severidad media) · **REFUTADO**
 - Qué pasa: al ejecutar el motor desde una terminal de Windows sin variables de rutas, los topes actualizados y pedidos de OpenCode quedan en carpetas distintas de las que lee Trama. El plan puede caer en «gratis» aunque se haya configurado Go en la app.
 - Dónde: `motor/opencode/go-topes.mjs` línea 29 (`rutaCache`).
 - Arreglo: unificar en los módulos del motor los defaults por plataforma y pasar también las rutas calculadas al runner desde TS. Cubrir los tres destinos con rutas Windows sintéticas y los overrides de entorno; no mezclar disco temporal real de Linux con plataforma Windows.
 
-**B053 · La misma compactación devuelve dos veces la nota** (`HOOKS-MOTOR-7`, severidad media) · **PENDIENTE**
+**B053 · La misma compactación devuelve dos veces la nota** (`HOOKS-MOTOR-7`, severidad media) · **REFUTADO**
 - Qué pasa: si corren dos registros del hook para SessionStart, el contexto posterior a compactar recibe dos copias de la nota. Gastan espacio y pueden traer encabezados de antigüedad diferentes.
 - Dónde: `motor/hooks/nota-compactar.mjs` línea 330 (`decidir`, SessionStart).
 - Arreglo: crear una marca exclusiva de devolución por sid y compactación antes de consumir el archivo o consultar el transcript; una segunda ejecución de ese evento debe devolver null. Probar las dos llamadas consecutivas y simultáneas, y una segunda compactación legítima de la misma sesión.
@@ -275,32 +275,32 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `motor/hooks/nota-compactar.mjs` línea 104 (`leerColaTranscript`).
 - Arreglo: buscar hacia atrás el comienzo de los registros necesarios con un límite explícito mayor y una estrategia para registros que exceden ese límite; obtener el uso de una fuente independiente cuando no se pudo recuperar el registro. Probar una línea assistant grande, una herramienta grande posterior y una nota dentro de…
 
-**B056 · Leer git falla cuando la carpeta tiene espacios** (`HOOKS-MOTOR-10`, severidad media) · **PENDIENTE**
+**B056 · Leer git falla cuando la carpeta tiene espacios** (`HOOKS-MOTOR-10`, severidad media) · **REFUTADO**
 - Qué pasa: un worker con `--leer` no puede ejecutar un `git -C` de lectura válido cuando la ruta lleva espacios entre comillas. El aviso le indica usar justamente `git -C`, pero esa forma sigue bloqueada.
 - Dónde: `motor/hooks/latido.mjs` línea 141 (`gitDeLectura`).
 - Arreglo: separar los argumentos con un parser que respete las comillas del shell correspondiente, conservando el rechazo de sustituciones, redirecciones y encadenamientos. Probar rutas con espacios, comillas escapadas y las mismas rutas en Windows.
 
-**B057 · La privacidad corta una ruta permitida en el primer espacio** (`HOOKS-MOTOR-11`, severidad media) · **PENDIENTE**
+**B057 · La privacidad corta una ruta permitida en el primer espacio** (`HOOKS-MOTOR-11`, severidad media) · **ARREGLADO**
 - Qué pasa: un worker Gemini que escribe tampoco puede usar una ruta absoluta válida dentro de su worktree si la carpeta contiene espacios. Recibe un bloqueo de privacidad para una ruta que nunca pidió abrir.
 - Dónde: `motor/hooks/agy-pa.mjs` línea 401 (`comandoSale`).
 - Arreglo: conservar los argumentos citados al recorrer las rutas de un comando, con reglas de POSIX o Windows según la plataforma. Probar una raíz con espacios, un hijo de esa raíz y una ruta externa con el mismo prefijo; esta última debe seguir bloqueada.
 
-**B058 · Un pid reciclado se toma como otro worker vivo** (`HOOKS-MOTOR-12`, severidad media) · **PENDIENTE**
+**B058 · Un pid reciclado se toma como otro worker vivo** (`HOOKS-MOTOR-12`, severidad media) · **REFUTADO**
 - Qué pasa: después de una caída que deja un `.running` viejo, la guardia puede bloquear la instalación de dependencias aunque ya no corra otro worker. Alcanza con que el número guardado ahora corresponda a un programa ajeno.
 - Dónde: `motor/hooks/latido.mjs` línea 218 (`otroWriterVivo`).
 - Arreglo: validar identidad y antigüedad del proceso antes de contarlo como writer; reutilizar o portar la lógica de `pidDeCampoRunning` al hook distribuido. Probar un proceso real anterior al archivo, uno posterior, un pid inexistente y el fallback a `pa_pid`.
 
-**B059 · Se conserva sólo la última parte del resultado** (`HOOKS-MOTOR-13`, severidad media) · **PENDIENTE**
+**B059 · Se conserva sólo la última parte del resultado** (`HOOKS-MOTOR-13`, severidad media) · **ARREGLADO**
 - Qué pasa: cuando la respuesta final tiene varias partes de texto, el JSON que recibe `pa` pierde todas salvo la última. Puede desaparecer RESULTADO, ARCHIVOS o una decisión, aunque estén en el transcript.
 - Dónde: `motor/opencode/correr.mjs` línea 82 (`aResultado`).
 - Arreglo: identificar el último paso con respuesta y concatenar sus partes de texto en orden, respetando si el protocolo entrega partes completas o actualizaciones de una misma parte. Probar una respuesta multipartes y otra con comentarios de pasos anteriores que no deben mezclarse con la respuesta final.
 
-**B060 · Un turno sin texto queda marcado como exitoso** (`HOOKS-MOTOR-14`, severidad media) · **PENDIENTE**
+**B060 · Un turno sin texto queda marcado como exitoso** (`HOOKS-MOTOR-14`, severidad media) · **ARREGLADO**
 - Qué pasa: OpenCode puede terminar sin entregar una respuesta y la corrida figura como buena, con resultado vacío. El jefe no recibe el informe esperado y las mediciones no registran el fallo.
 - Dónde: `motor/opencode/correr.mjs` línea 91 (`aResultado`).
 - Arreglo: exigir una respuesta final no vacía para marcar éxito en el runner de workers, o clasificar explícitamente el cierre sin texto como error. Probar ese caso, una respuesta sólo de razonamiento y una respuesta textual válida, tanto con step_finish final como sin él.
 
-**B061 · Registrar el statusline de Windows agrega una dependencia de bash** (`HOOKS-MOTOR-15`, severidad media) · **PENDIENTE**
+**B061 · Registrar el statusline de Windows agrega una dependencia de bash** (`HOOKS-MOTOR-15`, severidad media) · **REFUTADO**
 - Qué pasa: instalar los hooks sobre un statusline propio que ya funciona en Windows lo reemplaza por un comando que requiere bash. Una instalación nativa sin ese programa pierde su statusline original.
 - Dónde: `app/electron/cli/hooks.ts` línea 159 (`registrarEnAjustes`).
 - Arreglo: envolver el statusline con el intérprete nativo correspondiente, usando argumentos y comillas compatibles con Windows; conservar bash sólo para la plataforma que ya lo usa. Probar registro y ejecución de un statusline propio desde una ruta con espacios en ambos sistemas, sin exigir bash en Windows.
@@ -384,77 +384,77 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 
 ### El CLI de `pa`
 
-**B077 · El resumen de continuación esquiva el chequeo de secretos** (`PA-CLI-1`, severidad alta) · **PENDIENTE**
+**B077 · El resumen de continuación esquiva el chequeo de secretos** (`PA-CLI-1`, severidad alta) · **ARREGLADO**
 - Qué pasa: `--seguir-con` puede mandar a otro proveedor un secreto que estaba en la conversación anterior, aunque el pedido nuevo no lo contenga. La revisión de privacidad se hace sobre el texto corto, antes de agregar el resumen.
 - Dónde: `app/electron/cli/pa/cli.ts` línea 475 (`correrPa`).
 - Arreglo: volver a revisar el contenido final al reemplazar la tarea en la línea 475, antes de relanzar async o despachar el motor. El mismo control debe cubrir el resumen por caché frío y el worktree que realmente se retoma. Agregar un test que niegue el envío del dato ficticio aunque el pedido extra sea inocuo.
 
-**B078 · Se reutiliza el puesto de un hijo que sigue vivo** (`PA-CLI-2`, severidad alta) · **PENDIENTE**
+**B078 · Se reutiliza el puesto de un hijo que sigue vivo** (`PA-CLI-2`, severidad alta) · **ARREGLADO**
 - Qué pasa: si muere `pa` y sobrevive su worker, otro `pa` puede ocupar el mismo worktree y cambiarle la rama mientras todavía trabaja. También borra el `.running` que permitía encontrar al worker anterior.
 - Dónde: `app/electron/cli/pa/puestos.ts` línea 462 (`Admision.tomarPuesto`).
 - Arreglo: después de tomar el candado del puesto y antes de aceptarlo, validar el `.running`; si su hijo sigue vivo, liberar ese puesto y tratarlo como ocupado. Agregar un test con padre muerto e hijo vivo que impida preparar el worktree.
 
-**B079 · Dos repositorios con igual carpeta comparten worktree** (`PA-CLI-3`, severidad alta) · **PENDIENTE**
+**B079 · Dos repositorios con igual carpeta comparten worktree** (`PA-CLI-3`, severidad alta) · **ARREGLADO A MEDIAS**
 - Qué pasa: dos proyectos distintos llamados, por ejemplo, `/clientes/a/demo` y `/clientes/b/demo` comparten estado, puestos y worktrees. Si tienen historia compatible, el segundo puede terminar escribiendo y commiteando en el repositorio del primero.
 - Dónde: `app/electron/cli/pa/worktrees.ts` línea 538 (`asegurarWorktree`).
 - Arreglo: antes de devolver `true` en la línea 538, comparar el Git común con el del proyecto y rechazar cualquier mezcla. Dar a cada ruta real una clave de estado y worktree inequívoca, conservando una resolución compatible del estado viejo. Probar dos clones con igual basename y nombres distintos del registry.
 
-**B080 · Un rescate sin commit contamina la siguiente corrida** (`PA-CLI-4`, severidad alta) · **PENDIENTE**
+**B080 · Un rescate sin commit contamina la siguiente corrida** (`PA-CLI-4`, severidad alta) · **ARREGLADO**
 - Qué pasa: si falla el commit de trabajo huérfano, se anuncia que quedó commiteado y se lanza otra corrida con esos cambios sin guardar. Sus archivos pueden quedar staged y entrar en el commit de una tarea distinta.
 - Dónde: `app/electron/cli/pa/worktrees.ts` línea 519 (`commitearHuerfano`).
 - Arreglo: comprobar `add`, `commit` y el estado final; si el rescate falla, abortar la preparación con código 87 y conservar la rama y sus cambios. Aplicar la misma guarda al rescate usado para integrar. Testear un hook que rechace el commit y exigir que no nazca otra rama de trabajo.
 
-**B081 · Una corrida fallida puede habilitar la integración automática** (`PA-CLI-5`, severidad alta) · **PENDIENTE**
+**B081 · Una corrida fallida puede habilitar la integración automática** (`PA-CLI-5`, severidad alta) · **ARREGLADO**
 - Qué pasa: una corrida con código distinto de cero o `is_error=true` puede figurar como lista y quedar habilitada para integrarse sola. Esto ocurre si dejó commits, `DECISION: nada` y los tests del proyecto pasan, aunque el worker haya fallado después de guardar un resultado parcial.
 - Dónde: `app/electron/cli/pa/hilos.ts` línea 463 (`armar`).
 - Arreglo: leer el código durable de `.listo` o `.entregado`, exponerlo en la fila y distinguir el fallo antes de asignar `listo`/`decision`. Conservar compatibilidad con corridas viejas sin código. Un test debe impedir que una fila con `rc=1` sea candidata a integración automática aunque los demás campos sean favorables.
 
-**B082 · Integrar no reconoce los puestos cortos de Windows** (`PA-CLI-6`, severidad media) · **PENDIENTE**
+**B082 · Integrar no reconoce los puestos cortos de Windows** (`PA-CLI-6`, severidad media) · **ARREGLADO**
 - Qué pasa: en una instalación normal de Windows, integrar o descartar una rama que quedó en su puesto de pa se niega diciendo que está fuera de los puestos. La falla no aparece si las pruebas fijan `PA_STATE` y usan la disposición larga.
 - Dónde: `app/electron/cli/pa/ramas-base.ts` línea 123 (`puestoDeRuta`).
 - Arreglo: hacer que los helpers de integración usen la misma disposición y comparación de rutas que los de lanzamiento, incluyendo el puesto reservado `integrar`. Agregar un test con la disposición predeterminada de Windows y otro con `PA_STATE` explícito.
 
-**B083 · Un error recuperado del stream se vuelve un fallo final** (`PA-CLI-7`, severidad media) · **PENDIENTE**
+**B083 · Un error recuperado del stream se vuelve un fallo final** (`PA-CLI-7`, severidad media) · **ARREGLADO**
 - Qué pasa: aunque el proceso termine con 0 y el stream cierre con `turn.completed` y un resultado válido, un evento `error` anterior fuerza el fallo. Pa comunica que falló y entrega código 1.
 - Dónde: `app/electron/cli/pa/motores/salida.ts` línea 136 (`codexAJson`).
 - Arreglo: clasificar el desenlace del turno y conservar los errores previos como advertencias cuando exista una terminación exitosa posterior. Agregar casos de error recuperado seguido de éxito y error terminal sin `turn.completed`, conservando el fallo ante un rc distinto de cero.
 
-**B084 · La cola aparece trabajando y sin tarea ni modelo** (`PA-CLI-8`, severidad media) · **PENDIENTE**
+**B084 · La cola aparece trabajando y sin tarea ni modelo** (`PA-CLI-8`, severidad media) · **ARREGLADO**
 - Qué pasa: mientras espera cupo o puesto, el worker figura como trabajando pero sin tarea ni modelo. En Windows no hay un respaldo que recupere el pedido desde el proceso; el respaldo de Linux tampoco reconoce la entrada compilada `pa.js`.
 - Dónde: `app/electron/cli/pa/async.ts` línea 584 (`lanzarAsync`).
 - Arreglo: persistir tarea, modelo, cuenta y líder antes del fork y hacer que `--hilos` los lea también en cola. Mantener el estado de espera explícito y evitar depender de `/proc`. El test debe comprobar la fila completa antes de admitir el puesto, tanto para Linux como para Windows.
 
-**B085 · Cobrar un éxito hace decir que no terminó bien** (`PA-CLI-9`, severidad media) · **PENDIENTE**
+**B085 · Cobrar un éxito hace decir que no terminó bien** (`PA-CLI-9`, severidad media) · **ARREGLADO**
 - Qué pasa: después de `pa --esperar`, una corrida que terminó bien deja de ser candidata a integración automática y el aviso explica «no terminó bien». El resultado y sus commits siguen intactos: lo único que cambió fue que el líder lo leyó.
 - Dónde: `app/electron/cli/pa/hilos.ts` línea 453 (`armar`).
 - Arreglo: conservar el desenlace independientemente de si el resultado ya fue entregado. Con un código de éxito durable, permitir evaluar una corrida entregada o informar un motivo de entrega que no afirme un fallo. Testear que cobrar el resultado no convierta un éxito en ese aviso.
 
-**B086 · Al recuperar una sesión se conserva el id roto** (`PA-CLI-10`, severidad media) · **PENDIENTE**
+**B086 · Al recuperar una sesión se conserva el id roto** (`PA-CLI-10`, severidad media) · **ARREGLADO**
 - Qué pasa: cuando ya no existe la conversación retomada, pa logra crear otra, pero `--seguir --id <esta corrida>` vuelve a buscar el identificador viejo. Las continuaciones pierden otra vez la conversación que se acaba de recuperar.
 - Dónde: `app/electron/cli/pa/lanzar.ts` línea 1075 (`lanzarClaude`).
 - Arreglo: escribir atómicamente `<id>.sid` al cambiar `c.sid`, y mantenerlo alineado con cualquier `session_id` definitivo. Agregar un test de recuperación que luego retome esa misma corrida por su id.
 
-**B087 · Async fija el límite antes de heredar el tipo** (`PA-CLI-11`, severidad media) · **PENDIENTE**
+**B087 · Async fija el límite antes de heredar el tipo** (`PA-CLI-11`, severidad media) · **ARREGLADO**
 - Qué pasa: continuar o actualizar una corrida por async puede usar un límite de turnos distinto del correspondiente a su tipo. Una continuación de tipo `final` sin `--tipo` explícito queda en 50 turnos en lugar de 120; una mecánica puede recibir 50 en lugar de 30.
 - Dónde: `app/electron/cli/pa/orquesta.ts` línea 318 (`orquestar`).
 - Arreglo: transmitir además si el límite fue pedido explícitamente; cuando era un default, recalcularlo después de heredar el tipo en el hijo. Mantener `--max-turns 0` explícito como desactivación. Testear continuaciones async de `final`, `mecanico` y un límite explícito.
 
-**B088 · El motor de ChatGPT no hace cumplir el límite de turnos** (`PA-CLI-12`, severidad media) · **PENDIENTE**
+**B088 · El motor de ChatGPT no hace cumplir el límite de turnos** (`PA-CLI-12`, severidad media) · **ARREGLADO**
 - Qué pasa: `--max-turns` se acepta para un worker de ChatGPT, pero no limita su ejecución. El límite por tipo tampoco lo corta; puede seguir usando herramientas y cupo después de superar lo pedido.
 - Dónde: `app/electron/cli/pa/motores/llamada.ts` línea 152 (`armarLlamada`).
 - Arreglo: contar y limitar los pasos del stream en este motor, con cierre de árbol y resultado `error_max_turns`, o rechazar el flag hasta tener un mecanismo efectivo. Un proceso ficticio que emita más pasos que el tope debe ser cortado; cero debe conservar la ejecución sin límite.
 
-**B089 · Al volver el cupo se lanza el modelo agotado** (`PA-CLI-13`, severidad media) · **PENDIENTE**
+**B089 · Al volver el cupo se lanza el modelo agotado** (`PA-CLI-13`, severidad media) · **ARREGLADO**
 - Qué pasa: una corrida en espera de cupo puede arrancar con el modelo anterior todavía agotado, aunque reparto ya haya ofrecido otro motor disponible. El mensaje afirma que TypeScript sólo corre Claude, pese a que los demás motores ya están implementados.
 - Dónde: `app/electron/cli/pa/cupo.ts` línea 91 (`esperarCupo`).
 - Arreglo: aplicar el candidato mediante el mismo cambio completo de modelo, motor y entorno que usa el relanzamiento por cupo; validarlo antes de salir de la espera y actualizar el motor que usa `orquestar`. Si no se puede usar, mantener la espera. Testear cambios en ambos sentidos entre Claude y otro motor.
 
-**B090 · Vencer la espera de cupo pierde el resultado de cierre** (`PA-CLI-14`, severidad media) · **PENDIENTE**
+**B090 · Vencer la espera de cupo pierde el resultado de cierre** (`PA-CLI-14`, severidad media) · **ARREGLADO**
 - Qué pasa: cuando se agota el tiempo de espera de cupo, el hijo sale de forma controlada con 96, pero quien lo espera recibe 82 y el mensaje de que murió sin dejar resultado. Se pierde la causa durable del cierre y la fila queda como una muerte sin datos.
 - Dónde: `app/electron/cli/pa/orquesta.ts` línea 373 (`orquestar`).
 - Arreglo: instalar el cierre async antes de esperar cupo y guardar una marca `.listo` con rc 96 y el motivo incluso si nunca se admitió un puesto. Registrar también el fin sin inventar un inicio de ejecución del modelo. Testear que `--esperar` conserve 96 al vencer esa espera.
 
-**B091 · El timeout de tests puede dejar la integración colgada** (`PA-CLI-15`, severidad media) · **PENDIENTE**
+**B091 · El timeout de tests puede dejar la integración colgada** (`PA-CLI-15`, severidad media) · **ARREGLADO**
 - Qué pasa: en Linux, un test que ignore SIGTERM deja `--integrar --tests` esperando indefinidamente aun después de vencer `PA_TESTS_MAX`. Conserva tomado el puesto de integración y bloquea su reutilización.
 - Dónde: `app/electron/cli/pa/ramas.ts` línea 419 (`correrTests`).
 - Arreglo: usar el helper común `correr` con `timeoutMs` y `killAfterMs`, o programar una escalada equivalente con limpieza de ambos timers. Probar un hijo que ignore TERM y exigir un cierre acotado con 124 y liberación del puesto. Mantener la terminación nativa de Windows.
@@ -568,7 +568,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/reparto.ts` línea 3141 (`elegir`)
 - Arreglo: en las líneas 3063–3080 comprobar exclusiones, indisponibilidad y límites antes de decidir si se puede relajar calidad; al revivir, conservar todos los vetos independientes. En la línea 3143 no relajar `duro_calidad` para agresivo. Cubrir con un caso de único gratis de calidad baja excluido, otro agotado y otro con…
 
-**B113 · Pierde el cierre si falla la escritura** (`REPARTO-CUPOS-2`, severidad alta) · **PENDIENTE**
+**B113 · Pierde el cierre si falla la escritura** (`REPARTO-CUPOS-2`, severidad alta) · **ARREGLADO**
 - Qué pasa: tras un error al escribir la señal, el cierre queda sólo en memoria y sus avisos pueden perderse. Aunque el disco se recupere, una lectura igual no vuelve a escribir ni a notificar ese cierre.
 - Dónde: `app/electron/cierre-cupo-disco.ts` línea 37 (`crearCierreCupo.revisar`)
 - Arreglo: conservar un paso pendiente hasta confirmar su escritura y entregar sus eventos una sola vez; reintentarlo aunque la siguiente lectura no cambie. Cubrir tanto un fallo al escribir como uno al borrar la señal.
@@ -598,42 +598,42 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/reparto.ts` línea 2830 (`armarCandidatos.hacer`)
 - Arreglo: en la rama de la línea 2830 consultar `effortsDe` aunque el id no admita un esfuerzo separado; la lista vacía siempre debe descartarlo. Para ids con sufijo, verificar su esfuerzo real. Cubrir ambos formatos de catálogo.
 
-**B119 · Una semana agotada se anuncia con el reinicio corto** (`REPARTO-CUPOS-8`, severidad media) · **PENDIENTE**
+**B119 · Una semana agotada se anuncia con el reinicio corto** (`REPARTO-CUPOS-8`, severidad media) · **ARREGLADO**
 - Qué pasa: al marcar un grupo de Google sin cupo semanal, se anuncia que vuelve al reiniciarse la ventana de 5 h. Mientras rige la marca, también se reemplaza por esa hora el reinicio semanal que se había leído correctamente.
 - Dónde: `app/electron/cli/reparto.ts` línea 2235 (`agotar`)
 - Arreglo: en la línea 2235 determinar las ventanas que bloquean y usar la más tardía de sus fechas; conservar las ventanas originales al aplicar una marca y separar la hora del bloqueo de los reinicios medidos. Probar semana llena con ventana corta libre y ambas llenas.
 
-**B120 · Conserva como llena una ventana de Google que ya terminó** (`REPARTO-CUPOS-9`, severidad media) · **PENDIENTE**
+**B120 · Conserva como llena una ventana de Google que ya terminó** (`REPARTO-CUPOS-9`, severidad media) · **ARREGLADO**
 - Qué pasa: después del reinicio de Google, el reparto sigue descartando el modelo por el porcentaje anterior hasta que vence la caché. La lectura de fondo puede mantenerlo así hasta diez minutos.
 - Dónde: `app/electron/cli/reparto.ts` línea 1488 (`cuposGoogle`)
 - Arreglo: invalidar la caché al cruzar un reinicio conocido y no usar como actual el porcentaje de un bucket vencido. Si no se puede refrescar, informarlo como sin dato. Probar avanzar el reloj a ambos lados del reinicio con la misma caché.
 
-**B121 · Codex elige el dato por archivo y no por fecha del evento** (`REPARTO-CUPOS-10`, severidad media) · **PENDIENTE**
+**B121 · Codex elige el dato por archivo y no por fecha del evento** (`REPARTO-CUPOS-10`, severidad media) · **ARREGLADO**
 - Qué pasa: el porcentaje de ChatGPT puede bajar a una lectura vieja aunque otro transcript tenga una medición más nueva y mucho más alta. También puede reaparecer un porcentaje alto anterior.
 - Dónde: `app/electron/cli/reparto.ts` línea 1904 (`rateLimitsCodex`)
 - Arreglo: juntar las mediciones válidas de los archivos examinados y elegir la más reciente por timestamp para cada ventana; usar `mtime` sólo como respaldo cuando no haya timestamp. Probar el transcript viejo que recibe una escritura sin medición.
 
-**B122 · Olvida las ausencias al calcular la semana en curso** (`REPARTO-CUPOS-11`, severidad media) · **PENDIENTE**
+**B122 · Olvida las ausencias al calcular la semana en curso** (`REPARTO-CUPOS-11`, severidad media) · **ARREGLADO**
 - Qué pasa: al llegar la medianoche se olvida un día que se había marcado como no trabajado, aunque todavía pertenezca a la ventana semanal actual. El reparto cambia de ritmo como si ese día se hubiera trabajado.
 - Dónde: `app/electron/cli/reparto.ts` línea 2393 (`planLeer`)
 - Arreglo: en la línea 2393 conservar por lo menos las ausencias de los últimos siete días, además de las futuras; eliminarlas sólo cuando ya no puedan pertenecer a una ventana vigente. Probar el mismo plan antes y después de medianoche y su avance durante la semana.
 
-**B123 · Dos guardados usan el mismo temporal** (`REPARTO-CUPOS-12`, severidad media) · **PENDIENTE**
+**B123 · Dos guardados usan el mismo temporal** (`REPARTO-CUPOS-12`, severidad media) · **ARREGLADO A MEDIAS**
 - Qué pasa: dos cambios simultáneos de modelos pueden hacer fallar un guardado con `ENOENT`; el contenido de uno puede reemplazar al otro. No hay una cola compartida entre el riel y las distintas ventanas de Ajustes.
 - Dónde: `app/electron/modelos-config.ts` línea 153 (`guardarModelos`)
 - Arreglo: serializar todo leer → unir → escribir por ruta real y generar temporales únicos, limpiándolos al fallar. Definir el orden de aplicación de cambios independientes para no pisarlos con un borrador anterior. Probar guardados concurrentes del perfil y de otra preferencia.
 
-**B124 · Cuentas rechaza un listado de agy que el reparto acepta** (`REPARTO-CUPOS-13`, severidad media) · **PENDIENTE**
+**B124 · Cuentas rechaza un listado de agy que el reparto acepta** (`REPARTO-CUPOS-13`, severidad media) · **ARREGLADO**
 - Qué pasa: Ajustes puede mostrar Google sin conectar aunque `agy models` haya devuelto modelos válidos. El reparto y la tarjeta de cuenta discrepan usando la misma salida.
 - Dónde: `app/electron/cuentas.ts` línea 44 (`esModelo`, usado por `sondearAgy`)
 - Arreglo: compartir un parser puro para ambos caminos, con los tres formatos admitidos, sin importar todo el reparto desde Cuentas. Probar id solo, id con tabulación, nombre legible y mensajes sin modelos.
 
-**B125 · Descarta el único porcentaje conocido de Claude** (`REPARTO-CUPOS-14`, severidad media) · **PENDIENTE**
+**B125 · Descarta el único porcentaje conocido de Claude** (`REPARTO-CUPOS-14`, severidad media) · **ARREGLADO**
 - Qué pasa: cuando sólo se conoce una ventana de Claude, se pierde también ese dato válido. Sin otra fuente de uso, la cabecera y el vigilante no ven ni siquiera una semana al 99 %.
 - Dónde: `app/electron/cupos.ts` línea 146 (`parsearCuposReparto`)
 - Arreglo: permitir porcentajes ausentes por ventana en `CuposLeidos.claude` y construir cada ventana de `lecturaCupos` por separado. Mantener los valores desconocidos como `null`, sin inventar 0 %. Cubrir ambos casos de una sola ventana conocida.
 
-**B126 · La cabecera vence los grupos con el día UTC** (`REPARTO-CUPOS-15`, severidad baja) · **PENDIENTE**
+**B126 · La cabecera vence los grupos con el día UTC** (`REPARTO-CUPOS-15`, severidad baja) · **ARREGLADO**
 - Qué pasa: en Argentina, un grupo válido hasta el día indicado desaparece de los cupos a las 21:00 de ese día. En zonas al este de UTC puede durar más de lo que corresponde en la vista.
 - Dónde: `app/electron/cupos.ts` línea 103 (`vencido`)
 - Arreglo: en la línea 103 comparar con la fecha local, usando el mismo criterio que `hastaFin`. Probar la hora anterior a medianoche local en UTC−3 y UTC+9.
