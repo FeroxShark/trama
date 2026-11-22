@@ -24,6 +24,7 @@ import { claveEstadoSub, ordenSubs, pctContexto, tipoEstadoSub } from "../hilo/g
 import { useAngosto } from "../angosto";
 import { esVentana, mensaje } from "../puente";
 import { MODO } from "../modo";
+import { AuditoriaContexto } from "./AuditoriaContexto";
 import { consumirPedidoSub, usePedidoSub } from "./contexto-pedido";
 import { tokens as tokensCorto } from "./resumen";
 import { locale, t } from "../i18n";
@@ -927,7 +928,7 @@ function VistaPreviaTab({ refresco }: { refresco: number }) {
   useModelosVivos();
   const { apagados, puede } = useContext(Acc);
   const [tipo, setTipo] = useState<"lider" | "worker">("lider");
-  const [proyecto, setProyecto] = useState(MODO.captura === "contexto-panel-previa" ? "/home/persona/proyectos/atlas" : "");
+  const [proyecto, setProyecto] = useState(MODO.captura === "contexto-panel-previa" || MODO.captura === "contexto-auditoria" ? "/home/persona/proyectos/atlas" : "");
   const [modelo, setModelo] = useState(MODELO_DEFAULT);
   const [carga, setCarga] = useState<{ v: VistaPrevia | null; error: string | null } | null>(null);
   const [capturando, setCapturando] = useState(false);
@@ -1075,6 +1076,7 @@ function VistaPreviaTab({ refresco }: { refresco: number }) {
           <p className="cp-nota">{t("ctxp.previa.hooksNota")}</p>
         </section>
       ) : null}
+      {v ? <AuditoriaContexto proyecto={proyecto} puede={puede} /> : null}
     </div>
   );
 }
@@ -1082,7 +1084,7 @@ function VistaPreviaTab({ refresco }: { refresco: number }) {
 export const PanelContexto = memo(function PanelContexto({ lider, workers, alCerrar, alAbrirHilo, acoplado = false }: Props) {
   useIdioma();
   const angosto = useAngosto();
-  const [pestana, setPestana] = useState<Pestana>(MODO.captura === "contexto-panel-skills" ? "skills" : MODO.captura === "contexto-panel-previa" ? "previa" : "sesiones");
+  const [pestana, setPestana] = useState<Pestana>(MODO.captura === "contexto-panel-skills" ? "skills" : MODO.captura === "contexto-panel-previa" || MODO.captura === "contexto-auditoria" ? "previa" : "sesiones");
   const [apagados, setApagados] = useState<VistaApagados | null>(null);
   const [pendientes, setPendientes] = useState<ReadonlySet<string>>(new Set());
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);

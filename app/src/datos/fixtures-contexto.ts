@@ -2,6 +2,7 @@
 import type { Desglose, FilaCategoria } from "../../electron/contexto-desglose";
 import type { Catalogo, VistaApagados } from "../../electron/contexto-panel";
 import type { VistaPrevia } from "../../electron/contexto-previa";
+import type { Auditoria, Hallazgo } from "../../electron/auditoria-contexto-texto";
 import type { SkillCatalogo } from "../../electron/skills-catalogo";
 import { juntar, type SubagenteGasto } from "../../electron/subagentes-gasto.ts";
 
@@ -364,5 +365,41 @@ export function previaFalsa(x: { tipo: "lider" | "worker"; proyecto?: string; mo
       sinUso: { herramientas: [], mcp: [], skills: [] },
       motivo: null,
     },
+  };
+}
+
+// --- «Revisar con IA»: una revisión inventada del proyecto atlas (los cuatro tipos, uno aplicado y uno que ya no vale) -------------------------
+
+const RAIZ_ATLAS = "/home/persona/proyectos/atlas";
+const hal = (id: string, tipo: Hallazgo["tipo"], archivo: string, buscar: string, reemplazo: string, razon: string, ahorro: number, estado: Hallazgo["estado"] = "pendiente"): Hallazgo => ({ id, tipo, archivo, buscar, reemplazo, razon, ahorro, estado });
+
+/** La revisión terminada de atlas; `aplicados` son los ids ya aplicados (el estado de los demás no cambia). */
+export function auditoriaFalsa(proyecto: string, aplicados: readonly string[] = ["h5"]): Auditoria {
+  const raiz = proyecto || RAIZ_ATLAS;
+  const claude = `${raiz}/CLAUDE.md`;
+  const memoria = `${raiz}/.claude/memory/notas-de-atlas.md`;
+  const indice = `${raiz}/.claude/memory/MEMORY.md`;
+  const hallazgos = [
+    hal("h1", "duplicado", claude, "- Los tests se corren con `npm test` desde `app/`, antes de cada commit.\n- Antes de commitear, corré `npm test` en `app/`.", "- Los tests se corren con `npm test` desde `app/`, antes de cada commit.", "La misma regla está dos veces seguidas; también figura en AGENTS.md.", 24),
+    hal("h2", "contradiccion", claude, "Los commits van en inglés.", "Los commits van en español.", "Dice inglés, pero notas-de-atlas.md y el resto del archivo piden español.", 4),
+    hal("h3", "viejo", memoria, "Pendiente: migrar el índice de cauce a la v2 antes del 12 de noviembre (Ana lo está viendo).", "", "La fecha ya pasó y la migración figura hecha en el historial de commits.", 31),
+    hal("h4", "largo", memoria, "El 3 de octubre se probó el nuevo cauce con 40 corridas seguidas; las primeras 12 fallaron por el caché, después se vació el directorio, se repitió con distintas semillas, se comparó contra la versión anterior en tres máquinas y al final se dejó la configuración con el caché apagado por defecto.", "Cauce: se dejó el caché apagado por defecto (probado en 40 corridas, octubre).", "Cuenta la historia entera de una prueba; alcanza con lo que quedó decidido.", 58),
+    hal("h5", "duplicado", indice, "- [Cauce](cauce.md): cómo se arma el índice de cauce y qué lo rompe.\n- [Cauce, otra vez](cauce.md): el índice de cauce.", "- [Cauce](cauce.md): cómo se arma el índice de cauce y qué lo rompe.", "La misma entrada dos veces con el mismo enlace.", 16),
+    hal("h6", "viejo", claude, "Usar la rama `desarrollo` como base de los cambios.", "", "Esa rama ya no existe: ahora se trabaja desde `main`.", 9, "invalido"),
+  ].map((x) => (aplicados.includes(x.id) ? { ...x, estado: "aplicado" as const } : x));
+  return {
+    id: "aud-atlas-1",
+    cwd: raiz,
+    modelo: "claude-haiku-5-5",
+    estado: "lista",
+    avance: null,
+    error: null,
+    archivos: [
+      { ruta: claude, tokens: 1_840, huella: "a1" },
+      { ruta: memoria, tokens: 2_460, huella: "b2" },
+      { ruta: indice, tokens: 640, huella: "c3" },
+    ],
+    hallazgos,
+    respaldo: aplicados.length ? "/home/persona/.local/state/trama/md-backup/2026-11-22-1314" : null,
   };
 }

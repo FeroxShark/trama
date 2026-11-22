@@ -342,6 +342,12 @@ type Main = {
     desgloseContexto(x: ({ lider: string } | { worker: string } | { subagente: { lider: string; id: string } }) & { fresco?: boolean }): Promise<unknown>;
     /** Vista previa: qué cargaría un líder o worker nuevo en un proyecto con un modelo, sin lanzar nada (`VistaPrevia`, electron/contexto-previa.ts). */
     previaContexto(x: { tipo: "lider" | "worker"; proyecto?: string; modelo?: string }): Promise<unknown>;
+    /** «Revisar con IA»: un modelo barato lee lo que se carga en cada mensaje del proyecto y devuelve los hallazgos (`Auditoria`, electron/auditoria-contexto-texto.ts) al terminar. Nada se escribe. */
+    auditarContexto(x: { proyecto: string; modelo?: string; effort?: string }): Promise<unknown>;
+    /** La última revisión del proyecto (`Auditoria` o `null`); mientras corre trae `estado: "corriendo"` y `avance`. */
+    auditoriaContexto(x: { proyecto: string }): Promise<unknown>;
+    /** Aplica hallazgos de una revisión (con copia antes de escribir); devuelve la `Auditoria` actualizada. Sólo desde la PC. */
+    aplicarHallazgos(x: { id: string; hallazgos: string[] }): Promise<unknown>;
     /** Captura el prompt base de la versión instalada de `claude` (una vez por versión). Sólo desde la PC. */
     capturarBaseContexto(x?: { forzar?: boolean }): Promise<unknown>;
     /** Los subagentes que lanzó un líder (herramienta Agent) y lo que gastó cada uno (`GastoSubagentes`, electron/subagentes-gasto.ts). */

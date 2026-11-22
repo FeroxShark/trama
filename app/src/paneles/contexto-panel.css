@@ -1205,6 +1205,291 @@
   font-size: var(--letra-3);
 }
 
+/* --- Revisar con IA: hallazgos por archivo, con el antes y el después --- */
+.cp-au {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+}
+.cp-au-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--esp-3);
+}
+.cp-au-revisar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+  height: var(--alto-boton);
+  padding: 0 var(--esp-4);
+  border-radius: var(--r-cap);
+  background: var(--acento);
+  color: var(--acento-texto);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.cp-au-revisar:disabled {
+  background: var(--capa-tile);
+  color: var(--txt-3);
+}
+.cp-au-gira {
+  animation: cp-au-gira 1s linear infinite;
+}
+@keyframes cp-au-gira {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.cp-au-avance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  padding: var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+  line-height: 1.45;
+}
+.cp-au-avance p {
+  margin: 0;
+}
+.cp-au-resumen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-3);
+  padding: var(--esp-4);
+  border-radius: var(--r-lg);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+}
+.cp-au-total {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+}
+.cp-au-total-etq {
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+}
+.cp-au-cifra {
+  color: var(--ok);
+  font-size: var(--letra-8);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.cp-au-ahorrado {
+  padding: 0 var(--esp-1);
+}
+.cp-au-arch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.cp-au-arch-cab {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-1) var(--esp-2);
+  padding: 0 var(--esp-1);
+}
+.cp-au-arch-n {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--txt-1);
+  font-size: var(--letra-5);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cp-au-arch-ahorro {
+  margin-left: auto;
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+}
+.cp-au-lnk {
+  padding: var(--esp-1) 0;
+  color: var(--acento);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.cp-au-lnk:disabled {
+  color: var(--txt-4);
+}
+.cp-au-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cp-au-h {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding: var(--esp-3);
+  border-radius: var(--r-lg);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+}
+.cp-au-h-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-1) var(--esp-2);
+}
+.cp-au-tipo {
+  --tono: var(--acento);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  height: var(--alto-chip);
+  padding: 0 var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.cp-au-tipo svg {
+  color: var(--tono);
+}
+.cp-au-tipo[data-tipo="contradiccion"] {
+  --tono: var(--aviso);
+}
+.cp-au-tipo[data-tipo="viejo"] {
+  --tono: var(--carpeta);
+}
+.cp-au-tipo[data-tipo="largo"] {
+  --tono: var(--probar);
+}
+.cp-au-ahorro {
+  color: var(--ok);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.cp-au-razon {
+  margin: 0;
+  color: var(--txt-2);
+  font-size: var(--letra-5);
+  line-height: 1.45;
+}
+.cp-au-dif {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+}
+.cp-au-antes,
+.cp-au-despues {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  padding: var(--esp-2) var(--esp-2-5);
+  border-radius: var(--r-sm);
+}
+.cp-au-antes {
+  background: var(--fallo-fondo);
+}
+.cp-au-despues {
+  background: var(--ok-tinte);
+}
+.cp-au-etq {
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+  font-weight: 500;
+}
+.cp-au-antes p,
+.cp-au-despues p {
+  margin: 0;
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.cp-au-antes del {
+  color: var(--txt-2);
+  text-decoration: line-through;
+  text-decoration-color: var(--critico);
+  text-decoration-thickness: 1px;
+}
+.cp-au-despues ins {
+  text-decoration: none;
+}
+.cp-au-despues .cp-au-borra {
+  color: var(--txt-3);
+  font-style: italic;
+}
+.cp-au-pie {
+  display: flex;
+  justify-content: flex-end;
+}
+.cp-au-btn {
+  height: 2rem;
+  padding: 0 var(--esp-3);
+  font-size: var(--letra-4);
+}
+.cp-au-btn:disabled {
+  color: var(--txt-3);
+}
+.cp-au-estado {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-1-5);
+  margin: 0;
+  font-size: var(--letra-4);
+  line-height: 1.45;
+}
+.cp-au-estado svg {
+  flex: none;
+  margin-top: 0.1em;
+}
+.cp-au-estado[data-estado="aplicado"] {
+  color: var(--ok);
+  font-weight: 500;
+}
+.cp-au-estado[data-estado="invalido"] {
+  color: var(--decision-texto);
+}
+.cp-au-estado b {
+  font-weight: 600;
+}
+.cp-au-h[data-estado="aplicado"] .cp-au-razon,
+.cp-au-h[data-estado="invalido"] .cp-au-razon {
+  color: var(--txt-3);
+}
+.cp-au-h[data-estado="invalido"] {
+  background: var(--decision-fondo);
+  box-shadow: inset 0 0 0 1px var(--decision-borde);
+}
+.cp-au-h[data-estado="invalido"] .cp-au-ahorro {
+  color: var(--txt-4);
+  text-decoration: line-through;
+}
+.cp-au-copia {
+  padding: 0 var(--esp-1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cp-au-gira {
+    animation: none;
+  }
+}
+
 /* Con un panel del pie abierto (Ajustes, Tablero, Ramas, Estadísticas) el panel de consumo no ocupa lugar ni se ve su botón,
    a ningún ancho (`data-sin-consumo`, lo pone la barra). Sigue montado: volver al chat no lo recarga ni lo anima. */
 

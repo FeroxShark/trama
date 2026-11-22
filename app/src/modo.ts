@@ -239,6 +239,10 @@ const CAPTURAS = [
   "contexto-panel-previa",
   // `-sub`: la lista de Subagentes del líder (2 inventados) con el primero abierto: su gasto y el desglose de su contexto.
   "contexto-panel-sub",
+  // `-auditoria`: la vista previa con «Revisar con IA» ya hecha (los cuatro tipos de hallazgo, uno aplicado y uno que cambió); `-prefacio-codex`: el panel de un líder de Codex
+  // (fuente «prefacio»: las partes de lo que Trama le manda al arrancar, una con lo recortado).
+  "contexto-auditoria",
+  "contexto-prefacio-codex",
   // Contexto acoplado a la izquierda bajo Chats (320 px) y en la zona de abajo (> 640 px, dos columnas).
   "contexto-angosto",
   "contexto-abajo",
