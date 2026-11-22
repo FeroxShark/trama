@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.3.24
+
+- Windows: un worker que prueba con el modelo siguiente (`-m a,b,c`) o que repite intentos (modo objetivo) ya no abre una ventana de consola. Puede ser el CMD que aparecía un instante al usar herramientas; falta confirmarlo en una PC con Windows.
+
 ## 0.3.23
 
 - Todos los motores saben lo mismo: los chats y workers de Gemini, ChatGPT, DeepSeek, OpenCode y los modelos locales reciben tu memoria, y los chats también la ficha del tablero. Los workers de DeepSeek y OpenCode reciben además tu CLAUDE.md. En Ajustes > Modelos > «Memoria compartida» hay un interruptor por motor; lo que compartís llega al proveedor de ese motor. De la memoria se saca toda línea con pinta de clave, mail o teléfono.
