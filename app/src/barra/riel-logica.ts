@@ -124,6 +124,18 @@ export const ordenAtencion = (cs: readonly Carpeta[], resueltos?: ReadonlySet<st
   return [...cs.filter(pide), ...cs.filter((c) => !pide(c))].map((c) => c.proyecto);
 };
 
+/**
+ * Actualiza la foto de `ordenAtencion` cuando la lista no está congelada o cuando el usuario cambió el orden
+ * (`cambioOrden`: arrastrar, Subir/Bajar, modo o prioridad), para que reordenar desde la lista se vea de inmediato.
+ */
+export const actualizarOrdenProyectos = (
+  actual: readonly string[],
+  cs: readonly Carpeta[],
+  congelada: boolean,
+  cambioOrden: boolean,
+  resueltos?: ReadonlySet<string>,
+): string[] => (!congelada || cambioOrden || actual.length === 0 ? ordenAtencion(cs, resueltos) : [...actual]);
+
 /** Las carpetas en el orden de `lista` (la foto de `ordenAtencion`); lo que no está en ella va al final, como venía. */
 export function segunLista(cs: readonly Carpeta[], lista: readonly string[]): Carpeta[] {
   const lugar = new Map(lista.map((p, i) => [p, i]));

@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { armarArbol, type Arbol, type Carpeta, type Item, type Rama } from "../src/barra/arbol.ts";
-import { aRiel, atencionCarpeta, carpetaViva, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, filasCarpeta, segunLista } from "../src/barra/riel-logica.ts";
+import { aRiel, actualizarOrdenProyectos, atencionCarpeta, carpetaViva, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, filasCarpeta, segunLista } from "../src/barra/riel-logica.ts";
 import { bloquesMotores, cuentasClaude, estadoAnillo, lineasCuentas, marcaAnillo, nivelCupo, vueltaDe } from "../src/barra/cupos-riel-logica.ts";
 import { PALETA_RIEL, tonoRiel } from "../src/barra/logo-logica.ts";
 import { pintorHace } from "../src/tiempo.ts";
@@ -159,13 +159,25 @@ test("filasCarpeta: en Recientes, lo visible de un proyecto va por fecha aunque 
   assert.deepEqual(ids(filasCarpeta(c, false)), comoAntes);
 });
 
-test("ordenAtencion y segunLista: lo que pide atención primero; lo nuevo, al final como venía", () => {
+test("ordenAtencion, actualizarOrdenProyectos y segunLista: lo que pide atención primero; congelada preserva salvo si el usuario reordenó", () => {
   const nada = carpeta("nada", []);
+  const otra = carpeta("otra", []);
   const pide = carpeta("pide", [rama("a", null, [item(hilo({ proyecto: "pide", estado: "decision" }))])]);
   const lista = ordenAtencion([nada, pide]);
   assert.deepEqual(lista, ["pide", "nada"]);
   const nueva = carpeta("nueva", []);
   assert.deepEqual(segunLista([nueva, nada, pide], lista).map((c) => c.proyecto), ["pide", "nada", "nueva"]);
+
+  // Congelada sin cambio de orden manual: conserva la foto anterior aunque llegue atención nueva en segundo plano.
+  const inicial = actualizarOrdenProyectos([], [nada, otra], false, false);
+  assert.deepEqual(inicial, ["nada", "otra"]);
+  const congelado = actualizarOrdenProyectos(inicial, [nada, pide, otra], true, false);
+  assert.deepEqual(congelado, ["nada", "otra"]);
+
+  // Congelada pero con cambio de orden del usuario (arrastrar o Subir/Bajar dentro de .lista): actualiza la foto de inmediato.
+  const reordenado = actualizarOrdenProyectos(inicial, [otra, nada], true, true);
+  assert.deepEqual(reordenado, ["otra", "nada"]);
+  assert.deepEqual(segunLista([otra, nada], reordenado).map((c) => c.proyecto), ["otra", "nada"]);
 });
 
 test("partirResalte: sin mayúsculas ni tildes, y varias veces", () => {

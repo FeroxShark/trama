@@ -2,7 +2,7 @@
 // son las sesiones de Claude Code con las que habla el usuario; los workers, las
 // corridas de `pa` que lanzó cada uno (`jefe_id`). Puro: lo prueba
 // `tests/arbol.test.ts`.
-import { cerrable, cerrado, esShark, GENERAL, SHARK, type Caido, type Estado, type Hilo, type Lider, type Orden } from "../datos/contrato.ts";
+import { cerrable, cerrado, esShark, GENERAL, SHARK, type Caido, type Estado, type Hilo, type Leidos, type Lider, type Orden } from "../datos/contrato.ts";
 import { fraseConocida, t } from "../i18n/index.ts";
 import { compararActivas, flotar, repartir, type Foto } from "./activas.ts";
 import { modoOrden, porManual, type ModoOrden } from "./orden.ts";
@@ -69,6 +69,13 @@ export const ACTIVAS = "\u0001activas";
 export const claveEspera = (proyecto: string) => `espera:${proyecto}`;
 /** La clave del pliegue de los líderes dormidos de una carpeta. */
 export const claveDormidos = (proyecto: string) => `dormidos:${proyecto}`;
+
+/** El Settle de un líder se guarda junto a lo leído (`leidos.json`), con este prefijo: id → epoch del Settle. */
+export const SETTLE = "settle:";
+
+/** Mapa de líderes settleados vigentes (`ts > 0`): una marca puesta en `0` al retomar un chat del historial no lo oculta. */
+export const settleadosDe = (leidos: Leidos): Map<string, number> =>
+  new Map(Object.entries(leidos).flatMap(([k, ts]) => (k.startsWith(SETTLE) && ts > 0 ? [[k.slice(SETTLE.length), ts] as const] : [])));
 
 /**
  * Cómo se ve el nombre de una carpeta: la del home (`GENERAL`, donde arranca
@@ -376,6 +383,20 @@ export const lideresEnOrden = (c: Carpeta, orden: Orden | undefined, recientes?:
     .map((l) => l.id);
 
 /**
+ * Los que se reordenan entre sí, en el orden en que se ven: los líderes de una carpeta (también los plegados
+ * en espera) o, con `null`, las carpetas menos la del home, que va primera siempre. Sin esa carpeta, `null`.
+ */
+export function visiblesDe(grupos: readonly Carpeta[], orden: Orden, titulos: ReadonlyMap<string, string>, carpeta: string | null, recientes?: Recientes): string[] | null {
+  if (carpeta === null)
+    return grupos
+      .map((x) => x.proyecto)
+      .filter((p) => p !== GENERAL)
+      .sort(compararCarpetas(orden, titulos, recientes ? (p) => grupos.find((x) => x.proyecto === p)?.reciente ?? 0 : undefined));
+  const g = grupos.find((x) => x.proyecto === carpeta);
+  return g ? lideresEnOrden(g, orden, recientes) : null;
+}
+
+/**
  * Los líderes que ya no están en la lista del main (cerraron, o los mataron y su sesión
  * ya no queda) pero dejaron algo a la vista: un worker que trabaja, falló, espera una
  * decisión o tiene una rama sin integrar (lo que `seOculta` no esconde), del último día.
@@ -482,7 +503,7 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
   const rem = (p: string) => dondeSeVe(p, reemplazos);
   // La carpeta donde se ve un worker. Su `proyecto` no se toca: sigue siendo el de `pa` (integrar, actualizar y demás van a ése).
   const deHilo = (h: Hilo) => rem(h.proyecto);
-  const lideres = settleados?.size ? todos.filter((l) => !(l.actividad <= (settleados.get(l.id) ?? -1))) : todos;
+  const lideres = settleados?.size ? todos.filter((l) => !((settleados.get(l.id) ?? 0) > 0 && l.actividad <= settleados.get(l.id)!)) : todos;
   const q = normal(busqueda.trim());
   const buscando = q !== "";
   // Cuánto coincide cada carpeta por su nombre o su título (General no tiene: es el home).

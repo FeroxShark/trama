@@ -86,9 +86,12 @@ import {
   salidaDe,
   lideresSinProceso,
   salidaWorker,
+  SETTLE,
+  settleadosDe,
   settleLider,
   settleWorker,
   liderEspera,
+  visiblesDe,
   ACTIVAS,
   type Atencion,
   type Arbol as DatosArbol,
@@ -155,7 +158,7 @@ import { Acople, type PanelDef } from "./Acople";
 import { acopleInicialBarra, chatsAbiertoEn, contextoAbiertoEn } from "./acople-barra";
 import { zonaDe, type PanelId } from "./acople-logica";
 import { useAcople, type UseAcople } from "./useAcople";
-import { aRiel, atencionCarpeta, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, filasCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, segunLista } from "./riel-logica";
+import { aRiel, actualizarOrdenProyectos, atencionCarpeta, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, filasCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, segunLista } from "./riel-logica";
 import { LogoCab } from "./Logo";
 import { LoBuscado, Resalte } from "./Resalte";
 import { pintorHace } from "../tiempo";
@@ -226,9 +229,6 @@ type Renombrando = {
 
 const NOMBRES0: Nombres = { titulos: {}, proyectos: {}, ocultos: [], orden: ORDEN0 };
 
-/** El Settle de un líder se guarda junto a lo leído (`leidos.json`), con este prefijo: id → epoch del Settle. */
-const SETTLE = "settle:";
-
 /** La rama (el líder con sus workers) de un líder, o `null` si no está a la vista. */
 function ramaDe(a: DatosArbol, sid: string): Rama | null {
   for (const r of a.activas) if (r.lider?.id === sid) return r;
@@ -296,20 +296,6 @@ const MODOS: [ModoOrden, "orden.recientes" | "orden.az"][] = [
   ["az", "orden.az"],
 ];
 const SIN_FILAS: Item[] = [];
-
-/**
- * Los que se reordenan entre sí, en el orden en que se ven: los líderes de una carpeta (también los plegados
- * en espera) o, con `null`, las carpetas menos la del home, que va primera siempre. Sin esa carpeta, `null`.
- */
-function visiblesDe(grupos: readonly DatosCarpeta[], orden: Orden, titulos: ReadonlyMap<string, string>, carpeta: string | null, recientes?: Recientes): string[] | null {
-  if (carpeta === null)
-    return grupos
-      .map((x) => x.proyecto)
-      .filter((p) => p !== GENERAL)
-      .sort(compararCarpetas(orden, titulos, recientes ? (p) => grupos.find((x) => x.proyecto === p)?.reciente ?? 0 : undefined));
-  const g = grupos.find((x) => x.proyecto === carpeta);
-  return g ? lideresEnOrden(g, orden, recientes) : null;
-}
 
 /** Siempre el último valor, para los manejadores que se registran una sola vez. */
 function useUltimo<T>(valor: T) {
@@ -603,10 +589,7 @@ export function Barra() {
   const proyectosReg = useProyectos();
   const reemplazos = useMemo(() => new Map([...mapaQuitados(proyectosReg, GENERAL), ...mapaReemplazos(proyectosReg)]), [proyectosReg]);
   // Los líderes settleados (en `leidos.json` con el prefijo `settle:`): no se ven hasta que tengan actividad nueva.
-  const settleados = useMemo(
-    () => new Map(Object.entries(leidos).flatMap(([k, ts]) => (k.startsWith(SETTLE) ? [[k.slice(SETTLE.length), ts] as const] : []))),
-    [leidos],
-  );
+  const settleados = useMemo(() => settleadosDe(leidos), [leidos]);
   // "Activas" y proyectos que flotan (prendido de fábrica): no se reacomoda nada mientras el usuario mira la lista (mouse encima, foco adentro, un arrastre o un menú abierto).
   const [mirando, setMirando] = useState({ mouse: false, foco: false, arrastre: false });
   const porPrioridad = prioridadPrendida(nombres.orden);
@@ -638,14 +621,17 @@ export function Barra() {
   // Un solo modo: debajo de cada líder, lo que trabaja o pide algo; lo terminado, plegado en "N terminados" (`plegarTerminados`).
   // Lo que falló queda a la vista igual (`aRiel`). Los proyectos que piden atención van primero, salvo mirando la lista: la foto se congela.
   const ordenProyectos = useRef<string[]>([]);
+  const ordenVisto = useRef(nombres.orden);
   /** La carpeta de la barra de un líder (la elegida a mano o la que le tocó), `undefined` si está en la general. Para liderCreado. */
   const carpetaDeLider = useRef<(sid: string) => string | undefined>(() => undefined);
   const arbol = useMemo(() => {
     const a = aRiel(plegarTerminados(arbolBruto), resueltos);
+    const cambioOrden = ordenVisto.current !== nombres.orden;
+    ordenVisto.current = nombres.orden;
     if (!porPrioridad || buscando) return a;
-    if (!congelada) ordenProyectos.current = ordenAtencion(a.carpetas, resueltos);
+    ordenProyectos.current = actualizarOrdenProyectos(ordenProyectos.current, a.carpetas, congelada, cambioOrden, resueltos);
     return { ...a, carpetas: segunLista(a.carpetas, ordenProyectos.current) };
-  }, [arbolBruto, resueltos, porPrioridad, buscando, congelada]);
+  }, [arbolBruto, resueltos, porPrioridad, buscando, congelada, nombres.orden]);
   carpetaDeLider.current = (sid) => {
     const p = nombres.proyectos[sid] ?? arbol.lideres.get(sid)?.proyecto;
     return p && p !== GENERAL ? p : undefined;
@@ -883,9 +869,17 @@ export function Barra() {
         const r = await fuente.liderRetomar(c.sid, { modelo, effort });
         if (!r.ok) return tr(r.motivo === "abierto" ? "barra.claudeAbierta" : r.motivo === "sinCarpeta" ? "barra.claudeNoCarpeta" : "barra.claudeSinSesion", { c: carpetaCorta(c.cwd) });
         setAbiertasCC((a) => new Set(a).add(c.sid));
+        fuente.marcarLeido(SETTLE + c.sid, 0);
+        setLeidos((l) => {
+          if (!(SETTLE + c.sid in l)) return l;
+          const { [SETTLE + c.sid]: _, ...resto } = l;
+          return resto;
+        });
         // Hasta que la lista de líderes lo traiga: sin proceso, con la conversación que ya tiene.
         const f = fantasma(c.sid, { modelo, effort, texto: c.titulo }, c.proyecto ?? GENERAL);
-        setFantasmas((m) => new Map(m).set(c.sid, { ...f, ocupado: false, vivo: false, cache_vence: null, actividad: Math.floor(c.ms / 1000), creado: Math.floor(c.ms / 1000) }));
+        const ahora = Math.floor(Date.now() / 1000);
+        const tsConv = Math.floor(c.ms / 1000);
+        setFantasmas((m) => new Map(m).set(c.sid, { ...f, ocupado: false, vivo: false, cache_vence: null, actividad: Math.max(ahora, tsConv), creado: tsConv || ahora }));
         abrirLider(c.sid);
         return null;
       } catch (e) {
@@ -1795,9 +1789,9 @@ export function Barra() {
       alSoltar: (m) => {
         // Soltado sobre otra carpeta: el líder se mueve ahí (no se reordena).
         if (m.aCarpeta) return moverARef.current(m.id, m.aCarpeta);
-        const { orden, grupos, titulos } = ultimo.current;
+        const { orden, grupos, titulos, recientes } = ultimo.current;
         const carpeta = m.grupo === CARPETAS ? null : m.grupo.slice(m.grupo.indexOf(":") + 1);
-        const visibles = visiblesDe(grupos, orden, titulos, carpeta);
+        const visibles = visiblesDe(grupos, orden, titulos, carpeta, recientes);
         if (!visibles) return;
         asentarOrden(reordenar(orden, carpeta, visibles, m.id, m.junto, m.antes));
       },
@@ -1842,14 +1836,14 @@ export function Barra() {
    * que se ve junto a la fila (un líder plegado en "en espera" no cuenta para uno que está a la vista).
    */
   const pasoOrden = (de: MenuAbierto["de"], dir: -1 | 1): Orden | null => {
-    const { orden, grupos, titulos } = ultimo.current;
+    const { orden, grupos, titulos, recientes } = ultimo.current;
     if (de.tipo === "worker") return null;
     if (de.tipo === "carpeta") {
-      const visibles = visiblesDe(grupos, orden, titulos, null);
+      const visibles = visiblesDe(grupos, orden, titulos, null, recientes);
       return visibles && de.proyecto !== GENERAL ? reordenarPaso(orden, null, visibles, de.proyecto, dir) : null;
     }
     const g = grupos.find((x) => [...x.ramas, ...x.espera, ...x.dormidos].some((r) => r.lider?.id === de.sid));
-    const visibles = g && visiblesDe(grupos, orden, titulos, g.proyecto);
+    const visibles = g && visiblesDe(grupos, orden, titulos, g.proyecto, recientes);
     if (!g || !visibles) return null;
     const mios = [g.ramas, g.espera, g.dormidos].find((rs) => rs.some((r) => r.lider?.id === de.sid))!;
     const juntos = new Set(mios.flatMap((r) => (r.lider ? [r.lider.id] : [])));

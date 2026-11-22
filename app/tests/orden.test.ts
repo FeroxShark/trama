@@ -6,7 +6,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { armarArbol, compararCarpetas, lideresEnOrden, type Arbol } from "../src/barra/arbol.ts";
+import { armarArbol, compararCarpetas, lideresEnOrden, visiblesDe, type Arbol } from "../src/barra/arbol.ts";
 import { hayOrdenManual, moverJunto, ORDEN0, ordenDe, podar, porManual, prioridadPrendida, reordenar, reordenarPaso } from "../src/barra/orden.ts";
 import { almacenNombres } from "../electron/nombres.ts";
 import type { Lider, Orden } from "../src/datos/contrato.ts";
@@ -243,4 +243,30 @@ test("orden por prioridad: prendido de fábrica; el interruptor sobrevive a guar
   const apagado = { carpetas: ["a", "b"], lideres: {}, prioridad: false };
   assert.equal(podar(apagado, { lideres: null, carpetas: new Set(["a"]) }).prioridad, false);
   assert.equal(reordenar(apagado, null, ["a", "b"], "a", "b", false)?.prioridad, false);
+});
+
+test("visiblesDe: respeta el orden por recientes tanto en carpetas como en líderes para Subir/Bajar y arrastrar", () => {
+  const recientes = {
+    lideres: new Map([
+      ["a1", 10],
+      ["a2", 30],
+      ["a3", 20],
+      ["b1", 50],
+      ["z1", 90],
+    ]),
+    carpetas: new Map([
+      ["atlas", 30],
+      ["brote", 50],
+      ["zeta", 90],
+    ]),
+  };
+  const arbol = armarArbol([], { lideres: LIDERES(), mover, orden: ORDEN0, recientes, ahora: AHORA });
+  const titulos = new Map<string, string>();
+  assert.deepEqual(visiblesDe(arbol.carpetas, ORDEN0, titulos, null, recientes), ["zeta", "brote", "atlas"]);
+  assert.deepEqual(visiblesDe(arbol.carpetas, ORDEN0, titulos, "atlas", recientes), ["a2", "a3", "a1"]);
+  // Subir "brote" (segunda en recientes) la pone primera por encima de "zeta".
+  const visCarpetas = visiblesDe(arbol.carpetas, ORDEN0, titulos, null, recientes)!;
+  assert.deepEqual(reordenarPaso(ORDEN0, null, visCarpetas, "brote", -1)?.carpetas, ["brote", "zeta", "atlas"]);
+  // En la primera carpeta visual ("zeta"), Subir no hace nada (`null`).
+  assert.equal(reordenarPaso(ORDEN0, null, visCarpetas, "zeta", -1), null);
 });

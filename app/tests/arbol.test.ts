@@ -27,6 +27,8 @@ import {
   salidaDe,
   salidaWorker,
   seOculta,
+  SETTLE,
+  settleadosDe,
   settleLider,
   settleWorker,
   type Arbol,
@@ -478,6 +480,12 @@ test("líder settleado no se ve hasta que tenga actividad nueva; sus workers sin
   assert.ok(!a.lideres.has("a"));
   const b = armarArbol([w], { lideres: [lider("a", AHORA)], settleados, ahora: AHORA });
   assert.ok(b.lideres.has("a"));
+  // Al retomarlo desde Historial se limpia la marca con 0: vuelve a verse aunque su actividad previa fuera vieja o 0.
+  const limpio = settleadosDe({ [`${SETTLE}a`]: 0, [`${SETTLE}b`]: AHORA });
+  assert.equal(limpio.has("a"), false);
+  assert.equal(limpio.get("b"), AHORA);
+  const c = armarArbol([w], { lideres: [lider("a", 0)], settleados: new Map([["a", 0]]), ahora: AHORA });
+  assert.ok(c.lideres.has("a"));
 });
 
 // --- B15: lo terminado se esconde solo -------------------------------------------
