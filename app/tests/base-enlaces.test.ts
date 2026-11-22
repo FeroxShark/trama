@@ -70,3 +70,9 @@ test("borrarSinSeguir: un árbol con enlaces a un dir compartido y a un archivo 
   assert.equal(existsSync(path.join(compartido, "pkg", "index.js")), true);
   borrarSinSeguir(path.join(t, "no-hay"));
 });
+
+test("pa no enlaza el transcript de una sesión retomada con symlinkSync a secas: en Windows falla callado y la sesión se pierde", () => {
+  const fuente = readFileSync(path.join(import.meta.dirname, "..", "electron", "cli", "pa", "orquesta.ts"), "utf8");
+  assert.equal(/\bsymlinkSync\b/.test(fuente), false, "usar enlazarArchivo (hardlink o copia en Windows)");
+  assert.match(fuente, /enlazarArchivo\(f, transcript, \{ plat: pa\.plat \}\)/);
+});
