@@ -129,11 +129,24 @@ describe("parsearCuposReparto", () => {
     assert.equal(gs?.[2].ventanas[0].deshabilitada, undefined);
   });
 
-  it("un grupo con `hasta` vencido no sale; el día de `hasta` todavía vale", () => {
-    const hoy = Date.parse("2026-11-02T23:00:00Z");
-    assert.equal(parsearCuposReparto(JSON.stringify(CONTRATO), hoy)?.suscripciones[0].grupos?.length, 3);
-    const manana = Date.parse("2026-11-03T00:30:00Z");
-    assert.deepEqual(parsearCuposReparto(JSON.stringify(CONTRATO), manana)?.suscripciones[0].grupos?.map((x) => x.id), ["gemini", "gemini-4-argon"]);
+  it("un grupo con `hasta` vencido no sale; el día de `hasta` vale hasta la medianoche local (UTC−3 y UTC+9)", () => {
+    const ids = (ms: number) => parsearCuposReparto(JSON.stringify(CONTRATO), ms)?.suscripciones[0].grupos?.map((x) => x.id);
+    const TODOS = ["gemini", "claude-gpt", "gemini-4-argon"];
+    const SIN = ["gemini", "gemini-4-argon"];
+    const tz = process.env.TZ;
+    try {
+      // Buenos Aires: el 2 de noviembre a las 23:30 locales (02:30Z del 3) todavía vale; pasada la medianoche local, no.
+      process.env.TZ = "America/Argentina/Buenos_Aires";
+      assert.deepEqual(ids(Date.parse("2026-11-03T02:30:00Z")), TODOS);
+      assert.deepEqual(ids(Date.parse("2026-11-03T03:30:00Z")), SIN);
+      // Tokio: a las 00:30 locales del 3 (15:30Z del 2) ya venció; a las 23:30 locales del 2 (14:30Z) todavía no.
+      process.env.TZ = "Asia/Tokyo";
+      assert.deepEqual(ids(Date.parse("2026-11-02T14:30:00Z")), TODOS);
+      assert.deepEqual(ids(Date.parse("2026-11-02T15:30:00Z")), SIN);
+    } finally {
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    }
   });
 
   it("varias cuentas: la de siempre de Claude da el cupo y su nombre; las agregadas cuelgan con su proveedor y cuenta", () => {

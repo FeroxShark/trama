@@ -100,8 +100,11 @@ function agotadoDe(raw: unknown, ahoraMs: number): number | undefined {
   return ms !== null && ms > ahoraMs ? Math.round(ms / 1000) : undefined;
 }
 
-/** Un grupo con `hasta` vencido ya no cuenta (el día de `hasta` todavía vale). */
-const vencido = (hasta: string | undefined, ahoraMs: number): boolean => !!hasta && /^\d{4}-\d{2}-\d{2}/.test(hasta) && hasta.slice(0, 10) < new Date(ahoraMs).toISOString().slice(0, 10);
+/** Un grupo con `hasta` vencido ya no cuenta (el día de `hasta` todavía vale hasta la medianoche LOCAL, como `hastaFin` de reparto). */
+const vencido = (hasta: string | undefined, ahoraMs: number): boolean => {
+  const f = hasta ? /^(\d{4})-(\d{2})-(\d{2})/.exec(hasta) : null;
+  return !!f && ahoraMs >= new Date(Number(f[1]), Number(f[2]) - 1, Number(f[3]) + 1).getTime();
+};
 
 function gruposDe(raw: unknown, ahoraMs: number): GrupoCupo[] {
   if (!Array.isArray(raw)) return [];
