@@ -460,10 +460,14 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   useEffect(() => {
     if (!modeloServidor || modeloServidor === vistoServidor.current) return;
     vistoServidor.current = modeloServidor;
-    setModelo(modeloServidor);
-    setEffort(effortDe(effortServidor, modeloServidor) ?? effortPara(modeloServidor, effortsLeidos() ?? {}));
+    // Si la caja ya está en ese modelo, es la confirmación de un cambio hecho acá (`cola.elegir`): no se pisa el esfuerzo,
+    // que pudo cambiar mientras el main contestaba (`/model sonnet` y enseguida `/effort low`).
+    if (modeloServidor !== modelo) {
+      setModelo(modeloServidor);
+      setEffort(effortDe(effortServidor, modeloServidor) ?? effortPara(modeloServidor, effortsLeidos() ?? {}));
+    }
     if (cambioCompacto.fase === "hecho" && modeloServidor === cambioCompacto.destino.modelo) dispatchCambio({ tipo: "reiniciar" });
-  }, [modeloServidor, effortServidor, cambioCompacto]);
+  }, [modeloServidor, effortServidor, cambioCompacto, modelo]);
   // Con un turno en curso los selectores siguen abiertos: lo elegido del mismo motor lo toma el turno ya (desde su próximo pedido a la
   // API, `cambiarEnTurno`); lo que no se puede en vivo va con el próximo mensaje. Mientras difiere de lo que usa el turno, se marca en el selector.
   const turnoModelo = modeloDe(l?.modelo);
