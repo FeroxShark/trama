@@ -197,6 +197,8 @@ function entorno(c: Contexto, extra: Record<string, string> = {}): NodeJS.Proces
     PA_PROJ: path.join(c.home, "claude-proyectos"),
     PROYECTOS_REGISTRY: path.join(c.home, ".config", "proyectos", "registry.json"),
     TRAMA_MODELOS: path.join(c.home, "no-hay.json"),
+    // el pa de bash (congelado) no tiene el tope de workers vivos por grupo (`tope_vivos`): sin esto el TS frenaría lo que el bash deja pasar
+    PA_TOPE_VIVOS: "0",
     TRAMA_CLAVES: path.join(c.home, "no-hay.env"),
     // el lado A es el original (bash / python): el default ya es el TS, así que se pide explícito (y los pa que lance también)
     TRAMA_PA: "bash",
