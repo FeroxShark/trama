@@ -258,6 +258,8 @@ interface Hecho {
   tareaRun: string;
   acc: string;
   listo: boolean;
+  /** El código de salida del worker que dejó pa en `.listo` (o `.entregado` si ya se cobró); null en las corridas viejas sin él. */
+  rc: number | null;
   leer: boolean;
   commits: string;
   ppal: string;
@@ -389,6 +391,7 @@ class Hilos {
       tareaRun,
       acc: this.accDe.get(id) ?? "",
       listo: existsSync(path.join(d, `${id}.listo`)),
+      rc: rcDurable(d, id),
       leer: existsSync(path.join(d, `${id}.leer`)),
       commits,
       ppal,
@@ -397,6 +400,15 @@ class Hilos {
       cache,
     };
   }
+}
+
+/** El `rc=` de `<id>.listo`, o de `<id>.entregado` si la cobró un `--esperar`; null si no hay ninguno o no es un número. */
+function rcDurable(d: string, id: string): number | null {
+  for (const ext of [".listo", ".entregado"]) {
+    const v = leerCampo(path.join(d, `${id}${ext}`), "rc").trim();
+    if (/^-?[0-9]+$/.test(v)) return Number(v);
+  }
+  return null;
 }
 
 /** `linea_rapida`: la primera línea de un archivo, o null si no hay nada. */
@@ -468,6 +480,8 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
     else if (cwd !== "" && esperado !== "" && cwd.replace(/\/$/, "") !== esperado) frio = "otro_dir";
   }
   const reciente = h.listo && ini !== null && ahora - ini < 86400;
+  // una corrida que falló (código de salida ≠ 0 o is_error) no está «lista» ni pide decisión aunque haya dejado un resultado parcial
+  const fallo = (h.rc !== null && h.rc !== 0) || (Jo !== null && Jo.is_error === true);
   let estado: string;
   if (h.vivo !== "") estado = h.vivo;
   else if (noVacio(H.archivado) !== null) estado = "archivado";
@@ -475,6 +489,7 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
   else if (h.acc === "revertida") estado = "revertido";
   else if (h.acc === "descartada") estado = "descartado";
   else if (Jo === null) estado = "murio";
+  else if (fallo) estado = "entregado";
   else if (hayFalta(comoString(result ?? "")) && (reciente || (noVacio(H.lanzo) ?? "jefe") !== "jefe")) estado = "falta-info";
   else if (noVacio(dec) !== null && dnada !== "1" && (reciente || (noVacio(H.lanzo) ?? "jefe") !== "jefe")) estado = "decision";
   else if (reciente) estado = "listo";
@@ -525,6 +540,7 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
     commits: num(h.commits),
     decision: noVacio(dec),
     decision_nada: dnada === null ? null : dnada === "1",
+    rc: h.rc,
     sigue: noVacio(H.sigue),
     verificado: noVacio(H.verificado) === null ? null : H.verificado === "1",
     resultado,

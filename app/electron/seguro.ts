@@ -53,9 +53,11 @@ export type Contexto = {
 export function motivoNoSeguro(h: HiloSeguro, ultima: HiloSeguro | undefined, ctx: Contexto): string | null {
   if (!h.rama) return "no tiene rama";
   if (ultima && ultima.id !== h.id) return "su rama tiene una corrida más nueva";
-  if (h.estado !== "listo" && h.estado !== "decision") return "no terminó bien";
-  if (h.decision_nada !== true) return "pide una decisión";
   if (h.rc != null && h.rc !== 0) return `salió con código ${h.rc}`;
+  // `--esperar` cobra el resultado (`.listo` pasa a `.entregado`) y la fila queda «entregado»: con rc 0 durable el éxito no se pierde por haberlo leído
+  const evaluable = h.estado === "listo" || h.estado === "decision" || (h.estado === "entregado" && h.rc === 0);
+  if (!evaluable) return h.estado === "entregado" ? "ya se entregó y no se sabe si terminó bien" : "no terminó bien";
+  if (h.decision_nada !== true) return "pide una decisión";
   if (!((h.commits ?? 0) > 0)) return "no tiene commits";
   if (vivo(h)) return "sigue corriendo";
   if (!ctx.tests(h.proyecto)) return "el proyecto no tiene tests registrados";

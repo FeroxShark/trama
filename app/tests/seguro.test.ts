@@ -41,6 +41,14 @@ test("lo que pide algo, falló, no tiene commits o sigue vivo no es seguro", () 
     assert.equal(esSeguro(h(x), undefined, ctx), false, JSON.stringify(x));
 });
 
+test("una corrida cobrada (entregado) con rc 0 sigue siendo evaluable; con rc≠0 o sin rc no, y el motivo no afirma un fallo que no se sabe (B081, B085)", () => {
+  assert.equal(esSeguro(h({ estado: "entregado", rc: 0 }), undefined, ctx), true);
+  assert.equal(esSeguro(h({ estado: "entregado", rc: 1 }), undefined, ctx), false);
+  assert.equal(esSeguro(h({ estado: "decision", rc: 1 }), undefined, ctx), false, "un rc≠0 gana aunque lo demás sea favorable");
+  assert.equal(motivoNoSeguro(h({ estado: "entregado" }), undefined, ctx), "ya se entregó y no se sabe si terminó bien");
+  assert.equal(motivoNoSeguro(h({ estado: "entregado", rc: 2 }), undefined, ctx), "salió con código 2");
+});
+
 test("sin tests en el registry o con su líder vivo, no", () => {
   assert.equal(esSeguro(h({ proyecto: "cauce" }), undefined, ctx), false);
   assert.equal(esSeguro(h({ jefe_id: "vivo" }), undefined, ctx), false);

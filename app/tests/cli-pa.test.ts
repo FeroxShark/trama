@@ -158,6 +158,37 @@ test("--hilos: un resultado con FALTA (no vacía ni «nada») queda en falta-inf
   assert.equal(est.get(casos[2]![0]), "decision", "FALTA vacía no cuenta");
 });
 
+test("--hilos: el código de salida durable manda: una corrida con rc≠0 o is_error no queda lista ni con decisión, y cobrarla no cambia su rc (B081, B085)", async () => {
+  const { env, estado } = sandbox({ TZ: "UTC" });
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  const dia = `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`;
+  const dir = path.join(estado, "demo");
+  mkdirSync(dir, { recursive: true });
+  const ahora = Math.floor(Date.now() / 1000);
+  const ok = "RESULTADO: hice todo.\nARCHIVOS: a.ts\nVERIFICACION: ok\nDECISION: nada\nSIGUE: nada\nFRENÓ: nada\n";
+  const casos: [string, boolean, string, string][] = [
+    [`${dia}-000201-4501`, false, ".listo", "salida=x\nrc=1\n"], // falló después de guardar un resultado parcial
+    [`${dia}-000202-4502`, true, ".listo", "salida=x\nrc=0\n"], // is_error aunque el rc sea 0
+    [`${dia}-000203-4503`, false, ".listo", "salida=x\nrc=0\n"], // sano
+    [`${dia}-000204-4504`, false, ".entregado", "salida=x\nrc=0\n"], // ya cobrado: el rc sigue a mano
+    [`${dia}-000205-4505`, false, ".listo", "salida=x\n"], // corrida vieja sin rc
+  ];
+  for (const [id, isError, ext, listo] of casos) {
+    writeFileSync(path.join(dir, `${id}.hilo`), `inicio=${ahora - 60}\ntarea=t ${id}\n`);
+    writeFileSync(path.join(dir, `${id}.json`), JSON.stringify({ type: "result", is_error: isError, result: ok, duration_ms: 1000 }));
+    writeFileSync(path.join(dir, `${id}${ext}`), listo);
+  }
+  const r = await pa(["--hilos", "--json"], env, { globales: { hilos: (a, x) => cmdHilos(x, a) } });
+  assert.equal(r.rc, 0, r.e);
+  const f = new Map((JSON.parse(r.o) as { hilos: { id: string; estado: string; rc: number | null }[] }).hilos.map((h) => [h.id, h]));
+  assert.deepEqual([f.get(casos[0]![0])!.estado, f.get(casos[0]![0])!.rc], ["entregado", 1]);
+  assert.equal(f.get(casos[1]![0])!.estado, "entregado", "is_error no es listo");
+  assert.deepEqual([f.get(casos[2]![0])!.estado, f.get(casos[2]![0])!.rc], ["listo", 0]);
+  assert.deepEqual([f.get(casos[3]![0])!.estado, f.get(casos[3]![0])!.rc], ["entregado", 0]);
+  assert.deepEqual([f.get(casos[4]![0])!.estado, f.get(casos[4]![0])!.rc], ["listo", null]);
+});
+
 test("--hilos: una lectura renueva el caché con el TTL de la última escritura principal", async () => {
   const { env, estado, proyecto, raiz } = sandbox();
   const sid = "11111111-2222-4333-8444-555555555555";

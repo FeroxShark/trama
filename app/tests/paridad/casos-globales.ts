@@ -180,6 +180,8 @@ function escenarioQuieto(c: Contexto) {
   escribir(c, `${SLUG}/${ID_COLA}.pid`, "0\n");
 }
 
+/** Divergencia a propósito de --hilos --json (el bash está congelado). */
+const RC_TS = "el TS suma `rc` (el código de salida durable de .listo/.entregado) a cada fila de --hilos --json y manda a «entregado» lo que falló (B081); el bash congelado no.";
 const hilos = (nombre: string, args: string[], extra: Partial<Caso> = {}): Caso => ({ herramienta: "pa-cli", nombre: `globales: hilos ${nombre}`, args, rc: 0, ...extra });
 
 // ---------------------------------------------------------------- --hilo: un transcript con de todo
@@ -343,10 +345,11 @@ export const casosGlobales: Caso[] = [
   hilos("vacío, json", ["--hilos", "--json"]),
   hilos("opción que no va", ["--hilos", "--xx"], { rc: 2 }),
   hilos("de todo, texto", ["--hilos"], { preparar: escenario }),
-  hilos("de todo, json", ["--hilos", "--json"], { preparar: escenarioQuieto }),
-  hilos("de todo con --todo, json", ["--hilos", "--todo", "--json"], { preparar: escenarioQuieto }),
+  hilos("de todo, json", ["--hilos", "--json"], { preparar: escenarioQuieto, divergenciaSalida: RC_TS }),
+  hilos("de todo con --todo, json", ["--hilos", "--todo", "--json"], { preparar: escenarioQuieto, divergenciaSalida: RC_TS }),
   hilos("de todo con --todo, texto", ["--hilos", "--todo"], { preparar: escenario }),
   hilos("sin jq: archivos rotos", ["--hilos", "--json"], {
+    divergenciaSalida: RC_TS,
     preparar: (c) => {
       hilo(c, ID_LISTO, "esto no es clave=valor\n=sin clave\nINICIO=1\ninicio=abc\ntarea=\n");
       salida(c, ID_LISTO, "{no es json");
