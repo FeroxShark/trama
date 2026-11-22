@@ -47,9 +47,15 @@ if (modo === "falso") {
   git("add", "a.txt"); git("commit", "-qm", "base");
   const reg = path.join(T, "home", "registry.json");
   fs.writeFileSync(reg, JSON.stringify({ projects: [{ name: "demo", path: path.join(T, "demo") }] }));
-  fs.writeFileSync(path.join(T, "shim", "claude.cmd"), `@echo off\r\n"${NODE}" "${yo}" falso %*\r\n`);
+  // claude.cmd igual al que deja npm (cmd-shim de un .js), que llama a node_modules\@anthropic-ai\claude-code\cli.js
+  const cli = path.join(T, "shim", "node_modules", "@anthropic-ai", "claude-code");
+  fs.mkdirSync(cli, { recursive: true });
+  fs.writeFileSync(path.join(cli, "cli.js"), 'process.argv.splice(2, 0, "falso"); import(require("url").pathToFileURL(process.env.CADENA_MJS).href);\n');
+  fs.writeFileSync(path.join(T, "shim", "claude.cmd"), ["@ECHO off", "GOTO start", ":find_dp0", "SET dp0=%~dp0", "EXIT /b", ":start", "SETLOCAL", "CALL :find_dp0", "",
+    'IF EXIST "%dp0%\\node.exe" (', '  SET "_prog=%dp0%\\node.exe"', ") ELSE (", '  SET "_prog=node"', "  SET PATHEXT=%PATHEXT:;.JS;=;%", ")", "",
+    'endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\node_modules\\@anthropic-ai\\claude-code\\cli.js" %*', ""].join("\r\n"));
   const env = { ...process.env, USERPROFILE: path.join(T, "home"), HOME: path.join(T, "home"), PA_STATE: path.join(T, "estado"), PA_PROJ: path.join(T, "proj"),
-    PROYECTOS_REGISTRY: reg, TRAMA_MODELOS: path.join(T, "no-hay.json"), PA_JEFE: "", PA_JEFE_ID: "", PA_RAM_MIN_MB: "0", PATH: `${path.join(T, "shim")};${process.env.PATH}` };
+    PROYECTOS_REGISTRY: reg, TRAMA_MODELOS: path.join(T, "no-hay.json"), PA_JEFE: "", PA_JEFE_ID: "", PA_RAM_MIN_MB: "0", CADENA_MJS: yo, PATH: `${path.join(T, "shim")};${process.env.PATH}` };
   for (const k of Object.keys(env)) if (/^(CLAUDE|ANTHROPIC)/.test(k)) delete env[k];
   const salida = path.join(T, "ventanas.txt"), listo = salida + ".listo";
   const mon = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(aqui, "monitor.ps1"), "-out", salida, "-listo", listo, "-segundos", "70"], { windowsHide: true, stdio: "ignore" });
