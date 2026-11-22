@@ -9,6 +9,7 @@
 //     app/package.json              el de app/, reducido (versión, `type: module`, repo de las actualizaciones)
 //     app/dist/  app/dist-electron/ la app compilada (vite build + tsc -p tsconfig.electron.json)
 //     app/hooks/*.mjs               los hooks de Node (no los .sh)
+//     app/codex/bin/               git.cmd, cargo.cmd y sus .mjs: las guardias de git y cargo de los workers de codex, dsh y opencode
 //     app/scripts/asegurar-cli.mjs  pone al día dist-electron antes de cada herramienta (no hace nada sin las fuentes)
 //     app/skills/  app/plantillas/home/  app/datos/
 //     bin/<herramienta>.cmd         asegurar-cli.mjs y luego `node.exe <app>\dist-electron\cli\<herramienta>.js %*`, sólo las ya portadas
@@ -32,6 +33,8 @@ const COPIAS = [
   ["app/dist", "app/dist", () => true],
   ["app/dist-electron", "app/dist-electron", (f) => !f.endsWith(".map") && path.basename(f) !== ".listo"],
   ["motor/hooks", "app/hooks", (f) => f.endsWith(".mjs")],
+  // las guardias de git y cargo de los workers de codex, dsh y opencode: git.cmd/cargo.cmd llaman a git.mjs/cargo.mjs (sin los scripts de bash)
+  ["motor/codex/bin", "app/codex/bin", (f) => /\.(mjs|cmd)$/.test(f)],
   ["app/scripts", "app/scripts", (f) => f === "asegurar-cli.mjs"],
   ["motor/skills", "app/skills", () => true],
   ["motor/plantillas/home", "app/plantillas/home", () => true],

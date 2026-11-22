@@ -36,6 +36,9 @@ function repoFalso(dir) {
   escribir(path.join(r, "motor", "hooks", "latido.mjs"), "// ok\n");
   escribir(path.join(r, "motor", "hooks", "latido.sh"), "#!/usr/bin/env bash\n");
   escribir(path.join(r, "motor", "hooks", "docker-guard.py"), "print()");
+  escribir(path.join(r, "motor", "codex", "bin", "git"), "#!/usr/bin/env bash\n");
+  escribir(path.join(r, "motor", "codex", "bin", "git.mjs"), "// ok\n");
+  escribir(path.join(r, "motor", "codex", "bin", "git.cmd"), "@echo off\r\n");
   escribir(path.join(r, "motor", "skills", "trama-orquestar", "SKILL.md"), "# skill");
   escribir(path.join(r, "motor", "plantillas", "home", "CLAUDE.md"), "# líder");
   escribir(path.join(r, "motor", "datos", "aa-suplemento.json"), "{}");
@@ -56,6 +59,8 @@ test("arma el payload por lista permitida: sólo la app compilada, hooks .mjs, s
     const hay = [...p.recorrer(destino)].sort();
     assert.deepEqual(hay, [
       ".version",
+      "app/codex/bin/git.cmd",
+      "app/codex/bin/git.mjs",
       "app/datos/aa-foto.json",
       "app/datos/aa-suplemento.json",
       "app/dist-electron/cli/trama-estado.js",
@@ -147,6 +152,20 @@ test("los hooks .mjs reales del motor pasan la revisión (con sus excepciones no
     }
     const exc = p.EXCEPCIONES.filter((e) => e.archivo.startsWith("app/hooks/"));
     assert.deepEqual(p.revisarSinBash(dir, exc).problemas, []);
+  }));
+
+test("las guardias de git y cargo de codex (.mjs y .cmd reales) pasan la revisión y cada .cmd apunta a su .mjs", () =>
+  conDir((dir) => {
+    const bin = path.join(REPO, "motor", "codex", "bin");
+    for (const f of fs.readdirSync(bin).filter((f) => /\.(mjs|cmd)$/.test(f))) {
+      escribir(path.join(dir, "app", "codex", "bin", f), fs.readFileSync(path.join(bin, f), "utf8"));
+    }
+    assert.deepEqual(p.revisarSinBash(dir, []).problemas, []);
+    for (const n of ["git", "cargo"]) {
+      const cmd = fs.readFileSync(path.join(bin, `${n}.cmd`), "utf8");
+      assert.ok(cmd.includes(`"%~dp0${n}.mjs" %*`) && cmd.includes("\r\n"));
+      assert.ok(fs.existsSync(path.join(bin, `${n}.mjs`)));
+    }
   }));
 
 test("node.exe fijado: versión LTS y sha256 de 64 hex, bajado de nodejs.org", () => {
