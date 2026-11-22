@@ -9,6 +9,7 @@
 // sus instaladores (`resolverAgy`; en Windows también `.cmd` de npm): bajo systemd el PATH viene pelado. Sin `electron`: lo prueba tests/cuentas.test.ts.
 import { execFile } from "node:child_process";
 import os from "node:os";
+import { agyParsearModelos } from "./agy-modelos.ts";
 import { paraLanzar, pathConLocal, resolverAgy, resolverCodex } from "./binario.ts";
 import { resolverClaude } from "./plugins-claude.ts";
 import { type Plataforma } from "./rutas.ts";
@@ -40,15 +41,13 @@ const TOPE_AGY = 25_000;
 const sin = (instalado: boolean, error: string | null = null): Cuenta => ({ instalado, logueado: false, cuenta: null, error });
 const ultimaLinea = (t: string) => t.trim().split(/\r?\n/).filter(Boolean).slice(-1)[0]?.slice(0, 200) ?? "";
 
-/** Un renglón de `agy models`: `gemini-4-argon-high<TAB>Gemini 4 Argon (High)`. */
-const esModelo = (l: string) => /^[a-z0-9][a-z0-9._:]*(?:-[a-z0-9._:]+)+\s+\S/i.test(l.trim());
-
 export async function sondearAgy(d: Deps): Promise<Cuenta> {
   const bin = resolverAgy(d.env, d.home, d.esEjecutable, d.plat);
   const r = await d.correr(bin, ["models"], { ...d.env, PATH: pathConLocal(d.env, d.home, d.plat) }, TOPE_AGY);
   if (r.noExiste) return sin(false);
   if (r.tiempo) return sin(true, "agy no contestó a tiempo");
-  const modelos = r.stdout.split(/\r?\n/).filter(esModelo);
+  // El mismo parser que usa el reparto: id solo, id con tabulación o nombre legible.
+  const modelos = agyParsearModelos(r.stdout);
   if (modelos.length > 0) return { instalado: true, logueado: true, cuenta: null, error: null };
   if (r.code !== 0 && r.code !== null) return sin(true, ultimaLinea(r.stderr) || ultimaLinea(r.stdout) || `agy salió con ${r.code}`);
   return sin(true);
