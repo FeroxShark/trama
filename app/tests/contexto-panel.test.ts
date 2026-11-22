@@ -21,7 +21,11 @@ import {
 } from "../electron/apagados.ts";
 import { settingsWorker } from "../electron/cli/pa/lanzar.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
-import { desdeClaude, desdeTranscript, excluida, memoriaDeSesion, pedidosDe, sinDesglose, usosDe } from "../electron/contexto-desglose.ts";
+import { desdeClaude, desdePrefacio, desdeTranscript, excluida, memoriaDeSesion, pedidosDe, sinDesglose, usosDe } from "../electron/contexto-desglose.ts";
+import { PARTE_INSTRUCCIONES, partesDePrefacio } from "../electron/contexto-local.ts";
+import { VENTANA_CODEX, VENTANA_DSH, VENTANA_LOCAL, VENTANA_OPENCODE } from "../electron/ventana-motor.ts";
+import { ventanaDe } from "../src/hilo/contexto-logica.ts";
+import { categorias, itemsDe } from "../src/paneles/contexto-vista.ts";
 import { argvLider, lineaContexto, parsearLinea } from "../electron/lider-arma.ts";
 import { buscarSkills, catalogoSkills } from "../electron/skills-catalogo.ts";
 import type { Inventario } from "../electron/conectores-claude.ts";
@@ -291,4 +295,71 @@ test("catálogo de skills: clave con el plugin, estado (apagada por Trama o por 
   );
   assert.deepEqual(buscarSkills(c, "DISENO interfaz").map((s) => s.clave), ["diseño"]);
   assert.equal(buscarSkills(c, "").length, 3);
+});
+
+// --- Líderes que no son Claude: el prefacio parte por parte ---------------------------------------------------------------------------
+
+test("prefacio de un líder de Codex y uno de agy: una fila por parte, con lo recortado marcado, y el resto son mensajes", async () => {
+  const home = path.join(os.tmpdir(), "trama-prefacio-casa");
+  const archivos = new Map<string, string>([
+    [path.join(home, ".claude", "CLAUDE.md"), "Trato y seguridad del dueño.\n"],
+    // Un CLAUDE.md del proyecto enorme: no entra entero en el tope de su parte.
+    [path.join(home, "CLAUDE.md"), `# Reglas\n${"una regla larga que se repite\n".repeat(900)}`],
+    [path.join(home, ".claude", "projects", home.replace(/[^a-zA-Z0-9]/g, "-"), "memory", "MEMORY.md"), "- [Nota](nota.md) — algo\n"],
+  ]);
+  const deps = { leer: async (r: string) => archivos.get(r) ?? null, hook: async () => "" };
+  for (const motor of ["codex", "gemini"] as const) {
+    const partes = await partesDePrefacio({ home, motor, deps, env: { HOME: home, USERPROFILE: home } });
+    assert.equal(partes[0].titulo, PARTE_INSTRUCCIONES, `${motor}: el prompt fijo va primero`);
+    assert.ok(partes[0].tokens > 100 && !partes[0].recortado);
+    const grande = partes.find((p) => p.titulo.startsWith("CLAUDE.md de ~"));
+    assert.ok(grande, `${motor}: la parte del CLAUDE.md del home`);
+    assert.equal(grande.recortado, true);
+    assert.ok(grande.cortados > 1000, `${motor}: dice cuántos tokens se cortaron`);
+    assert.ok(partes.some((p) => p.titulo.startsWith("Memoria sobre") && !p.recortado && p.cortados === 0));
+
+    const d = desdePrefacio({ tipo: "lider", id: "s1", motor, modelo: `${motor}-x`, partes, usado: 20_000, ventana: 400_000 });
+    assert.equal(d.fuente, "prefacio");
+    assert.equal(d.motivo, null);
+    assert.equal(d.prefacio?.length, partes.length);
+    const fijo = partes.reduce((n, p) => n + p.tokens, 0);
+    assert.deepEqual(d.categorias.map((c) => [c.id, c.tokens]), [["prefacio", fijo], ["mensajes", 20_000 - fijo]]);
+    // En la vista: las filas del prefacio, con la marca de lo recortado (palabra + número, no sólo color).
+    const filas = itemsDe(d, "prefacio");
+    assert.equal(filas.length, partes.length);
+    assert.equal(filas.find((f) => f.nombre.startsWith("CLAUDE.md de ~"))?.cortados, grande.cortados);
+    assert.equal(filas.find((f) => f.nombre.startsWith("Memoria sobre"))?.cortados, 0);
+    assert.deepEqual(categorias(d).map((c) => c.id), ["mensajes", "prefacio"]);
+  }
+});
+
+test("prefacio: sin lo usado todavía sólo está el prefacio; una parte que no entra en el tope se anota entera como recortada", async () => {
+  const home = path.join(os.tmpdir(), "trama-prefacio-casa2");
+  const grande = (t: string) => `# Reglas\n${`${t}\n`.repeat(4000)}`;
+  const archivos = new Map<string, string>([
+    [path.join(home, ".claude", "CLAUDE.md"), grande("global")],
+    [path.join(home, "CLAUDE.md"), grande("del home")],
+    [path.join(home, "p", "CLAUDE.md"), grande("del proyecto")],
+  ]);
+  const deps = { leer: async (r: string) => archivos.get(r) ?? null, hook: async () => "" };
+  // Un local con 4000 de contexto: el tope del prefacio (la cuarta parte, mínimo 1000) se agota enseguida.
+  const partes = await partesDePrefacio({ home, cwd: path.join(home, "p"), motor: "local", ctx: 4000, deps, env: { HOME: home, USERPROFILE: home } });
+  assert.ok(partes.length >= 2);
+  assert.ok(partes.every((p) => p.recortado), "todas las partes grandes quedan recortadas");
+  assert.ok(partes.some((p) => p.tokens === 0 && p.cortados > 1000), "la que no tuvo lugar figura con 0 tokens y todo lo cortado");
+  const d = desdePrefacio({ tipo: "lider", id: "s2", motor: "local", modelo: "ollama:x", partes, usado: null, ventana: 4000 });
+  assert.deepEqual(d.categorias.map((c) => c.id), ["prefacio"]);
+  assert.equal(d.usado, d.categorias[0].tokens);
+  assert.equal(d.ventana, 4000);
+});
+
+test("ventanaDe: cada motor la suya; Claude sigue igual", () => {
+  assert.equal(ventanaDe("codex:gpt-5.5"), VENTANA_CODEX);
+  assert.equal(ventanaDe("dsh:deepseek/deepseek-v4"), VENTANA_DSH);
+  assert.equal(ventanaDe("opencode:modelo-x"), VENTANA_OPENCODE);
+  assert.equal(ventanaDe("agy:gemini-4-hydrogen-high"), 1_000_000);
+  assert.equal(ventanaDe("gemini-4-neon-high"), 1_000_000);
+  assert.equal(ventanaDe("ollama:llama3"), VENTANA_LOCAL);
+  assert.equal(ventanaDe("claude-haiku-5-5"), 200_000);
+  assert.equal(ventanaDe("claude-opus-5-5"), 1_000_000);
 });

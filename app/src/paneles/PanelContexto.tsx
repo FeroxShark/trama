@@ -5,7 +5,7 @@
 // es el catálogo de skills (buscar, filtrar, ver tokens, prender y apagar). Los datos: src/datos/contexto.ts; la cuenta y el mapa: contexto-vista.ts.
 // En el celular ocupa la pantalla y sólo se mira (apagar es de la PC).
 import { createContext, Fragment, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleDashed, Info, Lock, Minimize2, PanelRightClose, RefreshCw, Search, X, Zap } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleDashed, Info, Lock, Minimize2, PanelRightClose, RefreshCw, Scissors, Search, X, Zap } from "lucide-react";
 import type { Hilo, Lider } from "../datos/contrato";
 import type { Categoria, Desglose } from "../../electron/contexto-desglose";
 import type { UsosCatalogo } from "../../electron/skills-catalogo";
@@ -335,11 +335,17 @@ function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: bo
       <span className="cp-num" data-tip={apagado ? t("ctxp.noSuma") : estimado ? t("ctxp.estimado") : undefined}>
         {it.tokens === null ? (it.fantasma ? "—" : t(it.diferida ? "ctxp.soloNombre" : "ctxp.sinTokens")) : `${estimado ? "≈" : ""}${miles(it.tokens)}`}
       </span>
-      {it.sis ? <span className="cp-sw-hueco" /> : <Interruptor x={it.apaga} nombre={nombre} protegida={it.protegida} />}
+      {it.sis || it.cortados !== null ? <span className="cp-sw-hueco" /> : <Interruptor x={it.apaga} nombre={nombre} protegida={it.protegida} />}
       <div className="cp-it-det">
         <Uso it={it} />
         {it.sis ? <Ayuda k={ayudaSis(it)} nombre={nombre} /> : null}
         {it.nunca && !it.porHook ? <Ayuda k="ctxp.ayuda.nunca" nombre={t("ctxp.usos0")} /> : null}
+        {it.cortados ? (
+          <span className="cp-etq" data-recortada="" data-tip={t("ctxp.recortadaTip")}>
+            <Scissors size={10} strokeWidth={2.2} aria-hidden />
+            {t("ctxp.recortada", { tokens: miles(it.cortados) })}
+          </span>
+        ) : null}
         {it.diferida ? <span className="cp-etq">{t("ctxp.diferida")}</span> : null}
         {it.diferida ? <Ayuda k="ctxp.ayuda.diferida" nombre={t("ctxp.diferida")} /> : null}
         {it.diferidos ? <span className="cp-etq">{t("ctxp.diferidosDe", { tokens: miles(it.diferidos) })}</span> : null}
@@ -529,6 +535,7 @@ function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; ui
               {c.id === "mensajes" && !sub ? <FilaCompactar c={compactar} sinLider={!lider} /> : null}
               {abre ? (
                 <div id={idCuerpo} className="cp-cuerpo">
+                  {c.id === "prefacio" ? <p className="cp-nota">{t("ctxp.prefacio.nota")}</p> : null}
                   {c.id === "sistema" && d.sistema.some((p) => p.tipo === "prompt") ? <p className="cp-nota">{d.promptVersion ? t("ctxp.sis.notaVersion", { version: d.promptVersion }) : t("ctxp.sis.nota")}</p> : null}
                   {items.length ? (
                     <ul className="cp-items" aria-label={nombreCat(c.id)}>

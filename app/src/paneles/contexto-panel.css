@@ -22,6 +22,7 @@
   --c-memoria: var(--ok);
   --c-agentes: var(--sint-menos);
   --c-sistema: var(--txt-3);
+  --c-prefacio: var(--azul);
   --c-otro: var(--texto-5);
 }
 .cp [data-cat] {
@@ -34,6 +35,7 @@
 .cp [data-cat="memoria"] { --c: var(--c-memoria); }
 .cp [data-cat="agentes"] { --c: var(--c-agentes); }
 .cp [data-cat="sistema"] { --c: var(--c-sistema); }
+.cp [data-cat="prefacio"] { --c: var(--c-prefacio); }
 
 /* Misma altura que la fila de la conversación (`.migas`, 4 rem): el botón del contexto (`.ctx-boton`) cae centrado en las dos.
    Su borde derecho le deja lugar a ese botón, que queda sobre esta cabecera cuando el panel está abierto. */
@@ -533,6 +535,12 @@
 }
 .cp-etq[data-apagada] {
   color: var(--txt-1);
+}
+/* Una parte del prefacio que se recortó: la palabra «recortada» y las tijeras, con el tinte de aviso. */
+.cp-etq[data-recortada] {
+  background: var(--aviso-tinte);
+  color: var(--aviso);
+  font-weight: 500;
 }
 .cp-link {
   color: var(--azul);

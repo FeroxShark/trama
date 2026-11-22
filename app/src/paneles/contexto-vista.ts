@@ -9,10 +9,10 @@ export type TipoApagado = "skills" | "mcp" | "herramientas" | "memoria";
 export type Apagados = Record<TipoApagado, string[]>;
 
 /** Las categorías que ocupan la ventana, en el orden en que se pintan (mensajes primero: es lo que más crece). */
-export const ORDEN: Categoria[] = ["mensajes", "herramientas", "mcp", "skills", "memoria", "agentes", "sistema", "otro", "reserva"];
+export const ORDEN: Categoria[] = ["mensajes", "herramientas", "mcp", "skills", "memoria", "prefacio", "agentes", "sistema", "otro", "reserva"];
 
 /** Qué categorías tienen ítems que se pueden mirar uno por uno. */
-export const CON_ITEMS: ReadonlySet<Categoria> = new Set(["sistema", "herramientas", "mcp", "skills", "memoria"]);
+export const CON_ITEMS: ReadonlySet<Categoria> = new Set(["sistema", "herramientas", "mcp", "skills", "memoria", "prefacio"]);
 
 export type FilaCat = { id: Categoria; tokens: number; estimado: boolean; pct: number };
 
@@ -111,6 +111,8 @@ export type Item = {
   seccion: string | null;
   texto: string | null;
   truncado: boolean;
+  /** Una parte del prefacio de un líder que no es Claude: los tokens que se cortaron (`0`: entró entera); `null`: no es una parte del prefacio. */
+  cortados: number | null;
   /** Está apagada y la medición ya no la trae (el líder la dejó afuera): se muestra para poder prenderla. */
   fantasma: boolean;
 };
@@ -154,6 +156,7 @@ const ITEM_BASE: Item = {
   seccion: null,
   texto: null,
   truncado: false,
+  cortados: null,
   fantasma: false,
 };
 
@@ -249,6 +252,14 @@ export function itemsDe(d: Desglose, cat: Categoria, protegidas: readonly string
       .concat(fantasmas("skills", (n) => d.skills.some((s) => claveSkill(s) === n || s.nombre === n)))
       .sort(orden);
   }
+  // El prefacio de un líder que no es Claude: una fila por parte, con lo que se recortó (no se apaga: Trama lo arma al lanzar).
+  if (cat === "prefacio")
+    return (d.prefacio ?? [])
+      .map((p): Item => {
+        const corto = p.titulo.split(" (")[0];
+        return { ...ITEM_BASE, clave: p.titulo, nombre: corto, detalle: corto === p.titulo ? null : p.titulo, tokens: p.tokens, cortados: p.recortado ? Math.max(0, p.cortados) : 0 };
+      })
+      .sort(orden);
   if (cat === "memoria")
     return d.memoria
       .map((m): Item => ({

@@ -620,7 +620,8 @@ export function desdePrefacio(x: {
     categorias.push({ id: "mensajes", nombre: null, tokens: Math.max(0, usado - fijo), estimado: true });
   }
   return {
-    ...sinDesglose({ tipo: x.tipo, id: x.id, motor: x.motor, modelo: x.modelo, motivo: null }),
+    ...sinDesglose({ tipo: x.tipo, id: x.id, motor: x.motor, modelo: x.modelo }),
+    motivo: null,
     fuente: "prefacio",
     estimado: true,
     usado: usado ?? (fijo > 0 ? fijo : null),
