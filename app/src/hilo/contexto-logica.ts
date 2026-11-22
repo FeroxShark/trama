@@ -6,6 +6,7 @@ import type { Mensaje, RespuestaHilo, Tokens } from "../datos/contrato";
 import type { Umbrales } from "../datos/fuente";
 import { topeAutocompact } from "../../electron/autocompact-tope.ts";
 import { cacheVencida, decidirCache, type EntradaCache } from "../../electron/cache-pregunta.ts";
+import { ventanaDeMotor } from "../../electron/ventana-motor.ts";
 import { sistemaDe } from "./sistema-logica.ts";
 
 /** Lo que pesa la conversación: la entrada del último turno, cacheada o no. */
@@ -74,10 +75,10 @@ export function decidirCacheConTranscript(
 }
 
 /**
- * La ventana del modelo cuando el stream no la dijo (`modelUsage.contextWindow`):
- * 200 mil en Haiku, 1 millón en los demás (Opus, Sonnet, Fable).
+ * La ventana del modelo cuando el stream no la dijo (`modelUsage.contextWindow`): la de su motor si no es Claude (Gemini, ChatGPT,
+ * DeepSeek, OpenCode, Ollama: `electron/ventana-motor.ts`); en Claude, 200 mil en Haiku y 1 millón en los demás (Opus, Sonnet, Fable).
  */
-export const ventanaDe = (modelo: string | null | undefined): number => (/haiku/i.test(modelo ?? "") ? 200_000 : 1_000_000);
+export const ventanaDe = (modelo: string | null | undefined): number => ventanaDeMotor(modelo) ?? (/haiku/i.test(modelo ?? "") ? 200_000 : 1_000_000);
 
 /**
  * La ventana que dijo el stream para este modelo. Las claves de `modelUsage`

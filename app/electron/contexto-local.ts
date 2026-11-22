@@ -118,7 +118,9 @@ export type DepsContexto = {
 
 const leerODejar = (ruta: string) => readFile(ruta, "utf8").catch(() => null);
 
-export type Contexto = { texto: string; partes: { titulo: string; tokens: number; recortado: boolean }[]; tokens: number };
+/** Una parte del contexto: lo que quedó (`tokens`) y, si se recortó o no entró, cuántos tokens se cortaron (`cortados`). */
+export type Parte = { titulo: string; tokens: number; recortado: boolean; cortados: number };
+export type Contexto = { texto: string; partes: Parte[]; tokens: number };
 
 /**
  * El contexto del usuario para un líder local en `cwd` (por defecto `home`), con `ctx` tokens de contexto cargado. Cada parte
@@ -151,11 +153,17 @@ export async function armarContexto(x: {
   const bloques: string[] = [];
   /** Agrega la parte y devuelve el texto que quedó de verdad (recortado si hizo falta; `""` si no entró). */
   const poner = (titulo: string, cuerpo: string, tope: number, donde: string): string => {
-    if (!cuerpo.trim() || libre <= 0) return "";
+    if (!cuerpo.trim()) return "";
+    // Sin lugar: no entra, pero se anota (con todo lo que se cortó) para que el panel lo diga.
+    if (libre <= 0) {
+      partes.push({ titulo, tokens: 0, recortado: true, cortados: tokensAprox(cuerpo.trim()) });
+      return "";
+    }
     const t = recortar(cuerpo.trim(), Math.min(tope, libre), donde);
     const tokens = tokensAprox(t);
     libre -= tokens;
-    partes.push({ titulo, tokens, recortado: t !== cuerpo.trim() });
+    const recortado = t !== cuerpo.trim();
+    partes.push({ titulo, tokens, recortado, cortados: recortado ? Math.max(0, tokensAprox(cuerpo.trim()) - tokens) : 0 });
     bloques.push(`## ${titulo}\n${t}`);
     return t;
   };
@@ -249,13 +257,22 @@ export const PROMPT_DSH = PROMPT_GEMINI.split("\n")
 
 type EntradaPrefacio = { home: string; cwd?: string; pa?: string; env?: Record<string, string | undefined>; deps?: Partial<DepsContexto>; compartir?: boolean };
 
-async function prefacioCon(prompt: string, x: EntradaPrefacio): Promise<string> {
+/** El nombre de la parte con las instrucciones fijas de Trama (el prompt del motor): va primero en el desglose del panel. */
+export const PARTE_INSTRUCCIONES = "Instrucciones de Trama para este motor";
+
+/** El prefacio y sus partes: lo mismo que se le manda al motor, medido pieza por pieza (el prompt fijo y cada parte de `armarContexto`). */
+async function armarPrefacio(prompt: string, x: EntradaPrefacio): Promise<{ texto: string; partes: Parte[] }> {
   const c = await armarContexto({ home: x.home, cwd: x.cwd, ctx: 40000, perfil: "gemini", compartir: x.compartir, env: x.env, deps: x.deps }).catch(() => null);
   const skill = await skillOrquestar(x.home, x.env);
   const base = skill === SKILL_GENERICA ? prompt : prompt.replaceAll(SKILL_GENERICA, skill);
   const conPa = x.pa && path.isAbsolute(x.pa) ? `${base}\nSi un comando dice "pa: command not found", \`pa\` está en \`${x.pa}\`: llamalo con esa ruta.` : base;
-  return c?.texto ? `${conPa}\n\n${c.texto}` : conPa;
+  return {
+    texto: c?.texto ? `${conPa}\n\n${c.texto}` : conPa,
+    partes: [{ titulo: PARTE_INSTRUCCIONES, tokens: tokensAprox(conPa), recortado: false, cortados: 0 }, ...(c?.partes ?? [])],
+  };
 }
+
+const prefacioCon = async (prompt: string, x: EntradaPrefacio): Promise<string> => (await armarPrefacio(prompt, x)).texto;
 
 /**
  * El prefacio completo de un líder de Gemini en `cwd`: lo de arriba más sus CLAUDE.md. Un archivo ilegible no lo tira.
@@ -285,3 +302,15 @@ export const prefacioDsh = (x: EntradaPrefacio & { motor?: "dsh" | "opencode" | 
   const base = x.motor === "opencode" ? PROMPT_OPENCODE : x.motor === "codex" ? PROMPT_CODEX : PROMPT_DSH;
   return prefacioCon(x.modelo ? `${base}\nEl modelo con el que corrés es \`${x.modelo}\`; si te preguntan qué modelo sos, decí ese.` : base, x);
 };
+
+/**
+ * Las partes del prefacio que Trama le manda a un líder que no es Claude (el panel Contexto): las mismas que `prefacioGemini` /
+ * `prefacioDsh` (motor `gemini`, `dsh`, `opencode`, `codex`) o, en un modelo local u Ollama (`local`), las de `armarContexto` con el `-c` de su
+ * llama-server (`ctx`), que es lo que lleva su `--system-prompt`. Sin leer nada nuevo ni lanzar nada: sólo archivos y el hook del usuario.
+ */
+export async function partesDePrefacio(x: EntradaPrefacio & { motor: "gemini" | "dsh" | "opencode" | "codex" | "local"; modelo?: string; ctx?: number }): Promise<Parte[]> {
+  if (x.motor === "local") return (await armarContexto({ home: x.home, cwd: x.cwd, ctx: x.ctx ?? 8192, compartir: x.compartir, env: x.env, deps: x.deps }).catch(() => null))?.partes ?? [];
+  if (x.motor === "gemini") return (await armarPrefacio(PROMPT_GEMINI, x)).partes;
+  const base = x.motor === "opencode" ? PROMPT_OPENCODE : x.motor === "codex" ? PROMPT_CODEX : PROMPT_DSH;
+  return (await armarPrefacio(x.modelo ? `${base}\nEl modelo con el que corrés es \`${x.modelo}\`; si te preguntan qué modelo sos, decí ese.` : base, x)).partes;
+}

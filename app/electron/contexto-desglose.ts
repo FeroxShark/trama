@@ -17,7 +17,7 @@ import { leerSesion, partirMcp, piezasSistema, skillsPorHook, tokensAprox, topar
 export { CHARS_POR_TOKEN, tokensAprox, partirMcp } from "./contexto-sesion.ts";
 export type { FilaSistema, InfoSesion, TipoSistema } from "./contexto-sesion.ts";
 
-export type Categoria = "sistema" | "herramientas" | "mcp" | "skills" | "memoria" | "agentes" | "mensajes" | "reserva" | "libre" | "otro";
+export type Categoria = "sistema" | "herramientas" | "mcp" | "skills" | "memoria" | "agentes" | "prefacio" | "mensajes" | "reserva" | "libre" | "otro";
 
 export type FilaCategoria = {
   id: Categoria;
@@ -56,13 +56,15 @@ export type FilaSkill = {
   hook: number;
 };
 export type FilaMemoria = { ruta: string; tipo: string | null; tokens: number; estimado: boolean };
+/** Una parte del prefacio de un líder que no es Claude (memoria, CLAUDE.md, AGENTS.md, ficha del tablero…): lo que quedó y lo que se cortó (`cortados`, en tokens; `recortado` aunque no entrara nada). */
+export type FilaPrefacio = { titulo: string; tokens: number; recortado: boolean; cortados: number };
 
 export type Desglose = {
   version: 1;
   quien: { tipo: "lider" | "worker" | "subagente"; id: string };
   /** `claude`, `gemini`, `dsh`, `opencode`, `ollama` o `local`. */
   motor: string;
-  fuente: "claude" | "transcript" | "sin-desglose" | "previa";
+  fuente: "claude" | "transcript" | "sin-desglose" | "previa" | "prefacio";
   /** Algo de lo que sigue es una estimación (siempre con fuente "transcript"). */
   estimado: boolean;
   modelo: string | null;
@@ -78,6 +80,8 @@ export type Desglose = {
   mcp: FilaMcp[];
   skills: FilaSkill[];
   memoria: FilaMemoria[];
+  /** Fuente "prefacio" (Gemini, ChatGPT, DeepSeek, OpenCode, local): una fila por parte de lo que Trama le manda al motor antes del primer mensaje. Ausente en las demás. */
+  prefacio?: FilaPrefacio[];
   /** La versión de `claude` que armó el prompt que se muestra en "sistema"; `null` si el transcript no la anotó. */
   promptVersion?: string | null;
   /** De qué está hecho el "sistema" (prompt de Claude Code, hooks de inicio, lista de herramientas diferidas…); estimado. Lo que falta hasta la categoría es "sin separar". */
@@ -589,6 +593,42 @@ export function desdeTranscript(
   ];
   const ventana = x.ventana ?? (modelo && /^claude-/.test(modelo) ? VENTANA_CLAUDE : null);
   return { ...base, fuente: "transcript", estimado: true, modelo, usado, ventana, ventanaEstimada: x.ventana == null, categorias, motivo: null };
+}
+
+/**
+ * El desglose de un líder que no es Claude (agy, Codex, dsh, OpenCode, local): lo que Trama le manda al arrancar, parte por parte
+ * (`partes`, de `armarContexto`), y el resto de lo usado como «mensajes». Todo estimado (`tokensAprox`). Si todavía no se sabe lo usado
+ * (`usado: null`), sólo el prefacio. La ventana es la que dijo el motor o, si no, la de su modelo (`ventanaDe`).
+ */
+export function desdePrefacio(x: {
+  tipo: "lider" | "worker";
+  id: string;
+  motor: string;
+  modelo: string | null;
+  partes: FilaPrefacio[];
+  usado: number | null;
+  ventana: number | null;
+}): Desglose {
+  const prefacio = x.partes.map((p) => ({ ...p }));
+  const fijo = prefacio.reduce((n, p) => n + p.tokens, 0);
+  const categorias: FilaCategoria[] = [];
+  if (fijo > 0) categorias.push({ id: "prefacio", nombre: null, tokens: fijo, estimado: true });
+  // Lo que pasa del prefacio son los mensajes; si lo medido es menos que el prefacio, nada se inventa: se achica al total.
+  const usado = x.usado === null ? null : Math.max(x.usado, 0);
+  if (usado !== null) {
+    if (usado < fijo && categorias[0]) categorias[0].tokens = usado;
+    categorias.push({ id: "mensajes", nombre: null, tokens: Math.max(0, usado - fijo), estimado: true });
+  }
+  return {
+    ...sinDesglose({ tipo: x.tipo, id: x.id, motor: x.motor, modelo: x.modelo, motivo: null }),
+    fuente: "prefacio",
+    estimado: true,
+    usado: usado ?? (fijo > 0 ? fijo : null),
+    ventana: x.ventana,
+    ventanaEstimada: true,
+    categorias,
+    prefacio,
+  };
 }
 
 /** Un motor sin desglose (Gemini, dsh, OpenCode): sólo quién es y por qué no hay más. */

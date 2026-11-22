@@ -9,7 +9,11 @@ import { inventario, rutasClaude } from "./conectores-claude.ts";
 import { capturarBase } from "./contexto-base.ts";
 import { skillsDeSesion, vistaPrevia, type VistaPrevia } from "./contexto-previa.ts";
 import { sidDeWorker, topeDeWorker, transcriptDe as transcriptPorSid, TRANSCRIPTS } from "./consumo.ts";
-import { conTope, cwdDe, desdeClaude, desdeTranscript, medirConRespaldo, memoriaDeSesion, sinDesglose, ultimaCompactacion, usosDe, type Desglose, type Medicion } from "./contexto-desglose.ts";
+import { conTope, cwdDe, desdeClaude, desdePrefacio, desdeTranscript, medirConRespaldo, memoriaDeSesion, pedidosDe, sinDesglose, ultimaCompactacion, usosDe, type Desglose, type Medicion } from "./contexto-desglose.ts";
+import { partesDePrefacio, type Parte } from "./contexto-local.ts";
+import { destinoLocal } from "./locales.js";
+import { ventanaDeMotor } from "./ventana-motor.ts";
+import { resolverPa } from "./binario.ts";
 import { leerTranscript, type Transcript } from "./contexto-jsonl.ts";
 import { leerSesion } from "./contexto-sesion.ts";
 import { errorT } from "./errores.ts";
@@ -18,7 +22,7 @@ import { sinLado, ventanaSub, type GastoSubagentes } from "./subagentes-gasto.ts
 import { carpetaDeSubagentes, crearGastos } from "./subagentes-gasto-disco.ts";
 import type { Subagentes } from "./subagentes.ts";
 import { aplicarApagadosLideres, claseDeLider, contextoVivo, transcriptDe as transcriptDeLider } from "./lider.ts";
-import { topeDeLider } from "./modelos-config.ts";
+import { memoriaCompartidaGuardada, topeDeLider } from "./modelos-config.ts";
 import { PA_STATE } from "./pa.ts";
 import { buscarSkills, catalogoSkills, DIAS_USOS, usosDeHistorial, type SkillCatalogo, type UsosCatalogo } from "./skills-catalogo.ts";
 
@@ -40,7 +44,38 @@ const rutaWorker = new Map<string, string>();
 const enVuelo = new Map<string, Promise<Desglose>>();
 const TOPE = 40;
 
+/** Las partes del prefacio de cada líder que no es Claude: armarlas corre el hook de arranque del usuario, así que no se rehacen en cada refresco. */
+const ultimoPrefacio = new Map<string, { llave: string; en: number; partes: Parte[] }>();
+const VIGENCIA_PREFACIO_MS = 5 * 60_000;
+
 const firmaDe = (ruta: string, tr: Transcript, apagados: Apagados) => `${ruta}|${tr.tam}|${tr.mtime}|${JSON.stringify(apagados)}`;
+
+/**
+ * El desglose de un líder que no es Claude (agy, Codex, dsh, OpenCode o un modelo local): el prefacio parte por parte y el resto, mensajes.
+ * Lo usado sale del último pedido de su transcript (los puentes lo escriben con `usage`); sin pedidos todavía, sólo se sabe el prefacio.
+ */
+async function desgloseDeOtroMotor(sid: string, l: { clase: string; modelo: string; cwd: string | undefined; local: boolean }, ls: string[], fresco: boolean): Promise<Desglose> {
+  const local = l.local || l.clase === "ollama";
+  const motor = local ? "local" : (l.clase as "gemini" | "dsh" | "opencode" | "codex");
+  const home = os.homedir();
+  const cwd = l.cwd ?? home;
+  const compartir = memoriaCompartidaGuardada(motor);
+  // El `-c` del llama-server de un local: es su ventana de verdad y lo que topa el contexto que se le arma.
+  const ctx = local ? await destinoLocal(l.modelo).then((d) => d.ctx, () => null) : null;
+  const llave = `${motor}|${l.modelo}|${cwd}|${compartir}|${ctx}`;
+  const previo = ultimoPrefacio.get(sid);
+  let partes = !fresco && previo && previo.llave === llave && Date.now() - previo.en < VIGENCIA_PREFACIO_MS ? previo.partes : null;
+  if (!partes) {
+    partes = await partesDePrefacio({ home, cwd, motor, modelo: l.modelo.replace(/^(?:codex|dsh|opencode):/, ""), ctx: ctx ?? undefined, compartir, pa: resolverPa(process.env, home), env: process.env });
+    ultimoPrefacio.set(sid, { llave, en: Date.now(), partes });
+    if (ultimoPrefacio.size > TOPE) ultimoPrefacio.delete(ultimoPrefacio.keys().next().value as string);
+  }
+  const pedidos = pedidosDe(ls);
+  const compactada = ultimaCompactacion(ls);
+  // Compactó y no hubo otro pedido: el último `usage` es de la conversación que ya no está (sin `postTokens` no se sabe; nunca el número viejo).
+  const usado = compactada?.pendiente ? compactada.tokens : pedidos.length ? pedidos[pedidos.length - 1].total : null;
+  return desdePrefacio({ tipo: "lider", id: sid, motor, modelo: l.modelo, partes, usado, ventana: ctx ?? ventanaDeMotor(l.modelo) });
+}
 
 /** Lo último calculado si la firma sigue igual (y no se pidió fresco): `null` si hay que volver a calcular. */
 const guardado = (clave: string, firma: string | null, fresco: boolean): Desglose | null => {
@@ -116,13 +151,14 @@ async function calcularDesglose(o: Record<string, unknown>, clave: string, fresc
     if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid.slice(0, 80) });
     const l = await claseDeLider(sid);
     const motor = l ? (l.local ? "local" : l.clase) : "claude";
-    if (l && l.clase !== "claude") return sinDesglose({ tipo: "lider", id: sid, motor, modelo: l.modelo });
     const t = await transcriptDeLider(sid, l?.cwd).catch(() => null);
     const tr = await leerTranscript(t).catch(() => null);
     const ls = tr?.lineas ?? [];
     const firma = tr && t ? firmaDe(t, tr, apagados) : null;
     const previo = guardado(clave, firma, fresco);
     if (previo) return previo;
+    // Un líder que no es Claude (agy, Codex, dsh, OpenCode, local, Ollama): no tiene `/context`; se mide lo que Trama le manda al arrancar.
+    if (l && (l.clase !== "claude" || l.local)) return recordar(clave, firma, await desgloseDeOtroMotor(sid, l, ls, fresco));
     const vivo = l && !l.local ? await medirConRespaldo(ultimaMedicion, sid, () => contextoVivo(sid), Date.now, ultimaCompactacion(ls)?.en ?? null) : null;
     if (vivo?.viejo) log.escribir("info", "contexto", `el líder ${sid} no contestó get_context_usage: queda la medición de ${new Date(vivo.en).toISOString()}`);
     // Lo que no es medición nueva no se guarda con la firma: el próximo refresco le vuelve a preguntar aunque el transcript no haya cambiado.
