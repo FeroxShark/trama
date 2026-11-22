@@ -550,6 +550,45 @@
   text-underline-offset: 0.2em;
 }
 
+/* Veredicto de una pieza fija: la palabra y el ícono van siempre (el tinte sólo acompaña); la razón, en una línea al lado. */
+.cp-vd {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-2);
+  border-radius: var(--radio-pastilla);
+  background: var(--capa-tile);
+  color: var(--txt-2);
+  font-weight: 500;
+}
+.cp-vd[data-v="vale"] {
+  background: var(--ok-tinte);
+  color: var(--ok);
+}
+.cp-vd[data-v="dudoso"] {
+  background: var(--aviso-tinte);
+  color: var(--aviso);
+}
+.cp-vd[data-v="sobra"] {
+  background: var(--critico-tinte);
+  color: var(--fallo-texto);
+}
+.cp-vd-razon {
+  min-width: 0;
+  color: var(--txt-3);
+}
+/* La línea de arriba del panel: lo fijo por mensaje y lo recuperable, sin tarjeta (el anillo de abajo ya es la protagonista). */
+.cp-fijo {
+  margin: 0;
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+}
+.cp-fijo b {
+  color: var(--txt-1);
+  font-weight: 500;
+}
+
 /* Cargada por un hook: palabra, ícono y tinte de acento (no hace falta usarla, así que no es candidata a apagar por "nunca usada"). */
 .cp-uso[data-hook] {
   padding: 0 var(--esp-2);

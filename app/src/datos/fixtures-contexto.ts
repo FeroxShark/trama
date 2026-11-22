@@ -14,7 +14,7 @@ const CATS_LIDER = [
   cat("sistema", 9_800),
   cat("herramientas", 15_500),
   cat("mcp", 1_159),
-  cat("skills", 2_820),
+  cat("skills", 5_420),
   cat("memoria", 4_940),
   cat("agentes", 1_100),
   cat("mensajes", 76_500),
@@ -101,6 +101,9 @@ const LIDER: Desglose = {
     { nombre: "workers", origen: "user", plugin: null, tokens: 400, estimado: false, usos: 7, hook: 0 },
     { nombre: "capturas", origen: "project", plugin: null, tokens: 260, estimado: false, usos: 1, hook: 0 },
     { nombre: "caveman:caveman", origen: "plugin", plugin: "caveman@mercado", tokens: 120, estimado: false, usos: 0, hook: 40 },
+    // Una pesada que casi no se usa (dudosa) y la misma skill instalada también por un plugin (duplicada): para el veredicto del panel.
+    { nombre: "investigar", origen: "user", plugin: null, tokens: 2_300, estimado: false, usos: 0, hook: 0 },
+    { nombre: "workers", origen: "plugin", plugin: "oficina@mercado", tokens: 300, estimado: false, usos: 0, hook: 0 },
   ],
   memoria: [
     { ruta: "/home/persona/.claude/CLAUDE.md", tipo: "User", tokens: 1_600, estimado: false },

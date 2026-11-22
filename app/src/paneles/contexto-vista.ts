@@ -115,6 +115,8 @@ export type Item = {
   cortados: number | null;
   /** Está apagada y la medición ya no la trae (el líder la dejó afuera): se muestra para poder prenderla. */
   fantasma: boolean;
+  /** Skills: la clave de otra skill con el mismo nombre que se usa más (la que se queda); `null`: no está duplicada. */
+  duplicadaCon: string | null;
 };
 
 const ultimo = (ruta: string) => ruta.split(/[\\/]/).filter(Boolean).pop() ?? ruta;
@@ -158,7 +160,29 @@ const ITEM_BASE: Item = {
   truncado: false,
   cortados: null,
   fantasma: false,
+  duplicadaCon: null,
 };
+
+/**
+ * Skills con el mismo nombre (la misma skill instalada por dos plugins o a mano y por un plugin): se queda la que más se usó (si empatan, la
+ * la que no es de un plugin) y las otras quedan `duplicadaCon` ella, que es lo que sobra. Las fantasmas no entran.
+ */
+function marcarDuplicadas(items: Item[]): Item[] {
+  const grupos = new Map<string, Item[]>();
+  for (const it of items) {
+    if (it.fantasma) continue;
+    grupos.set(it.nombre, [...(grupos.get(it.nombre) ?? []), it]);
+  }
+  for (const g of grupos.values()) {
+    if (g.length < 2) continue;
+    const usoDe = (i: Item) => Math.max(i.usos ?? 0, i.recientes ?? 0);
+    // El historial de 30 días cuenta por nombre (lo comparten las dos): a igual uso, la de esta sesión más usada y después la que no es de un plugin.
+    const propia = (i: Item) => Number(i.clave === i.nombre);
+    const [quedan, ...otras] = [...g].sort((a, b) => usoDe(b) - usoDe(a) || (b.usos ?? 0) - (a.usos ?? 0) || propia(b) - propia(a) || a.clave.localeCompare(b.clave));
+    for (const o of otras) o.duplicadaCon = quedan.clave;
+  }
+  return items;
+}
 
 export function itemsDe(d: Desglose, cat: Categoria, protegidas: readonly string[] = [], ctx: ContextoItems = {}): Item[] {
   const usos = sabeUsos(d);
@@ -229,7 +253,7 @@ export function itemsDe(d: Desglose, cat: Categoria, protegidas: readonly string
       .sort(orden);
   if (cat === "skills") {
     const rec = ctx.recientes;
-    return d.skills
+    return marcarDuplicadas(d.skills
       .map((s): Item => {
         const clave = claveSkill(s);
         const vecesRec = rec ? (rec.skills[clave] ?? 0) + (clave === s.nombre ? 0 : (rec.skills[s.nombre] ?? 0)) : null;
@@ -249,7 +273,7 @@ export function itemsDe(d: Desglose, cat: Categoria, protegidas: readonly string
           recientes: vecesRec,
         };
       })
-      .concat(fantasmas("skills", (n) => d.skills.some((s) => claveSkill(s) === n || s.nombre === n)))
+      .concat(fantasmas("skills", (n) => d.skills.some((s) => claveSkill(s) === n || s.nombre === n))))
       .sort(orden);
   }
   // El prefacio de un líder que no es Claude: una fila por parte, con lo que se recortó (no se apaga: Trama lo arma al lanzar).
@@ -412,3 +436,94 @@ export function filtrarSkills(lista: SkillCatalogo[], f: FiltroSkills, usos: { s
 
 /** La parte de `n` sobre `total` en porcentaje entero (mínimo 1 si hay algo). */
 export const porcentaje = (n: number, total: number) => (total > 0 && n > 0 ? Math.max(1, Math.round((n / total) * 100)) : 0);
+
+// --- Veredicto de cada pieza fija -------------------------------------------------------------------------------------------------------
+// Lo que se carga siempre (CLAUDE.md, memoria, skills, MCP, herramientas…) pesa en cada mensaje, se use o no. El veredicto dice si vale lo que
+// pesa: «vale», «dudoso» o «sobra», con una razón corta. La regla es pura: entra lo que ya tiene cada fila y sale `{ veredicto, razon }`.
+
+export type Veredicto = "vale" | "dudoso" | "sobra";
+
+/** Una pieza que pesa menos que esto (tokens) no vale la pena sacarla aunque nunca se use: el ahorro no se nota. */
+export const UMBRAL_LIVIANA = 150;
+/** Desde acá una pieza es «pesada»: cerca del 1 % de una ventana de 200 k, lo que cuesta un mensaje largo cada vez. */
+export const UMBRAL_PESADA = 2_000;
+/** Hasta esta cantidad de usos en los 30 días (o en la sesión, sin historial) una pieza se considera «poco usada»: menos que uno cada semana. */
+export const USOS_POCO = 4;
+/** Del peso de lo «dudoso» se cuenta como recuperable la mitad: puede ser que se use cuando hace falta, pero el costo es seguro. */
+export const FRACCION_DUDOSO = 0.5;
+
+/** Lo que mira la regla de una fila: todo ya está en el `Item` (más la categoría). */
+export type Pieza = Pick<Item, "tokens" | "usos" | "recientes" | "nunca" | "porHook" | "diferida" | "fantasma" | "protegida" | "sis" | "duplicadaCon"> & { cat: Categoria };
+
+export type Juicio = { veredicto: Veredicto; razon: { clave: string; vars: Record<string, string | number> } };
+
+const juicio = (veredicto: Veredicto, clave: string, vars: Record<string, string | number> = {}): Juicio => ({ veredicto, razon: { clave, vars } });
+
+/**
+ * El veredicto de una pieza fija; `null` si no cuenta (no está en la ventana: diferida o fantasma, o no pesa nada).
+ * El orden de las reglas es el de lo más seguro a lo más dudoso:
+ *  1. Lo que Trama o un hook necesitan (sistema, herramienta protegida, skill por hook) siempre vale.
+ *  2. Duplicada con otra (la que se queda es la más usada): sobra, se use o no, porque el uso del historial cuenta por nombre y lo comparten las dos.
+ *  3. Nunca usada: sobra, salvo que pese poco (dudoso: no cuesta casi nada, pero tampoco aporta).
+ *  4. Pesada y poco usada: dudoso. Sin datos de uso (memoria, o sesión sin medir) no se afirma nada de «uso»: sólo lo pesado queda dudoso.
+ *  5. El resto vale.
+ */
+export function veredictoDe(p: Pieza): Juicio | null {
+  if (p.diferida || p.fantasma || !p.tokens || p.tokens <= 0) return null;
+  // El prefacio de un motor que no es Claude lo arma Trama al lanzar: no se apaga ni hay datos de uso, así que no se juzga (sí suma a «Fijo»).
+  if (p.cat === "prefacio") return null;
+  if (p.sis !== null || p.protegida) return juicio("vale", "ctxp.vd.fija");
+  if (p.porHook) return juicio("vale", "ctxp.vd.hook");
+  const hayUso = p.usos !== null || p.recientes !== null;
+  const usos = Math.max(p.usos ?? 0, p.recientes ?? 0);
+  // `recientes` es el historial de 30 días de la persona: con él, el dato es de 30 días; sin él, sólo de esta sesión.
+  const ventana = p.recientes !== null ? "30" : "sesion";
+  if (p.duplicadaCon) return juicio("sobra", "ctxp.vd.duplicada", { con: p.duplicadaCon });
+  if (p.nunca) return p.tokens < UMBRAL_LIVIANA ? juicio("dudoso", "ctxp.vd.nuncaLiviana") : juicio("sobra", ventana === "30" ? "ctxp.vd.nunca30" : "ctxp.vd.nuncaSesion");
+  if (!hayUso) return p.tokens >= UMBRAL_PESADA ? juicio("dudoso", "ctxp.vd.pesadaSinDato") : juicio("vale", "ctxp.vd.sinDato");
+  if (p.tokens >= UMBRAL_PESADA && usos <= USOS_POCO) return juicio("dudoso", "ctxp.vd.pesadaPoco", { n: usos });
+  return juicio("vale", ventana === "30" ? "ctxp.vd.usada30" : "ctxp.vd.usadaSesion", { n: usos });
+}
+
+/** Cuánto pesa de más (tokens por mensaje) lo que sobra: todo lo «sobra» y la mitad de lo «dudoso». */
+export function recuperable(piezas: { tokens: number | null; veredicto: Veredicto | null }[]): number {
+  let n = 0;
+  for (const p of piezas) {
+    if (p.veredicto === "sobra") n += p.tokens ?? 0;
+    else if (p.veredicto === "dudoso") n += (p.tokens ?? 0) * FRACCION_DUDOSO;
+  }
+  return Math.round(n);
+}
+
+/** Las categorías que se cargan en cada mensaje y tienen piezas que se juzgan (los mensajes y la reserva no). */
+export const FIJAS: readonly Categoria[] = ["sistema", "herramientas", "mcp", "skills", "memoria", "prefacio"];
+
+/**
+ * `Fijo: N por mensaje · recuperable: M`: lo que ocupa lo que se carga siempre (ya sin lo apagado) y lo que se podría sacar según los
+ * veredictos. Los MCP cuentan por servidor (sus herramientas no se suman otra vez); lo apagado, lo diferido y lo fantasma no cuentan.
+ */
+export function resumenFijo(d: Desglose, ctx: ContextoItems = {}, protegidas: readonly string[] = []): { fijo: number; recuperable: number } {
+  const ap = ctx.apagados ?? null;
+  const cats = categorias(d, ap);
+  let fijo = 0;
+  const piezas: { tokens: number | null; veredicto: Veredicto | null }[] = [];
+  for (const c of cats) {
+    if (!FIJAS.includes(c.id)) continue;
+    fijo += c.tokens;
+    const crudo = d.categorias.filter((x) => x.id === c.id && !x.diferido).reduce((n, x) => n + x.tokens, 0);
+    for (const it of itemsDe(d, c.id, protegidas, { ...ctx, tokensCat: crudo })) {
+      if (ap && it.apaga && estaApagado(ap, it.apaga)) continue;
+      piezas.push({ tokens: it.tokens, veredicto: veredictoDe({ ...it, cat: c.id })?.veredicto ?? null });
+    }
+  }
+  return { fijo, recuperable: Math.min(fijo, recuperable(piezas)) };
+}
+
+/** Primero lo más caro que menos se usa: lo que sobra pesa entero, lo dudoso a medias y lo que vale nada; a igual peso, el más pesado primero. Lo que no está en la ventana, al final. */
+export function ordenarPorVeredicto(items: Item[], cat: Categoria): Item[] {
+  const peso = (i: Item) => {
+    const v = veredictoDe({ ...i, cat })?.veredicto;
+    return (i.tokens ?? 0) * (v === "sobra" ? 1 : v === "dudoso" ? FRACCION_DUDOSO : 0);
+  };
+  return [...items].sort((a, b) => Number(a.diferida || a.fantasma) - Number(b.diferida || b.fantasma) || peso(b) - peso(a) || (b.tokens ?? -1) - (a.tokens ?? -1) || a.nombre.localeCompare(b.nombre));
+}

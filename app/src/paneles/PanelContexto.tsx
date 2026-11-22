@@ -5,7 +5,7 @@
 // es el catálogo de skills (buscar, filtrar, ver tokens, prender y apagar). Los datos: src/datos/contexto.ts; la cuenta y el mapa: contexto-vista.ts.
 // En el celular ocupa la pantalla y sólo se mira (apagar es de la PC).
 import { createContext, Fragment, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleDashed, Info, Lock, Minimize2, PanelRightClose, RefreshCw, Scissors, Search, X, Zap } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleCheck, CircleDashed, CircleHelp, CircleMinus, Info, Lock, Minimize2, PanelRightClose, RefreshCw, Scissors, Search, X, Zap } from "lucide-react";
 import type { Hilo, Lider } from "../datos/contrato";
 import type { Categoria, Desglose } from "../../electron/contexto-desglose";
 import type { UsosCatalogo } from "../../electron/skills-catalogo";
@@ -37,7 +37,10 @@ import {
   fraccionUsada,
   lecturaUsada,
   itemsDe,
+  ordenarPorVeredicto,
+  resumenFijo,
   usadoNeto,
+  veredictoDe,
   pluginDeSkill,
   pluginsDe,
   porcentaje,
@@ -306,10 +309,29 @@ function Uso({ it }: { it: Item }) {
   );
 }
 
+/** `t` con una clave y variables que se arman en `contexto-vista.ts` (el tipado fino no alcanza a una razón que viene de la regla). */
+const tLibre = t as (k: string, v?: Record<string, string | number>) => string;
+
+/** El veredicto de la fila: palabra e ícono (nunca sólo el color) y la razón en una línea. */
+function Veredicto({ it, cat }: { it: Item; cat: Categoria }) {
+  const j = veredictoDe({ ...it, cat });
+  if (!j) return null;
+  const Icono = j.veredicto === "vale" ? CircleCheck : j.veredicto === "dudoso" ? CircleHelp : CircleMinus;
+  return (
+    <>
+      <span className="cp-vd" data-v={j.veredicto}>
+        <Icono size={11} strokeWidth={2.2} aria-hidden />
+        {t(`ctxp.vd.${j.veredicto}` as "ctxp.vd.vale")}
+      </span>
+      <span className="cp-vd-razon">{tLibre(j.razon.clave, { dias: DIAS, ...j.razon.vars })}</span>
+    </>
+  );
+}
+
 /** Los días que mira el historial de usos (electron/skills-catalogo.ts, `DIAS_USOS`). */
 const DIAS = 30;
 
-function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: boolean; estimado: boolean }) {
+function FilaItem({ it, uid, foco, estimado, cat, hijo }: { it: Item; uid: string; foco: boolean; estimado: boolean; cat?: Categoria; hijo?: boolean }) {
   const { apagados } = useContext(Acc);
   const [hijos, setHijos] = useState(false);
   const [texto, setTexto] = useState(false);
@@ -337,7 +359,9 @@ function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: bo
       </span>
       {it.sis || it.cortados !== null ? <span className="cp-sw-hueco" /> : <Interruptor x={it.apaga} nombre={nombre} protegida={it.protegida} />}
       <div className="cp-it-det">
-        <Uso it={it} />
+        {cat && !hijo && !apagado ? <Veredicto it={it} cat={cat} /> : null}
+        {/* Con el veredicto «nunca usada» ya va en su razón: no se repite. */}
+        {cat && !hijo && !apagado && it.nunca && !it.porHook ? null : <Uso it={it} />}
         {it.sis ? <Ayuda k={ayudaSis(it)} nombre={nombre} /> : null}
         {it.nunca && !it.porHook ? <Ayuda k="ctxp.ayuda.nunca" nombre={t("ctxp.usos0")} /> : null}
         {it.cortados ? (
@@ -384,7 +408,7 @@ function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: bo
       {hijos ? (
         <ul id={idHijos} className="cp-hijos" aria-label={t("ctxp.herramientasDe", { srv: it.nombre })}>
           {it.hijos.map((h) => (
-            <FilaItem key={h.clave} it={h} uid={`${uid}-${it.clave}`} foco={false} estimado={estimado} />
+            <FilaItem key={h.clave} it={h} uid={`${uid}-${it.clave}`} foco={false} estimado={estimado} hijo />
           ))}
         </ul>
       ) : null}
@@ -443,6 +467,7 @@ function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; ui
   const usado = usadoNeto(d, apagados);
   const total = d.ventana ?? d.usado ?? 0;
   const compactar = useCompactar(lider ?? null, d, alRefrescar);
+  const fijo = useMemo(() => (motivoDe(d) ? null : resumenFijo(d, { apagados, recientes }, protegidas)), [d, apagados, recientes, protegidas]);
   const elegir = useCallback((c: Categoria, clave: string | null) => {
     setAbierta(c);
     setFoco(clave);
@@ -465,6 +490,11 @@ function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; ui
   return (
     <div className="cp-det">
       <div className="cp-det-izq">
+      {fijo && fijo.fijo > 0 ? (
+        <p className="cp-fijo" data-tip={t("ctxp.vd.resumenTip")}>
+          {t("ctxp.vd.resumen", { fijo: `${tokensCorto(fijo.fijo)}`, recuperable: tokensCorto(fijo.recuperable) })}
+        </p>
+      ) : null}
       {usado !== null && d.ventana ? (
         <div className="cp-ventana" data-nivel={lec?.nivel === "rojo" ? "lleno" : lec?.nivel === "ambar" ? "casi" : undefined}>
           {frac !== null ? (
@@ -503,7 +533,7 @@ function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; ui
       <ul className="cp-cats">
         {cats.map((c) => {
           const crudo = d.categorias.filter((x) => x.id === c.id && !x.diferido).reduce((n, x) => n + x.tokens, 0);
-          const items = CON_ITEMS.has(c.id) ? itemsDe(d, c.id, protegidas, { apagados, recientes, tokensCat: crudo }) : [];
+          const items = CON_ITEMS.has(c.id) ? ordenarPorVeredicto(itemsDe(d, c.id, protegidas, { apagados, recientes, tokensCat: crudo }), c.id) : [];
           const abre = abierta === c.id;
           const idCuerpo = `${uid}-cat-${c.id}`;
           return (
@@ -546,7 +576,7 @@ function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; ui
                               {t(it.diferida ? "ctxp.herr.diferidas" : "ctxp.herr.cargadas", { n: items.filter((x) => x.diferida === it.diferida).length })}
                             </li>
                           ) : null}
-                          <FilaItem it={it} uid={`${uid}-${c.id}`} foco={foco === it.clave} estimado={c.estimado || d.estimado} />
+                          <FilaItem it={it} uid={`${uid}-${c.id}`} foco={foco === it.clave} estimado={c.estimado || d.estimado} cat={c.id} />
                         </Fragment>
                       ))}
                     </ul>
