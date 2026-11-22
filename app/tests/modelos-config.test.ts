@@ -398,6 +398,22 @@ test("sin_cupo: se escribe, reemplaza al sin_claude viejo y se valida", async ()
   await assert.rejects(guardarModelos({ ...c, sin_cupo: "quizas" as never }, undefined, ruta), lanza(/esperar o fallar/));
 });
 
+test("tope_vivos: se lee, se escribe (el 3 de fábrica sale) y se valida", async () => {
+  const ruta = nuevaRuta();
+  escribir(ruta, { ...CONTRATO, tope_vivos: { "*": 4, claude: 2 } });
+  const c: ConfigModelos = structuredClone((await leerModelos(undefined, ruta)).config);
+  assert.deepEqual(c.tope_vivos, { "*": 4, claude: 2 });
+  c.lider = { modelo: "claude-sonnet-5-5", effort: "low" };
+  await guardarModelos(c, undefined, ruta);
+  assert.deepEqual(JSON.parse(readFileSync(ruta, "utf8")).tope_vivos, { "*": 4, claude: 2 });
+  await guardarModelos({ ...c, tope_vivos: 0 }, undefined, ruta);
+  assert.equal(JSON.parse(readFileSync(ruta, "utf8")).tope_vivos, 0);
+  await guardarModelos({ ...c, tope_vivos: 3 }, undefined, ruta);
+  assert.equal("tope_vivos" in JSON.parse(readFileSync(ruta, "utf8")), false);
+  await assert.rejects(guardarModelos({ ...c, tope_vivos: -1 }, undefined, ruta), lanza(/tope de workers vivos/));
+  await assert.rejects(guardarModelos({ ...c, tope_vivos: { claude: 1.5 } }, undefined, ruta), lanza(/tope de workers vivos/));
+});
+
 test("topes de Claude: un `reserva` que ya dice lo mismo no se reescribe", async () => {
   const ruta = nuevaRuta();
   escribir(ruta, { ...CONTRATO, reserva: 0.155 });
