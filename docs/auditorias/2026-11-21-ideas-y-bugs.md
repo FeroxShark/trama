@@ -7,10 +7,9 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 ## Resumen
 
 - **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
-  - arreglado: 136
-  - refutado: 18
-  - pendiente: 3
-  - arreglado a medias: 1
+  - arreglado: 141
+  - refutado: 16
+  - descartado: 1
 - **Ideas: 102**.
 
 | Área | Bugs | Arreglados | Pendientes |
@@ -24,7 +23,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 | Puentes a otros motores | 20 | 20 | 0 |
 | Reparto y cupos | 15 | 15 | 0 |
 | Sistema: instalación, actualización y servicio | 16 | 16 | 0 |
-| Vistos trabajando esta noche | 16 | 9 | 3 |
+| Vistos trabajando esta noche | 16 | 13 | 0 |
 
 ## Bugs
 
@@ -394,7 +393,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/pa/puestos.ts` línea 462 (`Admision.tomarPuesto`).
 - Arreglo: después de tomar el candado del puesto y antes de aceptarlo, validar el `.running`; si su hijo sigue vivo, liberar ese puesto y tratarlo como ocupado. Agregar un test con padre muerto e hijo vivo que impida preparar el worktree.
 
-**B079 · Dos repositorios con igual carpeta comparten worktree** (`PA-CLI-3`, severidad alta) · **ARREGLADO**: la clave sigue siendo el nombre de carpeta (decisión del dueño, sin migración). `pa` escribe `$STATE/<slug>/ruta` al lanzar (`guardarDuenoDelEstado`, también con `--leer` y `--aca`; no en `--hilos`): otra carpeta que existe y es otro repositorio sale 87 pidiendo renombrar una; si la ruta anotada ya no existe se adopta la nueva, y el mismo repositorio en otra ruta sigue. El alta automática de la app no agrega una carpeta con el nombre final repetido. La guarda de `asegurarWorktree` queda de respaldo.
+**B079 · Dos repositorios con igual carpeta comparten worktree** (`PA-CLI-3`, severidad alta) · **ARREGLADO**
 - Qué pasa: dos proyectos distintos llamados, por ejemplo, `/clientes/a/demo` y `/clientes/b/demo` comparten estado, puestos y worktrees. Si tienen historia compatible, el segundo puede terminar escribiendo y commiteando en el repositorio del primero.
 - Dónde: `app/electron/cli/pa/worktrees.ts` línea 538 (`asegurarWorktree`).
 - Arreglo: antes de devolver `true` en la línea 538, comparar el Git común con el del proyecto y rechazar cualquier mezcla. Dar a cada ruta real una clave de estado y worktree inequívoca, conservando una resolución compatible del estado viejo. Probar dos clones con igual basename y nombres distintos del registry.
@@ -727,7 +726,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/cierre-cupo-lectura.ts` (`cierreDe`, `cierreDeModelo`) y `app/electron/cli/reparto.ts`.
 - Arreglo: una entrada con `grupo` sólo cierra a los modelos de ese grupo (`grupoDeModelo`); `reparto` pasa el grupo del candidato.
 
-**B144 · Nada frena lanzar más workers de los que el cupo aguanta** (`NOCHE-10`, severidad alta) · **ARREGLADO**: `tope_vivos` en `modelos.json` (default 3 por grupo de cupo, 0 lo apaga; Ajustes > Plan y cupos > Avanzado), con tests en `app/tests/cli-pa-puestos.test.ts`.
+**B144 · Nada frena lanzar más workers de los que el cupo aguanta** (`NOCHE-10`, severidad alta) · **ARREGLADO**
 - Qué pasa: veinte workers lanzados a la vez contra una suscripción con cupo para pocas corridas pesadas arrancaron todos y murieron a mitad, sin commits. El cupo se mira al lanzar, no lo que ya está corriendo contra esa ventana.
 - Dónde: `app/electron/cli/pa/orquesta.ts`, `app/electron/cli/reparto.ts`.
 - Arreglo: tope de workers vivos por suscripción según el cupo libre y lo medido por corrida; los demás esperan en cola.
@@ -752,7 +751,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/esfuerzo-extras.ts` línea 101 (`argvFast`).
 - Arreglo: pasar el apagado explícito cuando el modelo lo soporta y la persona lo apagó; comprobar en vivo que el aviso se va.
 
-**B149 · Un worker en cola figura como «trabajando» y sin modelo** (`NOCHE-6`, severidad media) · **REFUTADO**
+**B149 · Un worker en cola figura como «trabajando» y sin modelo** (`NOCHE-6`, severidad media) · **ARREGLADO**
 - Qué pasa: un worker que espera puesto sale con estado `trabajando` y `modelo` vacío; hay que mirar `en_cola` para saberlo. La barra lo muestra como corriendo.
 - Dónde: `app/electron/cli/pa/hilo.ts` (`pa --hilos --json`) y la barra.
 - Arreglo: estado propio «en cola» con el modelo pedido.
@@ -767,12 +766,12 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/mcp-trama.ts`.
 - Arreglo: tope de filas y de largo por resultado, filtro por proyecto y por estado, y decir cuántos quedaron afuera.
 
-**B152 · Un brief con una ruta de afuera manda la corrida a otra suscripción sin avisar claro** (`NOCHE-11`, severidad media) · **PENDIENTE**
+**B152 · Un brief con una ruta de afuera manda la corrida a otra suscripción sin avisar claro** (`NOCHE-11`, severidad media) · **ARREGLADO**
 - Qué pasa: si el brief nombra una ruta fuera del proyecto, una dirección web o un comando de red, el worker pedido con otro motor corre en Claude. El aviso sale por la salida de error del lanzamiento y es fácil de perder: se gasta el cupo que se quería cuidar.
 - Dónde: `app/electron/cli/pa/motores/privacidad.ts`, `app/electron/cli/pa/orquesta.ts`.
 - Arreglo: decir en el aviso la línea exacta que lo disparó y ofrecer no lanzar (`--estricto`) en vez de cambiar de motor.
 
-**B153 · Un worker interrumpido queda como «listo»** (`NOCHE-14`, severidad media) · **REFUTADO**
+**B153 · Un worker interrumpido queda como «listo»** (`NOCHE-14`, severidad media) · **ARREGLADO**
 - Qué pasa: un worker de agy cortado desde afuera termina con el texto «agy: interrupted» y sin informe, pero su estado dice `listo`, igual que uno que terminó bien.
 - Dónde: `app/electron/cli/pa/hilo.ts` y el cierre de la corrida en `app/electron/cli/pa/otros-motores.ts`.
 - Arreglo: estado propio para la corrida interrumpida (o `murio`) cuando el motor sale por señal o sin respuesta final.
@@ -792,7 +791,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/pa/lanzar.ts` (a quién se avisa al terminar).
 - Arreglo: permitir decir a qué líder avisar (`--avisar-a <sid>`) y documentarlo.
 
-**B157 · Un worker de arreglos se queda sin turnos a los cuatro bugs** (`NOCHE-13`, severidad baja) · **PENDIENTE**
+**B157 · Un worker de arreglos se queda sin turnos a los cuatro bugs** (`NOCHE-13`, severidad baja) · **DESCARTADO**: decisión: no se construye `--items`; alargar la corrida va contra el ahorro. La skill del líder dice hasta 3 arreglos por worker de código acotado.
 - Qué pasa: el tope por tipo (50 turnos en `codigo-acotado`) corta una corrida con una lista larga de arreglos chicos, que deja el resto sin tocar y sin correr el chequeo final.
 - Dónde: `app/electron/cli/pa/opciones.ts` (`topeDeTurnos`).
 - Arreglo: que el brief o el tipo puedan pedir una lista («hasta N ítems») y el tope crezca con ella, o partir la lista sola en varias corridas en serie.
