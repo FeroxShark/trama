@@ -84,10 +84,16 @@ export function listaSeguir<T extends OpcionSeguir>(opciones: readonly T[], cupo
 export const filasSeguir = <T extends OpcionSeguir>(grupos: readonly GrupoSeguir<T>[]): FilaSeguir<T>[] => grupos.flatMap((g) => g.filas);
 
 /** Qué fila queda resaltada al abrir: la primera que se puede elegir y tiene cupo; si no hay, la primera que se puede elegir; si no, ninguna (-1). */
-export function resaltadaInicial(filas: readonly FilaSeguir[]): number {
+export function resaltadaInicial(filas: readonly FilaSeguir[], preferido?: string): number {
+  const p = preferido ? filas.findIndex((f) => f.opcion.id === preferido && !noElegible(f) && !f.cupo?.sin) : -1;
+  if (p >= 0) return p;
   const libre = filas.findIndex((f) => !noElegible(f) && !f.cupo?.sin);
   return libre >= 0 ? libre : filas.findIndex((f) => !noElegible(f));
 }
+
+/** Un repintado conserva la selección si la búsqueda y el orden de las filas siguen iguales. */
+export const claveResaltada = (filas: readonly FilaSeguir[], busqueda: string): string =>
+  JSON.stringify([busqueda, filas.map((f) => f.opcion.id)]);
 
 /** A dónde va la resaltada con una flecha, saltando el modelo actual (no se elige). Sin otra fila elegible, queda donde estaba. */
 export function moverSeguir(filas: readonly FilaSeguir[], i: number, tecla: "ArrowDown" | "ArrowUp"): number {

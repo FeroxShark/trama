@@ -7,6 +7,10 @@ export type PendienteTurno = { modelo: boolean; effort: boolean };
 
 const SIN: PendienteTurno = { modelo: false, effort: false };
 
+/** Sigue al servidor sólo si la caja todavía muestra lo que decía antes. */
+export const seguirServidor = (caja: string, anterior: string | null | undefined, nuevo: string): string =>
+  caja === anterior ? nuevo : caja;
+
 /**
  * Lo elegido en la caja que todavía no usa el turno en curso. `turno`: el modelo y el esfuerzo con que corre (los del líder);
  * sin turno en curso no hay nada pendiente (el próximo mensaje sale con lo elegido y ya).

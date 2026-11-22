@@ -2,9 +2,11 @@
 // avisos de límite) y cómo se ordena y se marca la lista de modelos que abre.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { AvisoVisto } from "../src/hilo/avisos.ts";
 import type { EstadoCupo } from "../src/hilo/cupo-modelos.ts";
-import { filasSeguir, listaSeguir, moverSeguir, ofreceSeguir, resaltadaInicial, seguibleLider, seguibleWorker, type OpcionSeguir } from "../src/hilo/seguir-con.ts";
+import { claveResaltada, filasSeguir, listaSeguir, moverSeguir, ofreceSeguir, resaltadaInicial, seguibleLider, seguibleWorker, type OpcionSeguir } from "../src/hilo/seguir-con.ts";
 
 const op = (id: string, grupo: string, extra: Partial<OpcionSeguir> = {}): OpcionSeguir => ({ id, nombre: id.toUpperCase(), desc: `modelo ${id}`, grupo, ...extra });
 const OPCIONES = [op("a1", "Anthropic"), op("a2", "Anthropic"), op("a3", "Anthropic"), op("g1", "Google"), op("g2", "Google"), op("o1", "OpenCode", { col: "oc", colNombre: "OpenCode · gratis" })];
@@ -79,4 +81,18 @@ test("las flechas saltan el modelo actual y no pasan de los extremos", () => {
   assert.equal(moverSeguir(filas, 2, "ArrowDown"), 2);
   assert.equal(moverSeguir(filas, 0, "ArrowUp"), 0);
   assert.equal(moverSeguir(filas, -1, "ArrowDown"), 0);
+});
+
+test("la resaltada sobrevive al repintado si la búsqueda y los ids siguen iguales", () => {
+  const filas = filasSeguir(listaSeguir(OPCIONES, cupos({}), null, ""));
+  const repintadas = filasSeguir(listaSeguir(OPCIONES.map((o) => ({ ...o })), cupos({ a2: poco }), null, ""));
+  const clave = claveResaltada(filas, "");
+  assert.notEqual(repintadas[1], filas[1]);
+  assert.equal(claveResaltada(repintadas, ""), clave);
+  assert.notEqual(claveResaltada(repintadas, "modelo"), clave, "otra búsqueda aunque dé las mismas filas");
+  assert.notEqual(claveResaltada(repintadas.slice(1), ""), clave, "cambió la lista");
+  assert.notEqual(claveResaltada([...repintadas].reverse(), ""), clave, "cambió el orden");
+  const selector = readFileSync(path.join(import.meta.dirname, "..", "src", "hilo", "SeguirCon.tsx"), "utf8");
+  assert.match(selector, /const clave = claveResaltada\(filas, busqueda\)/);
+  assert.match(selector, /const resaltada = seleccion\?\.clave === clave \? seleccion\.indice : resaltadaInicial/);
 });

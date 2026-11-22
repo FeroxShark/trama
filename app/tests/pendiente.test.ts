@@ -18,9 +18,19 @@ registerHooks({
   },
 });
 
-const { opcionesEnTurno, pendienteDe } = await import("../src/hilo/pendiente.ts");
+const { opcionesEnTurno, pendienteDe, seguirServidor } = await import("../src/hilo/pendiente.ts");
 
 const turno = { modelo: "claude-opus-5-5", effort: "high" };
+
+test("un cambio del servidor conserva el modelo y el esfuerzo que la persona ya eligió", () => {
+  assert.equal(seguirServidor("modelo-caja", "modelo-anterior", "modelo-nuevo"), "modelo-caja");
+  assert.equal(seguirServidor("low", "high", "medium"), "low");
+});
+
+test("la caja sigue el cambio del servidor si todavía tiene sus valores anteriores", () => {
+  assert.equal(seguirServidor("modelo-anterior", "modelo-anterior", "modelo-nuevo"), "modelo-nuevo");
+  assert.equal(seguirServidor("high", "high", "medium"), "medium");
+});
 
 test("sin turno en curso no hay nada pendiente (el próximo mensaje sale con lo elegido y ya)", () => {
   assert.deepEqual(pendienteDe({ ocupado: false, modelo: "claude-sonnet-5-5", effort: "low", turno }), { modelo: false, effort: false });

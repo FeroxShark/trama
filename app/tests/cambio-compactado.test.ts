@@ -186,6 +186,16 @@ test("tiempo límite (mock.timers): vence si no empieza a compactar; si ya empez
   assert.equal(siguienteCambio(empezado, { tipo: "vencio" }).fase, "compactando");
 });
 
+test("la caja del líder queda de sólo lectura mientras espera el envío tras compactar", () => {
+  const lider = readFileSync(path.join(import.meta.dirname, "..", "src", "hilo", "Lider.tsx"), "utf8");
+  assert.match(lider, /const compactoCacheActivo = !!compactoCache && !compactoCache\.restaurado/);
+  assert.match(lider, /const cajaSoloLectura = enviando \|\| compactoCacheActivo/);
+  assert.match(lider, /<textarea\b[^>]*readOnly=\{cajaSoloLectura\}/);
+  assert.match(lider, /if \(leerBorrador\(clave\)\.texto === pend\.crudo\) enviar\(pend\.crudo/);
+  const salir = lider.slice(lider.indexOf("const salir ="), lider.indexOf("fuente.liderMandar(l.id, empezar"));
+  assert.match(salir, /if \(leerBorrador\(clave\)\.texto === crudo\) \{\s+setTexto\(""\)/);
+});
+
 test("useCompactar vive en compactar.ts y las claves i18n nuevas existen en es y en", () => {
   const ctx = readFileSync(path.join(import.meta.dirname, "..", "src", "paneles", "PanelContexto.tsx"), "utf8");
   const lider = readFileSync(path.join(import.meta.dirname, "..", "src", "hilo", "Lider.tsx"), "utf8");

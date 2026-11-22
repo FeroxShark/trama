@@ -58,7 +58,7 @@ import { OfertaCuenta } from "./OfertaCuenta";
 import { TarjetaCierre } from "./TarjetaCierre";
 import { useCierre } from "./cierre-vivo";
 import { cuentasClaude, ofertaDeCambio } from "../barra/cupos-riel-logica";
-import { opcionesEnTurno, pendienteDe } from "./pendiente";
+import { opcionesEnTurno, pendienteDe, seguirServidor } from "./pendiente";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import { DialogoCache } from "./DialogoCache";
 import { opcionCompactarCache } from "./cache-compactar";
@@ -449,25 +449,38 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tablaModelos]);
   const [cambioCompacto, dispatchCambio] = useReducer(siguienteCambio, undefined, estadoInicialCambio);
+  const [compactoCache, setCompactoCache] = useState<{
+    crudo: string;
+    modoNuevoYa?: Modo;
+    compactarCon: string;
+    destino: { modelo: string; effort: string };
+    restaurado?: boolean;
+  } | null>(null);
+  const compactoCacheActivo = !!compactoCache && !compactoCache.restaurado;
+  const cajaSoloLectura = enviando || compactoCacheActivo;
   const compactoBase = useRef<{ fines: number; compactos: number }>({ fines: 0, compactos: 0 });
   const sidActual = useRef(sid);
   sidActual.current = sid;
-  // El modelo del líder cambió del otro lado (otro motor confirmado en otra ventana o el celular, /model): la caja lo sigue.
-  // Sin esto quedaba el de cuando se abrió la conversación, y Volver/Editar mandaba ese (un DeepSeek después de pasar a Opus).
+  // La caja sigue el cambio de modelo del líder en otra ventana si la persona todavía no eligió otra cosa acá.
   const modeloServidor = l ? modeloDe(l.modelo) : undefined;
-  const effortServidor = l?.effort;
-  const vistoServidor = useRef(modeloServidor);
+  const effortServidor = useMemo(
+    () => modeloServidor ? (effortDe(l?.effort, modeloServidor) ?? effortPara(modeloServidor, effortsLeidos() ?? {})) : undefined,
+    [modeloServidor, l?.effort],
+  );
+  const vistoServidor = useRef({ modelo: modeloServidor, effort: effortServidor });
   useEffect(() => {
-    if (!modeloServidor || modeloServidor === vistoServidor.current) return;
-    vistoServidor.current = modeloServidor;
-    // Si la caja ya está en ese modelo, es la confirmación de un cambio hecho acá (`cola.elegir`): no se pisa el esfuerzo,
-    // que pudo cambiar mientras el main contestaba (`/model sonnet` y enseguida `/effort low`).
-    if (modeloServidor !== modelo) {
-      setModelo(modeloServidor);
-      setEffort(effortDe(effortServidor, modeloServidor) ?? effortPara(modeloServidor, effortsLeidos() ?? {}));
+    const anterior = vistoServidor.current;
+    if (!modeloServidor || effortServidor === undefined) return;
+    vistoServidor.current = { modelo: modeloServidor, effort: effortServidor };
+    // Mientras compacta desde caché, esa operación restaura el modelo elegido aunque llegue tarde el eco del modelo que compactó.
+    if (modeloServidor === anterior.modelo || compactoCacheActivo) return;
+    setModelo((m) => seguirServidor(m, anterior.modelo, modeloServidor));
+    // Lo elegido para otro modelo ya lleva su propio esfuerzo, incluso al llegar la confirmación del servidor.
+    if (modelo === anterior.modelo) setEffort((e) => seguirServidor(e, anterior.effort, effortServidor));
+    if (!compactoCache && cambioCompacto.fase === "hecho" && modeloServidor === cambioCompacto.destino.modelo) {
+      dispatchCambio({ tipo: "reiniciar" });
     }
-    if (cambioCompacto.fase === "hecho" && modeloServidor === cambioCompacto.destino.modelo) dispatchCambio({ tipo: "reiniciar" });
-  }, [modeloServidor, effortServidor, cambioCompacto, modelo]);
+  }, [modeloServidor, effortServidor, cambioCompacto, compactoCache, compactoCacheActivo, modelo]);
   // Con un turno en curso los selectores siguen abiertos: lo elegido del mismo motor lo toma el turno ya (desde su próximo pedido a la
   // API, `cambiarEnTurno`); lo que no se puede en vivo va con el próximo mensaje. Mientras difiere de lo que usa el turno, se marca en el selector.
   const turnoModelo = modeloDe(l?.modelo);
@@ -514,8 +527,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     [agy, modelo, effort, listaEstilos, estilos.actual],
   );
   const mn = useMemo(
-    () => (puede && !sinMenu ? menuEn(texto, caret, comandos, valores, modelo, deOtro) : null),
-    [puede, sinMenu, texto, caret, comandos, valores, modelo, deOtro],
+    () => (puede && !sinMenu && !compactoCacheActivo ? menuEn(texto, caret, comandos, valores, modelo, deOtro) : null),
+    [puede, sinMenu, compactoCacheActivo, texto, caret, comandos, valores, modelo, deOtro],
   );
   const menu = mn?.filas ?? [];
   const [nota, setNota] = useState<string | null>(null);
@@ -840,6 +853,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
 
   /** Lo que se escribió: un comando de la app se resuelve acá; lo demás va al líder. */
   const ejecutar = (crudo: string) => {
+    if (compactoCacheActivo) return;
     if (!crudo.trim()) return enviar(crudo);
     const a = parsearComando(crudo, MODELOS, effortsDe(modelo), listaEstilos, modelo);
     if (a.tipo === "texto") return enviar(crudo);
@@ -1000,13 +1014,6 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       ? { veredicto: { accion: "preguntar", tokensSeguir: 128000, tokensResumen: 26000 }, crudo: "" }
       : null,
   );
-  const [compactoCache, setCompactoCache] = useState<{
-    crudo: string;
-    modoNuevoYa?: Modo;
-    compactarCon: string;
-    destino: { modelo: string; effort: string };
-    restaurado?: boolean;
-  } | null>(null);
   const veredictoCache = (): VeredictoCache =>
     decidirCache({
       modelo: l?.modelo ?? modelo,
@@ -1107,8 +1114,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     let salieron = false;
     const mal = (err: unknown) => {
       const msg = mensaje(err);
-      ponerBorrador(clave, { texto: crudo, error: msg });
-      setTexto(crudo); setCaret(crudo.length);
+      ponerBorrador(clave, { error: msg });
+      if (leerBorrador(clave).texto === crudo) {
+        setTexto(crudo); setCaret(crudo.length);
+      }
       setErrorCaja(msg);
       setEnviando(false);
       if (salieron && adjuntos.length) agregarAdjuntos(clave, [...(imagenes ?? []), ...archivos]);
@@ -1150,10 +1159,12 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         enviado(l.id, t, total, imagenes);
         scroll.current = { tipo: "fondo" };
       }
-      setTexto(""); setCaret(0);
+      if (leerBorrador(clave).texto === crudo) {
+        setTexto(""); setCaret(0);
+      }
       fuente.liderMandar(l.id, empezar ? { ...e, empezar } : e).then(
         (nuevo) => {
-          ponerBorrador(clave, { texto: "", error: null });
+          if (leerBorrador(clave).texto === crudo) ponerBorrador(clave, { texto: "", error: null });
           setEnviando(false);
           if (nuevo) {
             enviado(nuevo, t, 0, imagenes);
@@ -1220,6 +1231,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   };
   // El texto pegado sigue su camino; los archivos del portapapeles, a la caja.
   const pegar = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (compactoCacheActivo) return;
     const fs = archivosDeDatos(e.clipboardData);
     if (!fs.length) {
       // Sin nada que el navegador sepa pegar (otro tipo de texto, un offer viejo): el main lee el portapapeles.
@@ -1229,7 +1241,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       const c = e.currentTarget;
       const [ini, fin] = [c.selectionStart, c.selectionEnd];
       void leer.texto().then((t) => {
-        if (!t) return;
+        if (!t || c.readOnly) return;
         const base = c.value;
         const p = ini + t.length;
         pendiente.current = p;
@@ -1411,7 +1423,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       const pend = compactoCache;
       setCompactoCache(null);
       dispatchCambio({ tipo: "reiniciar" });
-      enviar(pend.crudo, pend.modoNuevoYa, "seguir");
+      if (leerBorrador(clave).texto === pend.crudo) enviar(pend.crudo, pend.modoNuevoYa, "seguir");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compactoCache, cambioCompacto, ocupado, modelo]);
@@ -1655,7 +1667,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               rows={1}
               spellCheck={corrige}
               value={texto}
-              readOnly={enviando}
+              readOnly={cajaSoloLectura}
               // Con el dedo, enfocar abre el teclado y tapa lo que se vino a leer: se toca la caja.
               autoFocus={!MODO.captura && !esTactil()}
               placeholder={ocupado ? tr("lider.phOcupado") : l ? tr("vista.ph") : tr("lider.ph")}
@@ -1844,7 +1856,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
                 className="prim"
                 aria-label={tr("lider.mandar")}
                 data-tip="Enter"
-                disabled={(!texto.trim() && !adjuntos.length) || enviando}
+                disabled={(!texto.trim() && !adjuntos.length) || cajaSoloLectura}
                 onClick={() => ejecutar(texto)}
               >
                 <ArrowUp size={14} strokeWidth={2.4} />
@@ -2171,8 +2183,11 @@ function PedidoPermiso({ sid, p, revisado = false }: { sid: string; p: Pedido; r
   // «Revisar con otro modelo»: el selector de revisor (sólo Claude o Gemini no desactivados en Ajustes).
   const [revisando, setRevisando] = useState(plan && ((MODO.captura === "lider-plan" && MODO.variante === "revisar") || MODO.captura === "lider-revision-sin-sesion"));
   const [revisores, setRevisores] = useState<string[] | null>(null);
+  const tablaModelos = useModelosVivos();
+  const opciones = useMemo(() => MODELOS.filter((m) => revisores?.includes(m.id)), [revisores, tablaModelos]);
   // Lo que Ajustes > Modelos dejó prendido por modelo: de ahí salen los esfuerzos que se ofrecen (los apagados no).
   const [permitidos, setPermitidos] = useState<PermitidosAjustes>(null);
+  const esfuerzos = useCallback((m: string) => esfuerzosDeRevisor(m, permitidos), [permitidos, tablaModelos]);
   // Los dos hooks siempre, en el mismo orden: con `||` el segundo se salteaba al arrancar la revisión y React se rompía.
   const revision = useRevision(sid);
   const debate = useDebate(sid);
@@ -2275,15 +2290,15 @@ function PedidoPermiso({ sid, p, revisado = false }: { sid: string; p: Pedido; r
       {revisando && revisores ? (
         <SeguirCon
           de="revisar"
-          opciones={MODELOS.filter((m) => revisores.includes(m.id))}
+          opciones={opciones}
           actual={null}
           preferido={REVISOR_DEFECTO}
           busquedaInicial={MODO.captura === "lider-revision-sin-sesion" ? "ge" : undefined}
-          esfuerzos={(m) => esfuerzosDeRevisor(m, permitidos)}
+          esfuerzos={esfuerzos}
           alElegir={async (elegido, effort) => {
             // El main arranca al revisor y vuelve enseguida: el progreso se ve en el modal y, si se cierra, en el chat (RevisionVista).
             // Al terminar, el main le niega el plan al líder y le entrega la revisión por su cola; la tarjeta llega por el transcript.
-            await fuente.liderRevisarPlan(sid, p.id, { modelo: elegido, effort: effort ?? esfuerzosDeRevisor(elegido, permitidos).defecto, nombre: nombreModelo(elegido) });
+            await fuente.liderRevisarPlan(sid, p.id, { modelo: elegido, effort: effort ?? esfuerzos(elegido).defecto, nombre: nombreModelo(elegido) });
             setRevisando(false);
             modalRevision(sid, true);
           }}

@@ -17,7 +17,7 @@ import { cuandoFuturo } from "../tiempo";
 import { Boton, Interruptor } from "../ui/componentes";
 import { estadosCupoModelos } from "./cupo-modelos.ts";
 import { peorCasoLlamadas } from "./debate-logica.ts";
-import { filasSeguir, listaSeguir, moverSeguir, noElegible, resaltadaInicial, sinSesionDe, type OpcionSeguir, type SinSesion } from "./seguir-con.ts";
+import { claveResaltada, filasSeguir, listaSeguir, moverSeguir, noElegible, resaltadaInicial, sinSesionDe, type OpcionSeguir, type SinSesion } from "./seguir-con.ts";
 import "./seguir-dialogo.css";
 import "./debate.css";
 
@@ -97,12 +97,12 @@ export function SeguirCon({ de, opciones, actual, alElegir, alDebatir, alCerrar:
   const cupos = useMemo(() => estadosCupoModelos(opciones.map((o) => o.id), uso, Date.now() / 1000), [opciones, uso]);
   const grupos = useMemo(() => listaSeguir(opciones, cupos, actual, busqueda, sesiones), [opciones, cupos, actual, busqueda, sesiones]);
   const filas = useMemo(() => filasSeguir(grupos), [grupos]);
-  const [resaltada, setResaltada] = useState(-1);
-  // Al cambiar la búsqueda o llegar el cupo, la resaltada vuelve a la primera que se puede usar ya.
-  useEffect(() => {
-    const p = preferido ? filas.findIndex((f) => f.opcion.id === preferido && !noElegible(f) && !f.cupo?.sin) : -1;
-    setResaltada(p >= 0 ? p : resaltadaInicial(filas));
-  }, [filas, preferido]);
+  const clave = claveResaltada(filas, busqueda);
+  const [seleccion, setSeleccion] = useState<{ clave: string; indice: number } | null>(null);
+  // Hasta que la persona elija, el cupo y las cuentas definen la fila inicial.
+  if (seleccion && seleccion.clave !== clave) setSeleccion(null);
+  const resaltada = seleccion?.clave === clave ? seleccion.indice : resaltadaInicial(filas, preferido);
+  const setResaltada = (indice: number) => setSeleccion({ clave, indice });
   useEffect(() => {
     lista.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
   }, [resaltada]);
@@ -154,7 +154,7 @@ export function SeguirCon({ de, opciones, actual, alElegir, alDebatir, alCerrar:
   const tecla = (e: KeyboardEvent) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      setResaltada((i) => moverSeguir(filas, i, e.key as "ArrowDown" | "ArrowUp"));
+      setResaltada(moverSeguir(filas, resaltada, e.key));
     } else if (e.key === "Enter" && resaltada >= 0 && filas[resaltada] && (e.target as HTMLElement).tagName === "INPUT") {
       e.preventDefault();
       if (enDebate) alternar(filas[resaltada].opcion.id);
