@@ -15,7 +15,7 @@ registerHooks({
   },
 });
 
-const { CACHE_QUOTA_FONDO_S, entornoCupos, parsearCuposReparto } = await import("../electron/cupos.ts");
+const { CACHE_QUOTA_FONDO_S, entornoCupos, lecturaClaudeDeCupos, parsearCuposReparto } = await import("../electron/cupos.ts");
 
 const AHORA = Date.parse("2026-10-24T18:00:00Z");
 const s = (iso: string) => Math.round(Date.parse(iso) / 1000);
@@ -166,15 +166,20 @@ describe("parsearCuposReparto", () => {
     assert.equal(res?.suscripciones[0].grupos, undefined);
   });
 
-  it("Claude sin las dos ventanas no se usa como fuente (no se inventa la que falta)", () => {
-    const json = JSON.stringify({
-      version: 1,
-      suscripciones: [
-        { id: "claude", nombre: "Claude", ventanas: [{ id: "5h", usado: 0.2, vuelve: null }, { id: "7d", usado: null, vuelve: null }] },
-        { id: "google", nombre: "Google AI Pro", grupos: [{ id: "g", nombre: "G", ventanas: [{ id: "7d", usado: 0.1, vuelve: null }] }] },
-      ],
-    });
-    assert.equal(parsearCuposReparto(json, AHORA)?.claude, undefined);
+  it("Claude con una sola ventana conocida la conserva y deja la otra en null (no se inventa un 0 %)", () => {
+    const con = (v5: number | null, v7: number | null) =>
+      JSON.stringify({
+        version: 1,
+        suscripciones: [{ id: "claude", nombre: "Claude", ventanas: [{ id: "5h", usado: v5, vuelve: null }, { id: "7d", usado: v7, vuelve: "2026-10-30T04:01:00Z" }] }],
+      });
+    assert.deepEqual(parsearCuposReparto(con(0.2, null), AHORA)?.claude, { cincoH: 20, sieteD: null });
+    const sem = parsearCuposReparto(con(null, 0.99), AHORA)?.claude;
+    assert.deepEqual(sem, { cincoH: null, sieteD: 99, reseteaSieteD: Date.parse("2026-10-30T04:01:00Z") });
+    // Y como lectura para la cabecera: la semana al 99 % se ve aunque no haya 5 h; la que falta es null.
+    assert.deepEqual(lecturaClaudeDeCupos(sem, 5), { five_hour: null, seven_day: { pct: 99, resets_at: Math.round(Date.parse("2026-10-30T04:01:00Z") / 1000), ts: 5 } });
+    assert.deepEqual(lecturaClaudeDeCupos({ cincoH: 20, sieteD: null }, 5), { five_hour: { pct: 20, resets_at: null, ts: 5 }, seven_day: null });
+    assert.equal(parsearCuposReparto(con(null, null), AHORA)?.claude, undefined);
+    assert.equal(lecturaClaudeDeCupos(undefined, 5), null);
   });
 
   it("otra versión, JSON roto o nada que mostrar dan null", () => {

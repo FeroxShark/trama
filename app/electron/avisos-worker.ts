@@ -118,7 +118,7 @@ export function proveedorDe(modelo: string | null | undefined): Proveedor {
 
 /** Lo que se sabe de los cupos (la forma de `CuposLeidos`, electron/cupos.ts, sin importarlo). */
 export type CuposMin = {
-  claude?: { cincoH: number; sieteD: number; reseteaCincoH?: number; reseteaSieteD?: number };
+  claude?: { cincoH: number | null; sieteD: number | null; reseteaCincoH?: number; reseteaSieteD?: number };
   suscripciones: {
     proveedor?: string;
     agotado?: number;
@@ -133,8 +133,8 @@ export function vuelveDe(cupos: CuposMin | null | undefined, proveedor: Proveedo
   const hs: number[] = [];
   if (proveedor === "claude" && cupos.claude) {
     const c = cupos.claude;
-    if (c.cincoH >= 100 && c.reseteaCincoH) hs.push(Math.round(c.reseteaCincoH / 1000));
-    if (c.sieteD >= 100 && c.reseteaSieteD) hs.push(Math.round(c.reseteaSieteD / 1000));
+    if (c.cincoH !== null && c.cincoH >= 100 && c.reseteaCincoH) hs.push(Math.round(c.reseteaCincoH / 1000));
+    if (c.sieteD !== null && c.sieteD >= 100 && c.reseteaSieteD) hs.push(Math.round(c.reseteaSieteD / 1000));
   }
   const llenas = (vs: { pct: number | null; vuelve: number | null; deshabilitada?: boolean }[] = []) =>
     vs.filter((v) => !v.deshabilitada && v.pct !== null && v.pct >= 100 && v.vuelve !== null).map((v) => v.vuelve as number);

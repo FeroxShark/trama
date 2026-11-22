@@ -46,8 +46,9 @@ export interface CuposLeidos {
   ts: number;
   /** Las dos ventanas de Claude, si el reparto las sabe (una fuente más para la barra de Claude; epoch ms). */
   claude?: {
-    cincoH: number;
-    sieteD: number;
+    /** `null`: esa ventana no se sabe (con la otra conocida); nunca se inventa un 0 %. */
+    cincoH: number | null;
+    sieteD: number | null;
     reseteaCincoH?: number;
     reseteaSieteD?: number;
   };
@@ -143,12 +144,12 @@ export function parsearCuposReparto(salida: string, ahoraMs = Date.now()): Cupos
       claudeNombre = texto(o.nombre);
       const c5 = ventanas.find((v) => v.id === "5h");
       const c7 = ventanas.find((v) => v.id === "7d");
-      if (c5?.pct != null && c7?.pct != null) {
+      if (c5?.pct != null || c7?.pct != null) {
         claude = {
-          cincoH: c5.pct,
-          sieteD: c7.pct,
-          ...(c5.vuelve !== null ? { reseteaCincoH: c5.vuelve * 1000 } : {}),
-          ...(c7.vuelve !== null ? { reseteaSieteD: c7.vuelve * 1000 } : {}),
+          cincoH: c5?.pct ?? null,
+          sieteD: c7?.pct ?? null,
+          ...(c5?.pct != null && c5.vuelve !== null ? { reseteaCincoH: c5.vuelve * 1000 } : {}),
+          ...(c7?.pct != null && c7.vuelve !== null ? { reseteaSieteD: c7.vuelve * 1000 } : {}),
         };
       }
       continue;
@@ -171,6 +172,14 @@ export function parsearCuposReparto(salida: string, ahoraMs = Date.now()): Cupos
   }
   if (!claude && suscripciones.length === 0) return null;
   return { ts, ...(claude ? { claude } : {}), ...(claudeNombre ? { claudeNombre } : {}), suscripciones };
+}
+
+/** Las ventanas de Claude que sabe el reparto, como una lectura más para `usoDe` (cada ventana por separado; la que no se sabe, `null`). */
+export function lecturaClaudeDeCupos(claude: CuposLeidos["claude"], tsS: number) {
+  if (!claude || (claude.cincoH === null && claude.sieteD === null)) return null;
+  const ventana = (pct: number | null, resetea: number | undefined) =>
+    pct === null ? null : { pct, resets_at: resetea ? Math.round(resetea / 1000) : null, ts: tsS };
+  return { five_hour: ventana(claude.cincoH, claude.reseteaCincoH), seven_day: ventana(claude.sieteD, claude.reseteaSieteD) };
 }
 
 const TTL_CUPOS_MS = 60_000;

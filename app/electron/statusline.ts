@@ -22,7 +22,7 @@ import { cargarGenerados, generadoDe, generarSiHaceFalta } from "./titulo-chat.j
 import { titulosFijos } from "./titulo-fijo.js";
 import { creadoEn, proyectoEnTexto, proyectoPorUso, temaDe, tituloDeRama } from "./tema.js";
 import { hayClaves, leerClavesSync } from "./claves.ts";
-import { cuposActuales, cuposLeyendo, type SuscripcionCupo } from "./cupos.js";
+import { cuposActuales, cuposLeyendo, lecturaClaudeDeCupos, type SuscripcionCupo } from "./cupos.js";
 import { modelosNim, TOPE_NIM_MIN } from "./nvidia-nim.ts";
 import { marcasOpencode } from "./opencode-agotado.js";
 import { hayOpencode, planOpencode } from "./opencode.js";
@@ -224,20 +224,7 @@ export async function leerStatusline(): Promise<Statusline> {
   const visto = await usoVisto();
   const cupos = cuposActuales();
   const tsCupos = cupos ? Math.round(cupos.ts / 1000) : 0;
-  const lecturaCupos = cupos?.claude
-    ? {
-        five_hour: {
-          pct: cupos.claude.cincoH,
-          resets_at: cupos.claude.reseteaCincoH ? Math.round(cupos.claude.reseteaCincoH / 1000) : null,
-          ts: tsCupos,
-        },
-        seven_day: {
-          pct: cupos.claude.sieteD,
-          resets_at: cupos.claude.reseteaSieteD ? Math.round(cupos.claude.reseteaSieteD / 1000) : null,
-          ts: tsCupos,
-        },
-      }
-    : null;
+  const lecturaCupos = lecturaClaudeDeCupos(cupos?.claude, tsCupos);
   // OpenCode, como un proveedor más: con `opencode` instalado (o un plan Go elegido, o algo agotado) va su fila, con los pedidos que contó Trama
   // (los gratis comparten uno; con Go, cada modelo contra su tope de go-topes.json) y las marcas de los 429 (electron/opencode-pedidos.ts).
   // Cada cuenta agregada de OpenCode (CLI `cuentas`) va en su fila, con su plan, sus pedidos y sus marcas (`@<cuenta>`), como las de Claude o Google.
