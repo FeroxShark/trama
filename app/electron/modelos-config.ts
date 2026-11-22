@@ -142,8 +142,10 @@ export async function leerModelos(correr?: CorrerPa, ruta = rutaModelos()): Prom
  */
 export async function guardarModelos(x: unknown, correr?: CorrerPa, ruta = rutaModelos()): Promise<EstadoModelos> {
   const c = validarConfig(x);
-  // Todo leer → unir → escribir va en fila por archivo real: dos guardados seguidos se aplican uno tras otro (el segundo ve lo del primero).
-  const clave = await realpath(ruta).catch(() => path.resolve(ruta));
+  // Todo leer → unir → escribir va en fila por archivo: dos guardados seguidos se aplican uno tras otro (el segundo ve lo del primero).
+  // La clave se saca sin esperar: con un `realpath` asíncrono el orden de la fila dependía de cuál terminaba primero, y en Windows el
+  // realpath del archivo ya creado expande los nombres cortos (RUNNER~1) y daba otra clave que el del que todavía no existía.
+  const clave = path.resolve(ruta);
   await enFilaModelos(clave, async () => {
     const crudo = await leerCrudo(ruta);
     if (crudo.error) throw new Error(crudo.error);
