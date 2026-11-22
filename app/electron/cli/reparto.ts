@@ -2107,6 +2107,13 @@ function grabarAgotados(state: string, d: Obj) {
   grabarJson(path.join(state, "agotado.json"), o);
 }
 
+/** Con una marca de agotado la ventana vale lleno hasta `hasta`, pero un reinicio medido más tardío (la semana) no se pisa con esa hora. */
+function vuelveMarcada(w: Obj, hasta: string | null): string | null {
+  const medido = parseIso(get(w, "vuelve"));
+  const marca = parseIso(hasta);
+  return medido && marca && medido > marca ? iso(medido) : hasta;
+}
+
 function aplicarAgotados(d: Obj, state: string, now: Date): Obj {
   const ag = leerAgotados(state, now);
   if (!Object.keys(ag).length) return d;
@@ -2116,14 +2123,14 @@ function aplicarAgotados(d: Obj, state: string, now: Date): Obj {
       const hasta = ag[CLAUDE_OFICIAL + sf];
       s.agotado = hasta;
       const vs = verdad(get(s, "ventanas")) ? s.ventanas : [ventana("5h", null, null), ventana("7d", null, null)];
-      s.ventanas = vs.map((w: Obj) => ventana(w.id, 1.0, hasta));
+      s.ventanas = vs.map((w: Obj) => ventana(w.id, 1.0, vuelveMarcada(w, hasta)));
     }
     for (const g of get(s, "grupos", []) || []) {
       if (pyStr(get(g, "id", "")) + sf in ag) {
         const hasta = ag[g.id + sf];
         g.agotado = hasta;
         const vs = verdad(get(g, "ventanas")) ? g.ventanas : [ventana("5h", null, null)];
-        g.ventanas = vs.map((w: Obj) => ventana(w.id, 1.0, hasta));
+        g.ventanas = vs.map((w: Obj) => ventana(w.id, 1.0, vuelveMarcada(w, hasta)));
       }
     }
   }
@@ -2266,22 +2273,26 @@ async function agotar(mid: string, hastaArg: string | null, cfg: Obj, now: Date,
   if (!hasta) {
     try {
       const cand: Record<string, Date | null> = {};
+      // Las ventanas que de verdad bloquean (llenas según los topes) mandan: con la semana llena y la de 5 h libre, vuelve con la semana.
+      const llenas: Date[] = [];
+      const mirar = (sus: Obj, gidV: string | null, v: Obj) => {
+        const dt = parseIso(get(v, "vuelve"));
+        if (!dt || dt <= now) return;
+        cand[pyStr(get(v, "id"))] = dt;
+        if (get(v, "usado") !== null && ventanaLlena(cfg, provDe(sus), gidV, v)) llenas.push(dt);
+      };
       for (const sus of get(leerCupos(cfg, now), "suscripciones", [])) {
         if (suf(cuentaDe(sus)) !== suf(cuenta)) continue;
         if (gid === CLAUDE_OFICIAL && provDe(sus) === "claude") {
           const vs = ordenarPor((get(sus, "ventanas", []) as Obj[]).filter((v) => (parseIso(get(v, "vuelve")) || now) > now), (v) => [-(get(v, "usado") || 0)]);
           if (vs.length) cand["5h"] = parseIso(vs[0]!.vuelve);
+          for (const v of get(sus, "ventanas", []) as Obj[]) mirar(sus, null, v);
         }
         for (const g of get(sus, "grupos", []) || []) {
-          if (get(g, "id") === gid) {
-            for (const v of get(g, "ventanas", [])) {
-              const dt = parseIso(get(v, "vuelve"));
-              if (dt && dt > now) cand[pyStr(get(v, "id"))] = dt;
-            }
-          }
+          if (get(g, "id") === gid) for (const v of get(g, "ventanas", [])) mirar(sus, gid, v);
         }
       }
-      hasta = cand["5h"] || cand["7d"] || null;
+      hasta = llenas.length ? new Date(Math.max(...llenas.map((d) => d.getTime()))) : cand["5h"] || cand["7d"] || null;
     } catch {
       hasta = null;
     }
