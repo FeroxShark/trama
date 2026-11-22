@@ -684,8 +684,161 @@ function revisarImagen(base, imagen, comando) {
 }
 
 // --- compose.yaml ----------------------------------------------------------------------------
+function sacarComentarioYaml(linea) {
+  let comilla = "";
+  for (let i = 0; i < linea.length; i++) {
+    const c = linea[i];
+    if (comilla) {
+      if (c === "\\" && comilla === '"') i++;
+      else if (c === comilla) comilla = "";
+    } else if (c === '"' || c === "'") {
+      comilla = c;
+    } else if (c === "#" && (i === 0 || /\s/.test(linea[i - 1]))) {
+      return linea.slice(0, i);
+    }
+  }
+  return linea;
+}
+
+function descomillarYaml(s) {
+  const t = s.trim();
+  if (t.length >= 2 && ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")))) {
+    return t.slice(1, -1).replace(/\\(["\\])/g, "$1");
+  }
+  return t;
+}
+
+function partirComasYaml(s) {
+  const res = [];
+  let ini = 0;
+  let prof = 0;
+  let comilla = "";
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (comilla) {
+      if (c === "\\" && comilla === '"') i++;
+      else if (c === comilla) comilla = "";
+    } else if (c === '"' || c === "'") comilla = c;
+    else if (c === "{" || c === "[") prof++;
+    else if (c === "}" || c === "]") prof = Math.max(0, prof - 1);
+    else if (c === "," && prof === 0) {
+      res.push(s.slice(ini, i));
+      ini = i + 1;
+    }
+  }
+  res.push(s.slice(ini));
+  return res.map((x) => x.trim()).filter(Boolean);
+}
+
+function partirClaveValorYaml(s) {
+  let prof = 0;
+  let comilla = "";
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (comilla) {
+      if (c === "\\" && comilla === '"') i++;
+      else if (c === comilla) comilla = "";
+    } else if (c === '"' || c === "'") comilla = c;
+    else if (c === "{" || c === "[") prof++;
+    else if (c === "}" || c === "]") prof = Math.max(0, prof - 1);
+    else if (c === ":" && prof === 0 && (i + 1 === s.length || /\s/.test(s[i + 1]))) {
+      return [descomillarYaml(s.slice(0, i)), s.slice(i + 1).trim()];
+    }
+  }
+  return null;
+}
+
+function parsearValorYaml(s) {
+  const t = s.trim();
+  if (!t || t === "null" || t === "~") return null;
+  if (t === "true") return true;
+  if (t === "false") return false;
+  if (t.startsWith("[") && t.endsWith("]")) return partirComasYaml(t.slice(1, -1)).map(parsearValorYaml);
+  if (t.startsWith("{") && t.endsWith("}")) {
+    const obj = {};
+    for (const item of partirComasYaml(t.slice(1, -1))) {
+      const kv = partirClaveValorYaml(item);
+      if (kv) obj[kv[0]] = parsearValorYaml(kv[1]);
+    }
+    return obj;
+  }
+  return descomillarYaml(t);
+}
+
+function parsearYamlSimple(texto) {
+  const crudas = [];
+  let acum = "";
+  let prof = 0;
+  for (const l of texto.replace(/\r\n/g, "\n").split("\n")) {
+    const sin = sacarComentarioYaml(l);
+    if (!acum && (!sin.trim() || /^(?:---|\.\.\.)\s*$/.test(sin.trim()))) continue;
+    acum = acum ? `${acum} ${sin.trim()}` : sin;
+    for (let i = 0; i < sin.length; i++) {
+      if (sin[i] === "{" || sin[i] === "[") prof++;
+      else if (sin[i] === "}" || sin[i] === "]") prof = Math.max(0, prof - 1);
+    }
+    if (prof === 0) {
+      crudas.push({ indent: acum.match(/^ */)[0].length, text: acum.trim() });
+      acum = "";
+    }
+  }
+  if (!crudas.length) return {};
+  if (crudas.length === 1 && /^[{[]/.test(crudas[0].text)) return parsearValorYaml(crudas[0].text);
+
+  function bloque(i, minIndent) {
+    if (i >= crudas.length || crudas[i].indent < minIndent) return [null, i];
+    const base = crudas[i].indent;
+    if (/^-(?:\s|$)/.test(crudas[i].text)) {
+      const arr = [];
+      while (i < crudas.length && crudas[i].indent === base && /^-(?:\s|$)/.test(crudas[i].text)) {
+        const resto = crudas[i].text.slice(1).trim();
+        if (!resto) {
+          const [v, sig] = bloque(i + 1, base + 1);
+          arr.push(v);
+          i = sig;
+        } else if (partirClaveValorYaml(resto)) {
+          const sub = [{ indent: base + 2, text: resto }];
+          i++;
+          while (i < crudas.length && crudas[i].indent > base) sub.push(crudas[i++]);
+          arr.push(parsearYamlSimple(sub.map((x) => `${" ".repeat(x.indent)}${x.text}`).join("\n")));
+        } else {
+          arr.push(parsearValorYaml(resto));
+          i++;
+        }
+      }
+      return [arr, i];
+    }
+    const obj = {};
+    while (i < crudas.length && crudas[i].indent === base && !/^-(?:\s|$)/.test(crudas[i].text)) {
+      const kv = partirClaveValorYaml(crudas[i].text);
+      if (!kv) {
+        i++;
+        continue;
+      }
+      const [k, v] = kv;
+      if (v) {
+        obj[k] = parsearValorYaml(v);
+        i++;
+      } else if (
+        i + 1 < crudas.length &&
+        (crudas[i + 1].indent > base || (crudas[i + 1].indent === base && /^-(?:\s|$)/.test(crudas[i + 1].text)))
+      ) {
+        const [hijo, sig] = bloque(i + 1, crudas[i + 1].indent);
+        obj[k] = hijo;
+        i = sig;
+      } else {
+        obj[k] = null;
+        i++;
+      }
+    }
+    return [obj, i];
+  }
+
+  return bloque(0, crudas[0].indent)[0];
+}
+
 function revisarComposeArchivos(optsC, ctx, exe = "docker") {
-  if (!yaml) return;
+  const parsearYaml = yaml ? (t) => yaml.parse(t) : parsearYamlSimple;
   const base = ctx.cwd || process.cwd();
   let archivos = optsC.filter(([n, v]) => (n === "-f" || n === "--file") && v && !v.includes("$")).map(([, v]) => v);
   // Sin -f, compose busca el archivo en --project-directory, no en el cwd.
@@ -709,7 +862,7 @@ function revisarComposeArchivos(optsC, ctx, exe = "docker") {
     let doc;
     try {
       if (statSync(a).size > 2_000_000) continue;
-      doc = yaml.parse(readFileSync(a, "utf8"));
+      doc = parsearYaml(readFileSync(a, "utf8"));
     } catch {
       continue;
     }
@@ -878,7 +1031,7 @@ function revisarInitDeServicio(s, archivo, donde, exe) {
 
 const redactarCmd = (s) =>
   s
-    .replace(/\b([A-Za-z_][A-Za-z0-9_]*\s*=\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/g, (m, pre) =>
+    .replace(/(?<![-\w./])((?:[A-Z_][A-Z0-9_]*|[A-Za-z_]*(?:token|key|secret|pass(?:word)?|auth|cred|clave|priv)[A-Za-z0-9_]*)\s*=\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/g, (m, pre) =>
       /^(?:CARGO_(?:BUILD_)?TARGET_DIR|LABEL|X)\s*=$/.test(pre) ? m : `${pre}<redactado>`,
     )
     .replace(/((?:--?(?:token|api[-_]?key|secret|password|pass|auth|clave|credential)|bearer)\s*[=:\s]\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/gi, "$1<redactado>")

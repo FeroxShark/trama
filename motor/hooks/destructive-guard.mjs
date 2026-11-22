@@ -40,7 +40,7 @@ const esObjeto = (v) => v !== null && typeof v === "object" && !Array.isArray(v)
 const R = String.raw;
 const redactarCmd = (s) =>
   s
-    .replace(/\b([A-Za-z_][A-Za-z0-9_]*\s*=\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/g, (m, pre) =>
+    .replace(/(?<![-\w./])((?:[A-Z_][A-Z0-9_]*|[A-Za-z_]*(?:token|key|secret|pass(?:word)?|auth|cred|clave|priv)[A-Za-z0-9_]*)\s*=\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/g, (m, pre) =>
       /^(?:CARGO_(?:BUILD_)?TARGET_DIR|LABEL|X)\s*=$/.test(pre) ? m : `${pre}<redactado>`,
     )
     .replace(/((?:--?(?:token|api[-_]?key|secret|password|pass|auth|clave|credential)|bearer)\s*[=:\s]\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/gi, "$1<redactado>")

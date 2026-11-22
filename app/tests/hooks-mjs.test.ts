@@ -382,6 +382,39 @@ test("docker-guard: analiza el comando (wrappers, shells, heredocs, imágenes lo
   assert.equal(r("cd /dev && docker run -v .:/x y"), 0, "el cd literal sólo cambia el cwd; un origen relativo no se evalúa");
 });
 
+test("docker-guard: audita compose.yaml (flow y bloques indentados) sin requerir el paquete yaml externo", () => {
+  conTemporal((dir) => {
+    const env = entorno(dir);
+    const fFlow = path.join(dir, "flow.yaml");
+    writeFileSync(fFlow, "services: {x: {image: alpine, privileged: true}}\n");
+    const rFlow = correr("destructive-guard", [], { tool_name: "Bash", cwd: dir, tool_input: { command: `docker-compose -f '${fFlow}' up` } }, env);
+    assert.equal(rFlow.rc, 2);
+    assert.match(rFlow.stderr, /privileged: true/);
+
+    const fBloque = path.join(dir, "compose.yaml");
+    writeFileSync(
+      fBloque,
+      [
+        "services:",
+        "  web:",
+        "    image: alpine",
+        "    volumes:",
+        "      - type: bind",
+        "        source: /dev",
+        "        target: /dev",
+      ].join("\n") + "\n",
+    );
+    const rBloque = correr("destructive-guard", [], { tool_name: "Bash", cwd: dir, tool_input: { command: "docker compose up -d" } }, env);
+    assert.equal(rBloque.rc, 2);
+    assert.match(rBloque.stderr, /monta \/dev del host/);
+
+    const fSano = path.join(dir, "sano.yaml");
+    writeFileSync(fSano, "services:\n  app:\n    image: alpine\n    command: [\"sleep\", \"1\"]\n");
+    const rSano = correr("destructive-guard", [], { tool_name: "Bash", cwd: dir, tool_input: { command: `docker compose -f '${fSano}' up` } }, env);
+    assert.equal(rSano.rc, 0);
+  });
+});
+
 // ============================================================================ agy-pa
 
 const llamada = (name: string, args: Record<string, unknown> = {}) => ({ toolCall: { name, args } });
