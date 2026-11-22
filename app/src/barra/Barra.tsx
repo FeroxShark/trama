@@ -73,12 +73,10 @@ import {
   terminadosVisibles,
   claveDormidos,
   claveEspera,
-  compararCarpetas,
   deLider,
   estadoVisto,
   filasVisibles,
   fin,
-  lideresEnOrden,
   lugarLider,
   nombreCarpeta,
   pendientes,
@@ -158,7 +156,7 @@ import { Acople, type PanelDef } from "./Acople";
 import { acopleInicialBarra, chatsAbiertoEn, contextoAbiertoEn } from "./acople-barra";
 import { zonaDe, type PanelId } from "./acople-logica";
 import { useAcople, type UseAcople } from "./useAcople";
-import { aRiel, actualizarOrdenProyectos, atencionCarpeta, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, filasCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, segunLista } from "./riel-logica";
+import { aRiel, actualizarOrdenProyectos, atencionCarpeta, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, filasCarpeta, itemsRiel, QUIETOS_VISTA, segunLista } from "./riel-logica";
 import { LogoCab } from "./Logo";
 import { LoBuscado, Resalte } from "./Resalte";
 import { pintorHace } from "../tiempo";
