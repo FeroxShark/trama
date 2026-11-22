@@ -7,80 +7,81 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 ## Resumen
 
 - **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
-  - pendiente: 129
-  - arreglado: 27
-  - arreglado a medias: 2
+  - pendiente: 87
+  - arreglado: 66
+  - arreglado a medias: 3
+  - refutado: 2
 - **Ideas: 102**.
 
 | Área | Bugs | Arreglados | Pendientes |
 |---|---|---|---|
-| Barra lateral y datos | 18 | 0 | 18 |
+| Barra lateral y datos | 18 | 17 | 0 |
 | Debate y revisión de planes | 14 | 0 | 14 |
 | El hilo: la caja y el líder en la ventana | 14 | 0 | 14 |
-| Hooks y motor | 16 | 0 | 16 |
-| Núcleo y canales | 14 | 0 | 14 |
+| Hooks y motor | 16 | 5 | 11 |
+| Núcleo y canales | 14 | 3 | 10 |
 | El CLI de `pa` | 15 | 0 | 15 |
 | Puentes a otros motores | 20 | 19 | 1 |
 | Reparto y cupos | 15 | 6 | 9 |
-| Sistema: instalación, actualización y servicio | 16 | 0 | 16 |
+| Sistema: instalación, actualización y servicio | 16 | 15 | 1 |
 | Vistos trabajando esta noche | 16 | 4 | 12 |
 
 ## Bugs
 
 ### Barra lateral y datos
 
-**B001 · `planDiaValido` borra todas las fechas de ausencia por escape simple en `RegExp`** (`BARRA-DATOS-1`, severidad alta) · **PENDIENTE**
+**B001 · `planDiaValido` borra todas las fechas de ausencia por escape simple en `RegExp`** (`BARRA-DATOS-1`, severidad alta) · **ARREGLADO**
 - Dónde: [app/src/datos/fuente.ts:1362-1368](file://app/src/datos/fuente.ts#L1362-L1368) (`planDiaValido`), llamado desde `planDia`…
 
-**B002 · `desdeDisco` convierte a `NaN` los IDs de pendientes remotos (`"servidor:12"`)** (`BARRA-DATOS-2`, severidad alta) · **PENDIENTE**
+**B002 · `desdeDisco` convierte a `NaN` los IDs de pendientes remotos (`"servidor:12"`)** (`BARRA-DATOS-2`, severidad alta) · **ARREGLADO**
 - Dónde: [app/src/datos/tocado.ts:53-60](file://app/src/datos/tocado.ts#L53-L60) (`desdeDisco`), en cruce con…
 
-**B003 · Reabrir un chat desde el historial lo deja oculto si antes se cerró con settle (`SETTLE`)** (`BARRA-DATOS-3`, severidad alta) · **PENDIENTE**
+**B003 · Reabrir un chat desde el historial lo deja oculto si antes se cerró con settle (`SETTLE`)** (`BARRA-DATOS-3`, severidad alta) · **ARREGLADO**
 - Dónde: [app/src/barra/Barra.tsx:878-890](file://app/src/barra/Barra.tsx#L878-L890) (`abrirClaude`),…
 
-**B004 · `visiblesDe` nunca recibe `recientes`, rompiendo orden, límites y Subir/Bajar al reordenar** (`BARRA-DATOS-4`, severidad alta) · **PENDIENTE**
+**B004 · `visiblesDe` nunca recibe `recientes`, rompiendo orden, límites y Subir/Bajar al reordenar** (`BARRA-DATOS-4`, severidad alta) · **ARREGLADO**
 - Dónde: [app/src/barra/Barra.tsx:304-312](file://app/src/barra/Barra.tsx#L304-L312) (`visiblesDe`), llamado en [Barra.tsx:1800](file://app/src/barra/Barra.tsx#L1800),…
 
-**B005 · `congelada` bloquea la actualización de `ordenProyectos.current` tras reordenar desde la lista** (`BARRA-DATOS-5`, severidad alta) · **PENDIENTE**
+**B005 · `congelada` bloquea la actualización de `ordenProyectos.current` tras reordenar desde la lista** (`BARRA-DATOS-5`, severidad alta) · **ARREGLADO**
 - Dónde: [app/src/barra/Barra.tsx:618](file://app/src/barra/Barra.tsx#L618), [643-648](file://app/src/barra/Barra.tsx#L643-L648) y…
 
-**B006 · `armarArrastre` impide arrastrar un líder único a otra carpeta** (`BARRA-DATOS-6`, severidad media) · **PENDIENTE**
+**B006 · `armarArrastre` impide arrastrar un líder único a otra carpeta** (`BARRA-DATOS-6`, severidad media) · **ARREGLADO**
 - Dónde: [app/src/barra/arrastre.ts:44-45](file://app/src/barra/arrastre.ts#L44-L45) (`armarArrastre`)
 
-**B007 · En modo `"recientes"` intercalado, el arrastre y Subir/Bajar saltan vecinos y desarman el intercalado** (`BARRA-DATOS-7`, severidad media) · **PENDIENTE**
+**B007 · En modo `"recientes"` intercalado, el arrastre y Subir/Bajar saltan vecinos y desarman el intercalado** (`BARRA-DATOS-7`, severidad media) · **REFUTADO**
 - Dónde: [app/src/barra/riel-logica.ts:112-118](file://app/src/barra/riel-logica.ts#L112-L118) (`filasCarpeta`) y [app/src/barra/Barra.tsx:1854-1856,…
 
-**B008 · `Menu` conserva el `filtro` al volver desde `"Mover a proyecto…"` y oculta todas las acciones del menú** (`BARRA-DATOS-8`, severidad media) · **PENDIENTE**
+**B008 · `Menu` conserva el `filtro` al volver desde `"Mover a proyecto…"` y oculta todas las acciones del menú** (`BARRA-DATOS-8`, severidad media) · **ARREGLADO**
 - Dónde: [app/src/barra/Menu.tsx:83-87](file://app/src/barra/Menu.tsx#L83-L87) (`Menu`)
 
-**B009 · `nuevaEn.current` no se limpia al cambiar de chat y secuestra la carpeta al ramificar otro hilo** (`BARRA-DATOS-9`, severidad media) · **PENDIENTE**
+**B009 · `nuevaEn.current` no se limpia al cambiar de chat y secuestra la carpeta al ramificar otro hilo** (`BARRA-DATOS-9`, severidad media) · **ARREGLADO**
 - Dónde: [app/src/barra/Barra.tsx:1125-1130](file://app/src/barra/Barra.tsx#L1125-L1130) (`liderCreado`)
 
-**B010 · En `AvisoClaude`, `act.fase === "error"` pisa `fase = "actualizando"` y deja el botón habilitado al reintentar** (`BARRA-DATOS-10`, severidad media) · **PENDIENTE**
+**B010 · En `AvisoClaude`, `act.fase === "error"` pisa `fase = "actualizando"` y deja el botón habilitado al reintentar** (`BARRA-DATOS-10`, severidad media) · **ARREGLADO**
 - Dónde: [app/src/barra/AvisoClaude.tsx:78-88](file://app/src/barra/AvisoClaude.tsx#L78-L88), [202-209](file://app/src/barra/AvisoClaude.tsx#L202-L209) y…
 
-**B011 · `AvisoSetup` y `Reporte` traban el formulario/botón para siempre si el IPC rechaza** (`BARRA-DATOS-11`, severidad media) · **PENDIENTE**
+**B011 · `AvisoSetup` y `Reporte` traban el formulario/botón para siempre si el IPC rechaza** (`BARRA-DATOS-11`, severidad media) · **ARREGLADO**
 - Dónde: [app/src/barra/AvisoSetup.tsx:36-44](file://app/src/barra/AvisoSetup.tsx#L36-L44) (`revisar`) y…
 
-**B012 · `useUso` borra los datos previos preservados al recibir `null`/error por suscripción y tiene carrera en el arranque** (`BARRA-DATOS-12`, severidad media) · **PENDIENTE**
+**B012 · `useUso` borra los datos previos preservados al recibir `null`/error por suscripción y tiene carrera en el arranque** (`BARRA-DATOS-12`, severidad media) · **ARREGLADO**
 - Dónde: [app/src/barra/useUso.ts:39-62](file://app/src/barra/useUso.ts#L39-L62) y [75-94](file://app/src/barra/useUso.ts#L75-L94) (`arrancar` y `releerUso`)
 
-**B013 · `lineasCuentas` muestra el reinicio de 5 h aunque la semana también esté al 100%, y `filaDe` redondea `99.6` a `100%`** (`BARRA-DATOS-13`, severidad media) · **PENDIENTE**
+**B013 · `lineasCuentas` muestra el reinicio de 5 h aunque la semana también esté al 100%, y `filaDe` redondea `99.6` a `100%`** (`BARRA-DATOS-13`, severidad media) · **ARREGLADO**
 - Dónde: [app/src/barra/cupos-riel-logica.ts:136-156](file://app/src/barra/cupos-riel-logica.ts#L136-L156) (`lineasCuentas`) y…
 
-**B014 · `Riel` y `LogoCab` no manejan `onError` en la imagen del proyecto y muestran ícono roto** (`BARRA-DATOS-14`, severidad media) · **PENDIENTE**
+**B014 · `Riel` y `LogoCab` no manejan `onError` en la imagen del proyecto y muestran ícono roto** (`BARRA-DATOS-14`, severidad media) · **ARREGLADO**
 - Dónde: [app/src/barra/Riel.tsx:85](file://app/src/barra/Riel.tsx#L85) (`Riel`) y [app/src/barra/Logo.tsx:92](file://app/src/barra/Logo.tsx#L92) (`LogoCab`), comparado…
 
-**B015 · `proyectos.ts` traga fallos IPC devolviendo `[]` y sufre carrera en recargas concurrentes** (`BARRA-DATOS-15`, severidad media) · **PENDIENTE**
+**B015 · `proyectos.ts` traga fallos IPC devolviendo `[]` y sufre carrera en recargas concurrentes** (`BARRA-DATOS-15`, severidad media) · **ARREGLADO**
 - Dónde: [app/src/datos/proyectos.ts:143-146](file://app/src/datos/proyectos.ts#L143-L146) (`conMain.lista`) y [209-215](file://app/src/datos/proyectos.ts#L209-L215)…
 
-**B016 · `Acople` desmonta `AvisoVuelta` al angostar o cerrar la barra y pierde el aviso de rollback de un solo uso** (`BARRA-DATOS-16`, severidad media) · **PENDIENTE**
+**B016 · `Acople` desmonta `AvisoVuelta` al angostar o cerrar la barra y pierde el aviso de rollback de un solo uso** (`BARRA-DATOS-16`, severidad media) · **ARREGLADO**
 - Dónde: [app/src/barra/Acople.tsx:654-658](file://app/src/barra/Acople.tsx#L654-L658) y…
 
-**B017 · `altoFila` mide el primer `.w` sin excluir `.sub` ni `.pliegue`, corrompiendo el scroll virtualizado** (`BARRA-DATOS-17`, severidad baja) · **PENDIENTE**
+**B017 · `altoFila` mide el primer `.w` sin excluir `.sub` ni `.pliegue`, corrompiendo el scroll virtualizado** (`BARRA-DATOS-17`, severidad baja) · **ARREGLADO**
 - Dónde: [app/src/barra/ventana.ts:48-54](file://app/src/barra/ventana.ts#L48-L54) (`altoFila`)
 
-**B018 · `promptRetomar` interpola `d.ruta` sin comillas en el comando `git -C`** (`BARRA-DATOS-18`, severidad baja) · **PENDIENTE**
+**B018 · `promptRetomar` interpola `d.ruta` sin comillas en el comando `git -C`** (`BARRA-DATOS-18`, severidad baja) · **ARREGLADO**
 - Dónde: [app/src/datos/retomar.ts:42-45, 64](file://app/src/datos/retomar.ts#L42-L45) (`promptRetomar`)
 
 ### Debate y revisión de planes
@@ -239,12 +240,12 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `motor/hooks/agy-pa.mjs` línea 164 (PreToolUse; también línea 529).
 - Arreglo: conservar `error`/`signal` y denegar cualquier resultado que no sea una ejecución exitosa de la guardia, con un motivo que identifique el módulo. Agregar pruebas para código 1, `ENOENT`, señal y código 2 en ambas guardias; ninguna debe permitir la herramienta.
 
-**B049 · Los bloqueos copian valores privados a stderr** (`HOOKS-MOTOR-3`, severidad alta) · **PENDIENTE**
+**B049 · Los bloqueos copian valores privados a stderr** (`HOOKS-MOTOR-3`, severidad alta) · **ARREGLADO**
 - Qué pasa: un comando que lleva una credencial o un dato privado como argumento o asignación se copia al error del hook. El bloqueo evita ejecutar el comando, pero conserva ese dato en la salida de error y se lo devuelve al modelo.
 - Dónde: `motor/hooks/destructive-guard.mjs` línea 223 (mensaje de bloqueo).
 - Arreglo: sacar el comando crudo de los mensajes del hook y mostrar sólo la regla que bloqueó; si se necesita contexto, usar una descripción que no incluya argumentos ni asignaciones. Cubrir los tres mensajes del guard y el de Docker con una prueba que asegure que un marcador privado no aparece en stdout ni stderr.
 
-**B050 · Compose queda sin revisar en una instalación sin yaml** (`HOOKS-MOTOR-4`, severidad media) · **PENDIENTE**
+**B050 · Compose queda sin revisar en una instalación sin yaml** (`HOOKS-MOTOR-4`, severidad media) · **ARREGLADO**
 - Qué pasa: `docker compose up` puede arrancar un servicio con `privileged: true` o montajes del host sin que la guardia advierta nada. La instalación normal no garantiza el módulo necesario para revisar el archivo.
 - Dónde: `motor/hooks/docker-guard.mjs` línea 688 (`revisarComposeArchivos`).
 - Arreglo: distribuir un parser YAML resoluble desde los hooks en Linux y Windows y, si falta, rechazar los verbos de Compose que crean contenedores con un mensaje explícito. Probar el YAML privilegiado con parser y el mismo comando en un payload sin parser.
@@ -264,12 +265,12 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `motor/hooks/nota-compactar.mjs` línea 330 (`decidir`, SessionStart).
 - Arreglo: crear una marca exclusiva de devolución por sid y compactación antes de consumir el archivo o consultar el transcript; una segunda ejecución de ese evento debe devolver null. Probar las dos llamadas consecutivas y simultáneas, y una segunda compactación legítima de la misma sesión.
 
-**B054 · Un ejemplo de código se guarda como nota personal** (`HOOKS-MOTOR-8`, severidad media) · **PENDIENTE**
+**B054 · Un ejemplo de código se guarda como nota personal** (`HOOKS-MOTOR-8`, severidad media) · **ARREGLADO**
 - Qué pasa: explicar cómo escribir una nota, mostrando sus etiquetas como código, puede reemplazar la nota verdadera por el texto del ejemplo. La sesión recibe ese ejemplo como si fuera su resumen al compactar.
 - Dónde: `motor/hooks/nota-compactar.mjs` línea 167 (`extraerNotaDeTexto`).
 - Arreglo: reconocer etiquetas fuera de código, con la misma semántica de la interfaz, y usar ese reconocimiento al extraer desde el transcript. Probar ejemplos inline, cercas, una nota real después de un ejemplo y una etiqueta de cierre citada dentro de la nota.
 
-**B055 · Una línea grande oculta el contexto y la nota actuales** (`HOOKS-MOTOR-9`, severidad media) · **PENDIENTE**
+**B055 · Una línea grande oculta el contexto y la nota actuales** (`HOOKS-MOTOR-9`, severidad media) · **ARREGLADO**
 - Qué pasa: un mensaje grande al final del transcript puede desactivar el pedido de nota justo cuando el contexto está lleno. Si la nota está en ese mismo registro, PreCompact tampoco la guarda.
 - Dónde: `motor/hooks/nota-compactar.mjs` línea 104 (`leerColaTranscript`).
 - Arreglo: buscar hacia atrás el comienzo de los registros necesarios con un límite explícito mayor y una estrategia para registros que exceden ese límite; obtener el uso de una fuente independiente cuando no se pudo recuperar el registro. Probar una línea assistant grande, una herramienta grande posterior y una nota dentro de…
@@ -304,7 +305,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/hooks.ts` línea 159 (`registrarEnAjustes`).
 - Arreglo: envolver el statusline con el intérprete nativo correspondiente, usando argumentos y comillas compatibles con Windows; conservar bash sólo para la plataforma que ya lo usa. Probar registro y ejecución de un statusline propio desde una ruta con espacios en ambos sistemas, sin exigir bash en Windows.
 
-**B062 · La cola descarta una línea que ya estaba completa** (`HOOKS-MOTOR-16`, severidad baja) · **PENDIENTE**
+**B062 · La cola descarta una línea que ya estaba completa** (`HOOKS-MOTOR-16`, severidad baja) · **ARREGLADO**
 - Qué pasa: si el comienzo del tramo coincide exactamente con el inicio de una línea válida, se pierde ese registro igual. Puede ser el único que contiene el uso del contexto o la nota que hacía falta guardar.
 - Dónde: `motor/hooks/nota-compactar.mjs` línea 102 (`leerColaTranscript`).
 - Arreglo: leer también el byte anterior al offset y descartar la primera línea sólo cuando ese byte no sea un salto. Probar offset 0, offset alineado, offset dentro de una línea y archivos CRLF con el corte a ambos lados de `\r\n`.
@@ -346,22 +347,22 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `windows/src/main.js` líneas 424-434
 - Arreglo: envolver con `protegido` (o con `deConfianza`) todos los handlers de las líneas 424-434, menos `app:version` si hace falta.
 
-**B070 · `agy:actualizar` se puede pedir por la tailnet** (`NUCLEO-IPC-8`, severidad baja) · **PENDIENTE**
+**B070 · `agy:actualizar` se puede pedir por la tailnet** (`NUCLEO-IPC-8`, severidad baja) · **ARREGLADO**
 - Qué pasa: desde el celular se puede disparar la actualización de `agy`. En Linux abre una terminal con `paru` en la PC; en Windows corre `agy update`. `claude:actualizar` sí está bloqueado.
 - Dónde: `app/electron/nucleo.ts` línea 158 (`SOLO_PC_TAILNET`) y línea 1739
 - Arreglo: agregar `"agy:actualizar"` y `"opencode:actualizar"` al `Set`. Test en `app/tests/nucleo.test.ts`.
 
-**B071 · `lider:cerrar` vacía la cola antes de saber si el cierre anduvo** (`NUCLEO-IPC-9`, severidad baja) · **PENDIENTE**
+**B071 · `lider:cerrar` vacía la cola antes de saber si el cierre anduvo** (`NUCLEO-IPC-9`, severidad baja) · **ARREGLADO**
 - Qué pasa: si `lider.cerrar` falla, el líder sigue abierto pero los mensajes que esperaban en su cola ya se borraron.
 - Dónde: `app/electron/nucleo.ts` líneas 1664-1669
 - Arreglo: mover `cola.vaciar` después del `await lider.cerrar`.
 
-**B072 · `salud:eventos` acepta 0, negativos y números enormes** (`NUCLEO-IPC-10`, severidad baja) · **PENDIENTE**
+**B072 · `salud:eventos` acepta 0, negativos y números enormes** (`NUCLEO-IPC-10`, severidad baja) · **ARREGLADO**
 - Qué pasa: `dias = null`, `""` o `false` se convierte en 0 días y devuelve vacío en vez de los 7 por defecto. Un cliente por red puede pedir `1e9` días.
 - Dónde: `app/electron/nucleo.ts` línea 1087
 - Arreglo: `typeof dias === "number" && dias >= 1 ? Math.min(dias, 365) : 7`.
 
-**B073 · `orq:auditar` revienta con `TypeError` si llega sin argumento** (`NUCLEO-IPC-11`, severidad baja) · **PENDIENTE**
+**B073 · `orq:auditar` revienta con `TypeError` si llega sin argumento** (`NUCLEO-IPC-11`, severidad baja) · **REFUTADO**
 - Qué pasa: `x` indefinido tira «Cannot read properties of undefined». El resto del manejador usa `x?.`.
 - Dónde: `app/electron/nucleo.ts` línea 1238
 - Arreglo: `String(x?.proyecto)`.
@@ -639,17 +640,17 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 
 ### Sistema: instalación, actualización y servicio
 
-**B127 · Guardar una clave en Ajustes borra `TRAMA_REPORTES_CLAVE` (y comentarios y otras líneas)** (`SISTEMA-1`, severidad alta) · **PENDIENTE**
+**B127 · Guardar una clave en Ajustes borra `TRAMA_REPORTES_CLAVE` (y comentarios y otras líneas)** (`SISTEMA-1`, severidad alta) · **ARREGLADO**
 - Qué pasa: Cuando el dueño guarda o borra cualquier clave en Ajustes (OpenCode, DeepSeek, NVIDIA, un valor de MCP), el archivo se reescribe sin su `TRAMA_REPORTES_CLAVE`. Los reportes anónimos dejan de bajarse, sin aviso ni log.
 - Dónde: `app/electron/claves.ts` línea 94-104 (`escribir`); lo consume `app/electron/reporte-anonimo.ts` línea 59 (`claveLectura`)
 - Arreglo: En `escribir`, leer el texto actual y conservar tal cual toda línea que no sea de `NOMBRES_CLAVE` ni `MCP_*` (comentarios incluidos). Reemplazar o agregar sólo las líneas propias. Test: un archivo con `TRAMA_REPORTES_CLAVE` y un comentario sobrevive a guardar y a borrar claves.
 
-**B128 · Un error al leer `programados.json` se toma por «vacío» y el siguiente guardado pisa todo** (`SISTEMA-2`, severidad media) · **PENDIENTE**
+**B128 · Un error al leer `programados.json` se toma por «vacío» y el siguiente guardado pisa todo** (`SISTEMA-2`, severidad media) · **ARREGLADO**
 - Qué pasa: Si la lectura falla por algo que no es «no existe» (permisos, archivo trabado, falta de descriptores), la lista arranca vacía. La próxima vez que se programe o posponga algo se escribe el archivo vacío y se pierden todos los mensajes programados.
 - Dónde: `app/electron/nucleo.ts` línea 588 (`leer`); `app/electron/programados.ts` líneas 75-79 y 115-123 (`leerFoto`, `guardar`)
 - Arreglo: Que `leer` devuelva `null` sólo si el error es ENOENT. Ante otro error, `cargar` debe guardar el fallo y bloquear `guardar` (o renombrar el archivo a `.roto` antes de pisarlo). Test en `tests/programados.test.ts`: `leer` rechaza con EACCES y `escribir` no se llama.
 
-**B129 · «Mandar a la papelera» no mira si hay líderes o workers vivos cuando el proyecto ya estaba quitado** (`SISTEMA-3`, severidad media) · **PENDIENTE**
+**B129 · «Mandar a la papelera» no mira si hay líderes o workers vivos cuando el proyecto ya estaba quitado** (`SISTEMA-3`, severidad media) · **ARREGLADO**
 - Qué pasa: Si el proyecto ya figura «retirado», se manda su carpeta a la papelera aunque haya un líder con proceso o un worker vivo trabajando adentro. Para un proyecto no retirado sí se niega.
 - Dónde: `app/electron/proyectos-borrar.ts` línea 234-238 (`papeleraProyecto`)
 - Arreglo: Llamar `negarSiVivos(p, deps)` siempre, antes de `papelera`. Test en `tests/proyectos-borrar.test.ts`: retirado + vivo → rechaza.
@@ -659,62 +660,62 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/proyectos-borrar.ts` línea 135 (`papeleraReal`)
 - Arreglo: Usar `UIOption.AllDialogs` (que obliga a confirmar) o chequear tamaño y unidad antes. Más seguro: mover con `Shell.Application`/`SHFileOperation` con `FOF_ALLOWUNDO` sin `FOF_NOCONFIRMATION` y tratar «cancelado» como `fallo`. Test: sólo de forma, porque el comando es de Windows.
 
-**B131 · Una advertencia de `git` en stderr hace que Actualizar crea que el checkout está «sucio» y se niegue** (`SISTEMA-5`, severidad media) · **PENDIENTE**
+**B131 · Una advertencia de `git` en stderr hace que Actualizar crea que el checkout está «sucio» y se niegue** (`SISTEMA-5`, severidad media) · **ARREGLADO**
 - Qué pasa: Actualizar queda bloqueada con «hay cambios sin commitear» aunque el árbol esté limpio.
 - Dónde: `app/electron/actualizacion-trama.ts` líneas 111-115 (`correrReal`) y 341-344 (`sucioEn`)
 - Arreglo: Que `Corrida` traiga `stdout` aparte y `sucioEn` use sólo `stdout`. Test en `tests/actualizacion-trama.test.ts`.
 
-**B132 · Prender o apagar un conector rompe el enlace simbólico de `~/.claude/settings.json`** (`SISTEMA-6`, severidad media) · **PENDIENTE**
+**B132 · Prender o apagar un conector rompe el enlace simbólico de `~/.claude/settings.json`** (`SISTEMA-6`, severidad media) · **ARREGLADO**
 - Qué pasa: Si el settings (o `settings.local.json`) es un enlace a un dotfile, Trama lo reemplaza por un archivo normal. La copia versionada queda desactualizada.
 - Dónde: `app/electron/conectores-claude.ts` líneas 453-461 (`cambiarAjustes`)
 - Arreglo: `const real = await realpath(ruta).catch(() => ruta)` y escribir/renombrar sobre `real`. Test en `tests/conectores-claude.test.ts` con un enlace.
 
-**B133 · Si falla una descarga a mitad, los reportes ya bajados (y borrados del receptor) no se avisan** (`SISTEMA-7`, severidad media) · **PENDIENTE**
+**B133 · Si falla una descarga a mitad, los reportes ya bajados (y borrados del receptor) no se avisan** (`SISTEMA-7`, severidad media) · **ARREGLADO**
 - Qué pasa: Con 3 reportes, si el primero se escribe y se borra del receptor y el segundo da error de red, de disco o timeout, la función lanza. Nunca llega a `avisar` y el dueño no se entera del primero.
 - Dónde: `app/electron/reporte-anonimo.ts` líneas 118-136 (`bajarReportes`)
 - Arreglo: `try/catch` por id (seguir con el siguiente) o llamar `avisar` apenas se escribe cada uno. Test en `tests/reporte-anonimo.test.ts`.
 
-**B134 · La limpieza de texto de reportes deja pasar los caracteres «tag» invisibles (inyección a modelos)** (`SISTEMA-8`, severidad media) · **PENDIENTE**
+**B134 · La limpieza de texto de reportes deja pasar los caracteres «tag» invisibles (inyección a modelos)** (`SISTEMA-8`, severidad media) · **ARREGLADO**
 - Qué pasa: `limpiarTexto` promete quitar «invisibles», pero un reporte con caracteres U+E0000–E007F (tag characters) conserva texto oculto. Ese texto no se ve al leerlo, pero un modelo lo lee. Es un vector conocido de inyección de instrucciones, justo contra lo que `docs/reglas/reportes.md` dice proteger.
 - Dónde: `app/electron/reportes-reglas.ts` línea 15 (`CONTROL`) y 18-21 (`limpiarTexto`)
 - Arreglo: Usar `/[...]/gu` con `\u{E0000}-\u{E007F}`, `\u{E0100}-\u{E01EF}`, `\u00AD`, `\u034F`, `\u061C`, `\u180E`, `\uFE00-\uFE0F`, `\u2028-\u2029`. Aplicarlo en el Worker y en la Trama (comparten el archivo). Test en `tests/reporte-anonimo.test.ts`.
 
-**B135 · `limpiarLog` no tapa claves en JSON ni en cabeceras con guion (`"token":"…"`, `x-api-key:`)** (`SISTEMA-9`, severidad media) · **PENDIENTE**
+**B135 · `limpiarLog` no tapa claves en JSON ni en cabeceras con guion (`"token":"…"`, `x-api-key:`)** (`SISTEMA-9`, severidad media) · **ARREGLADO**
 - Qué pasa: El reporte (público en GitHub, o anónimo) puede llevar valores secretos si el log los trae como `"access_token":"abc..."`, `"apiKey": "..."` o `x-api-key: abc`.
 - Dónde: `app/electron/reporte.ts` línea 40 (patrón de `CLAVES`), usada en `limpiarLog` línea 50
 - Arreglo: Permitir comillas opcionales tras el nombre, `[-_]?` entre `API` y `KEY`, y sumar un patrón `://[^/\s:@]+:[^/\s@]+@`. Test en `tests/reporte.test.ts`.
 
-**B136 · Los errores de escritura de `programados.json` se tragan y el mensaje puede salir dos veces** (`SISTEMA-10`, severidad baja) · **PENDIENTE**
+**B136 · Los errores de escritura de `programados.json` se tragan y el mensaje puede salir dos veces** (`SISTEMA-10`, severidad baja) · **ARREGLADO**
 - Qué pasa: Con el disco lleno o sin permiso, `programar` dice «listo» pero no queda guardado. En `vencer`, el mensaje sale, pero el archivo conserva su copia y sale de nuevo al reiniciar Trama.
 - Dónde: `app/electron/programados.ts` líneas 115-119 (`guardar`) y 160-166 (`vencer`)
 - Arreglo: Que `guardar` propague el error (o lo registre con `silencio`) y que `programar` falle si no se pudo escribir.
 
-**B137 · «2026-11-05 25:00» o «09:99» se aceptan como fechas válidas** (`SISTEMA-11`, severidad baja) · **PENDIENTE**
+**B137 · «2026-11-05 25:00» o «09:99» se aceptan como fechas válidas** (`SISTEMA-11`, severidad baja) · **ARREGLADO**
 - Qué pasa: Escribir una hora fuera de rango en la fecha completa programa el mensaje para otra hora (25:00 → 01:00 del día siguiente) sin avisar.
 - Dónde: `app/electron/programados-hora.ts` líneas 54-58 (`resolverCuando`)
 - Arreglo: Rechazar `Number(f[4]) > 23` o `Number(f[5]) > 59` y comparar también el día. Test en `tests/programados-hora.test.ts`.
 
-**B138 · Si Actualizar vence por tiempo, el instalador sigue vivo y se puede lanzar otro encima** (`SISTEMA-12`, severidad baja) · **PENDIENTE**
+**B138 · Si Actualizar vence por tiempo, el instalador sigue vivo y se puede lanzar otro encima** (`SISTEMA-12`, severidad baja) · **ARREGLADO**
 - Qué pasa: A los 30 minutos se mata sólo `bash`; sus hijos (`npm`, compilación) siguen. La ventana muestra error, la persona vuelve a apretar Actualizar y corren dos instaladores juntos.
 - Dónde: `app/electron/actualizacion-trama.ts` línea 129 (`correrSuelto`)
 - Arreglo: Linux: `process.kill(-hijo.pid, "SIGTERM")`. Windows: `taskkill /T /F` con `windowsHide`.
 
-**B139 · Descubrir: si una fuente falla y la otra anda, la fallida no se reintenta por 24 horas, y el registro MCP queda cortado** (`SISTEMA-13`, severidad baja) · **PENDIENTE**
+**B139 · Descubrir: si una fuente falla y la otra anda, la fallida no se reintenta por 24 horas, y el registro MCP queda cortado** (`SISTEMA-13`, severidad baja) · **ARREGLADO A MEDIAS**
 - Qué pasa: Si GitHub falla pero el registro MCP contesta, `actualizado` se pone en `ahora`, y la caché se considera vigente un día. Abrir la sección no vuelve a intentar GitHub, y quedan skills viejas o ninguna. Aparte, `bajarMcp` pide como mucho 6 páginas de 100, sin avisar que el catálogo está incompleto (el registro tiene bastante más).
 - Dónde: `app/electron/descubrir.ts` líneas 516-522 (`catalogo`) y 324-332 (`bajarMcp`)
 - Arreglo: Considerar vigente sólo si los dos `errores` son `null`, o reintentar la fuente con error. Guardar `truncado: true` y mostrarlo en la interfaz (texto es/en).
 
-**B140 · `instalar.sh` no escapa la ruta del checkout (`'`, `&`, espacios en el `.desktop`)** (`SISTEMA-14`, severidad baja) · **PENDIENTE**
+**B140 · `instalar.sh` no escapa la ruta del checkout (`'`, `&`, espacios en el `.desktop`)** (`SISTEMA-14`, severidad baja) · **ARREGLADO**
 - Qué pasa: Con un checkout en una ruta con `'`, el lanzador `trama` queda con sintaxis rota. Con `&` o `|`, la unidad `trama-motor.service` lleva una ruta mal armada. Con espacios en `$HOME`, el `Exec=` del menú no abre.
 - Dónde: `app/scripts/instalar.sh` línea 57 (`raiz='$raiz'`), 94 (`Exec=$bin`) y 119 (`sed "s|@RAIZ@|…|g"`)
 - Arreglo: Escapar con `printf %q` para el lanzador, y con `${raiz//\\/\\\\}` / `${raiz//&/\\&}` / `${raiz//|/\\|}` para `sed` (o usar `awk`). Entrecomillar `Exec="$bin"`.
 
-**B141 · `wayland.ts` ignora un `WAYLAND_DISPLAY` absoluto que el lanzador de `instalar.sh` sí respeta** (`SISTEMA-15`, severidad baja) · **PENDIENTE**
+**B141 · `wayland.ts` ignora un `WAYLAND_DISPLAY` absoluto que el lanzador de `instalar.sh` sí respeta** (`SISTEMA-15`, severidad baja) · **ARREGLADO**
 - Qué pasa: Con `WAYLAND_DISPLAY=/ruta/al/socket` (válido en Wayland), la app lo ignora, busca un `wayland-N` en `XDG_RUNTIME_DIR` y pisa la variable con ese. Puede mandar la ventana a otra sesión.
 - Dónde: `app/electron/wayland.ts` línea 34 y 37 (`resolverWayland`)
 - Arreglo: Si es absoluto y `esSocket(ruta)`, devolverlo igual con `forzarWayland: true`. Test en `tests/wayland-sesion.test.ts`.
 
-**B142 · Con terminales que no esperan (por ejemplo `xfce4-terminal` por `$TERMINAL`), Actualizar da «se cerró la terminal» con el comando corriendo** (`SISTEMA-16`, severidad baja) · **PENDIENTE**
+**B142 · Con terminales que no esperan (por ejemplo `xfce4-terminal` por `$TERMINAL`), Actualizar da «se cerró la terminal» con el comando corriendo** (`SISTEMA-16`, severidad baja) · **ARREGLADO**
 - Qué pasa: `xfce4-terminal -x` entrega la orden a su servidor y sale al instante. `enTerminal` toma esa salida como «cerró», resuelve con `terminalCerro`, relee `--version` antes de que termine `paru` y muestra un error falso.
 - Dónde: `app/electron/actualizador.ts` líneas 97-103 (`enTerminal`); `app/electron/terminal-lanzar.ts` línea 19 (`BANDERA`)
 - Arreglo: Agregar `--disable-server` a `xfce4-terminal`. Más general: si la terminal sale antes que la marca, seguir esperando la marca un rato en vez de resolver.
