@@ -102,10 +102,15 @@ function gitComunReal(rutaTrabajo: string): string {
 }
 const segundos = (x: string | undefined, d: number) => (x && /^[0-9]+$/.test(x) && Number(x) > 0 ? Number(x) : d);
 
-/** Los shims de codex/bin primeros en el PATH (las guardias de git y cargo de codex y dsh). En Windows no van: son sh. */
-function conShims(env: Env, plat: Plataforma): Env {
-  if (plat === "win32") return env;
-  return { ...env, PATH: `${codexShims(env)}${delimitadorDe(plat)}${env.PATH ?? ""}` };
+/**
+ * Los shims de codex/bin primeros en el PATH (las guardias de git y cargo de codex y dsh/opencode). Linux: los scripts de bash
+ * (`git`, `cargo`). Windows: `git.cmd` y `cargo.cmd`, que corren `git.mjs` y `cargo.mjs` (la misma lógica en Node) con el node de
+ * `pa` (`PA_NODE`; el que lanza la carcasa nativa es el que trae Trama). Cada .cmd cae a `node` del PATH si falta `PA_NODE`.
+ */
+export function conShims(env: Env, plat: Plataforma): Env {
+  const r: Env = { ...env, PATH: `${codexShims(env)}${delimitadorDe(plat)}${env.PATH ?? ""}` };
+  if (plat === "win32") r.PA_NODE = env.PA_NODE || process.execPath;
+  return r;
 }
 
 /** Arma la llamada de agy, codex o dsh/opencode. */

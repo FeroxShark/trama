@@ -17,7 +17,16 @@ import { privacidad } from "./privacidad.ts";
 /** Las rutas de los runners y los shims (PA_DSH_CORRER, PA_OPENCODE_CORRER, PA_CODEX_SHIMS o los de motor/). */
 export const dshCorrer = (env: Env) => env.PA_DSH_CORRER || path.join(carpetaMotor(env), "dsh", "correr.mjs");
 export const opencodeCorrer = (env: Env) => env.PA_OPENCODE_CORRER || path.join(carpetaMotor(env), "opencode", "correr.mjs");
-export const codexShims = (env: Env) => env.PA_CODEX_SHIMS || path.join(carpetaMotor(env), "codex", "bin");
+/**
+ * La carpeta de los shims de git y cargo: `motor/codex/bin` (checkout, instalación de Linux) o, en el payload nativo de Windows
+ * (`<raíz>\\{app,bin,node}`, sin `motor/`), `app\\codex\\bin`. Gana la primera que tiene `git.mjs` (o `git`).
+ */
+export function codexShims(env: Env, existe: (f: string) => boolean = existsSync): string {
+  if (env.PA_CODEX_SHIMS) return env.PA_CODEX_SHIMS;
+  const dir = carpetaMotor(env);
+  const cand = [path.join(dir, "codex", "bin"), path.join(dir, "app", "codex", "bin")];
+  return cand.find((c) => existe(path.join(c, "git.mjs")) || existe(path.join(c, "git"))) ?? cand[0]!;
+}
 /** `$TRAMA_CLAVES` o `$XDG_CONFIG_HOME/trama/claves.env` (el contrato con la app). */
 export const clavesEnv = (env: Env, plat: Plataforma = plataformaActual()) => env.TRAMA_CLAVES || path.join(configTrama(env, homeDe(env, plat), plat), "claves.env");
 
