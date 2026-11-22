@@ -1,5 +1,9 @@
 # Changes
 
+## 0.3.24
+
+- Windows: a worker that moves on to the next model (`-m a,b,c`) or retries (goal mode) no longer opens a console window. This may be the CMD that showed up for an instant while using tools; still to be confirmed on a Windows PC.
+
 ## 0.3.23
 
 - Every engine knows the same: Gemini, ChatGPT, DeepSeek, OpenCode and local model chats and workers get your memory, and chats also get the board summary. DeepSeek and OpenCode workers also get your CLAUDE.md. Settings > Models > "Shared memory" has a switch per engine; what you share reaches that engine's provider. Any memory line that looks like a key, an email or a phone number is left out.
