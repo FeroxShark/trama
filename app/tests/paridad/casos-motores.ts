@@ -300,10 +300,10 @@ const casosArmar: Caso[] = [
   armar("agy sin CLAUDE.md del dueño", { motor: "agy", modelo: "gemini-4-argon-low", claudeMd: false, divergenciaSalida: STDIN_TS }),
   armar("codex con el .git común, CARGO_TARGET_DIR y el mapa", { motor: "codex", modelo: "codex:gpt-6-sol-high", mapa: true, env: { CARGO_TARGET_DIR: "/tmp/target-x" }, divergenciaSalida: `${STDIN_TS} El TS omite el AGENTS.md del cwd y agrega el párrafo de cierre.` }),
   armar("codex --leer (read-only, sin --add-dir)", { motor: "codex", modelo: "codex:gpt-6.1-sol-low", leer: true, mapa: true, divergenciaSalida: `${STDIN_TS} El TS omite el AGENTS.md del cwd.` }),
-  armar("dsh deepseek: sin el CLAUDE.md del dueño", { motor: "dsh", modelo: "dsh:deepseek/deepseek-v4-flash" }),
+  armar("dsh deepseek: sin el CLAUDE.md del dueño", { motor: "dsh", modelo: "dsh:deepseek/deepseek-v4-flash", divergenciaSalida: "El bash está congelado y no manda el CLAUDE.md del dueño a dsh/opencode remotos; el TS sí (con memoria_compartida prendida, el default). Los tests de tests/cli-pa-memoria-workers.test.ts lo cubren." }),
   armar("dsh ollama: CLAUDE.md, --url y --max-pasos", { motor: "dsh", modelo: "dsh:ollama/qwen3-coder:30b", maxTurns: "12", env: { OLLAMA_HOST: "http://gpu:11434/" } }),
-  armar("opencode con effort", { motor: "dsh", modelo: "opencode:opencode/big-pickle", ocEffort: "high" }),
-  armar("dsh con effort (no viaja)", { motor: "dsh", modelo: "dsh:opencode/kimi", ocEffort: "high" }),
+  armar("opencode con effort", { motor: "dsh", modelo: "opencode:opencode/big-pickle", ocEffort: "high", claudeMd: false }),
+  armar("dsh con effort (no viaja)", { motor: "dsh", modelo: "dsh:opencode/kimi", ocEffort: "high", claudeMd: false }),
 ];
 
 export const casosMotores: Caso[] = [...casosAgy, ...casosCodex, ...casosLatido, ...casosPrivacidad, ...casosModelos, ...casosClaves, ...casosBloque, ...casosArmar];
