@@ -31,17 +31,34 @@ public static class Det {
     } catch {}
     return pid + " (ya terminó)";
   }
+  // Los procesos que arrancan (sondeo cada 30 ms): con Windows Terminal la ventana es de WindowsTerminal/OpenConsole, no del programa
+  // que la pidió; el culpable es el que arrancó justo antes.
+  class Nuevo { public DateTime Cuando; public string Texto; }
+  static readonly List<Nuevo> Nuevos = new List<Nuevo>();
+  static void Vigilar() {
+    var vistos = new HashSet<int>(); foreach (var p in Process.GetProcesses()) vistos.Add(p.Id);
+    while (true) {
+      foreach (var p in Process.GetProcesses()) {
+        if (!vistos.Add(p.Id)) continue;
+        uint padre; string t = Proc((uint)p.Id, out padre); uint abuelo; string tp = padre > 4 ? Proc(padre, out abuelo) : "";
+        lock (Nuevos) Nuevos.Add(new Nuevo { Cuando = DateTime.Now, Texto = t + (tp != "" ? "\n        padre: " + tp : "") });
+      }
+      System.Threading.Thread.Sleep(30);
+    }
+  }
   public static void Mirar(int segundos, string salida) {
     var vistas = Ver(); var sw = Stopwatch.StartNew();
-    Console.WriteLine("Mirando " + segundos + " s. Usá Trama hasta que aparezca la ventana. Ctrl+C corta.");
+    var hilo = new System.Threading.Thread(Vigilar); hilo.IsBackground = true; hilo.Start();
+    Console.WriteLine("Mirando " + segundos + " s. Usa Trama hasta que aparezca la ventana. Ctrl+C corta.");
     while (sw.Elapsed.TotalSeconds < segundos) {
       foreach (var kv in Ver()) {
         if (vistas.ContainsKey(kv.Key)) continue;
         vistas[kv.Key] = kv.Value;
         var t = new StringBuilder(512); GetWindowText(kv.Key, t, 512);
-        var l = new List<string>(); l.Add(DateTime.Now.ToString("HH:mm:ss.fff") + "  VENTANA '" + t + "' de:");
-        uint pid = kv.Value;
-        for (int i = 0; i < 8 && pid > 4; i++) { uint padre; l.Add("   " + (i == 0 ? "" : "<- ") + Proc(pid, out padre)); pid = padre; }
+        var l = new List<string>(); var ahora = DateTime.Now;
+        uint padre; l.Add(ahora.ToString("HH:mm:ss.fff") + "  VENTANA '" + t + "' (de " + Proc(kv.Value, out padre) + ")");
+        l.Add("   procesos que arrancaron en los 3 s anteriores:");
+        lock (Nuevos) foreach (var n in Nuevos) if ((ahora - n.Cuando).TotalSeconds <= 3) l.Add("     " + n.Cuando.ToString("HH:mm:ss.fff") + "  " + n.Texto);
         foreach (var x in l) Console.WriteLine(x);
         System.IO.File.AppendAllLines(salida, l);
       }
@@ -51,4 +68,4 @@ public static class Det {
 }
 '@
 [Det]::Mirar($Segundos, $Salida)
-Write-Host "Listo. Lo que vio quedó en: $Salida"
+Write-Host "Listo. Lo que vio quedo en: $Salida"
