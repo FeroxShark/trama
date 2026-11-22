@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.3.28
+
+- Panel Contexto: cada pieza que se carga siempre (sistema, herramientas, MCP, skills, memoria) dice «Vale», «Dudoso» o «Sobra», con ícono y la razón en una línea («nunca usada en 30 días», «duplicada con workers (user)»). Arriba va «Fijo: N k por mensaje · recuperable: M k», y cada lista empieza por lo más caro que menos se usa.
+- Panel Contexto en Gemini, ChatGPT, DeepSeek, OpenCode y modelos locales: antes decía «sin desglose». Ahora lista lo que Trama le manda a ese motor al arrancar, parte por parte (sus instrucciones, tus reglas, la memoria, la ficha del tablero), con lo que se recortó marcado; el resto son los mensajes.
+- La ventana de contexto de ChatGPT, DeepSeek, OpenCode y Ollama ya no se toma como 1 M: el porcentaje del anillo usa la de cada motor (la de ChatGPT sale del catálogo de Codex).
+
 ## 0.3.27
 
 - Windows: los workers de Claude arrancan también con Claude instalado por npm (`claude.cmd`). Antes no arrancaba ninguno y `pa` decía que la instalación estaba rota. Lo mismo para Codex, Gemini y OpenCode instalados por npm.
