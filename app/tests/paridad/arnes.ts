@@ -259,11 +259,14 @@ function completaFilas(tsv: string): string {
   return [cab, ...filas.map(completar)].join("\n");
 }
 
-/** `.hilo`: `espera=` son los segundos de cola de la corrida (un cruce de segundo, 0 o 1, según la carga): se marca fijo. */
 /** El `.jefe` del TS suma el pedido (tarea, modelo, effort, cuenta) para mostrar la corrida en cola (B084); el bash congelado no: se saca para comparar. */
 const sinPedido = (t: string) => t.split("\n").filter((l) => !/^(tarea|modelo|effort|cuenta)=/.test(l)).join("\n");
 
-const sinEspera = (hilo: string) => hilo.replace(/^espera=\d+$/m, "espera=<N>");
+/**
+ * `.hilo`: `espera=` son los segundos de cola de la corrida (un cruce de segundo, 0 o 1, según la carga): se marca fijo. `autocompact=` es un
+ * campo que sólo escribe el TS (el bash está congelado): el anillo y el panel de contexto lo leen (CTX-43); no se compara.
+ */
+const sinEspera = (hilo: string) => hilo.replace(/^espera=\d+$/m, "espera=<N>").replace(/^autocompact=.*\n/m, "");
 
 /** Lo que quedó en la casa del `pa` (estado + proyectos), normalizado. Lo usan también lanzar.test.ts (lado B) para que A y B pasen por lo mismo. */
 export function recolectarEstado(dir: string, ignorar: RegExp[], r: Raices): Record<string, string> {
