@@ -269,6 +269,51 @@ test("devuelve sólo en SessionStart con source compact, renombra .md a .devuelt
   assert.equal(existsSync(path.join(notas, "s-fb.pedida")), false);
 });
 
+test("SessionStart(compact) no devuelve dos veces la misma nota en llamadas consecutivas o simultáneas, pero sí en una segunda compactación", async () => {
+  const dir = nuevoDir();
+  const tr = path.join(dir, "s-dup.jsonl");
+  const boundary = JSON.stringify({ type: "system", subtype: "compact_boundary", compactMetadata: { trigger: "auto" } });
+  escribirTranscript(tr, [
+    linAsistente([{ type: "text", text: "[[nota-compactar]]ESTADO REAL 1[[/nota-compactar]]" }], { input_tokens: 100, cache_read_input_tokens: 180_000 }),
+  ]);
+  await hookMod.decidir({ evento: "PreCompact", sesion: "s-dup", transcript: tr, hilos: dir, idioma: "es" });
+  escribirTranscript(tr, [
+    linAsistente([{ type: "text", text: "[[nota-compactar]]ESTADO REAL 1[[/nota-compactar]]" }], { input_tokens: 100, cache_read_input_tokens: 180_000 }),
+    boundary,
+  ]);
+
+  const c1 = await hookMod.decidir({ evento: "SessionStart", source: "compact", sesion: "s-dup", transcript: tr, hilos: dir, idioma: "es" });
+  const c2 = await hookMod.decidir({ evento: "SessionStart", source: "compact", sesion: "s-dup", transcript: tr, hilos: dir, idioma: "es" });
+  assert.match(c1?.hookSpecificOutput.additionalContext ?? "", /ESTADO REAL 1/);
+  assert.equal(c2, null, "la segunda ejecución de la misma compactación no debe devolver la nota del transcript");
+
+  // Simultáneas sobre una sesión distinta (sin PreCompact previo, directo desde transcript)
+  const [sim1, sim2] = await Promise.all([
+    hookMod.decidir({ evento: "SessionStart", source: "compact", sesion: "s-sim", transcript: tr, hilos: dir, idioma: "es" }),
+    hookMod.decidir({ evento: "SessionStart", source: "compact", sesion: "s-sim", transcript: tr, hilos: dir, idioma: "es" }),
+  ]);
+  const noNulas = [sim1, sim2].filter(Boolean);
+  assert.equal(noNulas.length, 1, "sólo una de las dos ejecuciones simultáneas devuelve la nota");
+
+  // Segunda compactación legítima de la misma sesión s-dup
+  escribirTranscript(tr, [
+    linAsistente([{ type: "text", text: "[[nota-compactar]]ESTADO REAL 1[[/nota-compactar]]" }], { input_tokens: 100, cache_read_input_tokens: 180_000 }),
+    boundary,
+    linAsistente([{ type: "text", text: "[[nota-compactar]]ESTADO REAL 2[[/nota-compactar]]" }], { input_tokens: 100, cache_read_input_tokens: 190_000 }),
+  ]);
+  await hookMod.decidir({ evento: "PreCompact", sesion: "s-dup", transcript: tr, hilos: dir, idioma: "es" });
+  escribirTranscript(tr, [
+    linAsistente([{ type: "text", text: "[[nota-compactar]]ESTADO REAL 1[[/nota-compactar]]" }], { input_tokens: 100, cache_read_input_tokens: 180_000 }),
+    boundary,
+    linAsistente([{ type: "text", text: "[[nota-compactar]]ESTADO REAL 2[[/nota-compactar]]" }], { input_tokens: 100, cache_read_input_tokens: 190_000 }),
+    boundary,
+  ]);
+  const seg1 = await hookMod.decidir({ evento: "SessionStart", source: "compact", sesion: "s-dup", transcript: tr, hilos: dir, idioma: "es" });
+  const seg2 = await hookMod.decidir({ evento: "SessionStart", source: "compact", sesion: "s-dup", transcript: tr, hilos: dir, idioma: "es" });
+  assert.match(seg1?.hookSpecificOutput.additionalContext ?? "", /ESTADO REAL 2/);
+  assert.equal(seg2, null);
+});
+
 test("recorta a 12 000 caracteres con aviso de recorte (es y en)", () => {
   const larga = "a".repeat(15_000);
   const es = textoDevolucionNota({ idioma: "es", nota: larga, minutos: 2, archivo: "/estado/notas/s1.md" });

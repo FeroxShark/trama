@@ -8,7 +8,7 @@
 //   - SessionStart con `source === "compact"` («devolver»): devuelve la nota (de `.md` o, si falta, de la cola del transcript)
 //     recortada a 12 000 caracteres y borra `.pedida`. Otros `source`: no hace nada.
 // Barato (lee sólo los últimos ~256 KB del transcript), ignora subagentes (`isSidechain`), nunca bloquea y siempre sale con 0.
-import { chmodSync, closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -185,9 +185,19 @@ export function ultimaNotaDeLineas(lineas, { trasCompact = false } = {}) {
   let idActual = null;
   let acum = "";
   let tsActual = null;
-  const revisarAcum = () => {
+  const contarBoundariesHasta = (hasta) => {
+    let n = 0;
+    for (let k = 0; k <= hasta && k < lineas.length; k++) {
+      try {
+        const x = JSON.parse(lineas[k]);
+        if (x && typeof x === "object" && x.isSidechain !== true && x.type === "system" && x.subtype === "compact_boundary") n++;
+      } catch {}
+    }
+    return n;
+  };
+  const revisarAcum = (hastaIdx) => {
     const n = extraerNotaDeTexto(acum);
-    return n ? { texto: n, tsMs: tsActual } : null;
+    return n ? { texto: n, tsMs: tsActual, ciclo: contarBoundariesHasta(hastaIdx) } : null;
   };
   for (let i = lineas.length - 1; i >= 0; i--) {
     let o;
@@ -198,7 +208,7 @@ export function ultimaNotaDeLineas(lineas, { trasCompact = false } = {}) {
     }
     if (!o || typeof o !== "object" || o.isSidechain === true) continue;
     if (o.type === "system" && o.subtype === "compact_boundary") {
-      const r = revisarAcum();
+      const r = revisarAcum(i);
       if (r) return r;
       idActual = null;
       acum = "";
@@ -217,14 +227,14 @@ export function ultimaNotaDeLineas(lineas, { trasCompact = false } = {}) {
       acum = `${t}\n${acum}`;
       tsActual ??= tsDe(o);
     } else {
-      const r = revisarAcum();
+      const r = revisarAcum(i);
       if (r) return r;
       idActual = mid;
       acum = t;
       tsActual = tsDe(o);
     }
   }
-  return revisarAcum();
+  return revisarAcum(-1);
 }
 
 function guardarNota(dirNotas, archivoNota, nota) {
@@ -281,6 +291,8 @@ export async function decidir({
   const archivoSugerida = path.join(dirNotas, `${sesion}.sugerida`);
   const archivoNota = path.join(dirNotas, `${sesion}.md`);
   const archivoDevuelta = path.join(dirNotas, `${sesion}.devuelta.md`);
+  const archivoFirma = path.join(dirNotas, `${sesion}.devuelta.firma`);
+  const candadoDevuelta = path.join(dirNotas, `${sesion}.devuelta.lock.d`);
   const limpiarMarcas = () => {
     try {
       rmSync(archivoMarca, { force: true });
@@ -296,51 +308,96 @@ export async function decidir({
 
   if (evento === "SessionStart") {
     limpiarMarcas();
+    const lineas = leerColaTranscript(transcript, tailBytes);
+    const hallada = ultimaNotaDeLineas(lineas, { trasCompact: true });
+    let hayArchivo = false;
+    try {
+      hayArchivo = statSync(archivoNota).isFile();
+    } catch {}
+    if (!hayArchivo && !hallada) return null;
+
     let nota = "";
     let minutos = null;
     let archivo = "";
+    let tieneCandado = false;
     try {
-      const guardada = readFileSync(archivoNota, "utf8").trim();
-      let mtime = null;
+      mkdirSync(dirNotas, { recursive: true });
+      const fin = Date.now() + 2000;
+      for (;;) {
+        try {
+          mkdirSync(candadoDevuelta);
+          tieneCandado = true;
+          break;
+        } catch (e) {
+          if (e?.code !== "EEXIST" || Date.now() >= fin) break;
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+        }
+      }
+    } catch {}
+    try {
       try {
-        mtime = statSync(archivoNota).mtimeMs;
+        const guardada = readFileSync(archivoNota, "utf8").trim();
+        let mtime = null;
+        try {
+          mtime = statSync(archivoNota).mtimeMs;
+        } catch {
+          mtime = null;
+        }
+        if (guardada) {
+          nota = guardada;
+          minutos = mtime !== null ? Math.max(0, Math.floor((ahoraMs - mtime) / 60_000)) : null;
+          try {
+            rmSync(archivoDevuelta, { force: true });
+            renameSync(archivoNota, archivoDevuelta);
+            archivo = archivoDevuelta;
+          } catch {
+            archivo = archivoNota;
+          }
+          try {
+            const firma = hallada ? `${hallada.ciclo ?? 0}:${hallada.texto}` : `md:${nota}`;
+            writeFileSync(archivoFirma, firma, { mode: 0o600 });
+          } catch {}
+        } else {
+          try {
+            rmSync(archivoNota, { force: true });
+          } catch {
+            /* nada */
+          }
+        }
       } catch {
-        mtime = null;
+        /* sin archivo: cae al transcript */
       }
-      if (guardada) {
-        nota = guardada;
-        minutos = mtime !== null ? Math.max(0, Math.floor((ahoraMs - mtime) / 60_000)) : null;
+      if (!nota) {
+        if (!hallada) return null;
+        const firma = `${hallada.ciclo ?? 0}:${hallada.texto}`;
+        let previa = null;
         try {
-          rmSync(archivoDevuelta, { force: true });
-          renameSync(archivoNota, archivoDevuelta);
-          archivo = archivoDevuelta;
+          previa = readFileSync(archivoFirma, "utf8");
         } catch {
-          archivo = archivoNota;
+          previa = null;
         }
-      } else {
+        if (previa === firma) return null;
         try {
-          rmSync(archivoNota, { force: true });
-        } catch {
-          /* nada */
+          mkdirSync(dirNotas, { recursive: true });
+          writeFileSync(archivoFirma, firma, { mode: 0o600 });
+        } catch {}
+        nota = hallada.texto;
+        let refMs = hallada.tsMs;
+        if (refMs === null && typeof transcript === "string" && transcript) {
+          try {
+            refMs = statSync(transcript).mtimeMs;
+          } catch {
+            refMs = null;
+          }
         }
+        minutos = refMs !== null ? Math.max(0, Math.floor((ahoraMs - refMs) / 60_000)) : null;
       }
-    } catch {
-      /* sin archivo: cae al transcript */
-    }
-    if (!nota) {
-      const lineas = leerColaTranscript(transcript, tailBytes);
-      const hallada = ultimaNotaDeLineas(lineas, { trasCompact: true });
-      if (!hallada) return null;
-      nota = hallada.texto;
-      let refMs = hallada.tsMs;
-      if (refMs === null && typeof transcript === "string" && transcript) {
+    } finally {
+      if (tieneCandado) {
         try {
-          refMs = statSync(transcript).mtimeMs;
-        } catch {
-          refMs = null;
-        }
+          rmdirSync(candadoDevuelta);
+        } catch {}
       }
-      minutos = refMs !== null ? Math.max(0, Math.floor((ahoraMs - refMs) / 60_000)) : null;
     }
     const { textoDevolucionNota } = await cargarTextos();
     return {
