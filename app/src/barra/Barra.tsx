@@ -624,10 +624,10 @@ export function Barra() {
   const carpetaDeLider = useRef<(sid: string) => string | undefined>(() => undefined);
   const arbol = useMemo(() => {
     const a = aRiel(plegarTerminados(arbolBruto), resueltos);
-    const cambioOrden = ordenVisto.current !== nombres.orden;
+    const ordenAnterior = ordenVisto.current;
     ordenVisto.current = nombres.orden;
     if (!porPrioridad || buscando) return a;
-    ordenProyectos.current = actualizarOrdenProyectos(ordenProyectos.current, a.carpetas, congelada, cambioOrden, resueltos);
+    ordenProyectos.current = actualizarOrdenProyectos(ordenProyectos.current, a.carpetas, congelada, ordenAnterior, nombres.orden, resueltos);
     return { ...a, carpetas: segunLista(a.carpetas, ordenProyectos.current) };
   }, [arbolBruto, resueltos, porPrioridad, buscando, congelada, nombres.orden]);
   carpetaDeLider.current = (sid) => {
