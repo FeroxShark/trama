@@ -152,7 +152,7 @@ export async function guardarModelos(x: unknown, correr?: CorrerPa, ruta = rutaM
     await mkdir(path.dirname(ruta), { recursive: true });
     // Si es un enlace (dotfiles), se escribe el archivo al que apunta.
     const real = crudo.texto === null ? ruta : await realpath(ruta);
-    const tmp = `${real}.trama-${process.pid}-${++tmps}.tmp`;
+    const tmp = tmpModelos(real);
     try {
       await writeFile(tmp, texto);
       await rename(tmp, real);
@@ -165,9 +165,11 @@ export async function guardarModelos(x: unknown, correr?: CorrerPa, ruta = rutaM
 }
 
 let tmps = 0;
+/** Un temporal propio de cada guardado (pid + contador): dos guardados de `modelos.json` nunca comparten el mismo. */
+export const tmpModelos = (real: string): string => `${real}.trama-${process.pid}-${++tmps}.tmp`;
 const filas = new Map<string, Promise<unknown>>();
 /** Corre `fn` cuando terminaron las anteriores con la misma `clave` (la ruta real del archivo); un fallo no frena a las que siguen. */
-function enFilaModelos<T>(clave: string, fn: () => Promise<T>): Promise<T> {
+export function enFilaModelos<T>(clave: string, fn: () => Promise<T>): Promise<T> {
   const ant = filas.get(clave) ?? Promise.resolve();
   const p = ant.catch(() => {}).then(fn);
   const cola = p.catch(() => {});

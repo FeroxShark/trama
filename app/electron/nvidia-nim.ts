@@ -9,6 +9,7 @@ import path from "node:path";
 import { leerClaves, hayClaves, type NombreClave } from "./claves.ts";
 import { errorT, textoT } from "./errores.ts";
 import { rutaModelosOc } from "./opencode.ts";
+import { enFilaModelos, tmpModelos } from "./modelos-config.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -63,34 +64,38 @@ export async function guardarModelosNim(lista: unknown, env: Env = process.env, 
     if (!ids.includes(m)) ids.push(m);
   }
   const ruta = rutaModelosOc(env, home);
-  let texto: string | null = null;
-  try {
-    texto = await readFile(ruta, "utf8");
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw errorT("main.noLeo", { ruta, e: (e as Error).message });
-  }
-  let obj: Record<string, unknown> = { version: 1 };
-  if (texto !== null) {
+  // leer → unir → escribir en fila por archivo real, la misma de `guardarModelos` (modelos-config.ts): dos guardados no se pisan
+  const clave = await realpath(ruta).catch(() => path.resolve(ruta));
+  await enFilaModelos(clave, async () => {
+    let texto: string | null = null;
     try {
-      const j = JSON.parse(texto);
-      if (!j || typeof j !== "object" || Array.isArray(j) || j.version !== 1) throw new Error("no es un modelos.json v1");
-      obj = j;
+      texto = await readFile(ruta, "utf8");
     } catch (e) {
-      throw errorT("main.modelosRoto", { ruta, e: (e as Error).message });
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw errorT("main.noLeo", { ruta, e: (e as Error).message });
     }
-  }
-  const esBase = ids.length === 1 && ids[0] === MODELO_NIM_BASE;
-  if (esBase) delete obj.nvidia_modelos;
-  else obj.nvidia_modelos = ids;
-  if (esBase && texto === null) return ids; // sin archivo y con el base: no se crea nada
-  const nuevo = JSON.stringify(obj, null, 2) + "\n";
-  if (nuevo !== texto) {
-    await mkdir(path.dirname(ruta), { recursive: true });
-    const real = texto === null ? ruta : await realpath(ruta);
-    const tmp = `${real}.trama-${process.pid}.tmp`;
-    await writeFile(tmp, nuevo);
-    await rename(tmp, real);
-  }
+    let obj: Record<string, unknown> = { version: 1 };
+    if (texto !== null) {
+      try {
+        const j = JSON.parse(texto);
+        if (!j || typeof j !== "object" || Array.isArray(j) || j.version !== 1) throw new Error("no es un modelos.json v1");
+        obj = j;
+      } catch (e) {
+        throw errorT("main.modelosRoto", { ruta, e: (e as Error).message });
+      }
+    }
+    const esBase = ids.length === 1 && ids[0] === MODELO_NIM_BASE;
+    if (esBase) delete obj.nvidia_modelos;
+    else obj.nvidia_modelos = ids;
+    if (esBase && texto === null) return; // sin archivo y con el base: no se crea nada
+    const nuevo = JSON.stringify(obj, null, 2) + "\n";
+    if (nuevo !== texto) {
+      await mkdir(path.dirname(ruta), { recursive: true });
+      const real = texto === null ? ruta : await realpath(ruta);
+      const tmp = tmpModelos(real);
+      await writeFile(tmp, nuevo);
+      await rename(tmp, real);
+    }
+  });
   return ids;
 }
 

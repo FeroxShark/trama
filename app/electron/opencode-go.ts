@@ -11,6 +11,7 @@ import { resolverPa } from "./binario.ts";
 import { errorT } from "./errores.ts";
 import { estadoHilos } from "./rutas.ts";
 import { PLANES_OPENCODE, PROVEEDOR_GO, planOpencode, rutaModelosOc, type PlanOpencode } from "./opencode.ts";
+import { enFilaModelos, tmpModelos } from "./modelos-config.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -176,34 +177,38 @@ export { planOpencode, PLANES_OPENCODE, type PlanOpencode };
 export async function guardarPlanOpencode(plan: unknown, env: Env = process.env, home: string = os.homedir()): Promise<PlanOpencode> {
   if (!(PLANES_OPENCODE as readonly unknown[]).includes(plan)) throw errorT("main.opencodePlan", { v: String(plan).slice(0, 20) });
   const ruta = rutaModelosOc(env, home);
-  let texto: string | null = null;
-  try {
-    texto = await readFile(ruta, "utf8");
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw errorT("main.noLeo", { ruta, e: (e as Error).message });
-  }
-  let obj: Record<string, unknown> = { version: 1 };
-  if (texto !== null) {
+  // leer → unir → escribir en fila por archivo real, la misma de `guardarModelos` (modelos-config.ts): dos guardados no se pisan
+  const clave = await realpath(ruta).catch(() => path.resolve(ruta));
+  await enFilaModelos(clave, async () => {
+    let texto: string | null = null;
     try {
-      const j = JSON.parse(texto);
-      if (!j || typeof j !== "object" || Array.isArray(j) || j.version !== 1) throw new Error("no es un modelos.json v1");
-      obj = j;
+      texto = await readFile(ruta, "utf8");
     } catch (e) {
-      // No se escribe encima de un archivo roto o de otra versión.
-      throw errorT("main.modelosRoto", { ruta, e: (e as Error).message });
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw errorT("main.noLeo", { ruta, e: (e as Error).message });
     }
-  }
-  if (plan === "gratis") delete obj.opencode_plan;
-  else obj.opencode_plan = plan;
-  if (plan === "gratis" && texto === null) return "gratis"; // sin archivo y sin plan: no se crea nada
-  const nuevo = JSON.stringify(obj, null, 2) + "\n";
-  if (nuevo !== texto) {
-    await mkdir(path.dirname(ruta), { recursive: true });
-    const real = texto === null ? ruta : await realpath(ruta);
-    const tmp = `${real}.trama-${process.pid}.tmp`;
-    await writeFile(tmp, nuevo);
-    await rename(tmp, real);
-  }
+    let obj: Record<string, unknown> = { version: 1 };
+    if (texto !== null) {
+      try {
+        const j = JSON.parse(texto);
+        if (!j || typeof j !== "object" || Array.isArray(j) || j.version !== 1) throw new Error("no es un modelos.json v1");
+        obj = j;
+      } catch (e) {
+        // No se escribe encima de un archivo roto o de otra versión.
+        throw errorT("main.modelosRoto", { ruta, e: (e as Error).message });
+      }
+    }
+    if (plan === "gratis") delete obj.opencode_plan;
+    else obj.opencode_plan = plan;
+    if (plan === "gratis" && texto === null) return; // sin archivo y sin plan: no se crea nada
+    const nuevo = JSON.stringify(obj, null, 2) + "\n";
+    if (nuevo !== texto) {
+      await mkdir(path.dirname(ruta), { recursive: true });
+      const real = texto === null ? ruta : await realpath(ruta);
+      const tmp = tmpModelos(real);
+      await writeFile(tmp, nuevo);
+      await rename(tmp, real);
+    }
+  });
   return plan as PlanOpencode;
 }
 
