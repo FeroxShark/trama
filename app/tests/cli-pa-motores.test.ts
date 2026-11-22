@@ -195,7 +195,7 @@ test("armarLlamada agy: stdout al stream, PA_AGY_* exportadas y la cuenta sólo 
   assert.equal(l.latido, undefined);
 });
 
-test("armarLlamada codex: shims primeros en el PATH (no en Windows), latido y el último mensaje a borrar", () => {
+test("armarLlamada codex: shims primeros en el PATH (en Windows, los .cmd con ; y PA_NODE), latido y el último mensaje a borrar", () => {
   const l = armarLlamada(datos("codex", "codex:gpt-6-luna-medium", { gitComun: () => "/repo/.git", env: { ...datos("codex", "x").env, PA_CODEX_LATIDO_S: "5" } }));
   assert.equal(l.env.PATH, "/shims:/usr/bin");
   assert.deepEqual(l.latido, { tool: "codex", cadaS: 5 });
@@ -203,7 +203,9 @@ test("armarLlamada codex: shims primeros en el PATH (no en Windows), latido y el
   assert.deepEqual(l.args.slice(0, 6), ["exec", "--json", "-m", "gpt-6-luna", "-c", 'model_reasoning_effort="medium"']);
   assert.ok(l.args.includes("/repo/.git"));
   const w = armarLlamada(datos("codex", "codex:gpt-6-sol-high", { plat: "win32" }));
-  assert.equal(w.env.PATH, "/usr/bin");
+  assert.equal(w.env.PATH, "/shims;/usr/bin");
+  assert.equal(w.env.PA_NODE, process.execPath);
+  assert.equal(l.env.PA_NODE, undefined);
 });
 
 test("armarLlamada dsh: el runner node de motor/dsh, la tarea por archivo, la key sólo si es de ese proveedor", () => {
