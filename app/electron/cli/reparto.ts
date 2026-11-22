@@ -1194,6 +1194,34 @@ export function fuentesUso(paState: string, cuenta: Obj | null, env: NodeJS.Proc
   return usos;
 }
 
+/**
+ * La familia con la que se relaciona el límite propio de un modelo de Claude («Fable», `weekly_scoped` de `get_usage`) con los ids de
+ * `reparto`: el nombre en minúsculas, sin «claude», primera palabra («Fable» → `fable`; «Claude Opus 5» → `opus`). Sin lista fija de modelos.
+ */
+export function familiaDeLimite(nombre: unknown): string {
+  if (typeof nombre !== "string") return "";
+  return (nombre.toLowerCase().replace(/^\s*claude[\s-]+/, "").split(/[^a-z0-9]+/).find((x) => x) ?? "");
+}
+
+/** El límite semanal propio que corta a este modelo de Claude, si lo hay y sigue agotado (100 %) hasta una hora futura: `[nombre, vuelve]`. */
+export function limiteDeModelo(modelos: unknown, mid: string, now: Date): [string, string | null] | null {
+  if (!Array.isArray(modelos)) return null;
+  const id = mid.toLowerCase();
+  for (const m of modelos) {
+    const fam = familiaDeLimite(get(m, "nombre", get(m, "id")));
+    if (!fam || !id.includes(fam)) continue;
+    for (const w of get(m, "ventanas", []) || []) {
+      const usado = get(w, "usado");
+      const vuelve = get(w, "vuelve");
+      if (typeof usado !== "number" || usado < 1) continue;
+      const t = parseIso(vuelve);
+      if (t && t.getTime() <= now.getTime()) continue;
+      return [pyStr(get(m, "nombre", get(m, "id"))), typeof vuelve === "string" ? vuelve : null];
+    }
+  }
+  return null;
+}
+
 function cuposClaude(estado: string | undefined, now: Date, cuenta: Obj | null = null): Obj {
   const paState = estado || estadoPaPlat();
   const mejor: Record<string, [number, number, number] | null> = { "5h": null, "7d": null };
@@ -1203,6 +1231,13 @@ function cuposClaude(estado: string | undefined, now: Date, cuenta: Obj | null =
     if (!esNumPy(pctv) || !esNumPy(reset) || Number(reset) <= tsNow) return;
     const m = mejor[wid];
     if (m === null || ts > m[0]) mejor[wid] = [ts, Number(pctv) / 100.0, Number(reset)];
+  };
+  // Los límites semanales propios de un modelo (`por_modelo` de uso.json): la lectura más nueva de cada uno que siga vigente.
+  const porModelo = new Map<string, [number, number, number]>();
+  const ofrecerModelo = (nombre: unknown, ts: any, pctv: unknown, reset: unknown) => {
+    if (typeof nombre !== "string" || !nombre.trim() || !esNumPy(pctv) || !esNumPy(reset) || Number(reset) <= tsNow) return;
+    const m = porModelo.get(nombre.trim());
+    if (m === undefined || ts > m[0]) porModelo.set(nombre.trim(), [ts, Number(pctv) / 100.0, Number(reset)]);
   };
   const dirSl = path.join(paState, "statusline");
   let archivos: string[] = [];
@@ -1264,14 +1299,28 @@ function cuposClaude(estado: string | undefined, now: Date, cuenta: Obj | null =
         ofrecer(wid, ts, get(w, "pct"), get(w, "resets_at"));
       }
     }
+    // Un uso.json viejo no trae `por_modelo`; uno con una forma rara no tapa las ventanas de arriba.
+    const pm = get(d, "por_modelo");
+    if (Array.isArray(pm)) {
+      for (const w of pm) {
+        if (!esDict(w)) continue;
+        let ts: any = get(w, "ts");
+        if (!verdad(ts)) ts = get(d, "ts");
+        if (!verdad(ts)) ts = mtime(f);
+        ofrecerModelo(get(w, "modelo"), ts, get(w, "pct"), get(w, "resets_at"));
+      }
+    }
   }
   const vent: Obj[] = [];
   for (const wid of ["5h", "7d"]) {
     const m = mejor[wid];
     vent.push(m ? ventana(wid, m[1], iso(new Date(m[2] * 1000))) : ventana(wid, null, null));
   }
-  if (!cuenta) return { id: "claude", nombre: "Claude", ventanas: vent };
-  return { id: cuenta.id, nombre: cuenta.nombre, proveedor: "claude", cuenta: cuenta.id, ventanas: vent };
+  // Sin ningún límite por modelo el objeto queda como siempre (el JSON de `--cupos` no gana nada).
+  const modelos = [...porModelo.entries()].map(([nombre, m]) => ({ id: familiaDeLimite(nombre) || nombre.toLowerCase(), nombre, ventanas: [ventana("7d", m[1], iso(new Date(m[2] * 1000)))] }));
+  const extra = modelos.length ? { modelos } : {};
+  if (!cuenta) return { id: "claude", nombre: "Claude", ventanas: vent, ...extra };
+  return { id: cuenta.id, nombre: cuenta.nombre, proveedor: "claude", cuenta: cuenta.id, ventanas: vent, ...extra };
 }
 
 function ttlCache(j: unknown): number {
@@ -2962,6 +3011,11 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
         }
       }
     }
+    // El límite semanal propio del modelo (Fable: «hasta 50 % del límite semanal»): agotado, ese modelo no se elige aunque la semana general tenga lugar.
+    if (sus === "claude" && !cand.descartado_por) {
+      const lm = limiteDeModelo(get(claude, "modelos"), modelo, now);
+      if (lm) cand.descartado_por = `límite semanal de ${lm[0]} agotado (100 % usado)${lm[1] ? `, vuelve en ${humano(horasHasta(lm[1], now))}` : ""}`;
+    }
     // Lo estimado y el mal historial (pa --rinde: 5 corridas o más con menos de la mitad sin retrabajo) no ganan por inteligencia:
     // su calidad cuenta como si apenas pasara el piso, y además restan.
     const [hd, hok] = rinde.get(`${tipo}\t${canonico(modelo, effortC).modelo}`) ?? [0, 0];
@@ -3376,8 +3430,10 @@ function explicar(r: Obj, now: Date, cupos: Obj, cfg: Obj): string {
   L.push("");
   L.push("Cupos que mira:");
   for (const s of get(cupos, "suscripciones", [])) {
-    if (provDe(s) !== "google") L.push(`  ${s.nombre}: ${ventanasTxt(get(s, "ventanas", []), now)}`);
-    else {
+    if (provDe(s) !== "google") {
+      L.push(`  ${s.nombre}: ${ventanasTxt(get(s, "ventanas", []), now)}`);
+      if (provDe(s) === "claude") for (const m of get(s, "modelos", []) || []) L.push(`  ${s.nombre} – ${get(m, "nombre", get(m, "id"))}: ${ventanasTxt(get(m, "ventanas", []), now)}`);
+    } else {
       for (const g of get(s, "grupos", []) || []) {
         const ex = verdad(get(g, "hasta")) ? `  (hasta el ${g.hasta})` : "";
         L.push(`  ${s.nombre} – ${g.nombre}: ${ventanasTxt(get(g, "ventanas", []), now)}${ex}`);
@@ -3614,6 +3670,7 @@ function textoCupos(d: Obj, now: Date): string {
   for (const s of get(d, "suscripciones", [])) {
     if (provDe(s) !== "google" && provDe(s) !== "openai" && !verdad(get(s, "grupos"))) {
       L.push(`${s.nombre}: ${ventanasTxt(get(s, "ventanas", []), now)}${verdad(get(s, "nota")) ? `  (${s.nota})` : ""}`);
+      for (const m of get(s, "modelos", []) || []) L.push(`  ${get(m, "nombre", get(m, "id"))}: ${ventanasTxt(get(m, "ventanas", []), now)}`);
     } else {
       L.push(`${s.nombre}:`);
       for (const g of get(s, "grupos", []) || []) L.push(`  ${g.nombre}: ${ventanasTxt(get(g, "ventanas", []), now)}${verdad(get(g, "hasta")) ? `  (hasta el ${g.hasta})` : ""}`);
