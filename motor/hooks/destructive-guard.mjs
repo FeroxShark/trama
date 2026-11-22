@@ -38,12 +38,16 @@ const expandir = (p) => (p === "~" || p.startsWith("~/") ? casa() + p.slice(1) :
 const escapar = (s) => s.replace(/[()[\]{}?*+\-|^$\\.&~# \t\n\r\v\f]/g, (c) => `\\${c}`);
 const esObjeto = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const R = String.raw;
+// Un mismo valor puede combinar tramos citados y caracteres escapados.
+const valorPrivado = /(?:"(?:[^"\\\x60]|[\\\x60][\s\S])*(?:"|[\\\x60]?$)|'[^']*(?:'|$)|[\\\x60](?:[\s\S]|$)|[^\s;|&"'\\\x60])+/;
+const asignacionPrivada = new RegExp(/(?<![-\w./])((?:[A-Z_][A-Z0-9_]*|[A-Za-z_]*(?:token|key|secret|pass(?:word)?|auth|cred|clave|priv)[A-Za-z0-9_]*)\s*=\s*)/.source + valorPrivado.source, "g");
+const argumentoPrivado = new RegExp(/((?:--?(?:token|api[-_]?key|secret|password|pass|auth|clave|credential)|bearer)\s*[=:\s]\s*)/.source + valorPrivado.source, "gi");
 const redactarCmd = (s) =>
   s
-    .replace(/(?<![-\w./])((?:[A-Z_][A-Z0-9_]*|[A-Za-z_]*(?:token|key|secret|pass(?:word)?|auth|cred|clave|priv)[A-Za-z0-9_]*)\s*=\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/g, (m, pre) =>
+    .replace(asignacionPrivada, (m, pre) =>
       /^(?:CARGO_(?:BUILD_)?TARGET_DIR|LABEL|X)\s*=$/.test(pre) ? m : `${pre}<redactado>`,
     )
-    .replace(/((?:--?(?:token|api[-_]?key|secret|password|pass|auth|clave|credential)|bearer)\s*[=:\s]\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/gi, "$1<redactado>")
+    .replace(argumentoPrivado, "$1<redactado>")
     .replace(/\b(sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|AKIA[A-Z0-9]{8,})\b/g, "<redactado>");
 
 function leerStdin() {
@@ -80,7 +84,7 @@ async function main() {
   // Se aplica en todos lados (ver el .sh): los patrones son sólo de cosas catastróficas, así que no cuesta falsos positivos.
   const cmdBruto = (esObjeto(d.tool_input) ? d.tool_input.command : "") || "";
   const cmd = typeof cmdBruto === "string" ? cmdBruto : "";
-  const corto = redactarCmd([...cmd].slice(0, 300).join(""));
+  const corto = () => [...redactarCmd(cmd)].slice(0, 300).join("");
 
   const patrones = [
     R`(?<![\w-])rm\s+(-[a-zA-Z]*\s+)*-?[a-zA-Z]*[rf][a-zA-Z]*\b.*\s(/|~|\$HOME|\.config|\.claude)`,
@@ -170,7 +174,7 @@ async function main() {
     } catch {}
     if (!existe) {
       escribirErr(
-        `GUARD: falta ${ruta} (lo carga destructive-guard.mjs; se copio el hook sin sus modulos o se movio?). Hasta que vuelva, bloqueo SOLO los comandos que nombran ${disparo}; el resto pasa. Restauralo desde motor/hooks de Trama. | cmd: ${corto}`,
+        `GUARD: falta ${ruta} (lo carga destructive-guard.mjs; se copio el hook sin sus modulos o se movio?). Hasta que vuelva, bloqueo SOLO los comandos que nombran ${disparo}; el resto pasa. Restauralo desde motor/hooks de Trama. | cmd: ${corto()}`,
       );
       return 2;
     }
@@ -212,7 +216,7 @@ async function main() {
   for (const p of sesionPatrones) {
     if (new RegExp(p).test(cmdMin)) {
       escribirErr(
-        `GUARD: esto mata o corta la sesion grafica (compositor, login manager, audio). Matá sólo PIDs que lanzaste vos (kill $PID). Patron: ${p} | cmd: ${corto}`,
+        `GUARD: esto mata o corta la sesion grafica (compositor, login manager, audio). Matá sólo PIDs que lanzaste vos (kill $PID). Patron: ${p} | cmd: ${corto()}`,
       );
       return 2;
     }
@@ -227,7 +231,7 @@ async function main() {
     }
     if (re.test(cmd)) {
       escribirErr(
-        `GUARD: comando potencialmente destructivo bloqueado por seguridad (modo asistente sin prompts). Confirma EXPLICITAMENTE con el usuario en voz/texto antes de ejecutarlo. Patron: ${p} | cmd: ${corto}`,
+        `GUARD: comando potencialmente destructivo bloqueado por seguridad (modo asistente sin prompts). Confirma EXPLICITAMENTE con el usuario en voz/texto antes de ejecutarlo. Patron: ${p} | cmd: ${corto()}`,
       );
       return 2;
     }
