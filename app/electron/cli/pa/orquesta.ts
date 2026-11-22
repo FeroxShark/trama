@@ -159,8 +159,8 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
   const modelos = new Modelos(env, io, pa.home, pa.plat);
 
   // --- motor
-  const motor = l.motor;
-  const conClaude = motor === "claude" || motor === "ollama";
+  let motor = l.motor;
+  let conClaude = motor === "claude" || motor === "ollama";
 
   // --- --leer --seguir
   if (leer && l.seguir) {
@@ -378,6 +378,10 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
   // sin_cupo=esperar con todo lleno (el hijo de --async): cola sin puesto hasta que reparto ofrezca un candidato con cupo
   const sinCupo = await esperarCupo(pa, l, adm, dir, ts);
   if (sinCupo !== null) return sinCupo;
+  // la espera pudo cambiar el modelo y con él el motor y la cuenta: lo que sigue (ficha, autocompact, la llamada) lo usa
+  motor = l.motor;
+  conClaude = motor === "claude" || motor === "ollama";
+  xw.motor = motor;
   let tengoLock = false;
   if (leer) {
     await adm.esperarLugar();

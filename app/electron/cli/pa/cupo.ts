@@ -59,22 +59,62 @@ function candidatoDe(salida: string): Candidato {
 }
 
 /**
- * sin_cupo=esperar con todo lleno (sólo el hijo de --async llega acá): cola SIN puesto ni lugar del tope, preguntándole a reparto cada
- * PA_GEMINI_ESPERA_S (300 s) hasta que haya un candidato con cupo; a los PA_GEMINI_ESPERA_MAX_MIN (720) sale 96. Si el candidato cambió,
- * corre con ése (si es de Claude). Devuelve el código si hay que cortar (96), o null y la llamada ya con el modelo que corre.
+ * Pasa la llamada (todavía sin lanzar) al candidato que reparto ofrece tras la espera: modelo, motor, effort, cuenta y su entorno, con los
+ * mismos candados que el relanzamiento por cupo (no cambia de cuenta dentro del mismo proveedor, y un otro motor pasa el chequeo de
+ * privacidad, programa y sesión). "" = quedó aplicado (o ya era el mismo modelo); si no, el motivo de por qué no se puede usar.
  */
-export async function esperarCupo(pa: Pa, l: Llamada, adm: Pick<Admision, "escribirCola" | "reiniciarCola">, dir: string, ts: string): Promise<number | null> {
+async function aplicarCandidato(pa: Pa, l: Llamada, c: Candidato, motores: Partial<Motores>): Promise<string> {
+  if (c.modelo.toLowerCase() === l.modelo.toLowerCase()) return "";
+  const mRep = c.modelo;
+  if (esLocal(mRep) || !/^(claude-|gemini-|agy:|codex:|dsh:|opencode:)/i.test(mRep)) return "no es un modelo que pa sepa lanzar";
+  const pAnt = proveedorDe(l.modelo);
+  const pRep = proveedorDe(mRep);
+  const cRep = c.cuenta && cuentaProveedor(c.cuenta, pa) === pRep ? c.cuenta : pRep;
+  if (pAnt && pRep === pAnt && cRep !== (l.cuentaUsada || pAnt)) return "es de otra cuenta del mismo proveedor (esa elección es de la persona)";
+  const otroMotor = esGemini(mRep) || esCodex(mRep) || esDsh(mRep);
+  const cuenta = esDsh(mRep) ? { cuenta: "", env: { poner: {}, quitar: [] } } : await prepararCuenta(pa, cRep, pRep);
+  if (!cuenta) return `no hay una cuenta de ${pRep} para correrlo`;
+  if (otroMotor) {
+    const chequeo = esCodex(mRep) ? motores.chequearCodex : esDsh(mRep) ? motores.chequearDsh : motores.chequearGemini;
+    const motivo = (await chequeo?.(mRep, { ...l, cuentaEnv: cuentaEnvArgs(cuenta.env) })) ?? "";
+    if (motivo) return motivo;
+  }
+  l.modelo = esGemini(mRep) ? mRep.toLowerCase() : mRep;
+  l.motor = !otroMotor ? "claude" : esDsh(mRep) ? "dsh" : esCodex(mRep) ? "codex" : "agy";
+  l.esfuerzo = otroMotor ? "" : c.effort;
+  l.efVacio = otroMotor ? "-" : "";
+  l.ocEffort = "";
+  l.cuentaUsada = cuenta.cuenta;
+  l.cuentaEnv = cuentaEnvArgs(cuenta.env);
+  l.flojo = (await modeloFlojo(pa, { reparto: repartoProceso(pa) } as DepsPolitica, mRep)) !== null;
+  return "";
+}
+
+/**
+ * sin_cupo=esperar con todo lleno (sólo el hijo de --async llega acá): cola SIN puesto ni lugar del tope, preguntándole a reparto cada
+ * PA_GEMINI_ESPERA_S (300 s) hasta que haya un candidato con cupo que se pueda USAR (`aplicarCandidato`); a los PA_GEMINI_ESPERA_MAX_MIN
+ * (720) sale 96. Devuelve el código si hay que cortar (96), o null y la llamada ya con el modelo, el motor y la cuenta con que corre.
+ */
+export async function esperarCupo(pa: Pa, l: Llamada, adm: Pick<Admision, "escribirCola" | "reiniciarCola">, dir: string, ts: string, motores: Partial<Motores> = motoresDe(pa)): Promise<number | null> {
   const tipo = l.repartoTipoRelanzable;
   if (!l.repartoEsperar || !tipo || !comandoReparto(pa)) return null;
   const { io } = pa;
   const tope = num(pa.env.PA_GEMINI_ESPERA_MAX_MIN, 720) * 60_000;
   const cola = path.join(dir, `${ts}.cola`);
   const ini = Date.now();
-  let c: Candidato;
   for (;;) {
     const r = await reparto(pa, ["--tipo", tipo, "--json"], true);
-    c = r.rc === 0 ? candidatoDe(r.salida) : candidatoDe("");
-    if (c.modelo && !c.todoLleno) break;
+    const c = r.rc === 0 ? candidatoDe(r.salida) : candidatoDe("");
+    if (c.modelo && !c.todoLleno) {
+      const mAnt = l.modelo;
+      const motivo = await aplicarCandidato(pa, l, c, motores);
+      if (!motivo) {
+        rmSync(cola, { force: true });
+        if (c.modelo.toLowerCase() !== mAnt.toLowerCase()) io.err(`pa: volvió el cupo: corro con ${l.modelo}${l.esfuerzo ? ` effort ${l.esfuerzo}` : ""} (reparto).\n`);
+        return null;
+      }
+      io.err(`pa: reparto ofrece ${c.modelo} pero no puede correr (${motivo}); sigo esperando cupo.\n`);
+    }
     if (Date.now() - ini >= tope) {
       rmSync(cola, { force: true });
       io.err(`pa: sigue sin haber cupo para ${tipo} y modelos.json dice sin_cupo=esperar: dejo de esperar.\n`);
@@ -84,18 +124,6 @@ export async function esperarCupo(pa: Pa, l: Llamada, adm: Pick<Admision, "escri
     adm.escribirCola(`sin cupo: todo lleno para ${tipo}; espera cupo (sin_cupo=esperar)`);
     await dormirMs(num(pa.env.PA_GEMINI_ESPERA_S, 300) * 1000);
   }
-  rmSync(cola, { force: true });
-  if (c.modelo !== l.modelo && !esLocal(c.modelo)) {
-    io.err(`pa: volvió el cupo: corro con ${c.modelo}${c.effort ? ` effort ${c.effort}` : ""} (reparto).\n`);
-    if (esGemini(c.modelo) || esCodex(c.modelo) || esDsh(c.modelo)) {
-      io.err(`pa: ${c.modelo} no lo corre este pa de TypeScript (sólo Claude); sigo con el modelo de antes.\n`);
-    } else {
-      l.modelo = c.modelo;
-      l.esfuerzo = c.effort;
-      l.efVacio = "";
-    }
-  }
-  return null;
 }
 
 /** `cuenta_preparar` sin tocar nada: la cuenta y su entorno (`env -u A K=V`), o null si no va con ese proveedor. */
