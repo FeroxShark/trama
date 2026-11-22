@@ -13,7 +13,7 @@ import { conTope, cwdDe, desdeClaude, desdePrefacio, desdeTranscript, medirConRe
 import { partesDePrefacio, type Parte } from "./contexto-local.ts";
 import { destinoLocal } from "./locales.js";
 import { ventanaDeMotor } from "./ventana-motor.ts";
-import { leerCodexModelos } from "./cli/codex-modelos.ts";
+import { ventanaCodex } from "./cli/codex-modelos.ts";
 import { resolverPa } from "./binario.ts";
 import { leerTranscript, type Transcript } from "./contexto-jsonl.ts";
 import { leerSesion } from "./contexto-sesion.ts";
@@ -75,18 +75,7 @@ async function desgloseDeOtroMotor(sid: string, l: { clase: string; modelo: stri
   const compactada = ultimaCompactacion(ls);
   // Compactó y no hubo otro pedido: el último `usage` es de la conversación que ya no está (sin `postTokens` no se sabe; nunca el número viejo).
   const usado = compactada?.pendiente ? compactada.tokens : pedidos.length ? pedidos[pedidos.length - 1].total : null;
-  return desdePrefacio({ tipo: "lider", id: sid, motor, modelo: l.modelo, partes, usado, ventana: ctx ?? ventanaCodexDe(l.modelo) ?? ventanaDeMotor(l.modelo) });
-}
-
-/** La ventana de un modelo de Codex según el `models_cache.json` del CLI (gpt-6.2-sol trae 500 mil, otros 272 mil); `null` si no es de Codex. */
-function ventanaCodexDe(modelo: string): number | null {
-  if (!modelo.startsWith("codex:")) return null;
-  const slug = modelo.slice("codex:".length).toLowerCase();
-  // El id puede llevar el esfuerzo al final (`codex:gpt-6.2-sol-high`): gana el slug más largo que calce.
-  const m = leerCodexModelos()
-    .filter((x) => slug === x.slug || slug.startsWith(`${x.slug}-`))
-    .sort((a, b) => b.slug.length - a.slug.length)[0];
-  return m?.ventana ?? null;
+  return desdePrefacio({ tipo: "lider", id: sid, motor, modelo: l.modelo, partes, usado, ventana: ctx ?? (l.modelo.startsWith("codex:") ? ventanaCodex(l.modelo) : ventanaDeMotor(l.modelo)) });
 }
 
 /** Lo último calculado si la firma sigue igual (y no se pidió fresco): `null` si hay que volver a calcular. */
