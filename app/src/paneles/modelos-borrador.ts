@@ -30,6 +30,9 @@ import {
   notaPctValido,
   notaTareaPctValido,
   PERFILES,
+  TOPE_VIVOS_DEFECTO,
+  TOPE_VIVOS_UI_MAX,
+  topeVivosGeneral,
   SIN_CUPO,
   TIPOS,
   TOPE_CLAUDE_DEFECTO,
@@ -44,6 +47,7 @@ import {
   type Perfil,
   type SinCupo,
   type Tipo,
+  type TopeVivosConfig,
 } from "../../electron/modelos-tipos";
 import type { AdvisorConfig } from "../../electron/advisor";
 import type { AjustesCierre } from "../../electron/valida-ajustes";
@@ -52,6 +56,7 @@ import { defDe, effortDeModelo, TABLA } from "../hilo/modelos";
 
 export { DESTRABAR_MODELOS };
 export { AGY, CUPO_MAX, CUPO_MIN, EXCLUIR_MAX, FAMILIAS, GEMINI, GOOGLE_CODIGO_FABRICA, PERFILES, SIN_CUPO, TIPOS, TOPE_CLAUDE_DEFECTO, TOPE_FABRICA, URL_OLLAMA };
+export { TOPE_VIVOS_DEFECTO, TOPE_VIVOS_UI_MAX };
 export type { Eleccion, Local, Perfil, SinCupo, Tipo };
 
 /** Los topes van como texto mientras se escriben; el resto es la config tal cual. */
@@ -84,6 +89,8 @@ export type Borrador = {
   advisor: AdvisorConfig;
   /** Cierre ordenado cuando se acaba el cupo (`cierre` del archivo): sólo lo que se tocó; lo demás vale `CIERRE_DEFECTO`. Sin campos la clave no se escribe. */
   cierre: Partial<AjustesCierre>;
+  /** Workers vivos a la vez por grupo de cupo (`tope_vivos`); sin elegir vale 3 y no se escribe. Con un objeto a mano, Ajustes cambia sólo el `*`. */
+  topeVivos?: TopeVivosConfig;
   /** Qué hace `pa` si un modelo no tiene cupo; sin elegir se escribe nada y vale `otro`. */
   sin_cupo?: SinCupo;
   /** Perfil de reparto; sin elegir vale `equilibrado` y no se escribe nada. */
@@ -122,6 +129,7 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   ),
   advisor: { ...(e.config.advisor ?? {}) },
   cierre: { ...(e.config.cierre ?? {}) },
+  ...(e.config.tope_vivos !== undefined ? { topeVivos: typeof e.config.tope_vivos === "number" ? e.config.tope_vivos : { ...e.config.tope_vivos } } : {}),
   ...(e.config.sin_cupo ? { sin_cupo: e.config.sin_cupo } : {}),
   ...(e.config.perfil ? { perfil: e.config.perfil } : {}),
   guardar: e.config.claude.tope_5h !== undefined || e.config.claude.tope_7d !== undefined,
@@ -184,6 +192,7 @@ export function configDe(b: Borrador): ConfigModelos | null {
     ...(Object.keys(b.advisor).length ? { advisor: { ...b.advisor } } : {}),
     ...(Object.keys(b.cierre).length ? { cierre: { ...b.cierre } } : {}),
     gemini: {},
+    ...(b.topeVivos !== undefined && b.topeVivos !== TOPE_VIVOS_DEFECTO ? { tope_vivos: typeof b.topeVivos === "number" ? b.topeVivos : { ...b.topeVivos } } : {}),
     ...(b.sin_cupo ? { sin_cupo: b.sin_cupo } : {}),
     ...(b.perfil ? { perfil: b.perfil } : {}),
     claude: { ...(t5 !== null ? { tope_5h: t5 } : {}), ...(t7 !== null ? { tope_7d: t7 } : {}) },
@@ -213,6 +222,7 @@ const huella = (c: ConfigModelos) =>
     c.nota_compactar_tarea_pct ?? NOTA_TAREA_PCT_DEFECTO,
     Object.entries(c.advisor ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     Object.entries(c.cierre ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
+    c.tope_vivos ?? TOPE_VIVOS_DEFECTO,
     c.sin_cupo ?? null,
     c.perfil ?? "equilibrado",
     c.claude.tope_5h ?? null,
@@ -414,3 +424,13 @@ export const nombreModeloValido = (s: string) => /^[A-Za-z0-9][\w.:/-]{0,120}$/.
 /** Porcentaje entero de la capa que baja; `null` si todavía no se sabe el total. */
 export const porcentaje = (b: { completado: number | null; total: number | null }): number | null =>
   b.total && b.completado !== null ? Math.max(0, Math.min(100, Math.floor((b.completado / b.total) * 100))) : null;
+
+/** Pone el tope de workers vivos por grupo que muestra Ajustes (0 = apagado): sobre un objeto a mano cambia sólo el `*`. */
+export function ponerTopeVivos(b: Borrador, n: number): Borrador {
+  const v = Number.isFinite(n) ? Math.max(0, Math.min(TOPE_VIVOS_UI_MAX, Math.round(n))) : TOPE_VIVOS_DEFECTO;
+  if (b.topeVivos !== undefined && typeof b.topeVivos === "object") return { ...b, topeVivos: { ...b.topeVivos, "*": v } };
+  return { ...b, topeVivos: v };
+}
+
+/** El número que muestra Ajustes. */
+export const topeVivosDe = (b: Borrador): number => topeVivosGeneral(b.topeVivos);
