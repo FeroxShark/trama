@@ -10,6 +10,7 @@ export const en = {
   "estado.decision": "Needs you",
   "estado.faltaInfo": "Needs info",
   "estado.termino": "Done",
+  "estado.noTermino": "Didn't finish",
   "estado.trabado": "Stuck",
   "estado.fallo": "Died",
   "estado.frenado": "Stopped",
