@@ -32,16 +32,31 @@ export function crearCierreCupo(dir: string, ajustes: () => AjustesCierre) {
   const oyentes = new Set<(e: EntradaCierre) => void>();
   const oyentesVolvio = new Set<(e: EntradaCierre, vigentes: readonly EntradaCierre[]) => void>();
 
+  // Lo que falta de confirmar en disco: si la escritura/borrado falla, el paso ya cambió al vigilante, así que se guarda hasta que
+  // alguna revisión (aunque la lectura no cambie) logre dejar el archivo al día; recién ahí se avisa, una sola vez.
+  let sucio = false;
+  let pendNuevas: EntradaCierre[] = [];
+  let pendVolvieron: { e: EntradaCierre; vigentes: EntradaCierre[] }[] = [];
+
   function revisar(uso: UsoMin | null | undefined, ahora = Math.floor(Date.now() / 1000)): EntradaCierre[] {
     const a = ajustes();
     const p = vig.paso(lecturasDeUso(uso), a, ahora);
-    if (p.cambio) {
+    if (p.cambio) sucio = true;
+    pendNuevas.push(...p.nuevas);
+    for (const e of p.volvieron) pendVolvieron.push({ e, vigentes: p.entradas });
+    if (sucio) {
+      // Si falla, el error sube (lo registra quien llama) y todo queda pendiente para la próxima revisión.
       if (p.entradas.length) escribirSenalAtomica(archivo, JSON.stringify(senalDe(p.entradas, a, ahora), null, 2) + "\n");
       else rmSync(archivo, { force: true });
+      sucio = false;
     }
-    for (const e of p.volvieron) for (const fn of oyentesVolvio) fn(e, p.entradas);
-    for (const e of p.nuevas) for (const fn of oyentes) fn(e);
-    return p.nuevas;
+    const volvieron = pendVolvieron;
+    const nuevas = pendNuevas;
+    pendVolvieron = [];
+    pendNuevas = [];
+    for (const v of volvieron) for (const fn of oyentesVolvio) fn(v.e, v.vigentes);
+    for (const e of nuevas) for (const fn of oyentes) fn(e);
+    return nuevas;
   }
 
   /** Avisa cada entrada que se dispara (una vez por ventana). Devuelve cómo dejar de oír. */

@@ -1,7 +1,7 @@
 // Cierre ordenado por cupo: el vigilante (electron/cierre-cupo.ts), la señal en disco (cierre-cupo-disco.ts) y `cierre` en modelos.json.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ajustesCierreDe, CIERRE_DEFECTO, CONFIRMAR_VOLVIO_S, crearVigilante, entradaRigeAModelo, familiaDeLimite, lecturasDeUso, leerSenal, suscripcionDeModelo, type AjustesCierre, type LecturaCupo } from "../electron/cierre-cupo.ts";
@@ -180,6 +180,41 @@ test("en disco: escribe atómico, avisa una vez, borra al reinicio y no repite a
   otra.revisar({ five_hour: { pct: 100, resets_at: R5 + 9000 }, seven_day: null }, R5 + 2);
   assert.equal(existsSync(otra.archivo), false);
   assert.equal(oidos2.length, 0);
+});
+
+test("en disco: si falla escribir la señal, el cierre queda pendiente y se avisa una vez al recuperarse el disco", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "cierre-"));
+  const c = crearCierreCupo(dir, () => ON);
+  const oidos: string[] = [];
+  c.alCierreCupo((e) => oidos.push(e.ventana));
+  mkdirSync(c.archivo); // el archivo no se puede reemplazar: la escritura falla
+  const uso = { five_hour: { pct: 96, resets_at: R5 }, seven_day: null };
+  assert.throws(() => c.revisar(uso, AHORA));
+  assert.deepEqual(oidos, []);
+  rmSync(c.archivo, { recursive: true });
+  // La lectura no cambió, pero igual se reintenta y se avisa.
+  assert.equal(c.revisar(uso, AHORA + 60).length, 1);
+  assert.deepEqual(oidos, ["5h"]);
+  assert.equal(JSON.parse(readFileSync(c.archivo, "utf8")).entradas.length, 1);
+  c.revisar(uso, AHORA + 120);
+  assert.deepEqual(oidos, ["5h"]);
+});
+
+test("en disco: si falla borrar la señal, el aviso de cupo vuelto queda pendiente y se entrega una vez", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "cierre-"));
+  const c = crearCierreCupo(dir, () => ON);
+  const volvio: number[] = [];
+  c.alVolverCupo((_e, vigentes) => volvio.push(vigentes.length));
+  c.revisar({ five_hour: { pct: 96, resets_at: R5 }, seven_day: null }, AHORA);
+  rmSync(c.archivo);
+  mkdirSync(path.join(c.archivo, "x"), { recursive: true }); // borrarlo sin recursivo falla
+  assert.throws(() => c.revisar({ five_hour: null, seven_day: null }, R5 + 1));
+  assert.deepEqual(volvio, []);
+  rmSync(c.archivo, { recursive: true });
+  c.revisar({ five_hour: null, seven_day: null }, R5 + 2);
+  assert.deepEqual(volvio, [0]);
+  c.revisar({ five_hour: null, seven_day: null }, R5 + 3);
+  assert.deepEqual(volvio, [0]);
 });
 
 test("una señal rota se ignora", () => {
