@@ -63,9 +63,11 @@ export type ArmarLider = {
   lineaSistema?: string;
   /** Un archivo con los servidores MCP propios de Trama (`mcp.ts`): `--mcp-config <archivo>`, SIN `--strict-mcp-config`, así los conectores de claude.ai y los de la config de Claude siguen. Un líder local u Ollama no lo lleva. */
   mcpConfig?: string;
-  /** El pedazo de settings del apagado global de Trama (`apagados.ts`): `--settings <archivo>`. Un líder local u Ollama no lo lleva (ya va con `--bare` o sin MCP). */
-  apagados?: string;
-  /** El `--settings` con los hooks del líder (`cierre-cupo-texto.ts`, `settingsCierreCupo`: cierre por cupo y nota antes de compactar). Mismo criterio que `apagados`. */
+  /**
+   * El ÚNICO `--settings` del líder (`settingsLider`, `apagados.ts`): sus hooks (`settingsCierreCupo`: cierre por cupo y nota antes de
+   * compactar) con el apagado global de Trama encima, como JSON o como archivo. Uno solo: Claude Code usa sólo el último `--settings`.
+   * Un líder local u Ollama no lo lleva (ya va con `--bare` o sin MCP).
+   */
   cierreCupo?: string;
   /** «Contexto antes de compactar» de la familia del modelo, en tokens (`--autocompact`, como un worker de `pa`); sin él (`null`) compacta Claude Code a su manera. Un líder local u Ollama no lo lleva (su ventana va en el entorno). */
   autocompact?: number | null;
@@ -127,7 +129,7 @@ const ESASESOR = /^(haiku|sonnet|opus|fable)$/;
  * y los contesta la app. Sesión nueva: `--session-id` + `--name`; retomada:
  * `--resume` (el nombre ya está en el transcript).
  */
-export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo, lineaSistema, mcpConfig, apagados, cierreCupo, autocompact, advisor, fast }: ArmarLider): string[] {
+export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo, lineaSistema, mcpConfig, cierreCupo, autocompact, advisor, fast }: ArmarLider): string[] {
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
   for (const u of [desde, rama?.de, rama?.hasta]) if (u !== undefined && !SID.test(u)) throw errorT("main.sesionRara", { v: u });
   if (!esModo(modo)) throw errorT("main.modoRaro", { v: String(modo) });
@@ -159,7 +161,6 @@ export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEF
     ...(relevo ? ["--append-system-prompt-file", relevo] : []),
     ...(lineaSistema ? ["--append-system-prompt", lineaSistema] : []),
     ...(mcpConfig && !local && !ollama ? ["--mcp-config", mcpConfig] : []),
-    ...(apagados && !local && !ollama ? ["--settings", apagados] : []),
     ...(cierreCupo && !local && !ollama ? ["--settings", cierreCupo] : []),
     ...(autocompact && !local && !ollama ? ["--autocompact", String(autocompact)] : []),
     // Advisor de Claude Code: el asesor más fuerte que se eligió en Ajustes para este modelo (advisor.ts). Sólo un alias de familia.
