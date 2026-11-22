@@ -160,6 +160,7 @@ export function crearSandbox(): Contexto {
       aux: path.join(raiz, "aux"),
     };
     for (const d of [path.join(c.home, ".config", "proyectos"), c.proyecto, c.estado, c.aux, path.join(raiz, "shim")]) mkdirSync(d, { recursive: true });
+    writeFileSync(path.join(raiz, "meminfo-sobrada"), "MemTotal:       64000000 kB\nMemAvailable:    48000000 kB\n");
     const git = (...a: string[]) => spawnSync("git", ["-C", c.proyecto, "-c", "user.email=a@b", "-c", "user.name=x", ...a], { encoding: "utf8" });
     git("init", "-q", "-b", "main");
     git("commit", "-q", "--allow-empty", "-m", "init");
@@ -210,6 +211,9 @@ function entorno(c: Contexto, extra: Record<string, string> = {}): NodeJS.Proces
     REPARTO_OPENCODE_FIJO: "[]",
     PA_REPARTO: "0",
     PA_CLAUDE_SETTINGS: path.join(c.home, "no-hay-settings.json"),
+    // RAM de sobra salvo que el caso pida otra: sin PA_MEMINFO la admisión mira la RAM real y, con otros workers corriendo, un lado puede
+    // decir «sin RAM» y el otro «puestos ocupados» (fallas al azar por la carga de la máquina, 2026-11-22)
+    PA_MEMINFO: path.join(c.raiz, "meminfo-sobrada"),
     TRAMA_FALSO_LOG: path.join(c.raiz, "claude-argv.jsonl"),
     PATH: `${path.join(c.raiz, "shim")}${path.delimiter}${MOTOR}/bin${path.delimiter}${process.env.PATH}`,
     ...extra,
