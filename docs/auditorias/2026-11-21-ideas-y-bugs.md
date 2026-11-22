@@ -6,572 +6,800 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 
 ## Resumen
 
-- **Bugs: 107** (24 de severidad alta, 57 media, 26 baja).
-  - pendiente: 100
-  - arreglado: 6
+- **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
+  - pendiente: 150
+  - arreglado: 7
   - arreglado a medias: 1
 - **Ideas: 72**.
 
 | Área | Bugs | Arreglados | Pendientes |
 |---|---|---|---|
+| Barra lateral y datos | 18 | 0 | 18 |
 | Debate y revisión de planes | 14 | 0 | 14 |
 | El hilo: la caja y el líder en la ventana | 14 | 0 | 14 |
 | Hooks y motor | 16 | 0 | 16 |
+| Núcleo y canales | 14 | 0 | 14 |
 | El CLI de `pa` | 15 | 0 | 15 |
 | Puentes a otros motores | 20 | 4 | 16 |
 | Reparto y cupos | 15 | 0 | 15 |
-| Vistos trabajando esta noche | 13 | 3 | 10 |
+| Sistema: instalación, actualización y servicio | 16 | 0 | 16 |
+| Vistos trabajando esta noche | 16 | 4 | 12 |
 
 ## Bugs
 
+### Barra lateral y datos
+
+**B001 · `planDiaValido` borra todas las fechas de ausencia por escape simple en `RegExp`** (`BARRA-DATOS-1`, severidad alta) · **PENDIENTE**
+- Dónde: [app/src/datos/fuente.ts:1362-1368](file://app/src/datos/fuente.ts#L1362-L1368) (`planDiaValido`), llamado desde `planDia`…
+
+**B002 · `desdeDisco` convierte a `NaN` los IDs de pendientes remotos (`"servidor:12"`)** (`BARRA-DATOS-2`, severidad alta) · **PENDIENTE**
+- Dónde: [app/src/datos/tocado.ts:53-60](file://app/src/datos/tocado.ts#L53-L60) (`desdeDisco`), en cruce con…
+
+**B003 · Reabrir un chat desde el historial lo deja oculto si antes se cerró con settle (`SETTLE`)** (`BARRA-DATOS-3`, severidad alta) · **PENDIENTE**
+- Dónde: [app/src/barra/Barra.tsx:878-890](file://app/src/barra/Barra.tsx#L878-L890) (`abrirClaude`),…
+
+**B004 · `visiblesDe` nunca recibe `recientes`, rompiendo orden, límites y Subir/Bajar al reordenar** (`BARRA-DATOS-4`, severidad alta) · **PENDIENTE**
+- Dónde: [app/src/barra/Barra.tsx:304-312](file://app/src/barra/Barra.tsx#L304-L312) (`visiblesDe`), llamado en [Barra.tsx:1800](file://app/src/barra/Barra.tsx#L1800),…
+
+**B005 · `congelada` bloquea la actualización de `ordenProyectos.current` tras reordenar desde la lista** (`BARRA-DATOS-5`, severidad alta) · **PENDIENTE**
+- Dónde: [app/src/barra/Barra.tsx:618](file://app/src/barra/Barra.tsx#L618), [643-648](file://app/src/barra/Barra.tsx#L643-L648) y…
+
+**B006 · `armarArrastre` impide arrastrar un líder único a otra carpeta** (`BARRA-DATOS-6`, severidad media) · **PENDIENTE**
+- Dónde: [app/src/barra/arrastre.ts:44-45](file://app/src/barra/arrastre.ts#L44-L45) (`armarArrastre`)
+
+**B007 · En modo `"recientes"` intercalado, el arrastre y Subir/Bajar saltan vecinos y desarman el intercalado** (`BARRA-DATOS-7`, severidad media) · **PENDIENTE**
+- Dónde: [app/src/barra/riel-logica.ts:112-118](file://app/src/barra/riel-logica.ts#L112-L118) (`filasCarpeta`) y [app/src/barra/Barra.tsx:1854-1856,…
+
+**B008 · `Menu` conserva el `filtro` al volver desde `"Mover a proyecto…"` y oculta todas las acciones del menú** (`BARRA-DATOS-8`, severidad media) · **PENDIENTE**
+- Dónde: [app/src/barra/Menu.tsx:83-87](file://app/src/barra/Menu.tsx#L83-L87) (`Menu`)
+
+**B009 · `nuevaEn.current` no se limpia al cambiar de chat y secuestra la carpeta al ramificar otro hilo** (`BARRA-DATOS-9`, severidad media) · **PENDIENTE**
+- Dónde: [app/src/barra/Barra.tsx:1125-1130](file://app/src/barra/Barra.tsx#L1125-L1130) (`liderCreado`)
+
+**B010 · En `AvisoClaude`, `act.fase === "error"` pisa `fase = "actualizando"` y deja el botón habilitado al reintentar** (`BARRA-DATOS-10`, severidad media) · **PENDIENTE**
+- Dónde: [app/src/barra/AvisoClaude.tsx:78-88](file://app/src/barra/AvisoClaude.tsx#L78-L88), [202-209](file://app/src/barra/AvisoClaude.tsx#L202-L209) y…
+
+**B011 · `AvisoSetup` y `Reporte` traban el formulario/botón para siempre si el IPC rechaza** (`BARRA-DATOS-11`, severidad media) · **PENDIENTE**
+- Dónde: [app/src/barra/AvisoSetup.tsx:36-44](file://app/src/barra/AvisoSetup.tsx#L36-L44) (`revisar`) y…
+
+**B012 · `useUso` borra los datos previos preservados al recibir `null`/error por suscripción y tiene carrera en el arranque** (`BARRA-DATOS-12`, severidad media) · **PENDIENTE**
+- Dónde: [app/src/barra/useUso.ts:39-62](file://app/src/barra/useUso.ts#L39-L62) y [75-94](file://app/src/barra/useUso.ts#L75-L94) (`arrancar` y `releerUso`)
+
+**B013 · `lineasCuentas` muestra el reinicio de 5 h aunque la semana también esté al 100%, y `filaDe` redondea `99.6` a `100%`** (`BARRA-DATOS-13`, severidad media) · **PENDIENTE**
+- Dónde: [app/src/barra/cupos-riel-logica.ts:136-156](file://app/src/barra/cupos-riel-logica.ts#L136-L156) (`lineasCuentas`) y…
+
+**B014 · `Riel` y `LogoCab` no manejan `onError` en la imagen del proyecto y muestran ícono roto** (`BARRA-DATOS-14`, severidad media) · **PENDIENTE**
+- Dónde: [app/src/barra/Riel.tsx:85](file://app/src/barra/Riel.tsx#L85) (`Riel`) y [app/src/barra/Logo.tsx:92](file://app/src/barra/Logo.tsx#L92) (`LogoCab`), comparado…
+
+**B015 · `proyectos.ts` traga fallos IPC devolviendo `[]` y sufre carrera en recargas concurrentes** (`BARRA-DATOS-15`, severidad media) · **PENDIENTE**
+- Dónde: [app/src/datos/proyectos.ts:143-146](file://app/src/datos/proyectos.ts#L143-L146) (`conMain.lista`) y [209-215](file://app/src/datos/proyectos.ts#L209-L215)…
+
+**B016 · `Acople` desmonta `AvisoVuelta` al angostar o cerrar la barra y pierde el aviso de rollback de un solo uso** (`BARRA-DATOS-16`, severidad media) · **PENDIENTE**
+- Dónde: [app/src/barra/Acople.tsx:654-658](file://app/src/barra/Acople.tsx#L654-L658) y…
+
+**B017 · `altoFila` mide el primer `.w` sin excluir `.sub` ni `.pliegue`, corrompiendo el scroll virtualizado** (`BARRA-DATOS-17`, severidad baja) · **PENDIENTE**
+- Dónde: [app/src/barra/ventana.ts:48-54](file://app/src/barra/ventana.ts#L48-L54) (`altoFila`)
+
+**B018 · `promptRetomar` interpola `d.ruta` sin comillas en el comando `git -C`** (`BARRA-DATOS-18`, severidad baja) · **PENDIENTE**
+- Dónde: [app/src/datos/retomar.ts:42-45, 64](file://app/src/datos/retomar.ts#L42-L45) (`promptRetomar`)
+
 ### Debate y revisión de planes
 
-**B001 · El plan mejorado se rompe si trae títulos como «Riesgos» o «Cambios»** (`DEBATE-REVISION-1`, severidad alta) · **PENDIENTE**
+**B019 · El plan mejorado se rompe si trae títulos como «Riesgos» o «Cambios»** (`DEBATE-REVISION-1`, severidad alta) · **PENDIENTE**
 - Qué pasa: Si el «Plan mejorado» del revisor tiene un subtítulo como `## Riesgos` o `### Cambios`, el parser lo toma como sección nueva. Se pierde la lista real de riesgos y el plan queda cortado. El líder recibe un mensaje deformado.
 - Dónde: `app/electron/revision-plan-texto.ts` líneas 139-145 (`parsearRevision`)
 - Arreglo: Reconocer cada sección una sola vez y sólo en el orden pedido. Después de «Plan mejorado» (la última), no reconocer más encabezados. Test en `tests/revision-plan.test.ts` con ese caso.
 
-**B002 · Un plan con «Plan de pruebas» se corta en el turno y en la conclusión del debate** (`DEBATE-REVISION-2`, severidad alta) · **PENDIENTE**
+**B020 · Un plan con «Plan de pruebas» se corta en el turno y en la conclusión del debate** (`DEBATE-REVISION-2`, severidad alta) · **PENDIENTE**
 - Qué pasa: En «Plan propuesto» o «Plan consensuado», un subtítulo como `### Plan de migración` o `## Plan de pruebas` reinicia la sección. Queda sólo lo que sigue a ese subtítulo. El líder recibe un plan consensuado truncado. La comparación de acuerdo (`acuerdoTotal`) también usa ese plan truncado.
 - Dónde: `app/electron/debate-texto.ts` líneas 117-123 (`partir`), alias en 104 y 301
 - Arreglo: Igual que el bug 1: sección única, en orden, y una vez abierta la última no se reabre. Test en `tests/debate.test.ts`.
 
-**B003 · Al cancelar o dar timeout en Linux sobreviven los procesos hijos del revisor** (`DEBATE-REVISION-3`, severidad media) · **PENDIENTE**
+**B021 · Al cancelar o dar timeout en Linux sobreviven los procesos hijos del revisor** (`DEBATE-REVISION-3`, severidad media) · **PENDIENTE**
 - Qué pasa: Cancelar o pasar los 10 minutos deja vivos los hijos de `claude`, `agy` o `codex` (comandos, servidores MCP). Si el proceso ignora SIGTERM, no hay SIGKILL y queda vivo también.
 - Dónde: `app/electron/revision-plan.ts` líneas 185 y 197-200 (`ejecutar`), con `app/electron/procesos.ts` líneas 28-40 (`matarArbol`)
 - Arreglo: `detached: hijoEnGrupo()` en el spawn y SIGKILL a los pocos segundos si no cerró. Test con `matarArbol` inyectado.
 
-**B004 · Cancelar durante la conclusión llena el debate de líneas «salió del debate» falsas** (`DEBATE-REVISION-4`, severidad media) · **PENDIENTE**
+**B022 · Cancelar durante la conclusión llena el debate de líneas «salió del debate» falsas** (`DEBATE-REVISION-4`, severidad media) · **PENDIENTE**
 - Qué pasa: Al cancelar mientras se escribe la conclusión, la lista muestra «X salió del debate: Debate cancelado…» por cada participante restante. El rechazo final es «ningún modelo pudo escribir la conclusión», no «cancelado».
 - Dónde: `app/electron/debate.ts` líneas 325-337
 - Arreglo: Al inicio del `catch`, `if (cancelada.signal.aborted) throw e;`. Test en `tests/debate.test.ts`.
 
-**B005 · Se puede lanzar una revisión simple con un debate vivo en el mismo líder** (`DEBATE-REVISION-5`, severidad media) · **PENDIENTE**
+**B023 · Se puede lanzar una revisión simple con un debate vivo en el mismo líder** (`DEBATE-REVISION-5`, severidad media) · **PENDIENTE**
 - Qué pasa: El debate sí rechaza si hay revisión corriendo, pero la revisión no mira si hay debate. Por IPC, o desde otra ventana, pueden correr las dos a la vez. Las dos niegan el plan y mandan dos mensajes al líder.
 - Dónde: `app/electron/lider.ts` líneas 2298-2311 (`revisarPlanLider`); la guarda inversa está en 2342
 - Arreglo: En `revisarPlanLider`, `if (debates.viva(sid)) throw errorT("main.revisionYaCorre")`. Test en `tests/revision-plan.test.ts` o `debate-trabajo.test.ts`.
 
-**B006 · Una revisión vieja guardada sin entregar reaparece y se puede entregar por error** (`DEBATE-REVISION-6`, severidad media) · **PENDIENTE**
+**B024 · Una revisión vieja guardada sin entregar reaparece y se puede entregar por error** (`DEBATE-REVISION-6`, severidad media) · **PENDIENTE**
 - Qué pasa: Si una revisión salió pero falló la entrega (queda guardada, «Reintentar») y la persona lanza otra, la vieja queda en `revisiones-pendientes.json` para siempre. Tras reiniciar, `estado()` devuelve `.at(-1)` y puede mostrar la vieja. «Reintentar» le entregaría al líder la revisión de un plan viejo.
 - Dónde: `app/electron/revision-trabajo.ts` líneas 71-73 y 134-149 (`iniciar`, `reintentar`)
 - Arreglo: Al iniciar, descartar las pendientes del mismo sid (o rechazar mientras haya una reintentable). En `reintentar`, rechazar si la fase es viva.
 
-**B007 · Lectura y escritura sin candado del archivo compartido de pendientes** (`DEBATE-REVISION-7`, severidad media) · **PENDIENTE**
+**B025 · Lectura y escritura sin candado del archivo compartido de pendientes** (`DEBATE-REVISION-7`, severidad media) · **PENDIENTE**
 - Qué pasa: Dos líderes con revisión o debate a la vez comparten `ARCHIVO_REVISIONES`. Cada uno lee la lista, le suma o resta lo suyo y escribe. El último pisa al otro, y se pierde una revisión guardada sin entregar, que es justo lo que el archivo debía evitar.
 - Dónde: `app/electron/lider.ts` líneas 2371-2376 (`guardar`/`entregar` del debate); `revision-trabajo.ts` líneas 95-99 y 104-107
 - Arreglo: Una cadena de promesas (mutex) para toda modificación de ese archivo.
 
-**B008 · Los planes propuestos se cortan a 6000 caracteres en lo que ven los demás modelos** (`DEBATE-REVISION-8`, severidad media) · **PENDIENTE**
+**B026 · Los planes propuestos se cortan a 6000 caracteres en lo que ven los demás modelos** (`DEBATE-REVISION-8`, severidad media) · **PENDIENTE**
 - Qué pasa: `PLAN_MAX` permite planes de 60 000 caracteres y cada modelo devuelve su plan completo. En el prompt cada turno entra con máximo 6000 caracteres, cortado por el final. Los demás y quien concluye ven el plan propuesto sin su cola.
 - Dónde: `app/electron/debate-texto.ts` líneas 17, 212-230 (`transcripcionParaPrompt`), 196-206 (`textoDeTurno`)
 - Arreglo: Subir el tope del plan (o dar tope aparte al plan y al argumento) y recortar el argumento antes que el plan.
 
-**B009 · Los archivos que se le pegan a Gemini pueden salir de la carpeta o ser secretos** (`DEBATE-REVISION-9`, severidad media) · **PENDIENTE**
+**B027 · Los archivos que se le pegan a Gemini pueden salir de la carpeta o ser secretos** (`DEBATE-REVISION-9`, severidad media) · **PENDIENTE**
 - Qué pasa: La guarda de «nunca fuera de `cwd`» es sólo de texto: un enlace simbólico dentro del proyecto hacia otro lugar se lee y se manda a Google. La lista de exclusión (`.env*`, `claves*`, `.git`, `node_modules`) no cubre `credentials.json`, `secrets.*`, `*.pem` ni `id_rsa`.
 - Dónde: `app/electron/revision-plan.ts` líneas 84-96 (`archivosDelPlan`)
 - Arreglo: `realpath` y volver a comprobar que queda dentro; ampliar la lista de nombres sensibles.
 
-**B010 · El orden por cupo del debate nunca se usa** (`DEBATE-REVISION-10`, severidad baja) · **PENDIENTE**
+**B028 · El orden por cupo del debate nunca se usa** (`DEBATE-REVISION-10`, severidad baja) · **PENDIENTE**
 - Qué pasa: El código y la documentación dicen que habla primero y concluye «quien tenga más cupo». Pero `debatesDe` no pasa `cupo`, así que el orden es siempre el de elección. Concluye el primero elegido aunque tenga el cupo agotado.
 - Dónde: `app/electron/debate.ts` líneas 44, 103-106 y 319; `lider.ts` líneas 2357-2378
 - Arreglo: Pasar `cupo` desde `estadosCupoModelos` o el uso guardado, o quitar la promesa del texto.
 
-**B011 · «(sin nada que decir)» se ve en español en la tarjeta en inglés** (`DEBATE-REVISION-11`, severidad baja) · **PENDIENTE**
+**B029 · «(sin nada que decir)» se ve en español en la tarjeta en inglés** (`DEBATE-REVISION-11`, severidad baja) · **PENDIENTE**
 - Qué pasa: Con una sección vacía, el mensaje al líder lleva el texto literal «(sin nada que decir)». Al releerlo, la tarjeta lo trata como contenido (es verdadero) y muestra el literal en español, no «Nothing to add». Si «Plan mejorado» viene vacío, se dibuja el desplegable con ese literal.
 - Dónde: `app/electron/revision-plan-texto.ts` línea 160; `app/electron/debate-texto.ts` líneas 323, 326, 329; se lee en `TarjetaRevision.tsx` línea 42 y `TarjetaDebate.tsx` línea 365
 - Arreglo: Tratar ese literal como vacío al leer.
 
-**B012 · Si Claude llega al tope de 12 turnos, se descarta lo escrito y el error es una clave cruda** (`DEBATE-REVISION-12`, severidad baja) · **PENDIENTE**
+**B030 · Si Claude llega al tope de 12 turnos, se descarta lo escrito y el error es una clave cruda** (`DEBATE-REVISION-12`, severidad baja) · **PENDIENTE**
 - Qué pasa: Un revisor que lee varios archivos puede agotar los 12 turnos. La persona ve «Claude no pudo terminar la revisión: error_max_turns», y el texto parcial se tira.
 - Dónde: `app/electron/revision-plan.ts` líneas 276-308 (`--max-turns 12`), `revision-flujo.ts` línea 67
 - Arreglo: Mapear `error_max_turns` a un texto traducido y, si hay texto con las secciones, usarlo.
 
-**B013 · Con un error al pedir revisores, la interfaz supone que todos los modelos están conectados** (`DEBATE-REVISION-13`, severidad baja) · **PENDIENTE**
+**B031 · Con un error al pedir revisores, la interfaz supone que todos los modelos están conectados** (`DEBATE-REVISION-13`, severidad baja) · **PENDIENTE**
 - Qué pasa: Si `liderRevisores` falla, la lista cae a todos los modelos de `MODELOS`. Aparecen Claude, Gemini y ChatGPT aunque falten sesiones o estén desactivados. Recién al elegir sale «no se puede usar de revisor».
 - Dónde: `app/src/hilo/Lider.tsx` línea 2181
 - Arreglo: Dejar la lista vacía con un aviso, o repetir el pedido.
 
-**B014 · La columna del modelo que habla dice «Espera su turno» hasta su primer paso** (`DEBATE-REVISION-14`, severidad baja) · **PENDIENTE**
+**B032 · La columna del modelo que habla dice «Espera su turno» hasta su primer paso** (`DEBATE-REVISION-14`, severidad baja) · **PENDIENTE**
 - Qué pasa: Al empezar un turno se pone `p.vivo` pero no se emite. Hasta el primer avance, que en Gemini puede tardar, la columna sigue en «Espera su turno». En la conclusión, la columna ya tiene su turno de esa ronda y nunca muestra «Escribiendo»: sólo se ve el texto «Escribiendo la conclusión…».
 - Dónde: `app/electron/debate.ts` líneas 191-193 (`llamar`); `app/src/hilo/debate-logica.ts` líneas 93-97
 - Arreglo: `emitir(null)` al crear `vivo`, y decidir el estado «escribiendo» antes de la rama del turno ya dicho si `p.vivo`.
 
 ### El hilo: la caja y el líder en la ventana
 
-**B015 · El efecto de `modeloServidor` pisa lo que la persona eligió después** (`HILO-LIDER-1`, severidad media) · **PENDIENTE**
+**B033 · El efecto de `modeloServidor` pisa lo que la persona eligió después** (`HILO-LIDER-1`, severidad media) · **PENDIENTE**
 - Qué pasa: Si la lista del servidor llega con un modelo nuevo justo después de que la persona eligió otro (o otro esfuerzo) en la caja, la caja vuelve al modelo del servidor. La elección se pierde, y el efecto de la línea 476 manda el valor pisado a la cola, así que el main también se queda con el viejo.
 - Dónde: `app/src/hilo/Lider.tsx` líneas 457-466 (efecto de `modeloServidor`)
 - Arreglo: seguir al servidor solo si la caja seguía igual al valor anterior del servidor: `setModelo((m) => (m === vistoAntes ? modeloServidor : m))`, y lo mismo con el esfuerzo. Test: una función pura `seguirServidor(caja, anterior, nuevo)`.
 
-**B016 · «Seguir con otro modelo» y «Revisar con otro modelo» pierden la fila resaltada cuando el padre se repinta** (`HILO-LIDER-2`, severidad media) · **PENDIENTE**
+**B034 · «Seguir con otro modelo» y «Revisar con otro modelo» pierden la fila resaltada cuando el padre se repinta** (`HILO-LIDER-2`, severidad media) · **PENDIENTE**
 - Qué pasa: Con el diálogo de revisión abierto, cada repintado de `ChatLider` hace que la fila marcada con las flechas vuelva a la preferida. Además se vuelve a llamar a `fuente.cuentas()`.
 - Dónde: `app/src/hilo/Lider.tsx` líneas 2272-2278 (`PedidoPermiso`) y `app/src/hilo/SeguirCon.tsx` líneas 89-96 y 102-105
 - Arreglo: `useMemo` de `opciones` por `[revisores, tablaModelos]` y `useCallback` para `esfuerzos` en `PedidoPermiso`. En `SeguirCon`, resetear la resaltada solo si cambia la lista de ids o la búsqueda, no la identidad de `filas`.
 
-**B017 · Tras «Compactar y seguir» desde la caché vencida se borra lo que la persona escribió mientras tanto** (`HILO-LIDER-3`, severidad media) · **PENDIENTE**
+**B035 · Tras «Compactar y seguir» desde la caché vencida se borra lo que la persona escribió mientras tanto** (`HILO-LIDER-3`, severidad media) · **PENDIENTE**
 - Qué pasa: El mensaje queda en la caja mientras compacta, y la caja sigue editable porque `enviando` es false. Si la persona lo corrige o escribe otra cosa, al terminar se manda el texto viejo `pend.crudo` y `salir` hace `setTexto("")`, así que los cambios se pierden.
 - Dónde: `app/src/hilo/Lider.tsx` líneas 1406-1410 (efecto de `compactoCache`) y 1149 (`salir`)
 - Arreglo: poner la caja en solo lectura mientras `compactoCache` esté activo (`readOnly={enviando || !!compactoCache}`), o mandar `texto` actual si difiere. Test: `siguienteCambio`/efecto con un texto cambiado.
 
-**B018 · Si falla la lectura de pedidos pendientes, un plan o permiso queda invisible y no se reintenta** (`HILO-LIDER-4`, severidad media) · **PENDIENTE**
+**B036 · Si falla la lectura de pedidos pendientes, un plan o permiso queda invisible y no se reintenta** (`HILO-LIDER-4`, severidad media) · **PENDIENTE**
 - Qué pasa: Con la ventana recargada, un fallo de `liderPendientes` deja sin mostrar el «Plan listo» o el permiso que el líder espera. El líder queda parado y no hay forma de volver a pedirlo.
 - Dónde: `app/src/hilo/vivo.ts` líneas 395-397 (`suscribir`)
 - Arreglo: `.catch(() => rehidratados.delete(sid))`, para que la próxima suscripción lo pida de nuevo.
 
-**B019 · El aviso de «cambiar de modelo con caché viva» sigue en pantalla, sin texto, cuando la caché ya venció** (`HILO-LIDER-5`, severidad baja) · **PENDIENTE**
+**B037 · El aviso de «cambiar de modelo con caché viva» sigue en pantalla, sin texto, cuando la caché ya venció** (`HILO-LIDER-5`, severidad baja) · **PENDIENTE**
 - Qué pasa: Al vencer la caché, el reloj del aviso se vacía (`texto: ""`), pero la franja con «Volver a X» y «Compactar y cambiar» sigue hasta el próximo repintado. Ofrece compactar cuando ya no hay caché que cuidar.
 - Dónde: `app/src/hilo/Lider.tsx` líneas 1455-1462 (`cambia`) y 1966-1989; `app/src/hilo/Turno.tsx` líneas 34-44 (`pintorAviso`)
 - Arreglo: un `setTimeout` hasta `cache_vence` que fuerce el repintado, o mover la condición al pintor para que no renderice la franja.
 
-**B020 · Un cambio de esfuerzo hecho en otro lado no llega a la caja** (`HILO-LIDER-6`, severidad baja) · **PENDIENTE**
+**B038 · Un cambio de esfuerzo hecho en otro lado no llega a la caja** (`HILO-LIDER-6`, severidad baja) · **PENDIENTE**
 - Qué pasa: Si el esfuerzo del líder cambia desde otra ventana o `/effort` sin que cambie el modelo, la caja conserva el esfuerzo viejo. «Volver/Editar» y los envíos mandan el viejo, y durante un turno aparece «próx.» con el esfuerzo viejo.
 - Dónde: `app/src/hilo/Lider.tsx` línea 461
 - Arreglo: separar un efecto de esfuerzo con su propio `vistoEffort`, con la misma regla de HILO-LIDER-1 para no pisar lo que la persona tocó.
 
-**B021 · El menú de `/model` y «Seguir con otro modelo» no se refrescan cuando cambia la tabla de modelos** (`HILO-LIDER-7`, severidad baja) · **PENDIENTE**
+**B039 · El menú de `/model` y «Seguir con otro modelo» no se refrescan cuando cambia la tabla de modelos** (`HILO-LIDER-7`, severidad baja) · **PENDIENTE**
 - Qué pasa: Tras cambiar el catálogo (Ajustes, proveedor nuevo), el segundo nivel de `/model` muestra modelos viejos y `SeguirCon` no recalcula su lista.
 - Dónde: `app/src/hilo/Lider.tsx` líneas 501-511 (`valores`) y 1907; `app/src/hilo/opciones.tsx` línea 83
 - Arreglo: agregar `tablaModelos` a las dependencias de `valores`, y pasar a `SeguirCon` una copia (`[...MODELOS]`) memoizada por `tablaModelos`.
 
-**B022 · Sin transcript cargado, la pregunta de caché vencida cuenta 0 tokens y deja pasar el mensaje** (`HILO-LIDER-8`, severidad baja) · **PENDIENTE**
+**B040 · Sin transcript cargado, la pregunta de caché vencida cuenta 0 tokens y deja pasar el mensaje** (`HILO-LIDER-8`, severidad baja) · **PENDIENTE**
 - Qué pasa: Si la persona manda antes de que cargue el transcript y todavía no hay uso del stream, `tokens = 0`. `decidirCache` responde «enviar» por ser menor que `UMBRAL_TOKENS`, y el mensaje relee todo el contexto sin avisar.
 - Dónde: `app/src/hilo/Lider.tsx` líneas 1006-1022 (`veredictoCache`); `app/src/hilo/contexto-logica.ts` líneas 43-44
 - Arreglo: si `pag` es null, esperar a la lectura o decidir con `l.usage` si existe. Test: `decidirCache` con tokens desconocidos.
 
-**B023 · El espejo de la cola descarta el error cuando la lista queda vacía** (`HILO-LIDER-9`, severidad baja) · **PENDIENTE**
+**B041 · El espejo de la cola descarta el error cuando la lista queda vacía** (`HILO-LIDER-9`, severidad baja) · **PENDIENTE**
 - Qué pasa: Un aviso con `error` y sin items en `lista` ni `camino` borra el estado del líder, y el motivo del fallo se pierde.
 - Dónde: `app/src/hilo/cola.ts` líneas 26-30 (`poner`)
 - Arreglo: conservar la entrada si `a.error`, o documentar que nunca ocurre. Test en `tests/` del espejo.
 
-**B024 · La preferencia de caché vencida queda fija si falla su lectura** (`HILO-LIDER-10`, severidad baja) · **PENDIENTE**
+**B042 · La preferencia de caché vencida queda fija si falla su lectura** (`HILO-LIDER-10`, severidad baja) · **PENDIENTE**
 - Qué pasa: Si `fuente.cacheVencida()` falla, `valor` queda en «preguntar» y no se vuelve a leer. Lo que la persona recordó se ignora hasta reiniciar, y el rechazo queda sin manejar.
 - Dónde: `app/src/hilo/cache-eleccion.ts` líneas 11-22
 - Arreglo: `.catch(() => { leido = false; })`.
 
-**B025 · «Compactar» del panel de contexto puede quedar trabado en «compactando» para siempre** (`HILO-LIDER-11`, severidad baja) · **PENDIENTE**
+**B043 · «Compactar» del panel de contexto puede quedar trabado en «compactando» para siempre** (`HILO-LIDER-11`, severidad baja) · **PENDIENTE**
 - Qué pasa: Si la marca de `useCompactando` nunca se baja (se cae el hook, o el proceso muere a mitad), la fase queda en `compactando`. `puede` es false (`fase === "reposo"`) y el botón no vuelve.
 - Dónde: `app/src/hilo/compactar.ts` líneas 29 y 55-64
 - Arreglo: un tope (por ejemplo 15 min) que vuelva a `reposo` con una nota de error.
 
-**B026 · Si falla la lista de revisores, se ofrecen todos los modelos como si todo estuviera conectado** (`HILO-LIDER-12`, severidad baja) · **PENDIENTE**
+**B044 · Si falla la lista de revisores, se ofrecen todos los modelos como si todo estuviera conectado** (`HILO-LIDER-12`, severidad baja) · **PENDIENTE**
 - Qué pasa: Con `liderRevisores` rechazado, el selector lista todos los de `MODELOS`, incluidos proveedores desactivados en Ajustes o sin conectar. La persona puede elegir uno y la revisión falla después.
 - Dónde: `app/src/hilo/Lider.tsx` línea 2181
 - Arreglo: en el fallo, filtrar `!m.sinConectar` y mostrar un aviso de que no se pudo leer la lista.
 
-**B027 · El aviso de «cerca del límite» confunde 1 % con 100 %** (`HILO-LIDER-13`, severidad baja) · **PENDIENTE**
+**B045 · El aviso de «cerca del límite» confunde 1 % con 100 %** (`HILO-LIDER-13`, severidad baja) · **PENDIENTE**
 - Qué pasa: `uso === 1` se muestra como 100 %, aunque venga como «1 %». Con `uso` = 0,5 o 50 se interpreta bien, pero el valor 1 es ambiguo.
 - Dónde: `app/src/hilo/Hace.tsx` línea 78 (`textoAviso`, clase `limite`)
 - Arreglo: normalizar la escala en el main para que siempre llegue 0-1, o 0-100, y quitar la heurística.
 
-**B028 · Textos desparejos entre español e inglés** (`HILO-LIDER-14`, severidad baja) · **PENDIENTE**
+**B046 · Textos desparejos entre español e inglés** (`HILO-LIDER-14`, severidad baja) · **PENDIENTE**
 - Qué pasa: En español dice «{pct} %» y en inglés «{pct}%». En inglés el mismo concepto sale como «lead» en `lider.nuevo` y como «leader» en `lider.atFallo` y en `ctxp.*`. Las variables coinciden, así que no rompe nada.
 - Dónde: `app/src/i18n/es.ts` líneas 1682 y 1722, y `app/src/i18n/en.ts` líneas 1694 y 1734 (`ctxp.pctVentana`, `ctxp.mapaBloque`); `en.ts` línea 101 contra 1163 (`lider.nuevo` y `lider.atFallo`)
 - Arreglo: unificar el espaciado y elegir «lead» o «leader» en todo `en.ts`.
 
 ### Hooks y motor
 
-**B029 · Leer un enlace permite salir del worktree** (`HOOKS-MOTOR-1`, severidad alta) · **PENDIENTE**
+**B047 · Leer un enlace permite salir del worktree** (`HOOKS-MOTOR-1`, severidad alta) · **PENDIENTE**
 - Qué pasa: un worker remoto puede leer un archivo ajeno al proyecto mediante un enlace simbólico que está dentro del worktree. El contenido queda disponible para enviarlo al proveedor aunque el hook prometa impedir esa lectura.
 - Dónde: `motor/hooks/agy-pa.mjs` línea 446 (validación de argumentos de lectura).
 - Arreglo: resolver el destino real de cada argumento de lectura antes de compararlo con las carpetas permitidas, como se hace para escribir; usar también esa validación para Cwd y las rutas explícitas de comandos. Agregar una prueba con un enlace a un archivo externo y otra con un enlace interno permitido; en Windows cubrir…
 
-**B030 · Una guardia hija rota deja pasar la herramienta** (`HOOKS-MOTOR-2`, severidad alta) · **PENDIENTE**
+**B048 · Una guardia hija rota deja pasar la herramienta** (`HOOKS-MOTOR-2`, severidad alta) · **PENDIENTE**
 - Qué pasa: si destructive-guard o latido falta, falla o no puede arrancar, agy permite el comando. Se pierden las restricciones de borrado, git, builds o lectura sin mostrar un error a la persona.
 - Dónde: `motor/hooks/agy-pa.mjs` línea 164 (PreToolUse; también línea 529).
 - Arreglo: conservar `error`/`signal` y denegar cualquier resultado que no sea una ejecución exitosa de la guardia, con un motivo que identifique el módulo. Agregar pruebas para código 1, `ENOENT`, señal y código 2 en ambas guardias; ninguna debe permitir la herramienta.
 
-**B031 · Los bloqueos copian valores privados a stderr** (`HOOKS-MOTOR-3`, severidad alta) · **PENDIENTE**
+**B049 · Los bloqueos copian valores privados a stderr** (`HOOKS-MOTOR-3`, severidad alta) · **PENDIENTE**
 - Qué pasa: un comando que lleva una credencial o un dato privado como argumento o asignación se copia al error del hook. El bloqueo evita ejecutar el comando, pero conserva ese dato en la salida de error y se lo devuelve al modelo.
 - Dónde: `motor/hooks/destructive-guard.mjs` línea 223 (mensaje de bloqueo).
 - Arreglo: sacar el comando crudo de los mensajes del hook y mostrar sólo la regla que bloqueó; si se necesita contexto, usar una descripción que no incluya argumentos ni asignaciones. Cubrir los tres mensajes del guard y el de Docker con una prueba que asegure que un marcador privado no aparece en stdout ni stderr.
 
-**B032 · Compose queda sin revisar en una instalación sin yaml** (`HOOKS-MOTOR-4`, severidad media) · **PENDIENTE**
+**B050 · Compose queda sin revisar en una instalación sin yaml** (`HOOKS-MOTOR-4`, severidad media) · **PENDIENTE**
 - Qué pasa: `docker compose up` puede arrancar un servicio con `privileged: true` o montajes del host sin que la guardia advierta nada. La instalación normal no garantiza el módulo necesario para revisar el archivo.
 - Dónde: `motor/hooks/docker-guard.mjs` línea 688 (`revisarComposeArchivos`).
 - Arreglo: distribuir un parser YAML resoluble desde los hooks en Linux y Windows y, si falta, rechazar los verbos de Compose que crean contenedores con un mensaje explícito. Probar el YAML privilegiado con parser y el mismo comando en un payload sin parser.
 
-**B033 · El runner no puede lanzar el shim de npm en Windows** (`HOOKS-MOTOR-5`, severidad media) · **PENDIENTE**
+**B051 · El runner no puede lanzar el shim de npm en Windows** (`HOOKS-MOTOR-5`, severidad media) · **PENDIENTE**
 - Qué pasa: un worker de OpenCode falla al arrancar si la instalación encontrada es `opencode.cmd`, aun cuando el chequeo previo lo haya encontrado correctamente.
 - Dónde: `motor/opencode/correr.mjs` línea 192 (`main`; también línea 183).
 - Arreglo: adaptar el binario y sus argumentos para Windows antes de las dos llamadas, usando el equivalente de `paraLanzar` o resolver el ejecutable real del paquete. Probar un shim `.cmd` ubicado en una ruta con espacios que sólo devuelva ayuda y eventos falsos, sin conectar un modelo.
 
-**B034 · OpenCode guarda sus datos fuera del estado nativo de Windows** (`HOOKS-MOTOR-6`, severidad media) · **PENDIENTE**
+**B052 · OpenCode guarda sus datos fuera del estado nativo de Windows** (`HOOKS-MOTOR-6`, severidad media) · **PENDIENTE**
 - Qué pasa: al ejecutar el motor desde una terminal de Windows sin variables de rutas, los topes actualizados y pedidos de OpenCode quedan en carpetas distintas de las que lee Trama. El plan puede caer en «gratis» aunque se haya configurado Go en la app.
 - Dónde: `motor/opencode/go-topes.mjs` línea 29 (`rutaCache`).
 - Arreglo: unificar en los módulos del motor los defaults por plataforma y pasar también las rutas calculadas al runner desde TS. Cubrir los tres destinos con rutas Windows sintéticas y los overrides de entorno; no mezclar disco temporal real de Linux con plataforma Windows.
 
-**B035 · La misma compactación devuelve dos veces la nota** (`HOOKS-MOTOR-7`, severidad media) · **PENDIENTE**
+**B053 · La misma compactación devuelve dos veces la nota** (`HOOKS-MOTOR-7`, severidad media) · **PENDIENTE**
 - Qué pasa: si corren dos registros del hook para SessionStart, el contexto posterior a compactar recibe dos copias de la nota. Gastan espacio y pueden traer encabezados de antigüedad diferentes.
 - Dónde: `motor/hooks/nota-compactar.mjs` línea 330 (`decidir`, SessionStart).
 - Arreglo: crear una marca exclusiva de devolución por sid y compactación antes de consumir el archivo o consultar el transcript; una segunda ejecución de ese evento debe devolver null. Probar las dos llamadas consecutivas y simultáneas, y una segunda compactación legítima de la misma sesión.
 
-**B036 · Un ejemplo de código se guarda como nota personal** (`HOOKS-MOTOR-8`, severidad media) · **PENDIENTE**
+**B054 · Un ejemplo de código se guarda como nota personal** (`HOOKS-MOTOR-8`, severidad media) · **PENDIENTE**
 - Qué pasa: explicar cómo escribir una nota, mostrando sus etiquetas como código, puede reemplazar la nota verdadera por el texto del ejemplo. La sesión recibe ese ejemplo como si fuera su resumen al compactar.
 - Dónde: `motor/hooks/nota-compactar.mjs` línea 167 (`extraerNotaDeTexto`).
 - Arreglo: reconocer etiquetas fuera de código, con la misma semántica de la interfaz, y usar ese reconocimiento al extraer desde el transcript. Probar ejemplos inline, cercas, una nota real después de un ejemplo y una etiqueta de cierre citada dentro de la nota.
 
-**B037 · Una línea grande oculta el contexto y la nota actuales** (`HOOKS-MOTOR-9`, severidad media) · **PENDIENTE**
+**B055 · Una línea grande oculta el contexto y la nota actuales** (`HOOKS-MOTOR-9`, severidad media) · **PENDIENTE**
 - Qué pasa: un mensaje grande al final del transcript puede desactivar el pedido de nota justo cuando el contexto está lleno. Si la nota está en ese mismo registro, PreCompact tampoco la guarda.
 - Dónde: `motor/hooks/nota-compactar.mjs` línea 104 (`leerColaTranscript`).
 - Arreglo: buscar hacia atrás el comienzo de los registros necesarios con un límite explícito mayor y una estrategia para registros que exceden ese límite; obtener el uso de una fuente independiente cuando no se pudo recuperar el registro. Probar una línea assistant grande, una herramienta grande posterior y una nota dentro de…
 
-**B038 · Leer git falla cuando la carpeta tiene espacios** (`HOOKS-MOTOR-10`, severidad media) · **PENDIENTE**
+**B056 · Leer git falla cuando la carpeta tiene espacios** (`HOOKS-MOTOR-10`, severidad media) · **PENDIENTE**
 - Qué pasa: un worker con `--leer` no puede ejecutar un `git -C` de lectura válido cuando la ruta lleva espacios entre comillas. El aviso le indica usar justamente `git -C`, pero esa forma sigue bloqueada.
 - Dónde: `motor/hooks/latido.mjs` línea 141 (`gitDeLectura`).
 - Arreglo: separar los argumentos con un parser que respete las comillas del shell correspondiente, conservando el rechazo de sustituciones, redirecciones y encadenamientos. Probar rutas con espacios, comillas escapadas y las mismas rutas en Windows.
 
-**B039 · La privacidad corta una ruta permitida en el primer espacio** (`HOOKS-MOTOR-11`, severidad media) · **PENDIENTE**
+**B057 · La privacidad corta una ruta permitida en el primer espacio** (`HOOKS-MOTOR-11`, severidad media) · **PENDIENTE**
 - Qué pasa: un worker Gemini que escribe tampoco puede usar una ruta absoluta válida dentro de su worktree si la carpeta contiene espacios. Recibe un bloqueo de privacidad para una ruta que nunca pidió abrir.
 - Dónde: `motor/hooks/agy-pa.mjs` línea 401 (`comandoSale`).
 - Arreglo: conservar los argumentos citados al recorrer las rutas de un comando, con reglas de POSIX o Windows según la plataforma. Probar una raíz con espacios, un hijo de esa raíz y una ruta externa con el mismo prefijo; esta última debe seguir bloqueada.
 
-**B040 · Un pid reciclado se toma como otro worker vivo** (`HOOKS-MOTOR-12`, severidad media) · **PENDIENTE**
+**B058 · Un pid reciclado se toma como otro worker vivo** (`HOOKS-MOTOR-12`, severidad media) · **PENDIENTE**
 - Qué pasa: después de una caída que deja un `.running` viejo, la guardia puede bloquear la instalación de dependencias aunque ya no corra otro worker. Alcanza con que el número guardado ahora corresponda a un programa ajeno.
 - Dónde: `motor/hooks/latido.mjs` línea 218 (`otroWriterVivo`).
 - Arreglo: validar identidad y antigüedad del proceso antes de contarlo como writer; reutilizar o portar la lógica de `pidDeCampoRunning` al hook distribuido. Probar un proceso real anterior al archivo, uno posterior, un pid inexistente y el fallback a `pa_pid`.
 
-**B041 · Se conserva sólo la última parte del resultado** (`HOOKS-MOTOR-13`, severidad media) · **PENDIENTE**
+**B059 · Se conserva sólo la última parte del resultado** (`HOOKS-MOTOR-13`, severidad media) · **PENDIENTE**
 - Qué pasa: cuando la respuesta final tiene varias partes de texto, el JSON que recibe `pa` pierde todas salvo la última. Puede desaparecer RESULTADO, ARCHIVOS o una decisión, aunque estén en el transcript.
 - Dónde: `motor/opencode/correr.mjs` línea 82 (`aResultado`).
 - Arreglo: identificar el último paso con respuesta y concatenar sus partes de texto en orden, respetando si el protocolo entrega partes completas o actualizaciones de una misma parte. Probar una respuesta multipartes y otra con comentarios de pasos anteriores que no deben mezclarse con la respuesta final.
 
-**B042 · Un turno sin texto queda marcado como exitoso** (`HOOKS-MOTOR-14`, severidad media) · **PENDIENTE**
+**B060 · Un turno sin texto queda marcado como exitoso** (`HOOKS-MOTOR-14`, severidad media) · **PENDIENTE**
 - Qué pasa: OpenCode puede terminar sin entregar una respuesta y la corrida figura como buena, con resultado vacío. El jefe no recibe el informe esperado y las mediciones no registran el fallo.
 - Dónde: `motor/opencode/correr.mjs` línea 91 (`aResultado`).
 - Arreglo: exigir una respuesta final no vacía para marcar éxito en el runner de workers, o clasificar explícitamente el cierre sin texto como error. Probar ese caso, una respuesta sólo de razonamiento y una respuesta textual válida, tanto con step_finish final como sin él.
 
-**B043 · Registrar el statusline de Windows agrega una dependencia de bash** (`HOOKS-MOTOR-15`, severidad media) · **PENDIENTE**
+**B061 · Registrar el statusline de Windows agrega una dependencia de bash** (`HOOKS-MOTOR-15`, severidad media) · **PENDIENTE**
 - Qué pasa: instalar los hooks sobre un statusline propio que ya funciona en Windows lo reemplaza por un comando que requiere bash. Una instalación nativa sin ese programa pierde su statusline original.
 - Dónde: `app/electron/cli/hooks.ts` línea 159 (`registrarEnAjustes`).
 - Arreglo: envolver el statusline con el intérprete nativo correspondiente, usando argumentos y comillas compatibles con Windows; conservar bash sólo para la plataforma que ya lo usa. Probar registro y ejecución de un statusline propio desde una ruta con espacios en ambos sistemas, sin exigir bash en Windows.
 
-**B044 · La cola descarta una línea que ya estaba completa** (`HOOKS-MOTOR-16`, severidad baja) · **PENDIENTE**
+**B062 · La cola descarta una línea que ya estaba completa** (`HOOKS-MOTOR-16`, severidad baja) · **PENDIENTE**
 - Qué pasa: si el comienzo del tramo coincide exactamente con el inicio de una línea válida, se pierde ese registro igual. Puede ser el único que contiene el uso del contexto o la nota que hacía falta guardar.
 - Dónde: `motor/hooks/nota-compactar.mjs` línea 102 (`leerColaTranscript`).
 - Arreglo: leer también el byte anterior al offset y descartar la primera línea sólo cuando ese byte no sea un salto. Probar offset 0, offset alineado, offset dentro de una línea y archivos CRLF con el corte a ambos lados de `\r\n`.
 
+### Núcleo y canales
+
+**B063 · El PATH del usuario puede corromperse con acentos al agregar `bin\`** (`NUCLEO-IPC-5`, severidad alta) · **PENDIENTE**
+- Qué pasa: si una entrada del PATH de usuario tiene caracteres no ASCII (`C:\Users\José\...`), el instalador la reescribe con caracteres rotos. Esa entrada deja de andar.
+- Dónde: `windows/src/nativo.js` líneas 400-403 (`PS_LEER_PATH`), 386 (`correr`) y 433-437 (`agregar`)
+- Arreglo: leer el valor en base64 (`[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($v))`) y decodificar en Node, o poner `[Console]::OutputEncoding=[Text.Encoding]::UTF8` antes. Lo mismo vale para `PS_LEER_RUN`.
+
+**B064 · Buscar actualización a mano con un límite de GitHub congela el actualizador de Windows** (`NUCLEO-IPC-1`, severidad media) · **PENDIENTE**
+- Qué pasa: si la persona toca «Buscar actualizaciones» y GitHub contesta 403/429, la fase queda en "buscando" para siempre. Todas las búsquedas siguientes salen sin hacer nada y Trama no se actualiza hasta reiniciar.
+- Dónde: `windows/src/actualizar.js` líneas 75-78, 110-122 y 135 (`fallo`, `buscar`)
+- Arreglo: en `fallo`, si `esLimite` y `fase === "buscando"`, hacer `decir({fase:"al-dia"})` o volver a la fase anterior.
+
+**B065 · La confianza en la página se decide con `startsWith` sin separador** (`NUCLEO-IPC-2`, severidad media) · **PENDIENTE**
+- Qué pasa: una URL como `http://localhost:8791.sitio-ajeno.com/` o `http://localhost:87910/` cuenta como la página de Trama. Recibe el preload con `carcasa.ventana`: `app:salir`, `archivo:abrir`, `carpeta:elegir`, `cuentas:login`. Si un link del chat navega la ventana a esa URL, se la deja pasar.
+- Dónde: `windows/src/main.js` líneas 230-233 (`deConfianza`), 378-383 (`will-navigate`) y 386 (`did-fail-load`)
+- Arreglo: una función `esPropio(u)` que haga `new URL(u).origin === MOTOR_URL` o `u.startsWith("file:")`, usada en las tres líneas. Test en `windows/tests`.
+
+**B066 · «Volver a la versión anterior» puede cerrar Trama y no reabrirla** (`NUCLEO-IPC-6`, severidad media) · **PENDIENTE**
+- Qué pasa: con un perfil de usuario con acentos, el guion `.cmd` lleva las rutas de `robocopy` y `start` mal leídas. Trama se cierra (`d.salir()`) y la versión anterior no se restaura ni se abre.
+- Dónde: `windows/src/version-anterior.js` líneas 102-125 (`guionDeRestauracion`, `lanzarRestauracion`)
+- Arreglo: agregar `chcp 65001 >nul` como segunda línea del guion, o rechazar rutas no ASCII en `SEGURA` y avisar antes de salir. Test: `guionDeRestauracion` con `José` debe empezar con `chcp`.
+
+**B067 · Si el motor es «adoptado», Salir y Actualizar no lo paran** (`NUCLEO-IPC-7`, severidad media) · **PENDIENTE**
+- Qué pasa: el menú de la bandeja dice «Salir (apaga el motor y los líderes)», pero con un motor adoptado (que quedó de una carcasa caída) no lo apaga. La actualización siguiente falla con «No pude reemplazar… otro programa los tiene abiertos», porque `node.exe` sigue corriendo.
+- Dónde: `windows/src/nativo.js` líneas 236-248 (`parar`); `windows/src/pasos-nativo.js` línea 85
+- Arreglo: en `parar()`, si la fase era "adoptado", leer el pid de `rutas.dueno` y llamar a `matarArbol`.
+
+**B068 · «Reportar un bug» muestra el error de «cuentas» cuando falla** (`NUCLEO-IPC-3`, severidad baja) · **PENDIENTE**
+- Qué pasa: si el main devuelve algo raro o sin `error`, la persona ve «El comando cuentas falló (código {rc})», con la `{rc}` sin reemplazar.
+- Dónde: `app/src/datos/fuente.ts` línea 41 (`reporteValido`)
+- Arreglo: una clave propia (por ejemplo `main.reporteFallo`) en `es.ts` y `en.ts` con las mismas variables, y usarla acá.
+
+**B069 · `asistente:`, `actualizar:instalar` y `app:version` no pasan por `deConfianza`** (`NUCLEO-IPC-4`, severidad baja) · **PENDIENTE**
+- Qué pasa: cualquier página con el preload puede pedir `actualizar:instalar` (cierra Trama e instala), `asistente:conectar` o `asistente:saltarLogin`. Sólo `actualizar:buscar` y `restos:*` están protegidos (435-438).
+- Dónde: `windows/src/main.js` líneas 424-434
+- Arreglo: envolver con `protegido` (o con `deConfianza`) todos los handlers de las líneas 424-434, menos `app:version` si hace falta.
+
+**B070 · `agy:actualizar` se puede pedir por la tailnet** (`NUCLEO-IPC-8`, severidad baja) · **PENDIENTE**
+- Qué pasa: desde el celular se puede disparar la actualización de `agy`. En Linux abre una terminal con `paru` en la PC; en Windows corre `agy update`. `claude:actualizar` sí está bloqueado.
+- Dónde: `app/electron/nucleo.ts` línea 158 (`SOLO_PC_TAILNET`) y línea 1739
+- Arreglo: agregar `"agy:actualizar"` y `"opencode:actualizar"` al `Set`. Test en `app/tests/nucleo.test.ts`.
+
+**B071 · `lider:cerrar` vacía la cola antes de saber si el cierre anduvo** (`NUCLEO-IPC-9`, severidad baja) · **PENDIENTE**
+- Qué pasa: si `lider.cerrar` falla, el líder sigue abierto pero los mensajes que esperaban en su cola ya se borraron.
+- Dónde: `app/electron/nucleo.ts` líneas 1664-1669
+- Arreglo: mover `cola.vaciar` después del `await lider.cerrar`.
+
+**B072 · `salud:eventos` acepta 0, negativos y números enormes** (`NUCLEO-IPC-10`, severidad baja) · **PENDIENTE**
+- Qué pasa: `dias = null`, `""` o `false` se convierte en 0 días y devuelve vacío en vez de los 7 por defecto. Un cliente por red puede pedir `1e9` días.
+- Dónde: `app/electron/nucleo.ts` línea 1087
+- Arreglo: `typeof dias === "number" && dias >= 1 ? Math.min(dias, 365) : 7`.
+
+**B073 · `orq:auditar` revienta con `TypeError` si llega sin argumento** (`NUCLEO-IPC-11`, severidad baja) · **PENDIENTE**
+- Qué pasa: `x` indefinido tira «Cannot read properties of undefined». El resto del manejador usa `x?.`.
+- Dónde: `app/electron/nucleo.ts` línea 1238
+- Arreglo: `String(x?.proyecto)`.
+
+**B074 · La carcasa de Windows acepta nombres como `constructor` o `toString` como proveedor de login** (`NUCLEO-IPC-12`, severidad baja) · **PENDIENTE**
+- Qué pasa: `saltarLogin("toString")` pasa la guarda y guarda `loginSaltado.toString=true` en `estado.json`. `conectar("constructor")` intenta lanzar una consola con una función como programa y falla con un error confuso.
+- Dónde: `windows/src/pasos-nativo.js` líneas 147, 162-165 y 178-182
+- Arreglo: `Object.hasOwn(PROVEEDORES_LOGIN, proveedor)` en las dos guardas.
+
+**B075 · Una segunda instancia que llega antes de `ready` rompe la carcasa** (`NUCLEO-IPC-13`, severidad baja) · **PENDIENTE**
+- Qué pasa: si se abre Trama por segunda vez en el primer instante (por ejemplo mientras arranca con la sesión), `mostrarVentana()` llama a `arrancar()` antes de `app.whenReady`. Tira «Session can only be received when app is ready» y sale un diálogo de error del main.
+- Dónde: `windows/src/main.js` línea 463, y 358-359 (`arrancar`)
+- Arreglo: `app.whenReady().then(mostrarVentana)` dentro del handler, o una bandera `listo`.
+
+**B076 · Algunos errores del main se muestran con prefijo técnico, y tres preferencias no tienen tope** (`NUCLEO-IPC-14`, severidad baja) · **PENDIENTE**
+- Qué pasa: un `TypeError` del main llega como «TypeError: …» a la interfaz, porque la expresión sólo quita `Error: `. Aparte, `preferencias:effort` y `leidos:marcar` guardan cualquier cantidad de claves de cualquier largo. Por la tailnet, un cliente puede hacer crecer `preferencias.json` y `leidos.json` sin límite.
+- Dónde: `app/src/puente.ts` líneas 620-621 (`mensaje`); `app/electron/preferencias.ts` líneas 198-203; `app/electron/leidos.ts` líneas 30-36
+- Arreglo: regex `(?:\w*Error: )?`. En `guardarEffort`, aceptar sólo modelos conocidos o `modelo.length <= 100`. En `marcarLeido`, `id.length <= 200`.
+
 ### El CLI de `pa`
 
-**B045 · El resumen de continuación esquiva el chequeo de secretos** (`PA-CLI-1`, severidad alta) · **PENDIENTE**
+**B077 · El resumen de continuación esquiva el chequeo de secretos** (`PA-CLI-1`, severidad alta) · **PENDIENTE**
 - Qué pasa: `--seguir-con` puede mandar a otro proveedor un secreto que estaba en la conversación anterior, aunque el pedido nuevo no lo contenga. La revisión de privacidad se hace sobre el texto corto, antes de agregar el resumen.
 - Dónde: `app/electron/cli/pa/cli.ts` línea 475 (`correrPa`).
 - Arreglo: volver a revisar el contenido final al reemplazar la tarea en la línea 475, antes de relanzar async o despachar el motor. El mismo control debe cubrir el resumen por caché frío y el worktree que realmente se retoma. Agregar un test que niegue el envío del dato ficticio aunque el pedido extra sea inocuo.
 
-**B046 · Se reutiliza el puesto de un hijo que sigue vivo** (`PA-CLI-2`, severidad alta) · **PENDIENTE**
+**B078 · Se reutiliza el puesto de un hijo que sigue vivo** (`PA-CLI-2`, severidad alta) · **PENDIENTE**
 - Qué pasa: si muere `pa` y sobrevive su worker, otro `pa` puede ocupar el mismo worktree y cambiarle la rama mientras todavía trabaja. También borra el `.running` que permitía encontrar al worker anterior.
 - Dónde: `app/electron/cli/pa/puestos.ts` línea 462 (`Admision.tomarPuesto`).
 - Arreglo: después de tomar el candado del puesto y antes de aceptarlo, validar el `.running`; si su hijo sigue vivo, liberar ese puesto y tratarlo como ocupado. Agregar un test con padre muerto e hijo vivo que impida preparar el worktree.
 
-**B047 · Dos repositorios con igual carpeta comparten worktree** (`PA-CLI-3`, severidad alta) · **PENDIENTE**
+**B079 · Dos repositorios con igual carpeta comparten worktree** (`PA-CLI-3`, severidad alta) · **PENDIENTE**
 - Qué pasa: dos proyectos distintos llamados, por ejemplo, `/clientes/a/demo` y `/clientes/b/demo` comparten estado, puestos y worktrees. Si tienen historia compatible, el segundo puede terminar escribiendo y commiteando en el repositorio del primero.
 - Dónde: `app/electron/cli/pa/worktrees.ts` línea 538 (`asegurarWorktree`).
 - Arreglo: antes de devolver `true` en la línea 538, comparar el Git común con el del proyecto y rechazar cualquier mezcla. Dar a cada ruta real una clave de estado y worktree inequívoca, conservando una resolución compatible del estado viejo. Probar dos clones con igual basename y nombres distintos del registry.
 
-**B048 · Un rescate sin commit contamina la siguiente corrida** (`PA-CLI-4`, severidad alta) · **PENDIENTE**
+**B080 · Un rescate sin commit contamina la siguiente corrida** (`PA-CLI-4`, severidad alta) · **PENDIENTE**
 - Qué pasa: si falla el commit de trabajo huérfano, se anuncia que quedó commiteado y se lanza otra corrida con esos cambios sin guardar. Sus archivos pueden quedar staged y entrar en el commit de una tarea distinta.
 - Dónde: `app/electron/cli/pa/worktrees.ts` línea 519 (`commitearHuerfano`).
 - Arreglo: comprobar `add`, `commit` y el estado final; si el rescate falla, abortar la preparación con código 87 y conservar la rama y sus cambios. Aplicar la misma guarda al rescate usado para integrar. Testear un hook que rechace el commit y exigir que no nazca otra rama de trabajo.
 
-**B049 · Una corrida fallida puede habilitar la integración automática** (`PA-CLI-5`, severidad alta) · **PENDIENTE**
+**B081 · Una corrida fallida puede habilitar la integración automática** (`PA-CLI-5`, severidad alta) · **PENDIENTE**
 - Qué pasa: una corrida con código distinto de cero o `is_error=true` puede figurar como lista y quedar habilitada para integrarse sola. Esto ocurre si dejó commits, `DECISION: nada` y los tests del proyecto pasan, aunque el worker haya fallado después de guardar un resultado parcial.
 - Dónde: `app/electron/cli/pa/hilos.ts` línea 463 (`armar`).
 - Arreglo: leer el código durable de `.listo` o `.entregado`, exponerlo en la fila y distinguir el fallo antes de asignar `listo`/`decision`. Conservar compatibilidad con corridas viejas sin código. Un test debe impedir que una fila con `rc=1` sea candidata a integración automática aunque los demás campos sean favorables.
 
-**B050 · Integrar no reconoce los puestos cortos de Windows** (`PA-CLI-6`, severidad media) · **PENDIENTE**
+**B082 · Integrar no reconoce los puestos cortos de Windows** (`PA-CLI-6`, severidad media) · **PENDIENTE**
 - Qué pasa: en una instalación normal de Windows, integrar o descartar una rama que quedó en su puesto de pa se niega diciendo que está fuera de los puestos. La falla no aparece si las pruebas fijan `PA_STATE` y usan la disposición larga.
 - Dónde: `app/electron/cli/pa/ramas-base.ts` línea 123 (`puestoDeRuta`).
 - Arreglo: hacer que los helpers de integración usen la misma disposición y comparación de rutas que los de lanzamiento, incluyendo el puesto reservado `integrar`. Agregar un test con la disposición predeterminada de Windows y otro con `PA_STATE` explícito.
 
-**B051 · Un error recuperado del stream se vuelve un fallo final** (`PA-CLI-7`, severidad media) · **PENDIENTE**
+**B083 · Un error recuperado del stream se vuelve un fallo final** (`PA-CLI-7`, severidad media) · **PENDIENTE**
 - Qué pasa: aunque el proceso termine con 0 y el stream cierre con `turn.completed` y un resultado válido, un evento `error` anterior fuerza el fallo. Pa comunica que falló y entrega código 1.
 - Dónde: `app/electron/cli/pa/motores/salida.ts` línea 136 (`codexAJson`).
 - Arreglo: clasificar el desenlace del turno y conservar los errores previos como advertencias cuando exista una terminación exitosa posterior. Agregar casos de error recuperado seguido de éxito y error terminal sin `turn.completed`, conservando el fallo ante un rc distinto de cero.
 
-**B052 · La cola aparece trabajando y sin tarea ni modelo** (`PA-CLI-8`, severidad media) · **PENDIENTE**
+**B084 · La cola aparece trabajando y sin tarea ni modelo** (`PA-CLI-8`, severidad media) · **PENDIENTE**
 - Qué pasa: mientras espera cupo o puesto, el worker figura como trabajando pero sin tarea ni modelo. En Windows no hay un respaldo que recupere el pedido desde el proceso; el respaldo de Linux tampoco reconoce la entrada compilada `pa.js`.
 - Dónde: `app/electron/cli/pa/async.ts` línea 584 (`lanzarAsync`).
 - Arreglo: persistir tarea, modelo, cuenta y líder antes del fork y hacer que `--hilos` los lea también en cola. Mantener el estado de espera explícito y evitar depender de `/proc`. El test debe comprobar la fila completa antes de admitir el puesto, tanto para Linux como para Windows.
 
-**B053 · Cobrar un éxito hace decir que no terminó bien** (`PA-CLI-9`, severidad media) · **PENDIENTE**
+**B085 · Cobrar un éxito hace decir que no terminó bien** (`PA-CLI-9`, severidad media) · **PENDIENTE**
 - Qué pasa: después de `pa --esperar`, una corrida que terminó bien deja de ser candidata a integración automática y el aviso explica «no terminó bien». El resultado y sus commits siguen intactos: lo único que cambió fue que el líder lo leyó.
 - Dónde: `app/electron/cli/pa/hilos.ts` línea 453 (`armar`).
 - Arreglo: conservar el desenlace independientemente de si el resultado ya fue entregado. Con un código de éxito durable, permitir evaluar una corrida entregada o informar un motivo de entrega que no afirme un fallo. Testear que cobrar el resultado no convierta un éxito en ese aviso.
 
-**B054 · Al recuperar una sesión se conserva el id roto** (`PA-CLI-10`, severidad media) · **PENDIENTE**
+**B086 · Al recuperar una sesión se conserva el id roto** (`PA-CLI-10`, severidad media) · **PENDIENTE**
 - Qué pasa: cuando ya no existe la conversación retomada, pa logra crear otra, pero `--seguir --id <esta corrida>` vuelve a buscar el identificador viejo. Las continuaciones pierden otra vez la conversación que se acaba de recuperar.
 - Dónde: `app/electron/cli/pa/lanzar.ts` línea 1075 (`lanzarClaude`).
 - Arreglo: escribir atómicamente `<id>.sid` al cambiar `c.sid`, y mantenerlo alineado con cualquier `session_id` definitivo. Agregar un test de recuperación que luego retome esa misma corrida por su id.
 
-**B055 · Async fija el límite antes de heredar el tipo** (`PA-CLI-11`, severidad media) · **PENDIENTE**
+**B087 · Async fija el límite antes de heredar el tipo** (`PA-CLI-11`, severidad media) · **PENDIENTE**
 - Qué pasa: continuar o actualizar una corrida por async puede usar un límite de turnos distinto del correspondiente a su tipo. Una continuación de tipo `final` sin `--tipo` explícito queda en 50 turnos en lugar de 120; una mecánica puede recibir 50 en lugar de 30.
 - Dónde: `app/electron/cli/pa/orquesta.ts` línea 318 (`orquestar`).
 - Arreglo: transmitir además si el límite fue pedido explícitamente; cuando era un default, recalcularlo después de heredar el tipo en el hijo. Mantener `--max-turns 0` explícito como desactivación. Testear continuaciones async de `final`, `mecanico` y un límite explícito.
 
-**B056 · El motor de ChatGPT no hace cumplir el límite de turnos** (`PA-CLI-12`, severidad media) · **PENDIENTE**
+**B088 · El motor de ChatGPT no hace cumplir el límite de turnos** (`PA-CLI-12`, severidad media) · **PENDIENTE**
 - Qué pasa: `--max-turns` se acepta para un worker de ChatGPT, pero no limita su ejecución. El límite por tipo tampoco lo corta; puede seguir usando herramientas y cupo después de superar lo pedido.
 - Dónde: `app/electron/cli/pa/motores/llamada.ts` línea 152 (`armarLlamada`).
 - Arreglo: contar y limitar los pasos del stream en este motor, con cierre de árbol y resultado `error_max_turns`, o rechazar el flag hasta tener un mecanismo efectivo. Un proceso ficticio que emita más pasos que el tope debe ser cortado; cero debe conservar la ejecución sin límite.
 
-**B057 · Al volver el cupo se lanza el modelo agotado** (`PA-CLI-13`, severidad media) · **PENDIENTE**
+**B089 · Al volver el cupo se lanza el modelo agotado** (`PA-CLI-13`, severidad media) · **PENDIENTE**
 - Qué pasa: una corrida en espera de cupo puede arrancar con el modelo anterior todavía agotado, aunque reparto ya haya ofrecido otro motor disponible. El mensaje afirma que TypeScript sólo corre Claude, pese a que los demás motores ya están implementados.
 - Dónde: `app/electron/cli/pa/cupo.ts` línea 91 (`esperarCupo`).
 - Arreglo: aplicar el candidato mediante el mismo cambio completo de modelo, motor y entorno que usa el relanzamiento por cupo; validarlo antes de salir de la espera y actualizar el motor que usa `orquestar`. Si no se puede usar, mantener la espera. Testear cambios en ambos sentidos entre Claude y otro motor.
 
-**B058 · Vencer la espera de cupo pierde el resultado de cierre** (`PA-CLI-14`, severidad media) · **PENDIENTE**
+**B090 · Vencer la espera de cupo pierde el resultado de cierre** (`PA-CLI-14`, severidad media) · **PENDIENTE**
 - Qué pasa: cuando se agota el tiempo de espera de cupo, el hijo sale de forma controlada con 96, pero quien lo espera recibe 82 y el mensaje de que murió sin dejar resultado. Se pierde la causa durable del cierre y la fila queda como una muerte sin datos.
 - Dónde: `app/electron/cli/pa/orquesta.ts` línea 373 (`orquestar`).
 - Arreglo: instalar el cierre async antes de esperar cupo y guardar una marca `.listo` con rc 96 y el motivo incluso si nunca se admitió un puesto. Registrar también el fin sin inventar un inicio de ejecución del modelo. Testear que `--esperar` conserve 96 al vencer esa espera.
 
-**B059 · El timeout de tests puede dejar la integración colgada** (`PA-CLI-15`, severidad media) · **PENDIENTE**
+**B091 · El timeout de tests puede dejar la integración colgada** (`PA-CLI-15`, severidad media) · **PENDIENTE**
 - Qué pasa: en Linux, un test que ignore SIGTERM deja `--integrar --tests` esperando indefinidamente aun después de vencer `PA_TESTS_MAX`. Conserva tomado el puesto de integración y bloquea su reutilización.
 - Dónde: `app/electron/cli/pa/ramas.ts` línea 419 (`correrTests`).
 - Arreglo: usar el helper común `correr` con `timeoutMs` y `killAfterMs`, o programar una escalada equivalente con limpieza de ambos timers. Probar un hijo que ignore TERM y exigir un cierre acotado con 124 y liberación del puesto. Mantener la terminación nativa de Windows.
 
 ### Puentes a otros motores
 
-**B060 · ChatGPT (`codex.cmd`) falla antes de arrancar en Windows por comillas en `argsCodex`** (`PUENTES-1`, severidad alta) · **ARREGLADO**
+**B092 · ChatGPT (`codex.cmd`) falla antes de arrancar en Windows por comillas en `argsCodex`** (`PUENTES-1`, severidad alta) · **ARREGLADO**
 - Qué pasa: Si en Windows `codex` está instalado vía npm (`codex.cmd`), cualquier turno de un líder de ChatGPT falla antes de lanzar el subproceso con el error `argumento no apto para cmd.exe: "model_reasoning_effort=\"medium\""`.
 - Dónde: `app/electron/codex-stream.ts` líneas 249-252 (`argsCodex`) y `app/electron/codex-puente.ts` líneas 226-228 (`correrCodex`)
 - Arreglo: En `codex-stream.ts:250,252`, quitar las comillas TOML innecesarias o resolverlas según bandera nativa (`--ask-for-approval never` en lugar de `-c approval_policy="never"` y verificar si `codex exec` acepta `model_reasoning_effort=medium` sin comillas —en TOML/CLI un enum simple suele pedirse con comillas, por lo que…
 
-**B061 · El medidor de contexto de ChatGPT queda siempre en 0 tokens** (`PUENTES-2`, severidad alta) · **ARREGLADO**
+**B093 · El medidor de contexto de ChatGPT queda siempre en 0 tokens** (`PUENTES-2`, severidad alta) · **ARREGLADO**
 - Qué pasa: El anillo/medidor de uso de contexto de un líder de ChatGPT marca `0` en vivo durante el turno y también al recargar el transcript desde disco, aunque `turn.completed` sí devuelva `input_tokens`.
 - Dónde: `app/electron/codex-stream.ts` líneas 106-108, 139-147, 199-203 (`Traductor`) y `app/electron/codex-puente.ts` líneas 313, 319 (`turno`)
 - Arreglo: 1. Pasar `contextoPrevio?: number | null` en `codex-stream.ts` (`Opciones` de `Traductor`) y enviarlo desde `codex-puente.ts:313` (`leerLado().contexto`). 2. Emitir un `message_start` / `assistant` sintético o actualizar el `usage` del último `assistant` / `message_start` cuando llega `turn.completed` (o que…
 
-**B062 · «Mandar ya» nunca funciona en ChatGPT: falta `trama_directo`, eco perdido y errores en imagen sola** (`PUENTES-3`, severidad alta) · **ARREGLADO**: el puente y la marca en `lider.ts`.
+**B094 · «Mandar ya» nunca funciona en ChatGPT: falta `trama_directo`, eco perdido y errores en imagen sola** (`PUENTES-3`, severidad alta) · **ARREGLADO**: el puente y la marca en `lider.ts`.
 - Qué pasa: Cuando el usuario manda un mensaje con «Mandar ya» a un líder de ChatGPT ocupado, el mensaje queda atrapado en la espera de gracia de `cola.ts` (4 s sin confirmación de eco) y en `p.directos` de `lider.ts` aunque sí haya entrado después al turno siguiente; si el «Mandar ya» llevaba sólo una imagen sin texto, `codex-puente.ts` anota `content: ""` en el transcript y nunca se confirma su entrega.
 - Dónde: `app/electron/codex-puente.ts` líneas 181, 307, 417-418 (`mensajeDeUsuario`, `turno`, lector de stdin) en conjunto con `app/electron/lider.ts` línea 1426 (`mandarDirecto`)
 - Arreglo: Agregar `|| p.clase === "codex"` en `app/electron/lider.ts:1426` y separar en `codex-puente.ts` una cola prioritaria `directos` (como en `agy-puente.ts`/`dsh-puente.ts`, si `codex exec` no se interrumpe a mitad de turno, al menos que salga antes que `cola` con su `eco`). Cubrir en `app/tests/lider-codex.test.ts`…
 
-**B063 · Al parar a Gemini o caerse `agy` a mitad de turno, las herramientas quedan abiertas y el texto parcial se pierde** (`PUENTES-4`, severidad alta) · **ARREGLADO**
+**B095 · Al parar a Gemini o caerse `agy` a mitad de turno, las herramientas quedan abiertas y el texto parcial se pierde** (`PUENTES-4`, severidad alta) · **ARREGLADO**
 - Qué pasa: Si la persona toca «Parar» (`interrumpido = true`) o el proceso `agy` sale con error/código distinto de cero mientras hay una herramienta ejecutándose o texto parcial acumulado en un `agent_response` todavía en estado `RUNNING`, el turno termina emitiendo `result` sin cerrar la herramienta con `tool_result` ni volcar el texto acumulado. Al recargar la conversación desde el `.jsonl`, la herramienta queda girando…
 - Dónde: `app/electron/agy-puente.ts` líneas 370-378 (`correrAgy`) y `app/electron/agy-stream.ts` líneas 287-301 (`Traductor.fin`)
 - Arreglo: En `Traductor.fin(error)` (`app/electron/agy-stream.ts:287-301`), antes del `result`, volcar cualquier entrada pendiente en `this.texto` (emitir `content_block_stop`, `assistant` y `message_stop`) y anteponer `...this.cerrarAbiertas(error ?? "Interrumpido antes de que terminara este paso.")`. Cubrir en…
 
-**B064 · Un «Mandar ya» en `dsh`/`opencode` tras reiniciarse la sesión manda el mensaje sin prefacio ni historial** (`PUENTES-5`, severidad alta) · **PENDIENTE**
+**B096 · Un «Mandar ya» en `dsh`/`opencode` tras reiniciarse la sesión manda el mensaje sin prefacio ni historial** (`PUENTES-5`, severidad alta) · **PENDIENTE**
 - Qué pasa: Si un «Mandar ya» (`corte`) interrumpe un prompt de `dsh` u `opencode`, el proceso ACP muere (por el timeout `MS_CANCELAR` o por fallo del servidor al cancelar), y al relanzarlo `levantar()` no puede hacer `session/resume` y abre una sesión nueva, el mensaje directo se manda pelado, sin `PROMPT_DSH`/`PROMPT_OPENCODE`, sin los `CLAUDE.md`/`AGENTS.md`, sin el aviso de `pa` y sin el historial `hablado()`. Además…
 - Dónde: `app/electron/dsh-puente.ts` líneas 748-754 (`turno`)
 - Arreglo: En `dsh-puente.ts:751-752`, llamar `await asegurar()` siempre que `!cliente?.activo || !acpSid`, armar `const p = plegar(null, [])`, y si `faltaPrefacio` quedó en `true`, envolver `p.texto = conPrefacio(p.texto, hablado())` (o `previo`) y resetear `faltaPrefacio = false`. Agregar test en `app/tests/dsh-puente.test.ts`.
 
-**B065 · Errores de cuota de OpenCode quedan colgados 3 minutos o sin detectar si llegan partidos, tras pensar o en `error.data`** (`PUENTES-6`, severidad alta) · **PENDIENTE**
+**B097 · Errores de cuota de OpenCode quedan colgados 3 minutos o sin detectar si llegan partidos, tras pensar o en `error.data`** (`PUENTES-6`, severidad alta) · **PENDIENTE**
 - Qué pasa: Cuando OpenCode falla por límite gratis (`Free usage limit exceeded`) o `AI_RetryError`/`AI_APICallError` 429, el corte inmediato puede fallar y dejar al usuario esperando 180 s (`MS_SIN_EVENTOS`), o mostrar un error genérico sin marcar agotada la cuenta/modelo ni orientar al usuario.
 - Dónde: `app/electron/dsh-puente.ts` líneas 565-572, 625-638 (`levantar`, `textoDeError`)
 - Arreglo: Acumular el principio del texto del turno (sin cancelar la detección por chunks previos si aún no cerró herramienta/respuesta o acumulando los últimos N chars de `agent_message_chunk` iniciales cuando no hubo herramienta), evaluar `esErrorDeServidorOpencode(c.stderr)` sobre el buffer acumulado en `alStderr`, e…
 
-**B066 · Cualquier error previo al primer paso borra la conversación guardada de Gemini/ChatGPT y reintenta desde cero** (`PUENTES-7`, severidad alta) · **PENDIENTE**
+**B098 · Cualquier error previo al primer paso borra la conversación guardada de Gemini/ChatGPT y reintenta desde cero** (`PUENTES-7`, severidad alta) · **PENDIENTE**
 - Qué pasa: Si al retomar una conversación existente el primer turno falla antes de completar un paso (`v.pasos === 0`) por **cualquier** motivo —binario ausente (`ENOENT`), corte de red, sesión vencida/login caído, límite de cuota o modelo inválido— ambos puentes asumen que «no existía la conversación», tiran el ID real (`conversation_id` / `thread_id`), relanzan todo el proceso desde cero con un resumen de texto recortado a…
 - Dónde: `app/electron/agy-puente.ts` líneas 370-374, 499-503 (`correrAgy`, `turno`) y `app/electron/codex-puente.ts` líneas 274-278, 317-321 (`correrCodex`, `turno`)
 - Arreglo: No tratar `motivo !== null` (error de `spawn`) ni errores genéricos de red/auth/cuota como `v.sinConversacion`: inspeccionar `stderr` o el mensaje de `result`/`error` para disparar la recuperación con sesión nueva **solo** cuando el CLI indique que la conversación/hilo no existe o no se pudo cargar, propagando los…
 
-**B067 · `politicaEnWorkspace` aprueba rutas fuera de la carpeta si vienen en `toolCall.rawInput`, `tool_call_update` o como `filepath`/`filePath`** (`PUENTES-8`, severidad media) · **PENDIENTE**
+**B099 · `politicaEnWorkspace` aprueba rutas fuera de la carpeta si vienen en `toolCall.rawInput`, `tool_call_update` o como `filepath`/`filePath`** (`PUENTES-8`, severidad media) · **PENDIENTE**
 - Qué pasa: La política por defecto de `ClienteAcp` (`politicaEnWorkspace(raiz)`) deja pasar (`"permitir"`) pedidos de permiso que apuntan a archivos o directorios fuera de `raiz`, o que piden `danger-full-access`, en tres casos reales.
 - Dónde: `app/electron/acp.ts` líneas 104-116, 314, 330 (`politicaEnWorkspace`, `ClienteAcp.notificacion`, `ClienteAcp.pedidoDelAgente`)
 - Arreglo: En `acp.ts:314`, actualizar también `this.llamadas` ante `tool_call_update` que traiga `rawInput` (mezclando con el previo). En `acp.ts:330`, usar `this.llamadas.get(id) ?? (toolCall.rawInput && typeof toolCall.rawInput === "object" ? toolCall.rawInput : null)`. En `politicaEnWorkspace` (`113`), revisar también…
 
-**B068 · Al desencolar mensajes entre turnos, ninguno de los tres puentes emite `status: "requesting"`** (`PUENTES-9`, severidad media) · **PENDIENTE**
+**B100 · Al desencolar mensajes entre turnos, ninguno de los tres puentes emite `status: "requesting"`** (`PUENTES-9`, severidad media) · **PENDIENTE**
 - Qué pasa: Cuando un mensaje estaba esperando en la cola interna del puente (o quedó un «Mandar ya» sin entrar en `directos` al cerrarse el turno anterior), el puente termina el turno con `result`, `lider.ts` pone al líder como libre (`x.ocupado = false`), e inmediatamente el puente arranca el turno siguiente en `cerrarTurno()`, pero la interfaz y `lider.ts` creen que el líder está en reposo (`ocupado: false`) hasta que el…
 - Dónde: `app/electron/agy-puente.ts` líneas 539-549, `app/electron/dsh-puente.ts` líneas 788-797, `app/electron/codex-puente.ts` líneas 343-349 (`cerrarTurno`, junto con `app/electron/lider.ts` líneas 747-749, 780-784)
 - Arreglo: Emitir `{ type: "system", subtype: "status", status: "requesting", parent_tool_use_id: null, session_id: sid }` al desencolar un mensaje en `cerrarTurno()` (o al entrar a `turno()`) en `agy-puente.ts`, `dsh-puente.ts` y `codex-puente.ts`. Cubrir con test en `app/tests/lider-gemini.test.ts` / `dsh-puente.test.ts` /…
 
-**B069 · Al retomar en `dsh`/`opencode`, se mantiene el modelo viejo si `configOptions` omite `model` o `currentValue`** (`PUENTES-10`, severidad media) · **PENDIENTE**
+**B101 · Al retomar en `dsh`/`opencode`, se mantiene el modelo viejo si `configOptions` omite `model` o `currentValue`** (`PUENTES-10`, severidad media) · **PENDIENTE**
 - Qué pasa: Si el usuario cambia de modelo (o se relanza el puente con otro modelo sobre una sesión existente) y el agente ACP devuelve `configOptions: []` o una opción `model` sin `currentValue` (`undefined`) en `session/resume` o `session/new`, `dsh-puente` se saltea `session/set_config_option` y sigue ejecutando el modelo anterior en silencio, mientras la app etiqueta los mensajes con el modelo nuevo.
 - Dónde: `app/electron/dsh-puente.ts` líneas 598-600 (`levantar`)
 - Arreglo: Cuando `oc` está activo (donde el CLI se lanza siempre con `["acp"]` sin flag de modelo) o cuando `!nueva` (`session/resume`), si `actualOpt !== quiero`, intentar `c.configurar(acpSid, "model", quiero)` incluso si `actualOpt === undefined` (capturando sólo si el agente declara explícitamente no soportar la opción…
 
-**B070 · Chunks ACP sin `messageId` crean un globo separado por cada pedazo de texto o pensamiento** (`PUENTES-11`, severidad media) · **PENDIENTE**
+**B102 · Chunks ACP sin `messageId` crean un globo separado por cada pedazo de texto o pensamiento** (`PUENTES-11`, severidad media) · **PENDIENTE**
 - Qué pasa: Si un agente ACP emite `agent_message_chunk` o `agent_thought_chunk` sin campo `messageId` (que en ACP es opcional cuando un agente streamea token a token), cada chunk genera un mensaje `assistant` completo por separado y una burbuja nueva en el chat.
 - Dónde: `app/electron/dsh-puente.ts` líneas 280-289 (`Traductor.trozo`)
 - Arreglo: Si `u.messageId` viene vacío (`null`), reutilizar `this.buf.id` cuando ya haya un buffer abierto del mismo mensaje (en vez de incrementar `this.n` en cada chunk) y recién asignar `m${++this.n}` cuando `this.buf` sea `null`, cerrando al llegar un `messageId` distinto, una herramienta o el fin de turno. Agregar test en…
 
-**B071 · Desfase al parar (`PARAR_MS` 3 s vs `MS_CANCELAR` 10 s): `SIGINT` reinicia el corte en Linux y `taskkill` mata el puente en Windows** (`PUENTES-12`, severidad media) · **PENDIENTE**
+**B103 · Desfase al parar (`PARAR_MS` 3 s vs `MS_CANCELAR` 10 s): `SIGINT` reinicia el corte en Linux y `taskkill` mata el puente en Windows** (`PUENTES-12`, severidad media) · **PENDIENTE**
 - Qué pasa: Al apretar «Parar» en un turno que tarda en cancelarse (> 3 s): - En Windows, `lider.ts` mata a los 3 s (`PARAR_MS = 3000`) el proceso entero del puente (`dsh-puente`, `agy-puente` o `codex-puente`) con `taskkill /T /F`, sin darle tiempo a `dsh-puente` (que espera hasta 10 s con `MS_CANCELAR = 10000` antes de matar a `dsh`/`opencode`), sin emitir `result` ni cerrar herramientas abiertas en el transcript y dejando…
 - Dónde: `app/electron/dsh-puente.ts` líneas 674-681, 809-811, `app/electron/agy-puente.ts` líneas 552-558, 614-616 y `app/electron/codex-puente.ts` líneas 351-357, 372-374 (frente a `app/electron/lider.ts` líneas 123,…
 - Arreglo: Alinear los tiempos (`PARAR_MS` en `lider.ts` por clase o mayor al timeout interno del puente cuando el subproceso existe, o bajar `MS_CANCELAR` por debajo de `PARAR_MS` para que el puente mate primero al hijo y cierre el turno con `result`), y en el handler de `SIGINT` de los tres puentes escalar directamente al…
 
-**B072 · `destrabar()` omite el lector de razonamiento (`pensamiento`) en los reintentos de Gemini** (`PUENTES-13`, severidad media) · **PENDIENTE**
+**B104 · `destrabar()` omite el lector de razonamiento (`pensamiento`) en los reintentos de Gemini** (`PUENTES-13`, severidad media) · **PENDIENTE**
 - Qué pasa: Cuando el vigilante detecta un bucle en Gemini y `destrabar()` lanza una vuelta nueva de `agy` con el aviso para destrabarlo, todos los bloques de razonamiento (`thinking` / `pensado`) de esa vuelta y de las siguientes del bucle dejan de aparecer tanto en la vista como en el transcript.
 - Dónde: `app/electron/agy-puente.ts` línea 589 (`destrabar`)
 - Arreglo: Agregar `pensamiento: razonamiento` en la llamada de la línea 589 de `app/electron/agy-puente.ts`. Cubrir con un test en `app/tests/agy-directo.test.ts`.
 
-**B073 · `resumen-traspaso.ts` ignora ramas descartadas por `parentUuid` y toma errores sintéticos de API como estado actual** (`PUENTES-14`, severidad media) · **PENDIENTE**
+**B105 · `resumen-traspaso.ts` ignora ramas descartadas por `parentUuid` y toma errores sintéticos de API como estado actual** (`PUENTES-14`, severidad media) · **PENDIENTE**
 - Qué pasa: Al usar «Seguir con otro modelo» sobre un transcript que tuvo rebobinados/ramas (con `parentUuid` apuntando a un ancestro anterior) o cuyo último turno terminó con un error sintético de API (por ejemplo `API Error: 529 Overloaded`): 1. El resumen incluye archivos editados, commits y decisiones de la rama vieja que la persona ya había descartado al volver atrás. 2. El texto del error sintético pisa `d.estado`…
 - Dónde: `app/electron/resumen-traspaso.ts` líneas 75-112, 120-134, 150 (`extraerDatos`, `secciones`)
 - Arreglo: Si las líneas tienen `uuid`/`parentUuid`, reconstruir la ruta desde la última entrada no sidechain hacia la raíz antes de extraer datos (dejando el recorrido lineal como respaldo cuando falten `uuid`); saltear registros con `isApiErrorMessage === true` o `message?.model === "<synthetic>"`; y mantener el orden…
 
-**B074 · En `codex-puente.ts`, mensajes con sólo imágenes quedan vacíos en el transcript, rompen `hablado()` y silencian fallos al guardar** (`PUENTES-15`, severidad media) · **PENDIENTE**
+**B106 · En `codex-puente.ts`, mensajes con sólo imágenes quedan vacíos en el transcript, rompen `hablado()` y silencian fallos al guardar** (`PUENTES-15`, severidad media) · **PENDIENTE**
 - Qué pasa: Cuando la persona envía un mensaje a ChatGPT compuesto sólo por imágenes (sin texto), o cuando falla la escritura de las imágenes en `DIR_IMAGENES`: 1. La línea 312 anota en el transcript `{ type: "user", message: { role: "user", content: m.texto } }` sin dejar constancia de las imágenes (a diferencia de `agy-puente.ts:261,487` y `dsh-puente.ts:729`). En un reinicio o recarga, el turno del usuario desaparece por…
 - Dónde: `app/electron/codex-puente.ts` líneas 128-134, 151, 201-215, 312 (`guardarLado`, `hablado`, `guardarImagenes`, `turno`)
 - Arreglo: Incluir la nota `[N imagen(es) adjunta(s)]` en el `anotar` de la línea 312 cuando `imagenes.length > 0` (y avisar en el prompt / error si `guardarImagenes` falla al escribir en disco, retornando también si `rutas.length < m.imagenes.length`), y hacer atómico `guardarLado` con `.tmp` + `renameSync` (con respaldo…
 
-**B075 · `describirError` oculta `error.data` y `stderr` en errores ACP que no tienen código `-32603`** (`PUENTES-16`, severidad baja) · **PENDIENTE**
+**B107 · `describirError` oculta `error.data` y `stderr` en errores ACP que no tienen código `-32603`** (`PUENTES-16`, severidad baja) · **PENDIENTE**
 - Qué pasa: Cuando un agente ACP (`dsh` u `opencode`) responde un error JSON-RPC con código distinto de `-32603` (por ejemplo `-32000 "Server error"` o cualquier código de proveedor cuyo texto útil viene en `error.data` o en `stderr`), `describirError` ignora por completo `e.data` y `stderr` y devuelve sólo `"session/prompt: Server error"`, privando a la persona de la causa real.
 - Dónde: `app/electron/acp.ts` líneas 61-78 (`describirError`)
 - Arreglo: Anexar `e.data` para cualquier `ErrorAcp` cuando no esté vacío y sea distinto de `base`, y anexar la cola de `stderr` cuando `e instanceof ErrorAcp` (o cuando un error genérico traiga `stderr` no reflejado en `base`). Cubrir en `app/tests/acp.test.ts`.
 
-**B076 · Cierre brusco en `dsh-puente.ts` (no usa `cliente.cerrar()`) y `taskkill` asíncrono incompleto al salir en Windows** (`PUENTES-17`, severidad baja) · **PENDIENTE**
+**B108 · Cierre brusco en `dsh-puente.ts` (no usa `cliente.cerrar()`) y `taskkill` asíncrono incompleto al salir en Windows** (`PUENTES-17`, severidad baja) · **PENDIENTE**
 - Qué pasa: 1. `dsh-puente.ts` nunca llama al método `cliente.cerrar()` que existe en `acp.ts:227-239`: al cerrarse `stdin` en reposo (`860`), llama directamente a `terminar(0)` que dispara `cliente?.matar()` (`SIGKILL` / `taskkill /F`) inmediatamente en lugar de cerrar `stdin` de `dsh`/`opencode` y esperar su salida limpia (arriesgando dejar sesiones sin volcar a disco). 2. En Windows, `matarArbol()`…
 - Dónde: `app/electron/dsh-puente.ts` líneas 799-803, 813-817 (`terminar`, `exit`), `app/electron/agy-puente.ts` líneas 618-623 y `app/electron/codex-puente.ts` líneas 376-380
 - Arreglo: Volver asíncrono el cierre limpio en `dsh-puente.ts` (`await cliente?.cerrar()` cuando cierra `stdin` en reposo o en `SIGTERM`/`SIGINT` antes de `process.exit()`), y para el respaldo de `exit` en Windows evaluar `execFileSync("taskkill", ...)` acotado (o job object / `matar` previo a `process.exit`) en `procesos.ts`…
 
-**B077 · `comandosDeAgy()` bloquea el loop con `spawnSync` hasta 3 s y cachea `[]` de por vida tras un fallo único** (`PUENTES-18`, severidad baja) · **PENDIENTE**
+**B109 · `comandosDeAgy()` bloquea el loop con `spawnSync` hasta 3 s y cachea `[]` de por vida tras un fallo único** (`PUENTES-18`, severidad baja) · **PENDIENTE**
 - Qué pasa: Al responder el `initialize` inicial del puente, `comandosDeAgy()` corre `spawnSync` con timeout de 3000 ms (congelando el loop de stdin/stdout del puente mientras corre `agy plugin list --json`). Si por cualquier motivo temporal falla, sale con código distinto de 0 o vence el timeout una sola vez, guarda `comandosCache = []`. Como el chequeo siguiente es `if (comandosCache)` (`[]` es truthy en JavaScript), la…
 - Dónde: `app/electron/agy-puente.ts` líneas 633-646 (`comandosDeAgy`)
 - Arreglo: No asignar `comandosCache = []` en el bloque `catch` (devolver `[]` sin cachear el error, o cachear sólo cuando `r.status === 0` y no hubo error), y opcionalmente volverlo asíncrono con `execFile` en el manejador de `initialize`. Cubrir en `app/tests/agy-directo.test.ts`.
 
-**B078 · `contexto-local.ts` oculta `AGENTS.md` si `CLAUDE.md` se recorta después de mencionarlo y limita a 4000 tokens un proyecto fuera de `~`** (`PUENTES-19`, severidad baja) · **PENDIENTE**
+**B110 · `contexto-local.ts` oculta `AGENTS.md` si `CLAUDE.md` se recorta después de mencionarlo y limita a 4000 tokens un proyecto fuera de `~`** (`PUENTES-19`, severidad baja) · **PENDIENTE**
 - Qué pasa: 1. Cuando un `CLAUDE.md` excede el tope de tokens y `poner()` lo recorta, `agentsAparte` recibe el texto **sin recortar** (`claude = sinSecciones(await conImports(...), fuera)`). Si el contenido de `AGENTS.md` (o `@AGENTS.md`) venía después del punto de recorte, `!claude.includes(agents.trim())` da `false` y `AGENTS.md` no se agrega por separado aunque haya quedado mutilado. 2. Cuando `cwd` está fuera de `home`…
 - Dónde: `app/electron/contexto-local.ts` líneas 163-164, 175-186 (`armarContexto`)
 - Arreglo: Devolver desde `poner()` el texto efectivamente incluido (ya recortado) y pasárselo a `agentsAparte`, y sólo asignar `primero` como archivo de `~` cuando `path.dirname(textos[0][0]) === home` (dejando los demás en `proyecto`). Agregar test en `app/tests/contexto-local.test.ts`.
 
-**B079 · `ClienteAcp.iniciar()` deja el proceso vivo si falla `initialize` y `this.llamadas` retiene cada `rawInput` sin limpiarse** (`PUENTES-20`, severidad baja) · **PENDIENTE**
+**B111 · `ClienteAcp.iniciar()` deja el proceso vivo si falla `initialize` y `this.llamadas` retiene cada `rawInput` sin limpiarse** (`PUENTES-20`, severidad baja) · **PENDIENTE**
 - Qué pasa: 1. En `iniciar()`, `this.hijo = p; this.vivo = true;` quedan asignados antes de `await this.pedir("initialize", ...)`. Si `initialize` rechaza (error JSON-RPC) o vence el timeout de 60 s sin que el hijo cierre, `iniciar()` lanza pero deja al subproceso vivo en segundo plano y al objeto `ClienteAcp` inutilizable (`if (this.hijo) throw new Error("acp: el agente ya está lanzado")`). `dsh-puente.ts` lo mitiga llamando…
 - Dónde: `app/electron/acp.ts` líneas 124, 157-194, 314 (`ClienteAcp.iniciar`, `notificacion`)
 - Arreglo: Envolver `await this.pedir("initialize", ...)` en `try/catch` dentro de `iniciar()` llamando a `this.matar()` y limpiando `this.hijo = null; this.vivo = false;` si falla; y en `notificacion()`, borrar `this.llamadas.delete(u.toolCallId)` cuando llegue `tool_call_update` con estado terminal (`completed`/`failed`), o…
 
 ### Reparto y cupos
 
-**B080 · Revive un modelo excluido y sin cupo** (`REPARTO-CUPOS-1`, severidad alta) · **PENDIENTE**
+**B112 · Revive un modelo excluido y sin cupo** (`REPARTO-CUPOS-1`, severidad alta) · **PENDIENTE**
 - Qué pasa: un modelo gratis apagado en Ajustes y con el grupo agotado puede salir elegido como si tuviera cupo. También se salta el piso duro del perfil agresivo cuando sólo quedan estas ofertas.
 - Dónde: `app/electron/cli/reparto.ts` línea 3141 (`elegir`)
 - Arreglo: en las líneas 3063–3080 comprobar exclusiones, indisponibilidad y límites antes de decidir si se puede relajar calidad; al revivir, conservar todos los vetos independientes. En la línea 3143 no relajar `duro_calidad` para agresivo. Cubrir con un caso de único gratis de calidad baja excluido, otro agotado y otro con…
 
-**B081 · Pierde el cierre si falla la escritura** (`REPARTO-CUPOS-2`, severidad alta) · **PENDIENTE**
+**B113 · Pierde el cierre si falla la escritura** (`REPARTO-CUPOS-2`, severidad alta) · **PENDIENTE**
 - Qué pasa: tras un error al escribir la señal, el cierre queda sólo en memoria y sus avisos pueden perderse. Aunque el disco se recupere, una lectura igual no vuelve a escribir ni a notificar ese cierre.
 - Dónde: `app/electron/cierre-cupo-disco.ts` línea 37 (`crearCierreCupo.revisar`)
 - Arreglo: conservar un paso pendiente hasta confirmar su escritura y entregar sus eventos una sola vez; reintentarlo aunque la siguiente lectura no cambie. Cubrir tanto un fallo al escribir como uno al borrar la señal.
 
-**B082 · ChatGPT no llega al vigilante de cierre** (`REPARTO-CUPOS-3`, severidad alta) · **PENDIENTE**
+**B114 · ChatGPT no llega al vigilante de cierre** (`REPARTO-CUPOS-3`, severidad alta) · **PENDIENTE**
 - Qué pasa: la cabecera puede mostrar ChatGPT al 99 %, pero ese dato no dispara su cierre ordenado. La cuenta de siempre tampoco coincide con las señales que esperan el nombre `chatgpt`.
 - Dónde: `app/electron/cli/reparto.ts` línea 1921 (`cuposOpenai`)
 - Arreglo: conservar `id:"openai"` si lo necesitan los consumidores existentes, pero agregar `proveedor:"chatgpt", cuenta:"chatgpt"` en la línea 1921. Verificar el recorrido real reparto → parser → vigilante, y que una señal de ChatGPT descarte sus candidatos.
 
-**B083 · Ofrece Claude aunque no esté disponible** (`REPARTO-CUPOS-4`, severidad alta) · **PENDIENTE**
+**B115 · Ofrece Claude aunque no esté disponible** (`REPARTO-CUPOS-4`, severidad alta) · **PENDIENTE**
 - Qué pasa: sin proveedores disponibles, el reparto dice que puede correr un Claude. En una máquina con una sola suscripción de otro proveedor, también puede ofrecer ese Claude inexistente cuando la alternativa se queda sin cupo.
 - Dónde: `app/electron/cli/reparto.ts` línea 2753 (`armarCandidatos`)
 - Arreglo: quitar la condición `ofertasDsh.length` de la línea 2753 y filtrar Claude por disponibilidad de su cuenta antes de armar candidatos; no confundir falta de porcentajes con falta de conexión. Probar cero proveedores, sólo Google y sólo ChatGPT, con y sin cupo.
 
-**B084 · El reparto fijo ignora modelos apagados** (`REPARTO-CUPOS-5`, severidad alta) · **PENDIENTE**
+**B116 · El reparto fijo ignora modelos apagados** (`REPARTO-CUPOS-5`, severidad alta) · **PENDIENTE**
 - Qué pasa: un modelo asignado a un tipo sigue siendo la elección fija después de apagarlo en Ajustes. El veto de la persona no se aplica a esa selección.
 - Dónde: `app/electron/cli/reparto.ts` línea 3117 (`elegir`)
 - Arreglo: antes del retorno fijo, verificar la asignación contra las exclusiones; aplicar también ese veto a las elecciones fijas de `pa`, con la excepción explícita de `--ok-dueno`. Probar asignar, apagar y lanzar sin `-m`.
 
-**B085 · No deja guardar elecciones de ChatGPT** (`REPARTO-CUPOS-6`, severidad media) · **PENDIENTE**
+**B117 · No deja guardar elecciones de ChatGPT** (`REPARTO-CUPOS-6`, severidad media) · **PENDIENTE**
 - Qué pasa: una elección `codex:*` de líder o worker no se puede guardar en `modelos.json`. Si ya viene del archivo, guardar otro ajuste que reenvía esa configuración también falla.
 - Dónde: `app/electron/modelos-tipos.ts` línea 375 (`validarEleccion`)
 - Arreglo: agregar un reconocedor y una validación de ids Codex a la línea 375, manteniendo el esfuerzo en el id. Cubrir lectura → guardado sin cambios y cambio de perfil con líder y worker Codex.
 
-**B086 · Los modelos descubiertos de agy saltean los esfuerzos permitidos** (`REPARTO-CUPOS-7`, severidad media) · **PENDIENTE**
+**B118 · Los modelos descubiertos de agy saltean los esfuerzos permitidos** (`REPARTO-CUPOS-7`, severidad media) · **PENDIENTE**
 - Qué pasa: un modelo de agy que no está en la tabla incorporada puede ser elegido aunque la persona le haya dejado la lista de esfuerzos vacía.
 - Dónde: `app/electron/cli/reparto.ts` línea 2830 (`armarCandidatos.hacer`)
 - Arreglo: en la rama de la línea 2830 consultar `effortsDe` aunque el id no admita un esfuerzo separado; la lista vacía siempre debe descartarlo. Para ids con sufijo, verificar su esfuerzo real. Cubrir ambos formatos de catálogo.
 
-**B087 · Una semana agotada se anuncia con el reinicio corto** (`REPARTO-CUPOS-8`, severidad media) · **PENDIENTE**
+**B119 · Una semana agotada se anuncia con el reinicio corto** (`REPARTO-CUPOS-8`, severidad media) · **PENDIENTE**
 - Qué pasa: al marcar un grupo de Google sin cupo semanal, se anuncia que vuelve al reiniciarse la ventana de 5 h. Mientras rige la marca, también se reemplaza por esa hora el reinicio semanal que se había leído correctamente.
 - Dónde: `app/electron/cli/reparto.ts` línea 2235 (`agotar`)
 - Arreglo: en la línea 2235 determinar las ventanas que bloquean y usar la más tardía de sus fechas; conservar las ventanas originales al aplicar una marca y separar la hora del bloqueo de los reinicios medidos. Probar semana llena con ventana corta libre y ambas llenas.
 
-**B088 · Conserva como llena una ventana de Google que ya terminó** (`REPARTO-CUPOS-9`, severidad media) · **PENDIENTE**
+**B120 · Conserva como llena una ventana de Google que ya terminó** (`REPARTO-CUPOS-9`, severidad media) · **PENDIENTE**
 - Qué pasa: después del reinicio de Google, el reparto sigue descartando el modelo por el porcentaje anterior hasta que vence la caché. La lectura de fondo puede mantenerlo así hasta diez minutos.
 - Dónde: `app/electron/cli/reparto.ts` línea 1488 (`cuposGoogle`)
 - Arreglo: invalidar la caché al cruzar un reinicio conocido y no usar como actual el porcentaje de un bucket vencido. Si no se puede refrescar, informarlo como sin dato. Probar avanzar el reloj a ambos lados del reinicio con la misma caché.
 
-**B089 · Codex elige el dato por archivo y no por fecha del evento** (`REPARTO-CUPOS-10`, severidad media) · **PENDIENTE**
+**B121 · Codex elige el dato por archivo y no por fecha del evento** (`REPARTO-CUPOS-10`, severidad media) · **PENDIENTE**
 - Qué pasa: el porcentaje de ChatGPT puede bajar a una lectura vieja aunque otro transcript tenga una medición más nueva y mucho más alta. También puede reaparecer un porcentaje alto anterior.
 - Dónde: `app/electron/cli/reparto.ts` línea 1904 (`rateLimitsCodex`)
 - Arreglo: juntar las mediciones válidas de los archivos examinados y elegir la más reciente por timestamp para cada ventana; usar `mtime` sólo como respaldo cuando no haya timestamp. Probar el transcript viejo que recibe una escritura sin medición.
 
-**B090 · Olvida las ausencias al calcular la semana en curso** (`REPARTO-CUPOS-11`, severidad media) · **PENDIENTE**
+**B122 · Olvida las ausencias al calcular la semana en curso** (`REPARTO-CUPOS-11`, severidad media) · **PENDIENTE**
 - Qué pasa: al llegar la medianoche se olvida un día que se había marcado como no trabajado, aunque todavía pertenezca a la ventana semanal actual. El reparto cambia de ritmo como si ese día se hubiera trabajado.
 - Dónde: `app/electron/cli/reparto.ts` línea 2393 (`planLeer`)
 - Arreglo: en la línea 2393 conservar por lo menos las ausencias de los últimos siete días, además de las futuras; eliminarlas sólo cuando ya no puedan pertenecer a una ventana vigente. Probar el mismo plan antes y después de medianoche y su avance durante la semana.
 
-**B091 · Dos guardados usan el mismo temporal** (`REPARTO-CUPOS-12`, severidad media) · **PENDIENTE**
+**B123 · Dos guardados usan el mismo temporal** (`REPARTO-CUPOS-12`, severidad media) · **PENDIENTE**
 - Qué pasa: dos cambios simultáneos de modelos pueden hacer fallar un guardado con `ENOENT`; el contenido de uno puede reemplazar al otro. No hay una cola compartida entre el riel y las distintas ventanas de Ajustes.
 - Dónde: `app/electron/modelos-config.ts` línea 153 (`guardarModelos`)
 - Arreglo: serializar todo leer → unir → escribir por ruta real y generar temporales únicos, limpiándolos al fallar. Definir el orden de aplicación de cambios independientes para no pisarlos con un borrador anterior. Probar guardados concurrentes del perfil y de otra preferencia.
 
-**B092 · Cuentas rechaza un listado de agy que el reparto acepta** (`REPARTO-CUPOS-13`, severidad media) · **PENDIENTE**
+**B124 · Cuentas rechaza un listado de agy que el reparto acepta** (`REPARTO-CUPOS-13`, severidad media) · **PENDIENTE**
 - Qué pasa: Ajustes puede mostrar Google sin conectar aunque `agy models` haya devuelto modelos válidos. El reparto y la tarjeta de cuenta discrepan usando la misma salida.
 - Dónde: `app/electron/cuentas.ts` línea 44 (`esModelo`, usado por `sondearAgy`)
 - Arreglo: compartir un parser puro para ambos caminos, con los tres formatos admitidos, sin importar todo el reparto desde Cuentas. Probar id solo, id con tabulación, nombre legible y mensajes sin modelos.
 
-**B093 · Descarta el único porcentaje conocido de Claude** (`REPARTO-CUPOS-14`, severidad media) · **PENDIENTE**
+**B125 · Descarta el único porcentaje conocido de Claude** (`REPARTO-CUPOS-14`, severidad media) · **PENDIENTE**
 - Qué pasa: cuando sólo se conoce una ventana de Claude, se pierde también ese dato válido. Sin otra fuente de uso, la cabecera y el vigilante no ven ni siquiera una semana al 99 %.
 - Dónde: `app/electron/cupos.ts` línea 146 (`parsearCuposReparto`)
 - Arreglo: permitir porcentajes ausentes por ventana en `CuposLeidos.claude` y construir cada ventana de `lecturaCupos` por separado. Mantener los valores desconocidos como `null`, sin inventar 0 %. Cubrir ambos casos de una sola ventana conocida.
 
-**B094 · La cabecera vence los grupos con el día UTC** (`REPARTO-CUPOS-15`, severidad baja) · **PENDIENTE**
+**B126 · La cabecera vence los grupos con el día UTC** (`REPARTO-CUPOS-15`, severidad baja) · **PENDIENTE**
 - Qué pasa: en Argentina, un grupo válido hasta el día indicado desaparece de los cupos a las 21:00 de ese día. En zonas al este de UTC puede durar más de lo que corresponde en la vista.
 - Dónde: `app/electron/cupos.ts` línea 103 (`vencido`)
 - Arreglo: en la línea 103 comparar con la fecha local, usando el mismo criterio que `hastaFin`. Probar la hora anterior a medianoche local en UTC−3 y UTC+9.
 
+### Sistema: instalación, actualización y servicio
+
+**B127 · Guardar una clave en Ajustes borra `TRAMA_REPORTES_CLAVE` (y comentarios y otras líneas)** (`SISTEMA-1`, severidad alta) · **PENDIENTE**
+- Qué pasa: Cuando el dueño guarda o borra cualquier clave en Ajustes (OpenCode, DeepSeek, NVIDIA, un valor de MCP), el archivo se reescribe sin su `TRAMA_REPORTES_CLAVE`. Los reportes anónimos dejan de bajarse, sin aviso ni log.
+- Dónde: `app/electron/claves.ts` línea 94-104 (`escribir`); lo consume `app/electron/reporte-anonimo.ts` línea 59 (`claveLectura`)
+- Arreglo: En `escribir`, leer el texto actual y conservar tal cual toda línea que no sea de `NOMBRES_CLAVE` ni `MCP_*` (comentarios incluidos). Reemplazar o agregar sólo las líneas propias. Test: un archivo con `TRAMA_REPORTES_CLAVE` y un comentario sobrevive a guardar y a borrar claves.
+
+**B128 · Un error al leer `programados.json` se toma por «vacío» y el siguiente guardado pisa todo** (`SISTEMA-2`, severidad media) · **PENDIENTE**
+- Qué pasa: Si la lectura falla por algo que no es «no existe» (permisos, archivo trabado, falta de descriptores), la lista arranca vacía. La próxima vez que se programe o posponga algo se escribe el archivo vacío y se pierden todos los mensajes programados.
+- Dónde: `app/electron/nucleo.ts` línea 588 (`leer`); `app/electron/programados.ts` líneas 75-79 y 115-123 (`leerFoto`, `guardar`)
+- Arreglo: Que `leer` devuelva `null` sólo si el error es ENOENT. Ante otro error, `cargar` debe guardar el fallo y bloquear `guardar` (o renombrar el archivo a `.roto` antes de pisarlo). Test en `tests/programados.test.ts`: `leer` rechaza con EACCES y `escribir` no se llama.
+
+**B129 · «Mandar a la papelera» no mira si hay líderes o workers vivos cuando el proyecto ya estaba quitado** (`SISTEMA-3`, severidad media) · **PENDIENTE**
+- Qué pasa: Si el proyecto ya figura «retirado», se manda su carpeta a la papelera aunque haya un líder con proceso o un worker vivo trabajando adentro. Para un proyecto no retirado sí se niega.
+- Dónde: `app/electron/proyectos-borrar.ts` línea 234-238 (`papeleraProyecto`)
+- Arreglo: Llamar `negarSiVivos(p, deps)` siempre, antes de `papelera`. Test en `tests/proyectos-borrar.test.ts`: retirado + vivo → rechaza.
+
+**B130 · En Windows la «papelera» puede borrar para siempre si la carpeta no entra en la Papelera de Reciclaje** (`SISTEMA-4`, severidad media) · **PENDIENTE**
+- Qué pasa: `DeleteDirectory(..., 'OnlyErrorDialogs', 'SendToRecycleBin')` se usa para no mostrar diálogos. Si Windows no puede meter la carpeta en la papelera (tamaño, unidad de red), puede borrarla de forma permanente sin preguntar. Eso rompe la regla «nunca borra de forma definitiva».
+- Dónde: `app/electron/proyectos-borrar.ts` línea 135 (`papeleraReal`)
+- Arreglo: Usar `UIOption.AllDialogs` (que obliga a confirmar) o chequear tamaño y unidad antes. Más seguro: mover con `Shell.Application`/`SHFileOperation` con `FOF_ALLOWUNDO` sin `FOF_NOCONFIRMATION` y tratar «cancelado» como `fallo`. Test: sólo de forma, porque el comando es de Windows.
+
+**B131 · Una advertencia de `git` en stderr hace que Actualizar crea que el checkout está «sucio» y se niegue** (`SISTEMA-5`, severidad media) · **PENDIENTE**
+- Qué pasa: Actualizar queda bloqueada con «hay cambios sin commitear» aunque el árbol esté limpio.
+- Dónde: `app/electron/actualizacion-trama.ts` líneas 111-115 (`correrReal`) y 341-344 (`sucioEn`)
+- Arreglo: Que `Corrida` traiga `stdout` aparte y `sucioEn` use sólo `stdout`. Test en `tests/actualizacion-trama.test.ts`.
+
+**B132 · Prender o apagar un conector rompe el enlace simbólico de `~/.claude/settings.json`** (`SISTEMA-6`, severidad media) · **PENDIENTE**
+- Qué pasa: Si el settings (o `settings.local.json`) es un enlace a un dotfile, Trama lo reemplaza por un archivo normal. La copia versionada queda desactualizada.
+- Dónde: `app/electron/conectores-claude.ts` líneas 453-461 (`cambiarAjustes`)
+- Arreglo: `const real = await realpath(ruta).catch(() => ruta)` y escribir/renombrar sobre `real`. Test en `tests/conectores-claude.test.ts` con un enlace.
+
+**B133 · Si falla una descarga a mitad, los reportes ya bajados (y borrados del receptor) no se avisan** (`SISTEMA-7`, severidad media) · **PENDIENTE**
+- Qué pasa: Con 3 reportes, si el primero se escribe y se borra del receptor y el segundo da error de red, de disco o timeout, la función lanza. Nunca llega a `avisar` y el dueño no se entera del primero.
+- Dónde: `app/electron/reporte-anonimo.ts` líneas 118-136 (`bajarReportes`)
+- Arreglo: `try/catch` por id (seguir con el siguiente) o llamar `avisar` apenas se escribe cada uno. Test en `tests/reporte-anonimo.test.ts`.
+
+**B134 · La limpieza de texto de reportes deja pasar los caracteres «tag» invisibles (inyección a modelos)** (`SISTEMA-8`, severidad media) · **PENDIENTE**
+- Qué pasa: `limpiarTexto` promete quitar «invisibles», pero un reporte con caracteres U+E0000–E007F (tag characters) conserva texto oculto. Ese texto no se ve al leerlo, pero un modelo lo lee. Es un vector conocido de inyección de instrucciones, justo contra lo que `docs/reglas/reportes.md` dice proteger.
+- Dónde: `app/electron/reportes-reglas.ts` línea 15 (`CONTROL`) y 18-21 (`limpiarTexto`)
+- Arreglo: Usar `/[...]/gu` con `\u{E0000}-\u{E007F}`, `\u{E0100}-\u{E01EF}`, `\u00AD`, `\u034F`, `\u061C`, `\u180E`, `\uFE00-\uFE0F`, `\u2028-\u2029`. Aplicarlo en el Worker y en la Trama (comparten el archivo). Test en `tests/reporte-anonimo.test.ts`.
+
+**B135 · `limpiarLog` no tapa claves en JSON ni en cabeceras con guion (`"token":"…"`, `x-api-key:`)** (`SISTEMA-9`, severidad media) · **PENDIENTE**
+- Qué pasa: El reporte (público en GitHub, o anónimo) puede llevar valores secretos si el log los trae como `"access_token":"abc..."`, `"apiKey": "..."` o `x-api-key: abc`.
+- Dónde: `app/electron/reporte.ts` línea 40 (patrón de `CLAVES`), usada en `limpiarLog` línea 50
+- Arreglo: Permitir comillas opcionales tras el nombre, `[-_]?` entre `API` y `KEY`, y sumar un patrón `://[^/\s:@]+:[^/\s@]+@`. Test en `tests/reporte.test.ts`.
+
+**B136 · Los errores de escritura de `programados.json` se tragan y el mensaje puede salir dos veces** (`SISTEMA-10`, severidad baja) · **PENDIENTE**
+- Qué pasa: Con el disco lleno o sin permiso, `programar` dice «listo» pero no queda guardado. En `vencer`, el mensaje sale, pero el archivo conserva su copia y sale de nuevo al reiniciar Trama.
+- Dónde: `app/electron/programados.ts` líneas 115-119 (`guardar`) y 160-166 (`vencer`)
+- Arreglo: Que `guardar` propague el error (o lo registre con `silencio`) y que `programar` falle si no se pudo escribir.
+
+**B137 · «2026-11-05 25:00» o «09:99» se aceptan como fechas válidas** (`SISTEMA-11`, severidad baja) · **PENDIENTE**
+- Qué pasa: Escribir una hora fuera de rango en la fecha completa programa el mensaje para otra hora (25:00 → 01:00 del día siguiente) sin avisar.
+- Dónde: `app/electron/programados-hora.ts` líneas 54-58 (`resolverCuando`)
+- Arreglo: Rechazar `Number(f[4]) > 23` o `Number(f[5]) > 59` y comparar también el día. Test en `tests/programados-hora.test.ts`.
+
+**B138 · Si Actualizar vence por tiempo, el instalador sigue vivo y se puede lanzar otro encima** (`SISTEMA-12`, severidad baja) · **PENDIENTE**
+- Qué pasa: A los 30 minutos se mata sólo `bash`; sus hijos (`npm`, compilación) siguen. La ventana muestra error, la persona vuelve a apretar Actualizar y corren dos instaladores juntos.
+- Dónde: `app/electron/actualizacion-trama.ts` línea 129 (`correrSuelto`)
+- Arreglo: Linux: `process.kill(-hijo.pid, "SIGTERM")`. Windows: `taskkill /T /F` con `windowsHide`.
+
+**B139 · Descubrir: si una fuente falla y la otra anda, la fallida no se reintenta por 24 horas, y el registro MCP queda cortado** (`SISTEMA-13`, severidad baja) · **PENDIENTE**
+- Qué pasa: Si GitHub falla pero el registro MCP contesta, `actualizado` se pone en `ahora`, y la caché se considera vigente un día. Abrir la sección no vuelve a intentar GitHub, y quedan skills viejas o ninguna. Aparte, `bajarMcp` pide como mucho 6 páginas de 100, sin avisar que el catálogo está incompleto (el registro tiene bastante más).
+- Dónde: `app/electron/descubrir.ts` líneas 516-522 (`catalogo`) y 324-332 (`bajarMcp`)
+- Arreglo: Considerar vigente sólo si los dos `errores` son `null`, o reintentar la fuente con error. Guardar `truncado: true` y mostrarlo en la interfaz (texto es/en).
+
+**B140 · `instalar.sh` no escapa la ruta del checkout (`'`, `&`, espacios en el `.desktop`)** (`SISTEMA-14`, severidad baja) · **PENDIENTE**
+- Qué pasa: Con un checkout en una ruta con `'`, el lanzador `trama` queda con sintaxis rota. Con `&` o `|`, la unidad `trama-motor.service` lleva una ruta mal armada. Con espacios en `$HOME`, el `Exec=` del menú no abre.
+- Dónde: `app/scripts/instalar.sh` línea 57 (`raiz='$raiz'`), 94 (`Exec=$bin`) y 119 (`sed "s|@RAIZ@|…|g"`)
+- Arreglo: Escapar con `printf %q` para el lanzador, y con `${raiz//\\/\\\\}` / `${raiz//&/\\&}` / `${raiz//|/\\|}` para `sed` (o usar `awk`). Entrecomillar `Exec="$bin"`.
+
+**B141 · `wayland.ts` ignora un `WAYLAND_DISPLAY` absoluto que el lanzador de `instalar.sh` sí respeta** (`SISTEMA-15`, severidad baja) · **PENDIENTE**
+- Qué pasa: Con `WAYLAND_DISPLAY=/ruta/al/socket` (válido en Wayland), la app lo ignora, busca un `wayland-N` en `XDG_RUNTIME_DIR` y pisa la variable con ese. Puede mandar la ventana a otra sesión.
+- Dónde: `app/electron/wayland.ts` línea 34 y 37 (`resolverWayland`)
+- Arreglo: Si es absoluto y `esSocket(ruta)`, devolverlo igual con `forzarWayland: true`. Test en `tests/wayland-sesion.test.ts`.
+
+**B142 · Con terminales que no esperan (por ejemplo `xfce4-terminal` por `$TERMINAL`), Actualizar da «se cerró la terminal» con el comando corriendo** (`SISTEMA-16`, severidad baja) · **PENDIENTE**
+- Qué pasa: `xfce4-terminal -x` entrega la orden a su servidor y sale al instante. `enTerminal` toma esa salida como «cerró», resuelve con `terminalCerro`, relee `--version` antes de que termine `paru` y muestra un error falso.
+- Dónde: `app/electron/actualizador.ts` líneas 97-103 (`enTerminal`); `app/electron/terminal-lanzar.ts` línea 19 (`BANDERA`)
+- Arreglo: Agregar `--disable-server` a `xfce4-terminal`. Más general: si la terminal sale antes que la marca, seguir esperando la marca un rato en vez de resolver.
+
 ### Vistos trabajando esta noche
 
-**B095 · El cierre por cupo de Gemini frenaba a Argon y a Claude por agy** (`NOCHE-1`, severidad alta) · **ARREGLADO**: con test en `app/tests/cierre-cupo-hook.test.ts`.
+**B143 · El cierre por cupo de Gemini frenaba a Argon y a Claude por agy** (`NOCHE-1`, severidad alta) · **ARREGLADO**: con test en `app/tests/cierre-cupo-hook.test.ts`.
 - Qué pasa: con la ventana del grupo `gemini` agotada, `pa -m agy:claude-…` y `pa -m gemini-4-argon-…` salían con «sin cupo» aunque sus grupos (`claude-gpt`, `gemini-4-argon`) estuvieran libres: el cierre se buscaba sólo por suscripción.
 - Dónde: `app/electron/cli/cierre-cupo-lectura.ts` (`cierreDe`, `cierreDeModelo`) y `app/electron/cli/reparto.ts`.
 - Arreglo: una entrada con `grupo` sólo cierra a los modelos de ese grupo (`grupoDeModelo`); `reparto` pasa el grupo del candidato.
 
-**B096 · Nada frena lanzar más workers de los que el cupo aguanta** (`NOCHE-10`, severidad alta) · **PENDIENTE**
+**B144 · Nada frena lanzar más workers de los que el cupo aguanta** (`NOCHE-10`, severidad alta) · **PENDIENTE**
 - Qué pasa: veinte workers lanzados a la vez contra una suscripción con cupo para pocas corridas pesadas arrancaron todos y murieron a mitad, sin commits. El cupo se mira al lanzar, no lo que ya está corriendo contra esa ventana.
 - Dónde: `app/electron/cli/pa/orquesta.ts`, `app/electron/cli/reparto.ts`.
 - Arreglo: tope de workers vivos por suscripción según el cupo libre y lo medido por corrida; los demás esperan en cola.
 
-**B097 · La nota antes de compactar ignoraba el `autoCompactWindow` del settings** (`NOCHE-2`, severidad media) · **ARREGLADO A MEDIAS**: hecho en los líderes; faltan los workers.
+**B145 · Se pierde el mensaje final cuando un hook hace seguir el turno** (`NOCHE-15`, severidad alta) · **PENDIENTE**
+- Qué pasa: el modelo cierra el turno con un resumen, un hook de fin de turno lo hace seguir, y en el chat queda sólo «Ran N commands» con el texto siguiente: el resumen desaparece (el lector de voz sí lo leyó).
+- Dónde: `app/src/hilo/Lider.tsx` y `app/src/hilo/Turno.tsx` (cómo se agrupa el texto previo a una continuación).
+- Arreglo: el texto anterior a una continuación por hook se conserva como mensaje propio; test con un transcript que tenga dos textos separados por la respuesta del hook.
+
+**B146 · La nota antes de compactar ignoraba el `autoCompactWindow` del settings** (`NOCHE-2`, severidad media) · **ARREGLADO A MEDIAS**: hecho en los líderes; faltan los workers.
 - Qué pasa: sin tope de Trama, el umbral de la nota se calculaba contra la ventana entera del modelo, así que la compactación nativa (más baja en el settings de Claude Code) llegaba antes y la nota no se pedía.
 - Dónde: `app/electron/lider.ts`, `app/electron/contexto.ts`.
 - Arreglo: leer el `autoCompactWindow` del settings al abrir el líder (`leerUmbralYa`) y usarlo cuando no hay tope propio. Falta lo mismo en los workers (`app/electron/cli/pa/lanzar.ts`).
 
-**B098 · El «Mandar ya» a un líder de Codex viajaba sin marca** (`NOCHE-3`, severidad media) · **ARREGLADO**
+**B147 · El «Mandar ya» a un líder de Codex viajaba sin marca** (`NOCHE-3`, severidad media) · **ARREGLADO**
 - Qué pasa: el mensaje directo a un líder de Codex ocupado salía sin `trama_directo`, así que el puente lo encolaba al final y nunca devolvía el eco que la cola espera.
 - Dónde: `app/electron/lider.ts` (`mandarDirecto`).
 - Arreglo: marcarlo también para `codex`; el puente lo pone primero en el turno que sigue.
 
-**B099 · «Fast mode disabled · Out of usage credits» aunque está apagado** (`NOCHE-4`, severidad media) · **PENDIENTE**
+**B148 · «Fast mode disabled · Out of usage credits» aunque está apagado** (`NOCHE-4`, severidad media) · **ARREGLADO**: en la 0.3.19: apagar Fast relanza sin la opción.
 - Qué pasa: con el modo rápido apagado en Trama el aviso sigue saliendo en el chat. Apagado no pasa ningún argumento, así que manda lo que tenga guardado el CLI.
 - Dónde: `app/electron/esfuerzo-extras.ts` línea 101 (`argvFast`).
 - Arreglo: pasar el apagado explícito cuando el modelo lo soporta y la persona lo apagó; comprobar en vivo que el aviso se va.
 
-**B100 · Un worker en cola figura como «trabajando» y sin modelo** (`NOCHE-6`, severidad media) · **PENDIENTE**
+**B149 · Un worker en cola figura como «trabajando» y sin modelo** (`NOCHE-6`, severidad media) · **PENDIENTE**
 - Qué pasa: un worker que espera puesto sale con estado `trabajando` y `modelo` vacío; hay que mirar `en_cola` para saberlo. La barra lo muestra como corriendo.
 - Dónde: `app/electron/cli/pa/hilo.ts` (`pa --hilos --json`) y la barra.
 - Arreglo: estado propio «en cola» con el modelo pedido.
 
-**B101 · Aviso de «no terminó bien» con el worker terminado en 0** (`NOCHE-7`, severidad media) · **PENDIENTE**
+**B150 · Aviso de «no terminó bien» con el worker terminado en 0** (`NOCHE-7`, severidad media) · **PENDIENTE**
 - Qué pasa: un worker que cerró bien (rc 0, con commits) llegó al líder con el aviso de falla.
 - Dónde: `app/electron/avisos-worker.ts`.
 - Arreglo: decidir el texto por el código de salida y el estado final, con test de un worker que termina bien después de un reintento.
 
-**B102 · `estado_workers` devuelve más de diez mil tokens** (`NOCHE-8`, severidad media) · **PENDIENTE**
+**B151 · `estado_workers` devuelve más de diez mil tokens** (`NOCHE-8`, severidad media) · **PENDIENTE**
 - Qué pasa: la herramienta lista todos los hilos de todos los proyectos con su resultado entero, sin tope: una consulta de estado le cuesta al líder una parte grande del contexto.
 - Dónde: `app/electron/cli/mcp-trama.ts`.
 - Arreglo: tope de filas y de largo por resultado, filtro por proyecto y por estado, y decir cuántos quedaron afuera.
 
-**B103 · Un brief con una ruta de afuera manda la corrida a otra suscripción sin avisar claro** (`NOCHE-11`, severidad media) · **PENDIENTE**
+**B152 · Un brief con una ruta de afuera manda la corrida a otra suscripción sin avisar claro** (`NOCHE-11`, severidad media) · **PENDIENTE**
 - Qué pasa: si el brief nombra una ruta fuera del proyecto, una dirección web o un comando de red, el worker pedido con otro motor corre en Claude. El aviso sale por la salida de error del lanzamiento y es fácil de perder: se gasta el cupo que se quería cuidar.
 - Dónde: `app/electron/cli/pa/motores/privacidad.ts`, `app/electron/cli/pa/orquesta.ts`.
 - Arreglo: decir en el aviso la línea exacta que lo disparó y ofrecer no lanzar (`--estricto`) en vez de cambiar de motor.
 
-**B104 · `reparto --cupos` muestra la ventana de 7 días de Gemini con el reinicio de la de 5 horas** (`NOCHE-5`, severidad baja) · **PENDIENTE**
+**B153 · Un worker interrumpido queda como «listo»** (`NOCHE-14`, severidad media) · **PENDIENTE**
+- Qué pasa: un worker de agy cortado desde afuera termina con el texto «agy: interrupted» y sin informe, pero su estado dice `listo`, igual que uno que terminó bien.
+- Dónde: `app/electron/cli/pa/hilo.ts` y el cierre de la corrida en `app/electron/cli/pa/otros-motores.ts`.
+- Arreglo: estado propio para la corrida interrumpida (o `murio`) cuando el motor sale por señal o sin respuesta final.
+
+**B154 · `reparto --cupos` muestra la ventana de 7 días de Gemini con el reinicio de la de 5 horas** (`NOCHE-5`, severidad baja) · **PENDIENTE**
 - Qué pasa: tras renovarse la ventana de 5 horas, la de 7 días apareció en 0 % con la misma hora de vuelta; un rato después volvió a su valor real.
 - Dónde: `app/electron/cli/reparto.ts` (lectura de los grupos de Google).
 - Arreglo: no pisar una ventana con los datos de otra; test con las dos ventanas del mismo grupo.
 
-**B105 · `pa --estado` arrastra «MURIÓ EN COLA» de hace semanas** (`NOCHE-9`, severidad baja) · **PENDIENTE**
+**B155 · `pa --estado` arrastra «MURIÓ EN COLA» de hace semanas** (`NOCHE-9`, severidad baja) · **PENDIENTE**
 - Qué pasa: la lista de un proyecto trae decenas de corridas muertas en cola de otros proyectos y de hace más de un mes, que tapan lo que corre ahora.
 - Dónde: `app/electron/cli/pa/estado.ts`.
 - Arreglo: mostrar sólo las del proyecto pedido y vencer las viejas (o resumirlas en una línea con la cuenta).
 
-**B106 · Los workers lanzados desde un servicio no avisan a su líder** (`NOCHE-12`, severidad baja) · **PENDIENTE**
+**B156 · Los workers lanzados desde un servicio no avisan a su líder** (`NOCHE-12`, severidad baja) · **PENDIENTE**
 - Qué pasa: un `pa --async` lanzado con un entorno sin la sesión del líder termina sin avisarle a nadie; hay que mirar `pa --hilos` a mano.
 - Dónde: `app/electron/cli/pa/lanzar.ts` (a quién se avisa al terminar).
 - Arreglo: permitir decir a qué líder avisar (`--avisar-a <sid>`) y documentarlo.
 
-**B107 · Un worker de arreglos se queda sin turnos a los cuatro bugs** (`NOCHE-13`, severidad baja) · **PENDIENTE**
+**B157 · Un worker de arreglos se queda sin turnos a los cuatro bugs** (`NOCHE-13`, severidad baja) · **PENDIENTE**
 - Qué pasa: el tope por tipo (50 turnos en `codigo-acotado`) corta una corrida con una lista larga de arreglos chicos, que deja el resto sin tocar y sin correr el chequeo final.
 - Dónde: `app/electron/cli/pa/opciones.ts` (`topeDeTurnos`).
 - Arreglo: que el brief o el tipo puedan pedir una lista («hasta N ítems») y el tope crezca con ella, o partir la lista sola en varias corridas en serie.
+
+**B158 · Los workers sin líder aparecen colgados de otro líder** (`NOCHE-16`, severidad baja) · **PENDIENTE**
+- Qué pasa: workers lanzados desde un servicio, sin sesión de líder, se dibujan bajo otro líder del mismo proyecto y al morir quedan ahí como «en cola, nunca arrancó · falló».
+- Dónde: `app/src/barra/` (a qué líder se cuelga un worker).
+- Arreglo: un grupo «sin líder» por proyecto, o colgarlos del líder que diga la corrida.
 
 ## Ideas
 
