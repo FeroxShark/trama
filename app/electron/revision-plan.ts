@@ -18,6 +18,7 @@ import { entornoLider } from "./lider-arma.ts";
 import { claseDeModelo, idAgy, modeloAgy, partirGemini } from "./modelos-config.ts";
 import { reglaDeExcluir, familiaClaude } from "./reparto-claude.ts";
 import { hijoEnGrupo, matarArbol } from "./procesos.ts";
+import { plataformaActual, type Plataforma } from "./rutas.ts";
 import { LectorAgy, LectorClaude, LectorCodex, type Avance } from "./revision-flujo.ts";
 import { mensajeParaLider, parsearRevision, PLAN_MAX, promptRevisor, sinComillas, type ArchivoAdjunto, type RevisionVista } from "./revision-plan-texto.ts";
 
@@ -54,10 +55,12 @@ export const ADJUNTO_BYTES = 12_000;
 export const ADJUNTOS_TOTAL = 40_000;
 
 /** Las rutas de archivo que nombra un plan, en el orden en que aparecen y sin repetir. */
-export function rutasDelPlan(plan: string): string[] {
+export function rutasDelPlan(plan: string, plat: Plataforma = plataformaActual()): string[] {
   const vistas = new Set<string>();
-  for (const m of plan.matchAll(/[\w@~./-]*[\w@-]\.[A-Za-z][A-Za-z0-9]{0,7}\b/g)) {
-    const r = m[0].replace(/^\.\//, "");
+  // Windows: también `\` y la unidad (`C:\a\b.ts`). Linux queda como siempre: ahí una `\` no es parte de una ruta.
+  const ruta = plat === "win32" ? /(?:(?<!\w)[A-Za-z]:)?[\w@~./\\-]*[\w@-]\.[A-Za-z][A-Za-z0-9]{0,7}\b/g : /[\w@~./-]*[\w@-]\.[A-Za-z][A-Za-z0-9]{0,7}\b/g;
+  for (const m of plan.matchAll(ruta)) {
+    const r = m[0].replace(/^\.[\\/]/, "");
     if (/^\d+\.\d+$/.test(r) || /^https?:/.test(r) || /\.(?:com|org|net|io|dev)$/i.test(r)) continue;
     vistas.add(r);
   }

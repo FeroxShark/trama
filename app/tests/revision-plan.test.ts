@@ -498,3 +498,13 @@ test("Claude llega al tope de turnos: con las secciones escritas se aprovecha; s
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("rutasDelPlan en win32: reconoce `\\` y la unidad (C:\\a\\b.ts) y sigue con las de `/`", () => {
+  const r = rutasDelPlan("Tocar C:\\proy\\app\\electron\\lider.ts, src\\hilo\\Lider.tsx, .\\README.md y app/electron/cola.ts. Ver https://example.dev/x.ts", "win32");
+  assert.deepEqual(r.slice(0, 4), ["C:\\proy\\app\\electron\\lider.ts", "src\\hilo\\Lider.tsx", "README.md", "app/electron/cola.ts"]);
+});
+
+test("rutasDelPlan en linux: no cambia (una `\\` no es parte de la ruta y el resto sigue igual)", () => {
+  assert.deepEqual(rutasDelPlan("Tocar C:\\proy\\app\\lider.ts y app/electron/cola.ts", "linux"), ["lider.ts", "app/electron/cola.ts"]);
+  assert.deepEqual(rutasDelPlan("app/electron/cola.ts y ./src/a.css", "linux"), ["app/electron/cola.ts", "src/a.css"]);
+});
