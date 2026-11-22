@@ -460,6 +460,16 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
         if (m.startsWith("claude-")) {
           l.modelo = m;
           if (!l.esfuerzo && e && e !== "-" && e !== "settings") ponerEffort(e);
+        } else if (esCodex(m) || esGemini(m) || esDsh(m) || esOpencode(m)) {
+          // Estos motores no retoman sesiones: sin cortar acá, --seguir caía al default (Claude), no hallaba la sesión y arrancaba una
+          // limpia, sin la conversación y con cupo de Claude.
+          const id = s?.ts || l.runId;
+          io.err(
+            `pa: la corrida ${id} es de ${m}, que no retoma sesiones; --seguir la abriría con otro modelo y sin la conversación.\n` +
+              `pa: para seguirla con ese modelo (le pasa un resumen de lo que hizo): pa '${l.proyecto}' --seguir-con ${m} --id ${id} "<pedido>"\n` +
+              `pa: si era --leer, lanzá otra: pa '${l.proyecto}' --leer -m ${m} "<pedido>"\n`,
+          );
+          salir(2);
         }
       }
     } else if (
