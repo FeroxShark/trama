@@ -7,8 +7,8 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 ## Resumen
 
 - **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
-  - pendiente: 135
-  - arreglado: 21
+  - pendiente: 128
+  - arreglado: 28
   - arreglado a medias: 2
 - **Ideas: 102**.
 
@@ -19,9 +19,9 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 | El hilo: la caja y el líder en la ventana | 14 | 0 | 14 |
 | Hooks y motor | 16 | 0 | 16 |
 | Núcleo y canales | 14 | 0 | 14 |
-| El CLI de `pa` | 15 | 0 | 15 |
+| El CLI de `pa` | 15 | 1 | 14 |
 | Puentes a otros motores | 20 | 19 | 1 |
-| Reparto y cupos | 15 | 0 | 15 |
+| Reparto y cupos | 15 | 6 | 9 |
 | Sistema: instalación, actualización y servicio | 16 | 0 | 16 |
 | Vistos trabajando esta noche | 16 | 4 | 12 |
 
@@ -388,7 +388,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/pa/cli.ts` línea 475 (`correrPa`).
 - Arreglo: volver a revisar el contenido final al reemplazar la tarea en la línea 475, antes de relanzar async o despachar el motor. El mismo control debe cubrir el resumen por caché frío y el worktree que realmente se retoma. Agregar un test que niegue el envío del dato ficticio aunque el pedido extra sea inocuo.
 
-**B078 · Se reutiliza el puesto de un hijo que sigue vivo** (`PA-CLI-2`, severidad alta) · **PENDIENTE**
+**B078 · Se reutiliza el puesto de un hijo que sigue vivo** (`PA-CLI-2`, severidad alta) · **ARREGLADO**
 - Qué pasa: si muere `pa` y sobrevive su worker, otro `pa` puede ocupar el mismo worktree y cambiarle la rama mientras todavía trabaja. También borra el `.running` que permitía encontrar al worker anterior.
 - Dónde: `app/electron/cli/pa/puestos.ts` línea 462 (`Admision.tomarPuesto`).
 - Arreglo: después de tomar el candado del puesto y antes de aceptarlo, validar el `.running`; si su hijo sigue vivo, liberar ese puesto y tratarlo como ocupado. Agregar un test con padre muerto e hijo vivo que impida preparar el worktree.
@@ -562,7 +562,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 
 ### Reparto y cupos
 
-**B112 · Revive un modelo excluido y sin cupo** (`REPARTO-CUPOS-1`, severidad alta) · **PENDIENTE**
+**B112 · Revive un modelo excluido y sin cupo** (`REPARTO-CUPOS-1`, severidad alta) · **ARREGLADO**
 - Qué pasa: un modelo gratis apagado en Ajustes y con el grupo agotado puede salir elegido como si tuviera cupo. También se salta el piso duro del perfil agresivo cuando sólo quedan estas ofertas.
 - Dónde: `app/electron/cli/reparto.ts` línea 3141 (`elegir`)
 - Arreglo: en las líneas 3063–3080 comprobar exclusiones, indisponibilidad y límites antes de decidir si se puede relajar calidad; al revivir, conservar todos los vetos independientes. En la línea 3143 no relajar `duro_calidad` para agresivo. Cubrir con un caso de único gratis de calidad baja excluido, otro agotado y otro con…
@@ -572,27 +572,27 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cierre-cupo-disco.ts` línea 37 (`crearCierreCupo.revisar`)
 - Arreglo: conservar un paso pendiente hasta confirmar su escritura y entregar sus eventos una sola vez; reintentarlo aunque la siguiente lectura no cambie. Cubrir tanto un fallo al escribir como uno al borrar la señal.
 
-**B114 · ChatGPT no llega al vigilante de cierre** (`REPARTO-CUPOS-3`, severidad alta) · **PENDIENTE**
+**B114 · ChatGPT no llega al vigilante de cierre** (`REPARTO-CUPOS-3`, severidad alta) · **ARREGLADO**
 - Qué pasa: la cabecera puede mostrar ChatGPT al 99 %, pero ese dato no dispara su cierre ordenado. La cuenta de siempre tampoco coincide con las señales que esperan el nombre `chatgpt`.
 - Dónde: `app/electron/cli/reparto.ts` línea 1921 (`cuposOpenai`)
 - Arreglo: conservar `id:"openai"` si lo necesitan los consumidores existentes, pero agregar `proveedor:"chatgpt", cuenta:"chatgpt"` en la línea 1921. Verificar el recorrido real reparto → parser → vigilante, y que una señal de ChatGPT descarte sus candidatos.
 
-**B115 · Ofrece Claude aunque no esté disponible** (`REPARTO-CUPOS-4`, severidad alta) · **PENDIENTE**
+**B115 · Ofrece Claude aunque no esté disponible** (`REPARTO-CUPOS-4`, severidad alta) · **ARREGLADO**
 - Qué pasa: sin proveedores disponibles, el reparto dice que puede correr un Claude. En una máquina con una sola suscripción de otro proveedor, también puede ofrecer ese Claude inexistente cuando la alternativa se queda sin cupo.
 - Dónde: `app/electron/cli/reparto.ts` línea 2753 (`armarCandidatos`)
 - Arreglo: quitar la condición `ofertasDsh.length` de la línea 2753 y filtrar Claude por disponibilidad de su cuenta antes de armar candidatos; no confundir falta de porcentajes con falta de conexión. Probar cero proveedores, sólo Google y sólo ChatGPT, con y sin cupo.
 
-**B116 · El reparto fijo ignora modelos apagados** (`REPARTO-CUPOS-5`, severidad alta) · **PENDIENTE**
+**B116 · El reparto fijo ignora modelos apagados** (`REPARTO-CUPOS-5`, severidad alta) · **ARREGLADO**
 - Qué pasa: un modelo asignado a un tipo sigue siendo la elección fija después de apagarlo en Ajustes. El veto de la persona no se aplica a esa selección.
 - Dónde: `app/electron/cli/reparto.ts` línea 3117 (`elegir`)
 - Arreglo: antes del retorno fijo, verificar la asignación contra las exclusiones; aplicar también ese veto a las elecciones fijas de `pa`, con la excepción explícita de `--ok-dueno`. Probar asignar, apagar y lanzar sin `-m`.
 
-**B117 · No deja guardar elecciones de ChatGPT** (`REPARTO-CUPOS-6`, severidad media) · **PENDIENTE**
+**B117 · No deja guardar elecciones de ChatGPT** (`REPARTO-CUPOS-6`, severidad media) · **ARREGLADO**
 - Qué pasa: una elección `codex:*` de líder o worker no se puede guardar en `modelos.json`. Si ya viene del archivo, guardar otro ajuste que reenvía esa configuración también falla.
 - Dónde: `app/electron/modelos-tipos.ts` línea 375 (`validarEleccion`)
 - Arreglo: agregar un reconocedor y una validación de ids Codex a la línea 375, manteniendo el esfuerzo en el id. Cubrir lectura → guardado sin cambios y cambio de perfil con líder y worker Codex.
 
-**B118 · Los modelos descubiertos de agy saltean los esfuerzos permitidos** (`REPARTO-CUPOS-7`, severidad media) · **PENDIENTE**
+**B118 · Los modelos descubiertos de agy saltean los esfuerzos permitidos** (`REPARTO-CUPOS-7`, severidad media) · **ARREGLADO**
 - Qué pasa: un modelo de agy que no está en la tabla incorporada puede ser elegido aunque la persona le haya dejado la lista de esfuerzos vacía.
 - Dónde: `app/electron/cli/reparto.ts` línea 2830 (`armarCandidatos.hacer`)
 - Arreglo: en la rama de la línea 2830 consultar `effortsDe` aunque el id no admita un esfuerzo separado; la lista vacía siempre debe descartarlo. Para ids con sufijo, verificar su esfuerzo real. Cubrir ambos formatos de catálogo.
