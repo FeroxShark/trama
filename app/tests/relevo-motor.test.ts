@@ -96,6 +96,10 @@ test("resumenDelModelo: lo del modelo cuenta; un relevo armado por Trama o un ar
   assert.equal(resumenDelModelo(armarRelevo([m("user", "hola", null)], { de: "a", a: "b" }).texto), null);
   assert.equal(resumenDelModelo("  \n"), null);
   assert.equal(resumenDelModelo(null), null);
+  // Dos cambios de motor seguidos: el relevo de Trama que ya traía el resumen lo sigue pasando (sin la nota, que se relee aparte).
+  const conResumen = sumarAlRelevo(armarRelevo([m("user", "hola", null)], { de: "a", a: "b" }).texto, { resumen: "R1\nR2", nota: "N" });
+  assert.equal(resumenDelModelo(conResumen), "R1\nR2");
+  assert.equal(resumenDelModelo(sumarAlRelevo(armarRelevo([m("user", "hola", null)], { de: "a", a: "b" }).texto, { resumen: "Sólo R" })), "Sólo R");
 });
 
 test("sumarAlRelevo: con resumen y nota los trae bajo su título; sin ninguno deja el relevo igual; con tope recorta lo más viejo", () => {
