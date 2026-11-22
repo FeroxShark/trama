@@ -4,6 +4,7 @@
 import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
 import path from "node:path";
+import { llamadaAgy } from "../../../agy-llamada.ts";
 import { delimitadorDe, homeDe, plataformaActual, type Plataforma } from "../../../rutas.ts";
 import { CONTRATO, CONTRATO_AGY, CONTRATO_CODEX, SIN_JEFE } from "../contrato.ts";
 import type { Env, Io } from "../entorno.ts";
@@ -70,6 +71,8 @@ export interface DatosLlamada {
 export interface Llamada {
   cmd: string;
   args: string[];
+  /** Prompt para los motores que lo leen por stdin. */
+  stdin?: string;
   cwd: string;
   /** El entorno completo del proceso del worker. */
   env: Env;
@@ -112,14 +115,18 @@ export function armarLlamada(d: DatosLlamada): Llamada {
   const transcript = path.join(d.dir, `${d.ts}.stream.jsonl`);
   const out = path.join(d.dir, `${d.ts}.json`);
   const stderr = path.join(d.dir, `${d.ts}.err`);
-  const carpetas = [d.rutaTrabajo, d.ruta];
+  // Codex lee el AGENTS.md del cwd. Si falta en ese árbol, conservá el respaldo de pa (el principal o un CLAUDE.md).
+  const carpetas = d.motor === "codex" && existeArchivo(path.join(d.rutaTrabajo, "AGENTS.md")) ? [] : [d.rutaTrabajo, d.ruta];
   const promptCon = (mds: string[]) => promptOtroMotor({ contrato: d.contrato, mds, carpetas, tarea: d.prompt, env: d.env, io: d.io });
 
   if (d.motor === "agy") {
-    // agy no tiene system prompt por flag ni lee CLAUDE.md (sí AGENTS.md/GEMINI.md). Los hooks y las skills los pone el plugin
-    // pa-worker (hooks/agy-pa.mjs); por entorno van los datos que necesita para atar al worker a su worktree.
-    const p = promptCon([claudeMdDueno(d.env, home)]);
-    const args = ["-p", p, "--model", d.modelo.startsWith("agy:") ? d.modelo.slice(4) : d.modelo, "--output-format", "stream-json", "--dangerously-skip-permissions", "--print-timeout", `${d.env.PA_AGY_TIMEOUT || "3600"}s`];
+    // Mismo formato de entrada que el líder. El plugin pa-worker recibe por entorno los datos del worktree.
+    const { args, stdin } = llamadaAgy({
+      prompt: promptCon([claudeMdDueno(d.env, home)]),
+      modelo: d.modelo.startsWith("agy:") ? d.modelo.slice(4) : d.modelo,
+      conversacion: null,
+      timeout: `${d.env.PA_AGY_TIMEOUT || "3600"}s`,
+    });
     const exporta: Env = {
       PA_AGY_HB: d.hb,
       PA_AGY_RAIZ: d.rutaTrabajo,
@@ -132,6 +139,7 @@ export function armarLlamada(d: DatosLlamada): Llamada {
     return {
       cmd: "agy",
       args,
+      stdin,
       cwd: d.rutaTrabajo,
       env: conCuenta({ ...d.env, ...exporta, ...BASE_WORKER }, d.cuenta),
       exporta,
@@ -174,10 +182,11 @@ export function armarLlamada(d: DatosLlamada): Llamada {
       if (d.env.CARGO_TARGET_DIR) args.push("--add-dir", d.env.CARGO_TARGET_DIR);
       if (existeArchivo(d.mapaProy)) args.push("--add-dir", path.dirname(d.mapaProy));
     }
-    args.push(p);
+    args.push("-");
     return {
       cmd: "codex",
       args,
+      stdin: p,
       cwd: d.rutaTrabajo,
       env: conCuenta(conShims({ ...d.env, ...BASE_WORKER }, plat), d.cuenta),
       exporta: {},

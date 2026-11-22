@@ -293,12 +293,13 @@ const armar = (nombre: string, o: Armar): Caso =>
       env: { P_CONTRATO: "CONTRATO\nde prueba", P_PROMPT: "hacé algo\ncon dos líneas", ...(o.env ?? {}) },
     },
   );
+const STDIN_TS = "El TS pasa el prompt por stdin para que entre en Windows. El bash está congelado.";
 const casosArmar: Caso[] = [
-  armar("agy", { motor: "agy", modelo: "gemini-4-argon-high" }),
-  armar("agy: claude por agy, --leer y --actualizar, timeout propio", { motor: "agy", modelo: "agy:claude-opus-5-5-high", leer: true, actualizar: true, env: { PA_AGY_TIMEOUT: "60" } }),
-  armar("agy sin CLAUDE.md del dueño", { motor: "agy", modelo: "gemini-4-argon-low", claudeMd: false }),
-  armar("codex con el .git común, CARGO_TARGET_DIR y el mapa", { motor: "codex", modelo: "codex:gpt-6-sol-high", mapa: true, env: { CARGO_TARGET_DIR: "/tmp/target-x" }, divergenciaSalida: "El TS agrega el párrafo de cierre a los escritores de Codex. El bash está congelado." }),
-  armar("codex --leer (read-only, sin --add-dir)", { motor: "codex", modelo: "codex:gpt-6.1-sol-low", leer: true, mapa: true }),
+  armar("agy", { motor: "agy", modelo: "gemini-4-argon-high", divergenciaSalida: STDIN_TS }),
+  armar("agy: claude por agy, --leer y --actualizar, timeout propio", { motor: "agy", modelo: "agy:claude-opus-5-5-high", leer: true, actualizar: true, env: { PA_AGY_TIMEOUT: "60" }, divergenciaSalida: STDIN_TS }),
+  armar("agy sin CLAUDE.md del dueño", { motor: "agy", modelo: "gemini-4-argon-low", claudeMd: false, divergenciaSalida: STDIN_TS }),
+  armar("codex con el .git común, CARGO_TARGET_DIR y el mapa", { motor: "codex", modelo: "codex:gpt-6-sol-high", mapa: true, env: { CARGO_TARGET_DIR: "/tmp/target-x" }, divergenciaSalida: `${STDIN_TS} El TS omite el AGENTS.md del cwd y agrega el párrafo de cierre.` }),
+  armar("codex --leer (read-only, sin --add-dir)", { motor: "codex", modelo: "codex:gpt-6.1-sol-low", leer: true, mapa: true, divergenciaSalida: `${STDIN_TS} El TS omite el AGENTS.md del cwd.` }),
   armar("dsh deepseek: sin el CLAUDE.md del dueño", { motor: "dsh", modelo: "dsh:deepseek/deepseek-v4-flash" }),
   armar("dsh ollama: CLAUDE.md, --url y --max-pasos", { motor: "dsh", modelo: "dsh:ollama/qwen3-coder:30b", maxTurns: "12", env: { OLLAMA_HOST: "http://gpu:11434/" } }),
   armar("opencode con effort", { motor: "dsh", modelo: "opencode:opencode/big-pickle", ocEffort: "high" }),

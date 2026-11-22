@@ -8,10 +8,10 @@ import { closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { enPath, esEjecutable } from "../base/buscar.ts";
-import { hallarCodex } from "../../binario.ts";
+import { hallarCodex, paraLanzar, resolverAgy } from "../../binario.ts";
 import { homeDe } from "../../rutas.ts";
 import type { Env, Pa } from "./entorno.ts";
-import { mapaDe, promptDe, type Corrida, type Lanzamiento, type OpcionesLanzar } from "./lanzar.ts";
+import { mapaDe, promptDe, usaSkills, type Corrida, type Lanzamiento, type OpcionesLanzar } from "./lanzar.ts";
 import { chequearAgy, chequearCodex, chequearDsh, localEstado, type Local } from "./motores/chequeo.ts";
 import { armarLlamada, conCuenta, type EntornoCuenta, type Llamada } from "./motores/llamada.ts";
 import { esOpencode, Modelos } from "./modelos.ts";
@@ -75,8 +75,8 @@ export function llamadaDe(l: Lanzamiento): Llamada {
 }
 
 /**
- * Un `.cmd` de npm (codex.cmd, agy.cmd en Windows) no se ejecuta sin shell, y por el shell la tarea (con saltos de línea y comillas) se
- * rompe: se busca el guion de node al que apunta y se corre con este node. null = no es un shim que se entienda.
+ * Busca el guion de node de un `.cmd` de npm para correrlo directo, incluso si un flag contiene comillas.
+ * null = no es un shim que se entienda.
  */
 export function guionDeShim(bin: string): string | null {
   if (!/\.(cmd|bat)$/i.test(bin)) return null;
@@ -90,14 +90,17 @@ export function guionDeShim(bin: string): string | null {
   }
 }
 
-/** Qué se lanza: `node` es este node; lo demás, lo que dice el PATH del worker (sin shell). */
-export function programaDe(ll: Llamada, plat: Pa["plat"]): { cmd: string; args: string[] } {
+/** Qué se lanza: `node` es este node; los binarios se resuelven con el entorno del worker. */
+export function programaDe(ll: Llamada, plat: Pa["plat"]): { cmd: string; args: string[]; verbatim?: boolean } {
   if (ll.cmd === "node") return { cmd: process.execPath, args: ll.args };
+  const home = homeDe(ll.env, plat);
+  const ejecutable = (f: string) => esEjecutable(f, plat);
   // codex en Windows suele quedar en el prefijo de npm (`codex.cmd`), fuera del PATH: lo busca como Cuentas.
-  const bin = enPath(ll.cmd, [], ll.env, plat) ?? (ll.cmd === "codex" ? hallarCodex(ll.env, homeDe(ll.env, plat), (f) => esEjecutable(f, plat), plat) : null) ?? ll.cmd;
-  if (/\.m?js$/i.test(bin)) return { cmd: process.execPath, args: [bin, ...ll.args] };
-  const guion = plat === "win32" ? guionDeShim(bin) : null;
-  return guion ? { cmd: process.execPath, args: [guion, ...ll.args] } : { cmd: bin, args: ll.args };
+  const bin = ll.cmd === "agy" ? resolverAgy(ll.env, home, ejecutable, plat)
+    : enPath(ll.cmd, [], ll.env, plat) ?? (ll.cmd === "codex" ? hallarCodex(ll.env, home, ejecutable, plat) : null) ?? ll.cmd;
+  const guion = /\.m?js$/i.test(bin) ? bin : plat === "win32" && ll.cmd !== "agy" ? guionDeShim(bin) : null;
+  const { file, args, verbatim } = guion ? paraLanzar(process.execPath, [guion, ...ll.args], ll.env, plat) : paraLanzar(bin, ll.args, ll.env, plat);
+  return { cmd: file, args, verbatim };
 }
 
 const limpio = (e: Env): NodeJS.ProcessEnv => {
@@ -131,7 +134,7 @@ export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
   const fe = openSync(ll.stderr, "w");
   // Las skills de Claude que el motor no carga solo: se enlazan (sin las apagadas en Trama) antes de lanzarlo. Si falla, no frena la corrida.
   const motor = motorSkillsDe(c.motor, c.modelo);
-  if (motor) {
+  if (motor && usaSkills(c)) {
     try {
       for (const f of sincronizarSkillsParaMotor(motor, pa.env, pa.home, pa.plat).fallidas) aErr(ll.stderr, `pa: no pude enlazar la skill ${f.nombre} para ${motor}: ${f.error}\n`);
     } catch (e) {
@@ -139,7 +142,8 @@ export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
     }
   }
   // El MCP de Trama (cli/mcp-trama.ts) en la config MCP del motor, con este mismo node. Si falla, tampoco frena la corrida.
-  if (motor) {
+  // sinMcp es privado de lanzar.ts. argsClaude ya aplicó ese criterio a esta corrida.
+  if (motor && !l.args.includes("--strict-mcp-config", 2)) {
     try {
       const script = scriptMcpTrama(path.join(path.dirname(fileURLToPath(import.meta.url)), ".."));
       if (script) registrarParaMotor(motor, { comando: process.execPath, args: [script] }, pa.env, pa.home, pa.plat);
@@ -170,13 +174,16 @@ export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
       resolve(rc);
     };
     try {
-      const { cmd, args } = programaDe(ll, pa.plat);
-      const h = spawn(cmd, args, { cwd: ll.cwd, env: limpio(entorno), stdio: ["ignore", fo ?? "ignore", fe], windowsHide: true });
+      const { cmd, args, verbatim } = programaDe(ll, pa.plat);
+      const h = spawn(cmd, args, { cwd: ll.cwd, env: limpio(entorno), stdio: [ll.stdin === undefined ? "ignore" : "pipe", fo ?? "ignore", fe], windowsHide: true, windowsVerbatimArguments: verbatim });
       h.on("error", (e) => {
         aErr(ll.stderr, `pa: no pude lanzar ${ll.cmd}: ${e.message}\n`);
         fin(127);
       });
       h.on("exit", (code, sig) => fin(code ?? 128 + (sig ? (NUM_SENAL[sig] ?? 0) : 0)));
+      // Si el motor corta antes de leer (por ejemplo por falta de sesión), manda su código de salida.
+      h.stdin?.on("error", () => {});
+      h.stdin?.end(ll.stdin);
       if (h.pid) {
         o.alArrancar(h.pid);
         // codex, dsh y opencode no tienen hooks: pa escribe el latido mientras viven (agy lo hace su plugin)

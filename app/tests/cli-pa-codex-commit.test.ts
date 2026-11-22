@@ -7,13 +7,25 @@ import { enlazarDir } from "../electron/cli/base/enlaces.ts";
 import { gitOk } from "../electron/cli/base/git.ts";
 import { prologo } from "../electron/cli/pa/entorno.ts";
 import { lanzarClaude, type Corrida } from "../electron/cli/pa/lanzar.ts";
-import { armarLlamada, type DatosLlamada } from "../electron/cli/pa/motores/llamada.ts";
+import { armarLlamada, type DatosLlamada, type Llamada } from "../electron/cli/pa/motores/llamada.ts";
 import { rutasParaCommit } from "../electron/cli/pa/worktrees.ts";
 
 function carpeta(t: TestContext): string {
   const raiz = realpathSync(mkdtempSync(path.join(os.tmpdir(), "pa-codex-")));
   t.after(() => rmSync(raiz, { recursive: true, force: true }));
   return raiz;
+}
+
+const textoPrompt = (l: Llamada): string => l.json === "agy"
+  ? JSON.parse(l.stdin!).message.content[0].text
+  : l.stdin ?? l.tareaArchivo!.texto;
+
+function datosLlamada(raiz: string): DatosLlamada {
+  return {
+    motor: "codex", modelo: "codex:gpt-6-sol-high", contrato: "Commiteá antes del test.", prompt: "Hacé el cambio.",
+    rutaTrabajo: raiz, ruta: raiz, rama: "pa/demo/1", dir: raiz, ts: "1", hb: path.join(raiz, "hb"),
+    mapaProy: path.join(raiz, "mapa"), gitComun: () => "", env: { CLAUDE_CONFIG_DIR: raiz }, io: { err: () => {} },
+  };
 }
 
 test("elige rutas literales de altas, bajas y cambios, sin cachés ni directorios sueltos", () => {
@@ -26,19 +38,14 @@ test("elige rutas literales de altas, bajas y cambios, sin cachés ni directorio
 });
 
 test("sólo el prompt de Codex escritor explica el commit de pa y el límite de los tests", (t) => {
-  const raiz = carpeta(t);
-  const datos = {
-    modelo: "codex:gpt-6-sol-high", contrato: "Commiteá antes del test.", prompt: "Hacé el cambio.",
-    rutaTrabajo: raiz, ruta: raiz, rama: "pa/demo/1", dir: raiz, ts: "1", hb: path.join(raiz, "hb"),
-    mapaProy: path.join(raiz, "mapa"), gitComun: () => "", env: { CLAUDE_CONFIG_DIR: raiz }, io: { err: () => {} },
-  };
+  const datos = datosLlamada(carpeta(t));
   const motores: [DatosLlamada["motor"], string][] = [
     ["codex", datos.modelo], ["agy", "gemini-4-neon-high"], ["dsh", "dsh:ollama/qwen3"], ["opencode", "opencode:opencode/big-pickle"],
   ];
   for (const [motor, modelo] of motores) {
     for (const leer of [false, true]) {
       const llamada = armarLlamada({ ...datos, motor, modelo, leer });
-      const prompt = llamada.tareaArchivo?.texto ?? (motor === "agy" ? llamada.args[1]! : llamada.args.at(-1)!);
+      const prompt = textoPrompt(llamada);
       if (motor === "codex" && !leer) {
         assert.match(prompt, /No corras `git add` ni `git commit`/);
         assert.match(prompt, /pa los commitea al terminar/);
@@ -48,6 +55,38 @@ test("sólo el prompt de Codex escritor explica el commit de pa y el límite de 
       }
     }
   }
+});
+
+test("Codex y agy pasan 40 000 caracteres por stdin también para Windows", () => {
+  const raiz = "C:\\Prueba";
+  const prompt = "á\n".repeat(20_000);
+  const datos = { ...datosLlamada(raiz), plat: "win32" as const, prompt, hb: path.win32.join(raiz, "hb"), mapaProy: path.win32.join(raiz, "mapa") };
+  const codex = armarLlamada(datos);
+  const agy = armarLlamada({ ...datos, motor: "agy", modelo: "gemini-4-neon-high" });
+  assert.equal(codex.args.at(-1), "-");
+  assert.deepEqual(agy.args.slice(0, 2), ["--input-format", "stream-json"]);
+  for (const l of [codex, agy]) {
+    assert.ok(l.args.join(" ").length < 8191);
+    assert.ok(textoPrompt(l).includes(`TAREA:\n${prompt}`));
+  }
+});
+
+test("Codex omite el AGENTS.md del cwd y el CLAUDE.md del dueño tiene el mismo tope que AGENTS.md", (t) => {
+  const raiz = carpeta(t);
+  const datos = datosLlamada(raiz);
+  const rutaTrabajo = path.join(raiz, "worktree");
+  mkdirSync(rutaTrabajo);
+  writeFileSync(path.join(raiz, "AGENTS.md"), "Reglas del principal.\n");
+  writeFileSync(path.join(rutaTrabajo, "AGENTS.md"), "Reglas del worktree.\n");
+  writeFileSync(path.join(raiz, "CLAUDE.md"), "🧶".repeat(24) + "fuera del tope\n");
+  const env = { ...datos.env, PA_AGENTS_MAX: "24" };
+  const p = textoPrompt(armarLlamada({ ...datos, rutaTrabajo, env }));
+  assert.doesNotMatch(p, /AGENTS\.md|Reglas del (principal|worktree)|fuera del tope/);
+  assert.match(p, new RegExp(`${"🧶".repeat(24)}\\n\\[… truncado`));
+  const agy = textoPrompt(armarLlamada({ ...datos, rutaTrabajo, env, motor: "agy", modelo: "gemini-4-neon-high" }));
+  assert.match(agy, /Reglas del worktree/);
+  rmSync(path.join(rutaTrabajo, "AGENTS.md"));
+  assert.match(textoPrompt(armarLlamada({ ...datos, rutaTrabajo, env })), /Reglas del principal/);
 });
 
 async function repo(t: TestContext) {

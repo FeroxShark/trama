@@ -1,5 +1,5 @@
 // El prompt de un worker que no es Claude (agy, codex, dsh, opencode): esos programas no tienen system prompt por flag ni leen
-// CLAUDE.md, así que el contrato, el CLAUDE.md del dueño (sólo a quien puede recibirlo) y el AGENTS.md del proyecto van adelante
+// CLAUDE.md, así que el contrato, el CLAUDE.md del dueño (sólo a quien puede recibirlo) y las reglas que necesite del proyecto van adelante
 // de la tarea. Copia de md_resolver, md_vacio, md_stub_texto, agents_md_candidatos, agents_md_archivo y agents_md_bloque de
 // motor/bin/pa, con lo que hace el `$(...)` de bash (le saca los saltos de línea del final).
 import { readFileSync, realpathSync, statSync } from "node:fs";
@@ -104,14 +104,12 @@ export function agentsMdArchivo(carpetas: string[]): string | null {
   return null;
 }
 
-/** El bloque para el prompt (con los dos saltos adelante), o "". Truncado a PA_AGENTS_MAX caracteres, con aviso por stderr. */
-export function agentsMdBloque(carpetas: string[], env: Env, io: Pick<Io, "err">): string {
+/** El bloque para el prompt (con los dos saltos adelante), truncado a PA_AGENTS_MAX caracteres. */
+function instruccionesMd(f: string, texto: string, env: Env, io: Pick<Io, "err">): string {
   let max = env.PA_AGENTS_MAX ? env.PA_AGENTS_MAX : String(AGENTS_MAX_DEFECTO);
   if (!/^[0-9]+$/.test(max) || Number(max) <= 0) max = String(AGENTS_MAX_DEFECTO);
   const tope = Number(max);
-  const f = agentsMdArchivo(carpetas);
-  if (!f) return "";
-  let t = sinSaltosFinales(mdResolver(f));
+  let t = sinSaltosFinales(texto);
   const cps = Array.from(t);
   const n = cps.length;
   let cab = `${f}; valen igual que las de arriba`;
@@ -123,12 +121,18 @@ export function agentsMdBloque(carpetas: string[], env: Env, io: Pick<Io, "err">
   return sinSaltosFinales(`\n\nINSTRUCCIONES (${cab}):\n${t}`);
 }
 
+/** Las reglas del proyecto que pa tiene que incluir por su cuenta, si hay. */
+export function agentsMdBloque(carpetas: string[], env: Env, io: Pick<Io, "err">): string {
+  const f = agentsMdArchivo(carpetas);
+  return f ? instruccionesMd(f, mdResolver(f), env, io) : "";
+}
+
 /** El CLAUDE.md del dueño (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md`). */
 export const claudeMdDueno = (env: Env, home: string) => path.join(env.CLAUDE_CONFIG_DIR || path.join(home, ".claude"), "CLAUDE.md");
 
 /**
  * El prompt entero de un worker de otro motor: el contrato como «system prompt», los CLAUDE.md que le tocan (`mds`: el del
- * dueño, o ninguno si la tarea sale a otra empresa que no debe verlo), el AGENTS.md del proyecto y la tarea.
+ * dueño, o ninguno si la tarea sale a otra empresa que no debe verlo), las reglas del proyecto si hacen falta y la tarea.
  */
 export function promptOtroMotor(o: { contrato: string; mds: string[]; carpetas: string[]; tarea: string; env: Env; io: Pick<Io, "err"> }): string {
   let p = `INSTRUCCIONES DEL ORQUESTADOR (valen como system prompt):\n${o.contrato}`;
@@ -140,7 +144,7 @@ export function promptOtroMotor(o: { contrato: string; mds: string[]; carpetas: 
     } catch {
       continue;
     }
-    p += `\n\nINSTRUCCIONES (${md}; valen igual que las de arriba):\n${sinSaltosFinales(txt)}`;
+    p += instruccionesMd(md, txt, o.env, o.io);
   }
   p += agentsMdBloque(o.carpetas, o.env, o.io);
   p += `\n\nTAREA:\n${o.tarea}`;
