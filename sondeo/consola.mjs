@@ -65,6 +65,14 @@ if (modo === "raiz-claude") {
   setTimeout(() => process.exit(0), 60_000);
 }
 
+if (modo === "relanzar") {
+  // Como `relanzar` de cli/pa.ts dentro del runner (detached, sin consola): otro proceso de consola con stdio heredado.
+  const [, , , out, nombre, ocultar] = process.argv;
+  const [c, a] = hoja(out, nombre, 3);
+  spawnSync(c, a, { stdio: "inherit", ...(ocultar === "1" ? { windowsHide: true } : {}) });
+  process.exit(0);
+}
+
 // --- el sondeo ----------------------------------------------------------------------------------------------------------------------
 if (!modo) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sondeo-"));
@@ -122,6 +130,32 @@ if (!modo) {
   const lineaCmd = (f) => `cmd.exe /d /s /c "set ELECTRON_RUN_AS_NODE=1&& "${NODE}" "${yo}" lanzador "${f}""`;
 
   console.log(`node ${process.version} · ${os.release()} · ${os.userInfo().username}`);
+  if (process.env.SONDEO_V3) {
+    for (const [nombre, ocultar] of [["R0-relanzar-sin-windowsHide", "0"], ["R1-relanzar-con-windowsHide", "1"]]) {
+      await escenario(nombre, async (out) => {
+        const fd = fs.openSync(out + ".log", "a");
+        spawn(NODE, [yo, "relanzar", out, nombre.slice(0, 2), ocultar], { detached: true, windowsHide: true, stdio: ["ignore", fd, fd] }).unref();
+        await esperar(16000);
+      });
+    }
+    for (const [nombre, sw] of [["WM0-wmi-cmd-ShowWindow0", 0], ["WM1-wmi-cmd-ShowWindow1-control", 1]]) {
+      await escenario(nombre, async (out) => {
+        const [c, a] = hoja(out, nombre.slice(0, 3), 3);
+        const linea = `cmd.exe /d /s /c ""${c}" ${a.map((x) => `"${x}"`).join(" ")}"`;
+        const ps = ["$ErrorActionPreference='Stop'", "$ProgressPreference='SilentlyContinue'",
+          `$st=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ShowWindow=[uint16]${sw}}`,
+          `$a=@{CommandLine=${q(linea)};ProcessStartupInformation=$st}`,
+          "$r=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments $a", 'Write-Output ("rv=" + $r.ReturnValue)'].join("\n");
+        const r = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(ps, "utf16le").toString("base64")], { windowsHide: true, encoding: "utf8", timeout: 60_000 });
+        await esperar(16000);
+        return (r.stdout || "").trim();
+      });
+    }
+    await esperar(5000);
+    for (const f of fs.readdirSync(dir).sort()) if (/\.(txt|log)$/.test(f)) console.log(`--- ${f}\n${fs.readFileSync(path.join(dir, f), "utf8").trim().slice(0, 800)}`);
+    console.log("\nFIN");
+    process.exit(0);
+  }
 
   // Control positivo: una consola visible a propósito (Start-Process abre una consola nueva normal).
   await escenario("P-control-visible", async (out) => {

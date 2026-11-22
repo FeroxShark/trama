@@ -12,8 +12,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: claude code
-        run: npm i -g @anthropic-ai/claude-code
-        continue-on-error: true
       - name: sondeo de consolas
         run: node sondeo/consola.mjs
+        env:
+          SONDEO_V3: "1"
