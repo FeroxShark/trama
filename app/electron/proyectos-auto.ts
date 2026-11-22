@@ -128,6 +128,8 @@ async function alta(archivo: string, carpetas: readonly string[], op: OpcionesAl
   // Lo que ya hay: las carpetas (por clave) y todos los nombres que ocupan.
   const carpetasYa = new Set<string>();
   const usados = new Set<string>();
+  // El slug de la CARPETA (lo que `pa` usa para su estado), aparte de los nombres: dos carpetas con el mismo nombre final se pisan (B079).
+  const slugsCarpeta = new Set<string>();
   for (const r of json.projects) {
     if (!r || typeof r !== "object") continue;
     if (typeof r.name === "string") usados.add(r.name.toLowerCase());
@@ -137,6 +139,8 @@ async function alta(archivo: string, carpetas: readonly string[], op: OpcionesAl
       carpetasYa.add(claveRuta(p, plat));
       carpetasYa.add(claveRuta(await real(normalizar(p, plat)), plat));
       usados.add(slugDe(normalizar(p, plat), plat));
+      slugsCarpeta.add(slugDe(normalizar(p, plat), plat));
+      slugsCarpeta.add(slugDe(normalizar(await real(normalizar(p, plat)), plat), plat));
     }
   }
 
@@ -149,6 +153,8 @@ async function alta(archivo: string, carpetas: readonly string[], op: OpcionesAl
     const verdadera = normalizar(await real(ruta), plat);
     if (esCarpetaDeSistema(verdadera, home, plat) || WORKTREE_PA.test(verdadera)) continue;
     if (carpetasYa.has(claveRuta(ruta, plat)) || carpetasYa.has(claveRuta(verdadera, plat))) continue;
+    // otra carpeta con el mismo nombre final ya es un proyecto: compartirían `$STATE/<slug>` y `pa` saldría 87. No se agrega sola.
+    if (slugsCarpeta.has(slugDe(ruta, plat)) || slugsCarpeta.has(slugDe(verdadera, plat))) continue;
     const nombre = nombreParaAlta(ruta, usados, plat);
     if (!nombre) continue;
     json.projects.push({ name: nombre, path: ruta });
@@ -156,6 +162,7 @@ async function alta(archivo: string, carpetas: readonly string[], op: OpcionesAl
     carpetasYa.add(claveRuta(verdadera, plat));
     usados.add(nombre.toLowerCase());
     usados.add(slugDe(ruta, plat));
+    slugsCarpeta.add(slugDe(ruta, plat));
     agregados.push(nombre);
   }
   if (!agregados.length) return [];
