@@ -10,7 +10,7 @@ import { accionesCarpeta } from "../src/barra/menu-logica.ts";
 import { avisoGit, puedeConfirmar } from "../src/barra/borrar-logica.ts";
 import type { Hilo, Lider } from "../src/datos/contrato.ts";
 import { listarProyectos } from "../electron/proyectos-alias.ts";
-import { contarVivos, motivoPapelera, papeleraProyecto, quitarProyecto, reactivarProyecto, vistaBorrar, type Deps, type ResultadoPapelera } from "../electron/proyectos-borrar.ts";
+import { COMANDO_PAPELERA_WIN, contarVivos, motivoPapelera, papeleraProyecto, quitarProyecto, reactivarProyecto, vistaBorrar, type Deps, type ResultadoPapelera } from "../electron/proyectos-borrar.ts";
 import { mapaQuitados, mapaReemplazos } from "../electron/reemplazos.ts";
 import { textoT } from "../electron/errores.ts";
 
@@ -310,4 +310,11 @@ test("papelera: un proyecto retirado con líderes o workers vivos se rechaza", a
     assert.deepEqual(mandadas, []);
     assert.equal(readFileSync(reg, "utf8"), antes);
   }
+});
+
+// B130: sólo de forma (el comando es de Windows). Con `OnlyErrorDialogs` la shell no confirma y una carpeta que no entra en la Papelera se borraba para siempre.
+test("B130: la papelera de Windows va con la confirmación de la shell puesta, nunca sin diálogos", () => {
+  assert.match(COMANDO_PAPELERA_WIN, /'AllDialogs', 'SendToRecycleBin'/);
+  assert.doesNotMatch(COMANDO_PAPELERA_WIN, /OnlyErrorDialogs|NoUI|DeletePermanently/);
+  assert.match(COMANDO_PAPELERA_WIN, /\$env:TRAMA_PAPELERA/, "la ruta por el entorno, no pegada en el comando");
 });

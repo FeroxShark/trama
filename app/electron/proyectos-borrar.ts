@@ -117,6 +117,14 @@ export const gitReal: NonNullable<Deps["git"]> = (ruta, args) =>
   });
 
 /**
+ * El comando de Windows (B130). `AllDialogs` y no `OnlyErrorDialogs`: éste último apaga la confirmación de la shell, y una carpeta que no
+ * entra en la Papelera de Reciclaje (tamaño, unidad de red) se borraba para siempre sin preguntar. Con la confirmación puesta, Windows
+ * avisa y la persona decide; si cancela, lanza y `papeleraReal` da `fallo` (la carpeta queda donde estaba).
+ */
+export const COMANDO_PAPELERA_WIN =
+  "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($env:TRAMA_PAPELERA, 'AllDialogs', 'SendToRecycleBin')";
+
+/**
  * La papelera del sistema, nunca borrado definitivo. Linux: `gio trash`. Windows: la Papelera de Reciclaje por PowerShell
  * (`Microsoft.VisualBasic.FileIO`), con la ruta por el entorno (sin armar comandos con texto de la persona). `sin`: no hay con qué.
  */
@@ -132,7 +140,7 @@ export const papeleraReal: NonNullable<Deps["papelera"]> = (ruta) =>
               "-NoProfile",
               "-NonInteractive",
               "-Command",
-              "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($env:TRAMA_PAPELERA, 'OnlyErrorDialogs', 'SendToRecycleBin')",
+              COMANDO_PAPELERA_WIN,
             ],
             { ...process.env, TRAMA_PAPELERA: ruta },
           ] as const)
