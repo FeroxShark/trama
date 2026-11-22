@@ -7,8 +7,8 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 ## Resumen
 
 - **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
-  - arreglado: 77
-  - pendiente: 73
+  - arreglado: 78
+  - pendiente: 72
   - refutado: 5
   - arreglado a medias: 3
 - **Ideas: 102**.
@@ -24,7 +24,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 | Puentes a otros motores | 20 | 19 | 1 |
 | Reparto y cupos | 15 | 6 | 9 |
 | Sistema: instalación, actualización y servicio | 16 | 15 | 1 |
-| Vistos trabajando esta noche | 16 | 4 | 12 |
+| Vistos trabajando esta noche | 16 | 5 | 11 |
 
 ## Bugs
 
@@ -762,7 +762,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/avisos-worker.ts`.
 - Arreglo: decidir el texto por el código de salida y el estado final, con test de un worker que termina bien después de un reintento.
 
-**B151 · `estado_workers` devuelve más de diez mil tokens** (`NOCHE-8`, severidad media) · **PENDIENTE**
+**B151 · `estado_workers` devuelve más de diez mil tokens** (`NOCHE-8`, severidad media) · **ARREGLADO**
 - Qué pasa: la herramienta lista todos los hilos de todos los proyectos con su resultado entero, sin tope: una consulta de estado le cuesta al líder una parte grande del contexto.
 - Dónde: `app/electron/cli/mcp-trama.ts`.
 - Arreglo: tope de filas y de largo por resultado, filtro por proyecto y por estado, y decir cuántos quedaron afuera.
