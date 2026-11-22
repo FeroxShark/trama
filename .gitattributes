@@ -9,6 +9,8 @@ motor/plantillas/** text eol=lf
 *.mjs text eol=lf
 *.py text eol=lf
 *.service text eol=lf
+# Los .cmd de Windows (guardias de codex) siempre con CRLF, como los que arma el payload
+motor/codex/bin/*.cmd text eol=crlf
 
 # Binarios
 *.png binary
