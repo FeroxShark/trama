@@ -7,6 +7,7 @@ import path from "node:path";
 import { ahoraS, leerTexto } from "./corridas.ts";
 import { salir, conDueno, dondeSeBusco, type Pa } from "./entorno.ts";
 import { limiteDe } from "./lanzar.ts";
+import { esCandado, textoDe, type ResultadoChequeo } from "./motores/chequeo.ts";
 import {
   DSH_MODELOS, GEMINI_MODELOS, OC_MODELOS, TIPOS_VALIDOS, calza, esCodex, esDsh, esGemini, esLocal, esOpencode,
   type Modelos, type Politica,
@@ -89,11 +90,14 @@ export function llamadaDe(o: Opciones): Llamada {
   };
 }
 
-/** Los chequeos de motor que miran afuera (etapa 10). Devuelven el motivo por el que NO va ("" = va). */
+/**
+ * Los chequeos de motor que miran afuera (etapa 10). Devuelven el motivo por el que NO va ("" = va): un texto pelado, o un `Motivo` si
+ * es el candado de contenido (la política decide por esa clase, no por el texto).
+ */
 export interface Motores {
-  chequearGemini(modelo: string, l: Llamada): Promise<string>;
-  chequearCodex(modelo: string, l: Llamada): Promise<string>;
-  chequearDsh(modelo: string, l: Llamada): Promise<string>;
+  chequearGemini(modelo: string, l: Llamada): Promise<ResultadoChequeo>;
+  chequearCodex(modelo: string, l: Llamada): Promise<ResultadoChequeo>;
+  chequearDsh(modelo: string, l: Llamada): Promise<ResultadoChequeo>;
   /** "ok" o el motivo (`local_estado`). */
   estadoLocal(url: string, modelo: string): Promise<string>;
 }
@@ -107,6 +111,8 @@ export interface DepsPolitica {
   proyectoRuta: (p: string) => string | null;
   /** `command -v claude`. */
   claudeEnPath: () => boolean;
+  /** ¿La Claude de siempre tiene sesión (credenciales o clave en el entorno)? Sólo cuenta si además está instalada. */
+  claudeConSesion: () => boolean;
 }
 
 // ------------------------------------------------------------------------------------------- helpers del bash
@@ -535,13 +541,13 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
       let patrones: string[] = [];
       if (esGemini(m)) {
         await cuentaResolver("google", l, pa, deps);
-        motivo = await deps.motores.chequearGemini(m, l);
+        motivo = textoDe(await deps.motores.chequearGemini(m, l));
         patrones = ["agy:*", "gemini-*"];
       } else if (esCodex(m)) {
-        motivo = await deps.motores.chequearCodex(m, l);
+        motivo = textoDe(await deps.motores.chequearCodex(m, l));
         patrones = ["codex:*"];
       } else if (esDsh(m)) {
-        motivo = await deps.motores.chequearDsh(l.modelo, l);
+        motivo = textoDe(await deps.motores.chequearDsh(l.modelo, l));
         patrones = [m];
       } else if (!esLocal(m)) {
         await cuentaResolver(proveedorDe(l.modelo, true), l, pa, deps);
@@ -575,6 +581,20 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     }
   }
 
+  // Un otro motor que el candado de contenido no deja salir (secreto, repo con secretos, red o ruta de afuera). Con un -m explícito NO se pasa
+  // a Claude (sale 96): el pedido era de otro motor y sin_cupo no decide acá. Si el modelo lo eligió reparto, modelos.json o una
+  // sustitución, sigue cayendo a Claude (el aviso trae lo que lo disparó) pero sólo si Claude está instalado y con sesión.
+  const caeAClaudePorCandado = (modelo: string, motivo: string): void => {
+    if (l.modeloPedido && !l.vinoDeReparto && !l.sustituidoDe)
+      corta(
+        pa,
+        96,
+        `pa: no lanzo '${modelo}': ${motivo}. Pediste ese modelo con -m y pa no lo pasa a Claude por su cuenta. Sacá eso del brief, o relanzá con -m claude-… (o sin -m, que elige reparto).`,
+      );
+    if (!deps.claudeEnPath() || !deps.claudeConSesion())
+      corta(pa, 96, `pa: no lanzo '${modelo}': ${motivo}, y no hay una Claude instalada y con sesión adonde caer. Sacá eso del brief.`);
+  };
+
   // --- Gemini y Claude/GPT por agy, ChatGPT por codex, dsh/opencode y locales: validar, o caer al equivalente Claude ---
   l.motor = "claude";
   l.geminiPedido = "";
@@ -606,9 +626,11 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     if (l.maxBudget) corta(pa, 2, `pa: --max-budget-usd no va con '${l.modelo}' (agy se paga con el cupo, no en US$).`);
     politica();
     if (!env.PA_ASYNC) {
-      const motivo = l.chequeado === l.modelo ? "" : await deps.motores.chequearGemini(l.modelo, l);
+      const res = l.chequeado === l.modelo ? "" : await deps.motores.chequearGemini(l.modelo, l);
+      const motivo = textoDe(res);
+      if (esCandado(res)) caeAClaudePorCandado(l.modelo, motivo);
       if (!motivo) l.motor = "agy";
-      else if (l.vinoDeReparto || l.sustituidoDe || l.politica.sinCupo === "otro") {
+      else if (l.vinoDeReparto || l.sustituidoDe || l.politica.sinCupo === "otro" || esCandado(res)) {
         const [m, e] = geminiEquivalente(l.modelo);
         io.err(`pa: ${l.modelo} → ${m} effort ${e}: ${motivo}.\n`);
         l.geminiPedido = l.modelo;
@@ -629,9 +651,11 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     if (l.maxBudget) corta(pa, 2, `pa: --max-budget-usd no va con '${l.modelo}' (codex se paga con la suscripción de ChatGPT, no en US$).`);
     politica();
     if (!env.PA_ASYNC) {
-      const motivo = l.chequeado === l.modelo ? "" : await deps.motores.chequearCodex(l.modelo, l);
+      const res = l.chequeado === l.modelo ? "" : await deps.motores.chequearCodex(l.modelo, l);
+      const motivo = textoDe(res);
+      if (esCandado(res)) caeAClaudePorCandado(l.modelo, motivo);
       if (!motivo) l.motor = "codex";
-      else if (l.vinoDeReparto || l.politica.sinCupo === "otro") {
+      else if (l.vinoDeReparto || l.politica.sinCupo === "otro" || esCandado(res)) {
         const [m, e] = codexEquivalente(l.modelo);
         io.err(`pa: ${l.modelo} → ${m} effort ${e}: ${motivo}.\n`);
         l.geminiPedido = l.modelo;
@@ -673,7 +697,9 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     if (l.maxBudget) corta(pa, 2, `pa: --max-budget-usd no va con '${l.modelo}' (${eng} no mide el gasto en US$).`);
     if (l.cuenta && !esOpencode(l.modelo)) corta(pa, 2, `pa: --cuenta no va con '${l.modelo}': ${eng} no usa ninguna suscripción de pa.`);
     if (!env.PA_ASYNC) {
-      const motivo = l.chequeado === l.modelo.toLowerCase() ? "" : await deps.motores.chequearDsh(l.modelo, l);
+      const res = l.chequeado === l.modelo.toLowerCase() ? "" : await deps.motores.chequearDsh(l.modelo, l);
+      const motivo = textoDe(res);
+      if (esCandado(res)) caeAClaudePorCandado(l.modelo, motivo);
       if (!motivo) l.motor = "dsh";
       else if (l.vinoDeReparto && deps.claudeEnPath()) {
         io.err(`pa: ${l.modelo} → claude-sonnet-5-5 effort high: ${motivo}.\n`);

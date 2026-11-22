@@ -1,7 +1,10 @@
 // Los candados de contenido antes de mandar una tarea a otra empresa (agy, codex, dsh/opencode remotos): un pedido con pinta de
 // secreto, un repo que trackea archivos de secretos y un pedido que necesita red o leer fuera del worktree. Copia de
-// gemini_secreto_en, gemini_secreto_trackeado, gemini_afuera_en y gemini_privacidad de motor/bin/pa. Un falso positivo sólo manda
-// la corrida a Claude.
+// gemini_secreto_en, gemini_secreto_trackeado, gemini_afuera_en y gemini_privacidad de motor/bin/pa. Un falso positivo no manda nada a
+// otra empresa. Qué pasa cuando salta (B152, política en `politica.ts`; el bash congelado cae siempre a Claude): con un `-m` explícito a
+// otro motor la corrida sale 96 diciendo qué lo disparó (sacarlo del brief, o relanzar con `-m claude-…` o sin `-m`), sin pasar a Claude
+// por su cuenta; si el modelo lo eligió reparto o una sustitución, cae a Claude con el motivo en el aviso, pero sólo con Claude
+// instalado y con sesión (si no, 96). `chequeo.ts` devuelve el motivo con su clase (`Motivo.candado`): no se decide por el texto.
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 

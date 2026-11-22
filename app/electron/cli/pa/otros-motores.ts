@@ -13,7 +13,7 @@ import { hallarCodex, paraLanzar, resolverAgy } from "../../binario.ts";
 import { homeDe } from "../../rutas.ts";
 import type { Env, Pa } from "./entorno.ts";
 import { mapaDe, promptDe, usaSkills, type Corrida, type Lanzamiento, type OpcionesLanzar } from "./lanzar.ts";
-import { chequearAgy, chequearCodex, chequearDsh, localEstado, type Local } from "./motores/chequeo.ts";
+import { chequeoAgy, chequeoCodex, chequeoDsh, localEstado, type Local } from "./motores/chequeo.ts";
 import { armarLlamada, conCuenta, type EntornoCuenta, type Llamada } from "./motores/llamada.ts";
 import { esOpencode, Modelos } from "./modelos.ts";
 import type { Llamada as LlamadaPa, Motores } from "./politica.ts";
@@ -259,10 +259,10 @@ export function motoresDe(pa: Pa): Partial<Motores> {
   return {
     chequearGemini: async (_m, l) => {
       const e = cuentaEnvDe(l.cuentaEnv);
-      return chequearAgy({ ...datos(l), envCuenta: conCuenta(pa.env, { sacar: e.quitar, poner: e.poner }) });
+      return chequeoAgy({ ...datos(l), envCuenta: conCuenta(pa.env, { sacar: e.quitar, poner: e.poner }) });
     },
-    chequearCodex: async (_m, l) => chequearCodex(datos(l)),
-    chequearDsh: (m, l) => chequearDsh(m, { ...datos(l), locales: localesDe(new Modelos(pa.env, mudo, pa.home, pa.plat)) }),
+    chequearCodex: async (_m, l) => chequeoCodex(datos(l)),
+    chequearDsh: (m, l) => chequeoDsh(m, { ...datos(l), locales: localesDe(new Modelos(pa.env, mudo, pa.home, pa.plat)) }),
     estadoLocal: (url, modelo) => localEstado(url, modelo, pa.env),
   };
 }

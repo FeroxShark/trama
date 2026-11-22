@@ -11,6 +11,7 @@ import path from "node:path";
 import { plataformaActual, type Plataforma } from "../../rutas.ts";
 import { esEjecutable } from "../base/buscar.ts";
 import { resolverClaude } from "../../binario.ts";
+import { haySesionClaude } from "../../credenciales-claude.ts";
 import { git } from "../base/git.ts";
 import { main as proyectoRutaMain, resolverProyecto } from "../proyecto-ruta.ts";
 import { AYUDA } from "./ayuda.ts";
@@ -95,6 +96,8 @@ export interface Deps {
   /** Corre otro `pa` con esos argumentos y variables extra (los intentos de -m a,b,c); devuelve su código. */
   relanzar?: (argv: string[], extra: Env) => number | Promise<number>;
   esEjecutable?: (f: string) => boolean;
+  /** ¿Hay sesión de Claude? (los tests lo reemplazan; por defecto mira las credenciales y el entorno). */
+  claudeConSesion?: () => boolean;
   plat?: Plataforma;
   /** El modo Objetivo (`--objetivo`): con qué se relanza `pa` para --async y cuánto esperar a que tome puesto (los tests lo ajustan). */
   objetivo?: Partial<Pick<DepsObjetivo, "comando" | "vueltasAsync" | "pausaAsyncMs">>;
@@ -420,6 +423,7 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
       }
     },
     claudeEnPath: () => resolverClaude(env, pa.home, pa.esEjecutable ?? ((f) => esEjecutable(f, plat)), plat) !== "claude",
+    claudeConSesion: deps.claudeConSesion ?? (() => Boolean(env.ANTHROPIC_API_KEY || env.CLAUDE_CODE_OAUTH_TOKEN) || haySesionClaude(env.CLAUDE_CONFIG_DIR || path.join(pa.home, ".claude"))),
   };
   await aplicarPolitica(l, pa, depsPol);
   // Un líder de agy (Gemini) corta lo que sigue vivo al terminar la llamada de su herramienta de comandos o el turno: un worker en primer plano

@@ -13,6 +13,7 @@ import { entornoCmd } from "../../binario.ts";
 import { avisarFalta, type Pa } from "./entorno.ts";
 import { carpetaProyectos, contratoClaude, escapar, hiloPoner, limiteDe, type Corrida, type Ganchos, type Lanzamiento } from "./lanzar.ts";
 import { Modelos, esCodex, esDsh, esGemini, esLocal } from "./modelos.ts";
+import { textoDe } from "./motores/chequeo.ts";
 import { cuentaProveedor, modeloFlojo, proveedorDe, type DepsPolitica, type Llamada, type Motores } from "./politica.ts";
 import type { Admision } from "./puestos.ts";
 import { cuentasProceso, prefijoDe, repartoProceso, topeReparto } from "./programas.ts";
@@ -76,7 +77,7 @@ async function aplicarCandidato(pa: Pa, l: Llamada, c: Candidato, motores: Parti
   if (!cuenta) return `no hay una cuenta de ${pRep} para correrlo`;
   if (otroMotor) {
     const chequeo = esCodex(mRep) ? motores.chequearCodex : esDsh(mRep) ? motores.chequearDsh : motores.chequearGemini;
-    const motivo = (await chequeo?.(mRep, { ...l, cuentaEnv: cuentaEnvArgs(cuenta.env) })) ?? "";
+    const motivo = textoDe((await chequeo?.(mRep, { ...l, cuentaEnv: cuentaEnvArgs(cuenta.env) })) ?? "");
     if (motivo) return motivo;
   }
   l.modelo = esGemini(mRep) ? mRep.toLowerCase() : mRep;
@@ -211,7 +212,7 @@ async function relanzarPorModeloAgy(pa: Pa, l: Llamada, lz: Lanzamiento): Promis
     return avisoOfrece();
   }
   // el siguiente candidato pasa por los mismos candados que el primero (privacidad, agy en el PATH, el plugin pa-worker)
-  const motivo = (await motoresDe(pa).chequearGemini?.(mRep, l)) ?? "";
+  const motivo = textoDe((await motoresDe(pa).chequearGemini?.(mRep, l)) ?? "");
   if (motivo) {
     io.err(`pa: ${quien} (modelo que esta cuenta no ofrece) con ${mAnt}; reparto ofrece ${mRep} pero no puede correr (${motivo}); sigo como falló.\n`);
     return avisoOfrece();
@@ -401,7 +402,7 @@ export function relanzarPorCupo(pa: Pa, l: Llamada, motores: Partial<Motores> = 
     if (otroMotor) {
       // el candidato pasa por los mismos candados que el primero (privacidad, el programa en el PATH, la sesión, la key)
       const chequeo = esCodex(mRep) ? motores.chequearCodex : esDsh(mRep) ? motores.chequearDsh : motores.chequearGemini;
-      const motivo = (await chequeo?.(mRep, { ...l, cuentaEnv: cuentaEnvArgs(cuenta.env) })) ?? "";
+      const motivo = textoDe((await chequeo?.(mRep, { ...l, cuentaEnv: cuentaEnvArgs(cuenta.env) })) ?? "");
       if (motivo) {
         io.err(`pa: ${quien} (sin cupo) con ${mAnt}; reparto ofrece ${mRep} pero no puede correr (${motivo}); sigo como falló.\n`);
         return false;

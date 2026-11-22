@@ -147,6 +147,19 @@ export async function localEstado(url: string, modelo: string, env: Env): Promis
 
 // ---------------------------------------------------------------- privacidad + programa
 
+/**
+ * Por qué un motor no va, con su clase: `candado` = el candado de contenido (secreto, repo con secretos, red o ruta de afuera), que ningún
+ * otro motor remoto resuelve y que un `-m` explícito no debe esquivar mandando el pedido a Claude. Lo demás (agy sin sesión, sin
+ * programa, sin key…) es un string pelado: se arregla del lado de la máquina. Un chequeo devuelve "" si va.
+ */
+export interface Motivo {
+  texto: string;
+  candado: boolean;
+}
+export type ResultadoChequeo = string | Motivo;
+export const textoDe = (r: ResultadoChequeo): string => (typeof r === "string" ? r : r.texto);
+export const esCandado = (r: ResultadoChequeo): boolean => typeof r !== "string" && r.candado;
+
 /** La carpeta real del proyecto (`realpath -m "$(proyecto-ruta X)"`), o "" si no se encuentra. */
 function rutaProyecto(proyecto: string, env: Env): string {
   try {
@@ -156,9 +169,10 @@ function rutaProyecto(proyecto: string, env: Env): string {
     return "";
   }
 }
-const privacidadDe = (proyecto: string, tarea: string, destino: string, env: Env) => {
+const privacidadDe = (proyecto: string, tarea: string, destino: string, env: Env): Motivo | "" => {
   const r = rutaProyecto(proyecto, env);
-  return r ? privacidad(r, tarea, destino, homeDe(env)) : "";
+  const t = r ? privacidad(r, tarea, destino, homeDe(env)) : "";
+  return t ? { texto: t, candado: true } : "";
 };
 
 /** ¿El json de `agy -p /hooks` dice que el hook pa-worker está cargado y habilitado (con su PreToolUse)? */
@@ -218,6 +232,10 @@ export const MOTIVO_SIN_SESION_AGY = "agy no tiene sesión de Google (abrí `agy
 
 /** Gemini (agy): privacidad, agy en el PATH, la sesión de Google y el plugin pa-worker cargado. */
 export function chequearAgy(d: DatosChequeo): string {
+  return textoDe(chequeoAgy(d));
+}
+/** Lo mismo que `chequearAgy`, pero con la clase del motivo (candado de contenido u otro). */
+export function chequeoAgy(d: DatosChequeo): ResultadoChequeo {
   const plat = d.plat ?? plataformaActual();
   const m = privacidadDe(d.proyecto, d.tarea, "Google", d.env);
   if (m) return m;
@@ -247,6 +265,10 @@ export function chequearAgy(d: DatosChequeo): string {
 
 /** ChatGPT (codex): privacidad, codex en el PATH y sesión iniciada. */
 export function chequearCodex(d: DatosChequeo): string {
+  return textoDe(chequeoCodex(d));
+}
+/** Lo mismo que `chequearCodex`, pero con la clase del motivo. */
+export function chequeoCodex(d: DatosChequeo): ResultadoChequeo {
   const plat = d.plat ?? plataformaActual();
   const m = privacidadDe(d.proyecto, d.tarea, "OpenAI", d.env);
   if (m) return m;
@@ -266,6 +288,10 @@ const nodeDisponible = (env: Env, plat: Plataforma) => plat === "win32" || !!enP
 
 /** opencode (el programa): modelo bien armado, privacidad, node, el runner y opencode instalado. El login no se mira. */
 export function chequearOpencode(modelo: string, d: DatosChequeo): string {
+  return textoDe(chequeoOpencode(modelo, d));
+}
+/** Lo mismo que `chequearOpencode`, pero con la clase del motivo. */
+export function chequeoOpencode(modelo: string, d: DatosChequeo): ResultadoChequeo {
   const plat = d.plat ?? plataformaActual();
   if (!calza(OC_MODELOS, modelo)) return `'${modelo}' no es un modelo de opencode (opencode:<proveedor>/<modelo>)`;
   const m = privacidadDe(d.proyecto, d.tarea, "OpenCode", d.env);
@@ -280,7 +306,11 @@ export function chequearOpencode(modelo: string, d: DatosChequeo): string {
 
 /** dsh: privacidad (salvo ollama, que es local), node, el runner, dsh, la key y (ollama) el servidor con el modelo. */
 export async function chequearDsh(modelo: string, d: DatosChequeo & { locales?: Local[] | null }): Promise<string> {
-  if (esOpencode(modelo)) return chequearOpencode(modelo, d);
+  return textoDe(await chequeoDsh(modelo, d));
+}
+/** Lo mismo que `chequearDsh`, pero con la clase del motivo. */
+export async function chequeoDsh(modelo: string, d: DatosChequeo & { locales?: Local[] | null }): Promise<ResultadoChequeo> {
+  if (esOpencode(modelo)) return chequeoOpencode(modelo, d);
   const plat = d.plat ?? plataformaActual();
   const prov = dshProveedor(modelo);
   const mod = dshModeloDe(modelo);
