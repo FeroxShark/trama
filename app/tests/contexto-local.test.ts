@@ -232,8 +232,8 @@ test("prefacioDsh con opencode: dice opencode (no DeepSeek) y el modelo real", a
 
 test("PUENTES-19: un proyecto fuera de ~ usa el tope de proyecto (no el de 4000 tokens de ~) y un AGENTS.md que el recorte dejó afuera va aparte", async () => {
   const archivos: Record<string, string> = {
-    "proj/CLAUDE.md": "intro\n" + "a\n".repeat(15000) + "reglas de agents",
-    "proj/AGENTS.md": "reglas de agents",
+    [path.join("proj", "CLAUDE.md")]: "intro\n" + "a\n".repeat(15000) + "reglas de agents",
+    [path.join("proj", "AGENTS.md")]: "reglas de agents",
   };
   const ctx = await armarContexto({ home: "fake-home", cwd: "proj", ctx: 40000, perfil: "gemini", deps: { leer: async (f: string) => archivos[f] ?? null, hook: async () => "" } } as any);
   const claude = ctx.partes.find((p) => p.titulo === "CLAUDE.md de proj");
