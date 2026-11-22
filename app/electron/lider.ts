@@ -62,6 +62,8 @@ import {
 } from "./lider-arma.js";
 import * as puntos from "./puntos.ts";
 import { archivosDelPlan, codexListo, correrRevisor, effortApagado, revisoresPermitidos, type OpcionesCorrida, type RevisionEstado } from "./revision-plan.ts";
+import { cuposActuales } from "./cupos.js";
+import { cupoLibreDeModelo } from "./debate-cupo.ts";
 import { crearModificador, crearTrabajos, type Pendiente } from "./revision-trabajo.ts";
 import { type EventoDebate, type Participante } from "./debate.ts";
 import { crearDebates } from "./debate-trabajo.ts";
@@ -2368,6 +2370,8 @@ export function debatesDe(correr: typeof correrRevisor = correrRevisor) {
         plan: String((q.ev as { plan?: string | null }).plan ?? ""),
         deps: {
           correr: (m, e, p, o: OpcionesCorrida) => correr(m, e, p, g.cwd, o),
+          // Habla primero y concluye el de más cupo libre (sin dato, al final; a igualdad, el orden en que se eligieron).
+          cupo: (m) => cupoLibreDeModelo(m, cuposActuales()),
           pedidoOriginal: async () => (await temaDe(x.sid, await transcriptDe(x.sid, g.cwd))).primero ?? null,
           cwd: () => g.cwd,
           // Gemini corre en una carpeta vacía (agy no tiene modo sólo lectura): se le pega lo que el plan nombra. Claude lee solo.

@@ -4,6 +4,8 @@ import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { acuerdoTotal, iniciarDebate, PREGUNTA_ESPERA_MS, leerMensajeDebate, mensajeDebateParaLider, parsearConclusion, parsearTurno, textoDeTurno, transcripcionParaPrompt, type DepsDebate, type EventoDebate } from "../electron/debate.ts";
 import { esperarHasta } from "./esperar.ts";
+import { cupoLibreDeModelo } from "../electron/debate-cupo.ts";
+import type { CuposLeidos } from "../electron/cupos.ts";
 
 const turno = (postura: string, arg = "razón", plan = "", pregunta = "") =>
   `## Postura\n${postura}\n\n## Argumento\n${arg}\n${plan ? `\n## Plan propuesto\n${plan}\n` : ""}${pregunta ? `\n## Pregunta para el dueño\n${pregunta}\n` : ""}`;
@@ -261,4 +263,21 @@ test("columnas en vivo: mientras un modelo habla su estado lleva el texto y lo q
   const turnoA = hecho.eventos.at(-1)!.estado.lineas.find((l) => l.tipo === "turno" && l.modelo === "a");
   assert.deepEqual(turnoA?.pasos, [{ k: "leer", v: "plan-a.md" }]);
   assert.ok(hecho.eventos.at(-1)!.estado.participantes.every((p) => !p.vivo), "al terminar nadie está escribiendo");
+});
+
+test("cupoLibreDeModelo: el de la suscripción del modelo; agotada es 0, sin dato es null (B028)", () => {
+  const cupos: CuposLeidos = {
+    ts: 0,
+    suscripciones: [
+      { id: "claude", nombre: "Claude", proveedor: "claude", ts: 0, ventanas: [{ id: "5h", pct: 30, vuelve: null }, { id: "7d", pct: 80, vuelve: null }] },
+      { id: "google", nombre: "Google", proveedor: "google", ts: 0, grupos: [{ id: "g", nombre: "G", ventanas: [{ id: "5h", pct: 10, vuelve: null }] }], agotado: 5000 },
+      { id: "chatgpt", nombre: "ChatGPT", proveedor: "chatgpt", ts: 0, ventanas: [{ id: "5h", pct: 95, vuelve: null, deshabilitada: true }, { id: "7d", pct: 40, vuelve: null }] },
+    ],
+  };
+  assert.equal(cupoLibreDeModelo("claude-fable-5-2", cupos, 1000), 20);
+  assert.equal(cupoLibreDeModelo("gemini-4-neon", cupos, 1000), 0, "marcada sin cupo hasta más tarde");
+  assert.equal(cupoLibreDeModelo("gemini-4-neon", cupos, 6000), 90);
+  assert.equal(cupoLibreDeModelo("codex:gpt-6.1-sol", cupos, 1000), 60);
+  assert.equal(cupoLibreDeModelo("ollama:x", cupos, 1000), null);
+  assert.equal(cupoLibreDeModelo("claude-fable-5-2", null), null);
 });
