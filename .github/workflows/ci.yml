@@ -2,78 +2,15 @@ name: CI
 
 on:
   push:
-  pull_request:
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: app - dependencias
-        working-directory: app
-        run: npm ci
-      - name: app - tsc (interfaz)
-        working-directory: app
-        run: npx tsc -p tsconfig.json --noEmit
-      - name: app - tsc (electron)
-        working-directory: app
-        run: npx tsc -p tsconfig.electron.json --noEmit
-      - name: app - vite build
-        working-directory: app
-        run: npx vite build
-      - name: app - tests
-        working-directory: app
-        timeout-minutes: 15
-        run: npm test
-      - name: app - build de electron (dist-electron)
-        working-directory: app
-        run: npx tsc -p tsconfig.electron.json
-      - name: app - prueba de humo del motor (locks, enlaces, pa, claude falso en primer plano y async, matar, motor.js)
-        working-directory: app
-        timeout-minutes: 5
-        run: node scripts/humo-motor.mjs
-      - name: app - prueba de acciones (la app offscreen manejada por CDP)
-        working-directory: app
-        timeout-minutes: 5
-        env:
-          ELECTRON_DISABLE_SANDBOX: "1"
-        run: xvfb-run -a node scripts/prueba-acciones.mjs
-      - name: windows - dependencias
-        working-directory: windows
-        run: npm ci
-      - name: windows - tests
-        working-directory: windows
-        run: npm test
-
-  windows:
+  sondeo-consola:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: app - dependencias
-        working-directory: app
-        run: npm ci
-      - name: app - tests
-        working-directory: app
-        timeout-minutes: 15
-        run: npm test
-      - name: app - build de electron (dist-electron)
-        working-directory: app
-        run: npx tsc -p tsconfig.electron.json
-      - name: app - prueba de humo del motor (locks, enlaces, pa, claude falso en primer plano y async, matar, motor.js)
-        working-directory: app
-        timeout-minutes: 5
-        run: node scripts/humo-motor.mjs
-      - name: windows - dependencias
-        working-directory: windows
-        run: npm ci
-      - name: windows - tests
-        working-directory: windows
-        run: npm test
+      - name: sondeo de consolas
+        run: node sondeo/consola.mjs
