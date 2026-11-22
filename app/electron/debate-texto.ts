@@ -2,7 +2,7 @@
 // prompt de un turno y el de la conclusión, cómo se lee lo que contesta cada modelo (Postura / Argumento / Plan propuesto / Pregunta
 // para el dueño), la cuenta de si coinciden del todo y el mensaje que recibe el líder (con una marca, como la revisión de la etapa 1).
 // Sin imports de Node: lo prueba tests/debate.test.ts. El moderador (rondas, turnos, cortes): debate.ts. Diseño: docs/modo-debate-diseno.md.
-import { sinComillas, type ArchivoAdjunto, type PasoRevision } from "./revision-plan-texto.ts";
+import { PLAN_MAX, sinComillas, type ArchivoAdjunto, type PasoRevision } from "./revision-plan-texto.ts";
 
 /** Rondas: de 1 a 3 (default 2). En cada una habla cada participante una vez. */
 export const RONDAS_MIN = 1;
@@ -15,6 +15,10 @@ export const PARTICIPANTES_MAX = 3;
 export const TURNOS_MAX_POR_MODELO = 3;
 /** Cuánto de lo dicho por cada participante se le pasa a los demás (caracteres). */
 export const TRANSCRIPCION_MAX = 6000;
+/** El argumento de un turno que leen los demás se recorta a esto: lo que importa del turno es su plan, que no se corta salvo que pase `PLAN_MAX`. */
+export const ARGUMENTO_MAX = 1500;
+/** Lo más que entra de un solo turno en lo que leen los demás: el argumento recortado más un plan de tamaño máximo. */
+const TURNO_MAX = ARGUMENTO_MAX + PLAN_MAX + 1000;
 /** Cuánto se espera la respuesta del dueño a una pregunta antes de seguir sin ella. */
 export const PREGUNTA_ESPERA_MS = 10 * 60_000;
 /** Cuántas opciones puede traer una pregunta (más de eso se recorta; menos de 2 no es una pregunta con botones). */
@@ -198,7 +202,7 @@ export function textoDeTurno(t: Pick<TurnoLeido, "postura" | "argumento" | "plan
   if (t.libre) return t.libre;
   return [
     `Postura: ${t.postura}`,
-    t.argumento ? `Argumento: ${t.argumento}` : "",
+    t.argumento ? `Argumento: ${t.argumento.length > ARGUMENTO_MAX ? `${t.argumento.slice(0, ARGUMENTO_MAX)}… (recortado)` : t.argumento}` : "",
     t.plan ? `Plan propuesto:\n${t.plan}` : "",
     t.pregunta ? `Pregunta para el dueño: ${t.pregunta.texto} (${t.pregunta.opciones.join(" / ")})` : "",
   ]
@@ -227,7 +231,8 @@ export function transcripcionParaPrompt(dicho: readonly DichoDebate[], max = TRA
       omitido = true;
       return;
     }
-    const cuerpo = d.texto.length > max ? `${d.texto.slice(0, max)}\n(recortado)` : d.texto;
+    const tope = Math.max(max, TURNO_MAX);
+    const cuerpo = d.texto.length > tope ? `${d.texto.slice(0, tope)}\n(recortado)` : d.texto;
     sal.push(`### ${d.quien} · ronda ${d.ronda}`, cuerpo, "");
   });
   return [...(omitido ? ["(se omiten turnos anteriores muy largos)", ""] : []), ...sal].join("\n").trim();

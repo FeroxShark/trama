@@ -2,6 +2,9 @@
 // mensaje que recibe el líder, con una marca para que la ventana lo dibuje como tarjeta del revisor y no como un mensaje de la persona.
 // Sin imports: lo prueba tests/revision-plan.test.ts. La orquestación y el corredor: revision-plan.ts.
 
+/** Lo más largo que se acepta de plan: más que esto no es un plan, es otra cosa. */
+export const PLAN_MAX = 60_000;
+
 /** El revisor por defecto (cupo de Google: no gasta el de Claude, que es el del líder). */
 export const REVISOR_DEFECTO = "gemini-4-neon";
 

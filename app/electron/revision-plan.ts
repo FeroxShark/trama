@@ -19,13 +19,12 @@ import { claseDeModelo, idAgy, modeloAgy, partirGemini } from "./modelos-config.
 import { reglaDeExcluir, familiaClaude } from "./reparto-claude.ts";
 import { hijoEnGrupo, matarArbol } from "./procesos.ts";
 import { LectorAgy, LectorClaude, LectorCodex, type Avance } from "./revision-flujo.ts";
-import { mensajeParaLider, parsearRevision, promptRevisor, sinComillas, type ArchivoAdjunto, type RevisionVista } from "./revision-plan-texto.ts";
+import { mensajeParaLider, parsearRevision, PLAN_MAX, promptRevisor, sinComillas, type ArchivoAdjunto, type RevisionVista } from "./revision-plan-texto.ts";
 
 export * from "./revision-plan-texto.ts";
 export type { Avance } from "./revision-flujo.ts";
 
-/** Lo más largo que se acepta de plan: más que esto no es un plan, es otra cosa. */
-export const PLAN_MAX = 60_000;
+export { PLAN_MAX };
 /** Cuánto como mucho espera a que el revisor conteste. */
 export const ESPERA_REVISOR_MS = 10 * 60_000;
 

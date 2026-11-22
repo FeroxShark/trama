@@ -2,7 +2,7 @@
 // y un solo modelo que queda (revisión simple), todo con revisores simulados (sin gastar cupo).
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
-import { acuerdoTotal, iniciarDebate, PREGUNTA_ESPERA_MS, leerMensajeDebate, mensajeDebateParaLider, parsearConclusion, parsearTurno, transcripcionParaPrompt, type DepsDebate, type EventoDebate } from "../electron/debate.ts";
+import { acuerdoTotal, iniciarDebate, PREGUNTA_ESPERA_MS, leerMensajeDebate, mensajeDebateParaLider, parsearConclusion, parsearTurno, textoDeTurno, transcripcionParaPrompt, type DepsDebate, type EventoDebate } from "../electron/debate.ts";
 import { esperarHasta } from "./esperar.ts";
 
 const turno = (postura: string, arg = "razón", plan = "", pregunta = "") =>
@@ -68,6 +68,14 @@ test("mensaje del debate: va y vuelve con su marca; la transcripción recorta lo
   assert.equal(leerMensajeDebate("hola"), null);
   const t = transcripcionParaPrompt([{ quien: "A", ronda: 1, texto: "x".repeat(5000) }, { quien: "A", ronda: 2, texto: "y".repeat(5000) }, { quien: "B", ronda: 1, texto: "corto" }]);
   assert.ok(!t.includes("xxxx") && t.includes("yyyy") && t.includes("corto") && t.includes("se omiten"));
+});
+
+test("la transcripción no corta el plan propuesto: se recorta el argumento antes que el plan (B026)", () => {
+  const plan = Array.from({ length: 800 }, (_, i) => `${i + 1}. paso número ${i + 1}`).join("\n") + "\nFIN-DEL-PLAN";
+  assert.ok(plan.length > 6000);
+  const t = transcripcionParaPrompt([{ quien: "A", ronda: 1, texto: textoDeTurno({ postura: "cambio", argumento: "a".repeat(5000), plan, pregunta: null }) }]);
+  assert.ok(t.includes("FIN-DEL-PLAN"), "la cola del plan llega a los demás");
+  assert.ok(!t.includes("a".repeat(2000)), "el argumento largo sí se recorta");
 });
 
 test("acuerdo total en la ronda 1 corta: no hay ronda 2, concluye y entrega al líder", async () => {
