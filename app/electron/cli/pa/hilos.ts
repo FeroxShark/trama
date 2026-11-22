@@ -557,6 +557,8 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
     decision: noVacio(dec),
     decision_nada: dnada === null ? null : dnada === "1",
     rc: h.rc,
+    // B149: un entregado que falló (rc ≠ 0 o is_error) no es «Terminó»: la barra lo dibuja «No terminó». Sólo cuando no hay otro estado que lo diga.
+    fallo: estado === "entregado" && fallo,
     sigue: noVacio(H.sigue),
     verificado: noVacio(H.verificado) === null ? null : H.verificado === "1",
     resultado,
