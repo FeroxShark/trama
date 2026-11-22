@@ -39,6 +39,10 @@ function repoFalso(dir) {
   escribir(path.join(r, "motor", "codex", "bin", "git"), "#!/usr/bin/env bash\n");
   escribir(path.join(r, "motor", "codex", "bin", "git.mjs"), "// ok\n");
   escribir(path.join(r, "motor", "codex", "bin", "git.cmd"), "@echo off\r\n");
+  escribir(path.join(r, "motor", "dsh", "correr.mjs"), "// ok\n");
+  escribir(path.join(r, "motor", "opencode", "correr.mjs"), "// ok\n");
+  escribir(path.join(r, "motor", "opencode", "go-topes.json"), "{}");
+  escribir(path.join(r, "motor", "opencode", "LEEME.md"), "# no va");
   escribir(path.join(r, "motor", "skills", "trama-orquestar", "SKILL.md"), "# skill");
   escribir(path.join(r, "motor", "plantillas", "home", "CLAUDE.md"), "# líder");
   escribir(path.join(r, "motor", "datos", "aa-suplemento.json"), "{}");
@@ -67,7 +71,10 @@ test("arma el payload por lista permitida: sólo la app compilada, hooks .mjs, s
       "app/dist-electron/cli/workers.js",
       "app/dist-electron/motor.js",
       "app/dist/index.html",
+      "app/dsh/correr.mjs",
       "app/hooks/latido.mjs",
+      "app/opencode/correr.mjs",
+      "app/opencode/go-topes.json",
       "app/package.json",
       "app/plantillas/home/CLAUDE.md",
       "app/scripts/asegurar-cli.mjs",
@@ -166,6 +173,17 @@ test("las guardias de git y cargo de codex (.mjs y .cmd reales) pasan la revisi�
       assert.ok(cmd.includes(`"%~dp0${n}.mjs" %*`) && cmd.includes("\r\n"));
       assert.ok(fs.existsSync(path.join(bin, `${n}.mjs`)));
     }
+  }));
+
+test("los runners reales de dsh y opencode pasan la revisión sin bash", () =>
+  conDir((dir) => {
+    for (const [o, d] of [["dsh", "dsh"], ["opencode", "opencode"]]) {
+      const src = path.join(REPO, "motor", o);
+      for (const f of fs.readdirSync(src).filter((f) => /\.(mjs|json)$/.test(f))) {
+        escribir(path.join(dir, "app", d, f), fs.readFileSync(path.join(src, f), "utf8"));
+      }
+    }
+    assert.deepEqual(p.revisarSinBash(dir, []).problemas, []);
   }));
 
 test("node.exe fijado: versión LTS y sha256 de 64 hex, bajado de nodejs.org", () => {

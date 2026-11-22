@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { codexShims } from "../electron/cli/pa/motores/chequeo.ts";
+import { codexShims, dshCorrer, opencodeCorrer } from "../electron/cli/pa/motores/chequeo.ts";
 import { conShims } from "../electron/cli/pa/motores/llamada.ts";
 // @ts-expect-error módulo .mjs del motor, sin tipos
 import { buscarReal, guardiaCargo, guardiaGit, subcomandoGit } from "../../motor/codex/bin/guardias.mjs";
@@ -182,9 +182,22 @@ test("codexShims: motor/codex/bin; en el payload de Windows (sin motor/) app/cod
   assert.equal(codexShims({ ...env, PA_CODEX_SHIMS: "/otra" }, () => false), "/otra");
 });
 
+test("dshCorrer y opencodeCorrer: motor/<x>/correr.mjs; en el payload de Windows app/<x>/correr.mjs", () => {
+  const env = { TRAMA_MOTOR_DIR: path.join(os.tmpdir(), "m") };
+  for (const [fn, x, var_] of [[dshCorrer, "dsh", "PA_DSH_CORRER"], [opencodeCorrer, "opencode", "PA_OPENCODE_CORRER"]] as const) {
+    const motor = path.join(env.TRAMA_MOTOR_DIR, x, "correr.mjs");
+    const payload = path.join(env.TRAMA_MOTOR_DIR, "app", x, "correr.mjs");
+    assert.equal(fn(env, (f) => f === motor), motor);
+    assert.equal(fn(env, (f) => f === payload), payload);
+    assert.equal(fn(env, () => false), motor, "sin ninguno, la de motor/ (para el «falta …»)");
+    assert.equal(fn({ ...env, [var_]: "/otro.mjs" }, () => false), "/otro.mjs");
+  }
+});
+
 test("los .cmd llaman a su .mjs con PA_NODE (o node), en CRLF", () => {
   for (const n of ["git", "cargo"]) {
     const cmd = readFileSync(path.join(BIN, `${n}.cmd`), "utf8");
+    assert.match(cmd, /set "ELECTRON_RUN_AS_NODE=1"/, "PA_NODE puede ser el Electron de la app");
     assert.match(cmd, new RegExp(`"%PA_NODE%" "%~dp0${n}\\.mjs" %\\*`));
     assert.match(cmd, /set "PA_NODE=node"/);
     assert.ok(!cmd.replace(/\r\n/g, "").includes("\n"), "sólo CRLF");
