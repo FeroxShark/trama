@@ -175,3 +175,23 @@ test("cuentaDeSesion en Windows: USERPROFILE manda y las rutas no distinguen may
   assert.equal(cuentaDeSesion({ HOME: "/home/ana", CLAUDE_CONFIG_DIR: "/home/Ana/.claude", TRAMA_CUENTAS: json }, "linux"), null);
   assert.equal(cuentaDeSesion({ HOME: "/home/ana", CLAUDE_CONFIG_DIR: "/home/ana/.claude" }, "linux"), "claude");
 });
+
+test("una entrada con grupo (el límite propio de Fable) no la aplica el hook: no ve el modelo de la sesión", () => {
+  assert.equal(correr(estado([ent({ ventana: "7d", grupo: "fable" })]), "s1"), null);
+  assert.ok(correr(estado([ent({ ventana: "7d", grupo: "fable" }), ent()]), "s1"), "la de toda la suscripción sí");
+});
+
+test("cierreDeModelo: la entrada de Fable cierra a un id de Fable y no a Sonnet; sin modelo no cierra a nadie", () => {
+  const f = ent({ ventana: "7d", grupo: "fable" });
+  assert.equal(cierreDeModelo([f], "claude-fable-5-2"), f);
+  assert.equal(cierreDeModelo([f], "claude-sonnet-5-5"), null);
+  assert.equal(cierreDe([f], "claude", "claude", null), null);
+  assert.equal(cierreDe([f], "claude", "claude", null, "claude-fable-5-2"), f);
+});
+
+test("el aviso por la cola no llega a un líder de otro modelo que el del límite propio", () => {
+  const vivo = (modelo: string): LiderVivo => ({ sid: modelo, modelo, effort: "high", clase: "agy", ocupado: true });
+  const vivos = [vivo("claude-fable-5-2"), vivo("claude-sonnet-5-5")];
+  assert.deepEqual(lideresParaAvisar(vivos, { proveedor: "claude", grupo: "fable" }).map((l) => l.sid), ["claude-fable-5-2"]);
+  assert.equal(lideresParaAvisar(vivos, { proveedor: "claude" }).length, 2);
+});

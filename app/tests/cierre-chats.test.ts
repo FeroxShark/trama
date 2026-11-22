@@ -280,3 +280,14 @@ test("sin que la persona haya escrito, la tarjeta «Volvió el cupo» sigue al a
   b.c.arrancar();
   assert.equal(b.c.de("a")?.fase, "volvio");
 });
+
+test("el límite propio de Fable cierra sólo a los chats de Fable y no retiene a los otros cuando vuelve la semana general", () => {
+  const { e, c } = armar({ trabajando: ["f", "s"], modelos: { f: "claude-fable-5-2", s: "claude-sonnet-5-5" } });
+  assert.deepEqual(c.alCierre(entrada({ ventana: "7d", grupo: "fable" })), ["f"]);
+  assert.deepEqual(e.avisos.map((a) => a.sid), ["f"]);
+  assert.equal(c.de("s"), null, "Sonnet no se cierra porque se acabó Fable");
+  // La semana general (sin grupo) cierra a los dos; al volver la de Fable, el de Sonnet no se toca y el de Fable sigue por la general.
+  assert.deepEqual(c.alCierre(entrada({ ventana: "7d" })).sort(), ["f", "s"]);
+  c.alVolvio(entrada({ ventana: "7d", grupo: "fable" }), [entrada({ ventana: "7d" })]);
+  assert.ok(c.de("s") && c.de("f"));
+});

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ajustesCierreDe, CIERRE_DEFECTO, CONFIRMAR_VOLVIO_S, crearVigilante, lecturasDeUso, leerSenal, suscripcionDeModelo, type AjustesCierre, type LecturaCupo } from "../electron/cierre-cupo.ts";
+import { ajustesCierreDe, CIERRE_DEFECTO, CONFIRMAR_VOLVIO_S, crearVigilante, entradaRigeAModelo, familiaDeLimite, lecturasDeUso, leerSenal, suscripcionDeModelo, type AjustesCierre, type LecturaCupo } from "../electron/cierre-cupo.ts";
 import { crearCierreCupo } from "../electron/cierre-cupo-disco.ts";
 import { validarCierre } from "../electron/valida-ajustes.ts";
 import { leerConfig, unir, validarConfig } from "../electron/modelos-tipos.ts";
@@ -209,4 +209,25 @@ test("cierre en modelos.json: defaults, lectura, validación y escritura", () =>
   assert.throws(() => validarConfig({ cierre: "no" }));
   assert.deepEqual(unir({ version: 1, otra: 1 }, validarConfig({ cierre: { umbral: 8 } })).cierre, { umbral: 8 });
   assert.equal(unir({ version: 1, cierre: { umbral: 8 } }, validarConfig({})).cierre, undefined);
+});
+
+test("el límite propio de un modelo (Fable) es una lectura 7d con grupo, y se dispara aparte de la semana general", () => {
+  const uso = { seven_day: { pct: 75, resets_at: R5 + 86_400 }, por_modelo: [{ modelo: "Fable", pct: 96, resets_at: R5 }, { modelo: "", pct: 1, resets_at: null }] };
+  const ls = lecturasDeUso(uso);
+  assert.deepEqual(ls.find((l) => l.grupo), { proveedor: "claude", cuenta: "claude", ventana: "7d", grupo: "fable", usado: 96, vuelve: R5 });
+  assert.equal(ls.length, 2, "la semana general y la de Fable; la entrada sin nombre se saltea");
+  const p = crearVigilante().paso(ls, ON, AHORA);
+  assert.deepEqual(p.nuevas.map((e) => [e.ventana, e.grupo]), [["7d", "fable"]]);
+  // Sin por_modelo todo sigue como antes.
+  assert.equal(lecturasDeUso({ seven_day: uso.seven_day }).some((l) => l.grupo), false);
+});
+
+test("una entrada de Claude con grupo rige sólo a los modelos de esa familia", () => {
+  assert.equal(familiaDeLimite("Claude Opus 5"), "opus");
+  const e = { proveedor: "claude", grupo: "fable" };
+  assert.equal(entradaRigeAModelo(e, "claude-fable-5-2"), true);
+  assert.equal(entradaRigeAModelo(e, "claude-sonnet-5-5"), false);
+  assert.equal(entradaRigeAModelo(e, null), false);
+  assert.equal(entradaRigeAModelo({ proveedor: "claude" }, "claude-sonnet-5-5"), true);
+  assert.equal(entradaRigeAModelo({ proveedor: "google", grupo: "gemini" }, "gemini-4"), true);
 });

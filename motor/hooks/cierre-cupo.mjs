@@ -63,7 +63,8 @@ export async function decidir({ senal, sesion, evento, e = env, ahora = Math.flo
   if (e.ANTHROPIC_BASE_URL) return null; // un claude contra otro endpoint (Ollama, un proxy): no gasta cupo de la suscripción
   const cuenta = cuentaDeSesion(e);
   if (!cuenta) return null;
-  const vivas = senal.entradas.filter((x) => x && x.proveedor === "claude" && x.cuenta === cuenta && (x.vuelve === null || x.vuelve === undefined || x.vuelve > ahora));
+  // Una entrada con `grupo` es el límite propio de un modelo (Fable): el hook no ve el modelo de la sesión y no la aplica a todas.
+  const vivas = senal.entradas.filter((x) => x && x.proveedor === "claude" && x.cuenta === cuenta && !x.grupo && (x.vuelve === null || x.vuelve === undefined || x.vuelve > ahora));
   if (!vivas.length) return null;
   // Una marca por sesión y ventana, creada con `wx`: si dos copias del hook corren a la vez (el de ~/.claude/settings.json y el que
   // la app agrega al líder) sólo una la crea y sólo esa inyecta.

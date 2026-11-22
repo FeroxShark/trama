@@ -18,6 +18,9 @@
 //   llama como el proveedor; una agregada de Claude, su id). `ventana`: `5h` o `7d` (u otro id que diga `reparto`).
 // - `grupo`: sólo Google, el grupo de modelos de `agy` cuya ventana se acaba. Quien no sepa a qué grupo va un modelo trata la
 //   entrada como de toda la suscripción.
+//   Claude también usa `grupo`: el límite semanal propio de un modelo (Fable, `weekly_scoped` de `get_usage`) es una entrada `7d` con
+//   `grupo` = la familia en minúsculas (`fable`) que sólo rige a los modelos cuyo id la lleva (`entradaRigeAModelo`). Quien no sabe el
+//   modelo (el hook de Claude Code no lo ve) la ignora: que se acabe Fable no frena a Sonnet.
 // - `restante`: % que queda (0..100, entero); `umbral`: el de Ajustes cuando se disparó; `vuelve`: epoch s del reinicio de la
 //   ventana (`null`: no se sabe); `desde`: epoch s en que se cruzó el umbral.
 // - Una entrada vive desde que se cruza el umbral hasta que pasa `vuelve` (se borra al reset). Sin entradas el archivo no
@@ -45,6 +48,24 @@ export function suscripcionDeModelo(modelo: string | null | undefined): Suscripc
   return id === "claude" || id === "google" || id === "chatgpt" ? id : null;
 }
 
+/**
+ * La familia con la que se relaciona el límite propio de un modelo de Claude («Fable», `weekly_scoped` de `get_usage`) con los ids de
+ * modelo: el nombre en minúsculas, sin «claude», primera palabra («Fable» → `fable`; «Claude Opus 5» → `opus`). Sin lista fija de modelos.
+ */
+export function familiaDeLimite(nombre: unknown): string {
+  if (typeof nombre !== "string") return "";
+  return nombre.toLowerCase().replace(/^\s*claude[\s-]+/, "").split(/[^a-z0-9]+/).find((x) => x) ?? "";
+}
+
+/**
+ * ¿Rige esta entrada a ese modelo? Una de Claude con `grupo` (el límite propio de una familia) sólo a los ids que la llevan; sin saber el
+ * modelo no rige a nadie. Las demás (toda la suscripción, o el grupo de Google, que se resuelve aparte) rigen siempre.
+ */
+export function entradaRigeAModelo(e: { proveedor: string; grupo?: string }, modelo: string | null | undefined): boolean {
+  if (e.proveedor !== "claude" || !e.grupo) return true;
+  return !!modelo && modelo.toLowerCase().includes(e.grupo);
+}
+
 /** Lo que se sabe del uso de una ventana: `usado` 0..100 (`null`: sin dato), `vuelve` epoch s. */
 export type LecturaCupo = { proveedor: Suscripcion; cuenta: string; ventana: string; grupo?: string; usado: number | null; vuelve: number | null };
 
@@ -57,6 +78,8 @@ type VentanaMin = { id: string; pct: number | null; vuelve: number | null; desha
 export type UsoMin = {
   five_hour?: { pct: number; resets_at: number | null } | null;
   seven_day?: { pct: number; resets_at: number | null } | null;
+  /** Los límites semanales propios de un modelo de Claude (Fable…): una lectura `7d` con `grupo` = su familia. */
+  por_modelo?: { modelo: string; pct: number; resets_at: number | null }[];
   suscripciones?: { id: string; proveedor?: string; cuenta?: string; ventanas?: VentanaMin[]; grupos?: { id: string; ventanas: VentanaMin[] }[] }[];
 };
 
@@ -68,6 +91,10 @@ export function lecturasDeUso(uso: UsoMin | null | undefined): LecturaCupo[] {
   const out: LecturaCupo[] = [];
   if (uso.five_hour) out.push({ proveedor: "claude", cuenta: "claude", ventana: "5h", usado: uso.five_hour.pct, vuelve: uso.five_hour.resets_at });
   if (uso.seven_day) out.push({ proveedor: "claude", cuenta: "claude", ventana: "7d", usado: uso.seven_day.pct, vuelve: uso.seven_day.resets_at });
+  for (const m of Array.isArray(uso.por_modelo) ? uso.por_modelo : []) {
+    const grupo = familiaDeLimite(m?.modelo);
+    if (grupo && typeof m.pct === "number") out.push({ proveedor: "claude", cuenta: "claude", ventana: "7d", grupo, usado: m.pct, vuelve: m.resets_at ?? null });
+  }
   for (const s of uso.suscripciones ?? []) {
     // `reparto --cupos` llama «openai» a ChatGPT (sin `proveedor`): para el cierre es `chatgpt`
     const p = s.proveedor ?? (s.id === "openai" ? "chatgpt" : s.id);

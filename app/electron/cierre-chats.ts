@@ -8,7 +8,7 @@
 // - Al pasar `vuelve` + `MARGEN_RETOMAR_S`, cada chat con `retomar` encendido recibe en su cola el mensaje de retomar (`textoRetomar`), salvo que la persona
 //   haya escrito en ese chat después del cierre. Todo vive en disco: reabrir Trama (o prender la PC después de la hora) retoma igual.
 import type { EntradaCierre, Suscripcion } from "./cierre-cupo.ts";
-import { suscripcionDeModelo } from "./cierre-cupo.ts";
+import { entradaRigeAModelo, suscripcionDeModelo } from "./cierre-cupo.ts";
 
 /** Se espera un poco más que la hora de reinicio de la ventana: la lectura del uso puede redondear. */
 export const MARGEN_RETOMAR_S = 60;
@@ -158,6 +158,8 @@ export function crearCierreChats(d: Deps) {
     for (const sid of d.trabajando()) {
       if (suscripcionDeModelo(d.modeloDe(sid)) !== e.proveedor) continue;
       if (e.proveedor === "claude" && (d.cuentaDe?.(sid) ?? "claude") !== e.cuenta) continue;
+      // El límite propio de un modelo (Fable) sólo cierra a los chats de ese modelo.
+      if (!entradaRigeAModelo(e, d.modeloDe(sid))) continue;
       const previo = registros.get(sid);
       // Un registro que ya se retomó, o cuyo cupo ya volvió, es de otro cierre: éste empieza de cero.
       const antes = previo && !previo.retomado && !(previo.vuelve !== null && previo.vuelve <= d.ahora()) ? previo : undefined;
@@ -193,10 +195,13 @@ export function crearCierreChats(d: Deps) {
    */
   function alVolvio(e: EntradaCierre, vigentes: readonly EntradaCierre[]): void {
     const ahora = d.ahora();
-    const siguen = vigentes.filter((v) => v.proveedor === e.proveedor && v.cuenta === e.cuenta);
+    const mismaCuenta = vigentes.filter((v) => v.proveedor === e.proveedor && v.cuenta === e.cuenta);
     const tocados: string[] = [];
     for (const [sid, r] of registros) {
       if (r.proveedor !== e.proveedor || r.cuenta !== e.cuenta || r.retomado) continue;
+      // Un chat de otro modelo no estaba cerrado por el límite propio de éste, ni lo retiene el de otro.
+      if (!entradaRigeAModelo(e, d.modeloDe(sid))) continue;
+      const siguen = mismaCuenta.filter((v) => entradaRigeAModelo(v, d.modeloDe(sid)));
       tocados.push(sid);
       if (siguen.length) {
         const vuelve = siguen.some((v) => v.vuelve === null) ? null : Math.max(...siguen.map((v) => v.vuelve as number));

@@ -16,6 +16,7 @@ import { haySesionClaude } from "../credenciales-claude.ts";
 import { hijoEnGrupo, matarArbol } from "../procesos.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
+import { familiaDeLimite } from "../cierre-cupo.ts";
 import { cierreDe, cierresVigentes, suscripcionDeProveedor, textoSinCupo } from "./cierre-cupo-lectura.ts";
 import { esPrincipal } from "./base/principal.ts";
 import {
@@ -1192,15 +1193,6 @@ export function fuentesUso(paState: string, cuenta: Obj | null, env: NodeJS.Proc
   else if (c.resolve(paState) === c.resolve(estadoPa({ ...env, PA_STATE: undefined }, h, plat))) usos.push(c.join(estadoHilos({ ...env, HILOS_STATE: undefined }, h, plat), "uso.json"));
   else usos.push(c.join(paState, "hilos", "uso.json"));
   return usos;
-}
-
-/**
- * La familia con la que se relaciona el límite propio de un modelo de Claude («Fable», `weekly_scoped` de `get_usage`) con los ids de
- * `reparto`: el nombre en minúsculas, sin «claude», primera palabra («Fable» → `fable`; «Claude Opus 5» → `opus`). Sin lista fija de modelos.
- */
-export function familiaDeLimite(nombre: unknown): string {
-  if (typeof nombre !== "string") return "";
-  return (nombre.toLowerCase().replace(/^\s*claude[\s-]+/, "").split(/[^a-z0-9]+/).find((x) => x) ?? "");
 }
 
 /** El límite semanal propio que corta a este modelo de Claude, si lo hay y sigue agotado (100 %) hasta una hora futura: `[nombre, vuelve]`. */
@@ -3211,7 +3203,7 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
   const cierres = cierresVigentes(estadoPaPlat(), Math.floor(now.getTime() / 1000));
   if (cierres.length) {
     for (const c of cands) {
-      const e = c.descartado_por ? null : cierreDe(cierres, suscripcionDeProveedor(get(c, "proveedor")), get(c, "cuenta"), get(c, "proveedor") === "google" ? get(c, "grupo") : null);
+      const e = c.descartado_por ? null : cierreDe(cierres, suscripcionDeProveedor(get(c, "proveedor")), get(c, "cuenta"), get(c, "proveedor") === "google" ? get(c, "grupo") : null, pyStr(get(c, "modelo", "")));
       if (!e) continue;
       c.descartado_por = textoSinCupo(e, now.getTime() / 1000);
       if (e.vuelve !== null) c.vuelve = iso(new Date(e.vuelve * 1000));

@@ -3,7 +3,7 @@
 // Sin Electron: sólo `node:fs` y lo puro de cierre-cupo.ts. Lo prueba tests/cierre-cupo-hook.test.ts.
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { ARCHIVO_CIERRE, leerSenal, suscripcionDeModelo, type EntradaCierre, type Suscripcion } from "../cierre-cupo.ts";
+import { ARCHIVO_CIERRE, entradaRigeAModelo, leerSenal, suscripcionDeModelo, type EntradaCierre, type Suscripcion } from "../cierre-cupo.ts";
 
 /** Las entradas vigentes de la señal (las de una ventana que ya volvió no cuentan); `[]` sin archivo o roto. */
 export function cierresVigentes(estadoPa: string, ahora = Math.floor(Date.now() / 1000)): EntradaCierre[] {
@@ -35,12 +35,13 @@ export function grupoDeModelo(modelo: string | null | undefined): string | null 
  * La entrada que cierra esa suscripción (y esa cuenta, si se sabe cuál; sin cuenta vale cualquiera de la suscripción). Con varias
  * ventanas cerradas gana la que vuelve más tarde (`null`: no se sabe, la más tarde de todas). Una entrada con `grupo` (Google) sólo
  * cierra a los modelos de ese grupo: que se acabe Gemini no frena a Argon ni a Claude por agy. Sin saber el grupo del modelo, cierra a todos.
+ * Una de Claude con `grupo` (el límite propio de Fable…) sólo cierra al `modelo` que lleva esa familia: sin `modelo` no cierra a nadie.
  */
-export function cierreDe(entradas: readonly EntradaCierre[], sus: Suscripcion | null, cuenta?: string | null, grupo?: string | null): EntradaCierre | null {
+export function cierreDe(entradas: readonly EntradaCierre[], sus: Suscripcion | null, cuenta?: string | null, grupo?: string | null, modelo?: string | null): EntradaCierre | null {
   if (!sus) return null;
   if (cuenta === "openai") cuenta = "chatgpt"; // reparto llama «openai» a la cuenta de ChatGPT; la señal la guarda como `chatgpt`
   const cs = entradas.filter(
-    (e) => e.proveedor === sus && (!cuenta || e.cuenta === cuenta || (cuenta === sus && e.cuenta === sus)) && (!e.grupo || !grupo || e.grupo === grupo),
+    (e) => e.proveedor === sus && (!cuenta || e.cuenta === cuenta || (cuenta === sus && e.cuenta === sus)) && (!e.grupo || !grupo || e.grupo === grupo) && entradaRigeAModelo(e, modelo),
   );
   if (!cs.length) return null;
   return cs.reduce((a, b) => ((b.vuelve ?? Infinity) > (a.vuelve ?? Infinity) ? b : a));
@@ -48,7 +49,7 @@ export function cierreDe(entradas: readonly EntradaCierre[], sus: Suscripcion | 
 
 /** Lo mismo para un modelo como lo escribe `pa -m`. */
 export const cierreDeModelo = (entradas: readonly EntradaCierre[], modelo: string, cuenta?: string | null): EntradaCierre | null =>
-  cierreDe(entradas, suscripcionDeModelo(modelo), cuenta, grupoDeModelo(modelo));
+  cierreDe(entradas, suscripcionDeModelo(modelo), cuenta, grupoDeModelo(modelo), modelo);
 
 const dos = (n: number) => String(n).padStart(2, "0");
 /** `HH:MM` local (con `dd/mm` si no es de hoy). */

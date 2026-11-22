@@ -7,7 +7,8 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { familiaDeLimite, limiteDeModelo } from "../electron/cli/reparto.ts";
+import { familiaDeLimite } from "../electron/cierre-cupo.ts";
+import { limiteDeModelo } from "../electron/cli/reparto.ts";
 
 process.env.REPARTO_AA_SUPLEMENTO = "0";
 const REPARTO_TS = path.join(import.meta.dirname, "..", "electron", "cli", "reparto.ts");

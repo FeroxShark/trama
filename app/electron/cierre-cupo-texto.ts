@@ -7,7 +7,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { cierreCupoRegistrado, comandoCierreCupo, comandoNotaCompactar, EVENTOS_CIERRE_CUPO, EVENTOS_NOTA_COMPACTAR } from "./cli/hooks.ts";
 import { resolverMotor } from "./cli/pa/entorno.ts";
-import { suscripcionDeModelo, type EntradaCierre } from "./cierre-cupo.ts";
+import { entradaRigeAModelo, suscripcionDeModelo, type EntradaCierre } from "./cierre-cupo.ts";
 
 export type Idioma = "es" | "en";
 export type RolCierre = "worker" | "lider";
@@ -110,8 +110,8 @@ export type LiderVivo = { sid: string; modelo: string; effort: string; clase: st
  * cuya suscripción es la de la entrada y que están respondiendo (uno ocioso no se despierta). La entrada con `grupo` (Google) vale para
  * toda la suscripción, como dice el protocolo.
  */
-export function lideresParaAvisar(vivos: readonly LiderVivo[], entrada: Pick<EntradaCierre, "proveedor">): LiderVivo[] {
-  return vivos.filter((l) => l.clase !== "claude" && l.clase !== "ollama" && l.ocupado && suscripcionDeModelo(l.modelo) === entrada.proveedor);
+export function lideresParaAvisar(vivos: readonly LiderVivo[], entrada: Pick<EntradaCierre, "proveedor" | "grupo">): LiderVivo[] {
+  return vivos.filter((l) => l.clase !== "claude" && l.clase !== "ollama" && l.ocupado && suscripcionDeModelo(l.modelo) === entrada.proveedor && entradaRigeAModelo(entrada, l.modelo));
 }
 
 /** Manda el texto de líder a cada uno que corresponde. `encolar` es la cola del main (`cola.encolar` con un item de `paraCola`). */
