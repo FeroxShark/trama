@@ -15,12 +15,14 @@ test("Windows: un nombre suelto nunca resuelve al archivo sin extensión; gana e
   writeFileSync(path.join(d, "opencode"), "#!/bin/sh\n");
   writeFileSync(path.join(d, "opencode.cmd"), "@echo off\r\n");
   const env = { PATH: d, PATHEXT: ".COM;.EXE;.BAT;.CMD" };
-  assert.equal(enPath("opencode", [], env, "win32"), path.join(d, "opencode.cmd"));
+  // Windows no distingue mayúsculas: enPath arma `opencode` + `.CMD` de PATHEXT.
+  const en = (n: string) => enPath(n, [], env, "win32")?.toLowerCase() ?? null;
+  assert.equal(en("opencode"), path.join(d, "opencode.cmd").toLowerCase());
   // con carpeta, igual
-  assert.equal(enPath(path.join(d, "opencode"), [], env, "win32"), path.join(d, "opencode.cmd"));
+  assert.equal(en(path.join(d, "opencode")), path.join(d, "opencode.cmd").toLowerCase());
   // si ya trae la extensión, vale tal cual
-  assert.equal(enPath("opencode.cmd", [], env, "win32"), path.join(d, "opencode.cmd"));
+  assert.equal(en("opencode.cmd"), path.join(d, "opencode.cmd").toLowerCase());
   // sólo el script sin extensión: no hay nada que Windows pueda ejecutar
   writeFileSync(path.join(d, "solo"), "#!/bin/sh\n");
-  assert.equal(enPath("solo", [], env, "win32"), null);
+  assert.equal(en("solo"), null);
 });
