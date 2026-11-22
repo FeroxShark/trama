@@ -17,6 +17,17 @@ export function asignacionAlMover(natural: string | null | undefined, destino: s
 export const esOtraCarpeta = (propia: string | null | undefined, destino: string | null | undefined): destino is string => !!destino && destino !== propia;
 
 /**
+ * Carpeta inicial de un líder recién creado: `deCarpeta` (cwd de un proyecto) > la del líder del que deriva (`de`) > `nuevaEn` (+ de una carpeta).
+ * Así un `nuevaEn` viejo no secuestra la carpeta al ramificar o seguir desde otro chat.
+ */
+export const carpetaDeLiderNuevo = (o: {
+  deCarpeta?: string;
+  nuevaEn?: string | null;
+  de?: string;
+  carpetaDe: (sid: string) => string | undefined;
+}): string | undefined => o.deCarpeta ?? (o.de ? o.carpetaDe(o.de) : (o.nuevaEn ?? undefined));
+
+/**
  * Las carpetas que ofrece «Mover a proyecto…»: la del home (`general`) primero y el resto por nombre, sin repetidos (por slug y por
  * cómo se ve). Entran las del registro, las que están en la barra y la que ya tiene elegida a mano.
  */

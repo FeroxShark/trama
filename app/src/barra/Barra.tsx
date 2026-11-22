@@ -104,7 +104,7 @@ import {
 } from "./arbol";
 import { tituloTarea } from "../../electron/titulo-tarea";
 import { armarArrastre, CARPETAS } from "./arrastre";
-import { asignacionAlMover, carpetasParaMover } from "./mover-logica";
+import { asignacionAlMover, carpetaDeLiderNuevo, carpetasParaMover } from "./mover-logica";
 import { diferir, workerVivo, type Trabajador } from "./activas";
 import { control } from "./control";
 import { Fila, FilaLider, PliegueTerminados, RESORTE } from "./Fila";
@@ -788,6 +788,7 @@ export function Barra() {
   }, []);
 
   const abrir = useCallback((id: string) => {
+    nuevaEn.current = null;
     alFrente();
     setActiva(id);
     setPanel(null);
@@ -797,6 +798,7 @@ export function Barra() {
   }, []);
 
   const abrirLider = useCallback((id: string) => {
+    nuevaEn.current = null;
     alFrente();
     setPanel(null);
     setActiva(LIDER + id);
@@ -891,6 +893,7 @@ export function Barra() {
 
   // Un subagente de un líder: sus pasos a la derecha (src/hilo/Subagente.tsx).
   const abrirSub = useCallback((sid: string, id: string) => {
+    nuevaEn.current = null;
     alFrente();
     setPanel(null);
     setActiva(claveSub(sid, id));
@@ -1120,7 +1123,7 @@ export function Barra() {
     // Nació con "Nueva tarea aquí": va a esa carpeta (como un Mover a proyecto…), salvo que la caja lo haya mandado a la carpeta de otro proyecto.
     const deCarpeta = e.carpeta && !e.maquina ? proyectosRef.current.find((p) => llanaRuta(p.ruta) === llanaRuta(e.carpeta!))?.slug : undefined;
     // Salió de otro líder (empezar con resumen, ramificar): va a la carpeta en la que estaba ése, no al home.
-    const en = deCarpeta ?? nuevaEn.current ?? (e.de ? carpetaDeLider.current(e.de) : undefined);
+    const en = carpetaDeLiderNuevo({ deCarpeta, nuevaEn: nuevaEn.current, de: e.de, carpetaDe: (s) => carpetaDeLider.current(s) });
     nuevaEn.current = null;
     // También si nació en la carpeta de un proyecto: el líder real (que reemplaza al fantasma) se agrupa por sus workers o por lo que nombra
     // su primer mensaje, no por su cwd, y sin esto saltaba de su proyecto a la carpeta del home apenas llegaba.

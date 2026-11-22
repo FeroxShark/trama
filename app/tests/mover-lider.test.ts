@@ -3,7 +3,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { armarArbol } from "../src/barra/arbol.ts";
-import { asignacionAlMover, carpetasParaMover, esOtraCarpeta } from "../src/barra/mover-logica.ts";
+import { armarArrastre, CARPETAS, type Movida } from "../src/barra/arrastre.ts";
+import { asignacionAlMover, carpetaDeLiderNuevo, carpetasParaMover, esOtraCarpeta } from "../src/barra/mover-logica.ts";
 import type { Hilo, Lider } from "../src/datos/contrato.ts";
 
 const AHORA = 2_000_000_000;
@@ -73,4 +74,90 @@ test("el menú «Mover a proyecto…» lista el home primero, las carpetas por n
   assert.equal(l[0].texto, "inicio");
   // Dos slugs que se ven igual: queda uno.
   assert.equal(carpetasParaMover({ registro: ["a", "b"], enBarra: [], ya: null, nombre: () => "Igual" }).length, 2);
+});
+
+test("carpetaDeLiderNuevo: un líder derivado (de) hereda la carpeta del padre sin ser secuestrado por nuevaEn", () => {
+  const carpetaDe = (sid: string) => (sid === "s-b" ? "brote" : undefined);
+  assert.equal(carpetaDeLiderNuevo({ nuevaEn: "atlas", de: "s-b", carpetaDe }), "brote");
+  assert.equal(carpetaDeLiderNuevo({ nuevaEn: "atlas", carpetaDe }), "atlas");
+  assert.equal(carpetaDeLiderNuevo({ deCarpeta: "trama", nuevaEn: "atlas", de: "s-b", carpetaDe }), "trama");
+});
+
+test("armarArrastre: permite arrastrar un líder único de su carpeta hacia otra carpeta, pero no una carpeta única", () => {
+  const listeners = new Map<string, Set<(e: unknown) => void>>();
+  const win = {
+    addEventListener(k: string, fn: (e: unknown) => void) {
+      if (!listeners.has(k)) listeners.set(k, new Set());
+      listeners.get(k)!.add(fn);
+    },
+    removeEventListener(k: string, fn: (e: unknown) => void) {
+      listeners.get(k)?.delete(fn);
+    },
+  };
+  const prevWin = (globalThis as { window?: unknown }).window;
+  (globalThis as { window?: unknown }).window = win;
+  try {
+    const proyAtlas: Record<string, unknown> = {
+      getBoundingClientRect: () => ({ left: 0, right: 200, top: 0, bottom: 50 }),
+      querySelector: () => ({ dataset: { carpeta: "atlas" } }),
+      setAttribute() {},
+      removeAttribute() {},
+    };
+    const proyTrama: Record<string, unknown> = {
+      getBoundingClientRect: () => ({ left: 0, right: 200, top: 60, bottom: 110 }),
+      querySelector: () => ({ dataset: { carpeta: "trama" } }),
+      setAttribute() {},
+      removeAttribute() {},
+    };
+    const unidad: Record<string, unknown> = {
+      dataset: { grupo: "lider:atlas", mueve: "l1" },
+      isConnected: true,
+      closest: (sel: string) => (sel === "[data-mueve]" ? unidad : sel === ".proy" ? proyAtlas : null),
+      getBoundingClientRect: () => ({ left: 10, right: 190, top: 20, bottom: 44, width: 180 }),
+      setAttribute() {},
+      removeAttribute() {},
+    };
+    const asa = {
+      classList: { contains: (c: string) => c === "lider" },
+      closest: (sel: string) => (sel === ".lider, .proy-nom" ? asa : sel === "[data-mueve]" ? unidad : null),
+    };
+    let bajarFn: ((e: unknown) => void) | null = null;
+    const lista = {
+      clientLeft: 0,
+      clientTop: 0,
+      scrollLeft: 0,
+      scrollTop: 0,
+      addEventListener: (k: string, fn: (e: unknown) => void) => {
+        if (k === "pointerdown") bajarFn = fn;
+      },
+      removeEventListener() {},
+      querySelectorAll: (sel: string) => (sel === "[data-grupo]" ? [unidad] : sel === ".proy" ? [proyAtlas, proyTrama] : []),
+      getBoundingClientRect: () => ({ left: 0, right: 200, top: 0, bottom: 200 }),
+      setPointerCapture() {},
+      hasPointerCapture: () => false,
+      releasePointerCapture() {},
+    } as unknown as HTMLElement;
+
+    const soltadas: Movida[] = [];
+    const limpiar = armarArrastre(lista, {
+      raiz: () => null,
+      linea: () => null,
+      puede: () => true,
+      alSoltar: (m) => soltadas.push(m),
+    });
+
+    bajarFn!({ button: 0, pointerType: "mouse", isPrimary: true, pointerId: 1, clientX: 50, clientY: 30, target: asa });
+    for (const fn of listeners.get("pointermove") ?? []) fn({ pointerId: 1, clientX: 50, clientY: 80 });
+    for (const fn of listeners.get("pointerup") ?? []) fn({ pointerId: 1 });
+    assert.deepEqual(soltadas, [{ grupo: "lider:atlas", id: "l1", junto: "l1", antes: false, aCarpeta: "trama" }]);
+
+    // Carpeta única: no arranca arrastre.
+    unidad.dataset = { grupo: CARPETAS, mueve: "atlas" };
+    asa.classList = { contains: (c: string) => c === "proy-nom" };
+    bajarFn!({ button: 0, pointerType: "mouse", isPrimary: true, pointerId: 2, clientX: 50, clientY: 30, target: asa });
+    assert.equal(listeners.get("pointermove")?.size ?? 0, 0);
+    limpiar();
+  } finally {
+    (globalThis as { window?: unknown }).window = prevWin;
+  }
 });

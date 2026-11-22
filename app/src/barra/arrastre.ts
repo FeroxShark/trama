@@ -42,7 +42,9 @@ export function armarArrastre(lista: HTMLElement, o: Opciones): () => void {
     const id = unidad?.dataset.mueve;
     if (!asa || !unidad || !grupo || !id || (grupo === CARPETAS) !== asa.classList.contains("proy-nom")) return;
     const hermanos = () => [...lista.querySelectorAll<HTMLElement>("[data-grupo]")].filter((x) => x.dataset.grupo === grupo);
-    if (hermanos().length < 2) return;
+    const otraCarpeta = () =>
+      grupo !== CARPETAS && [...lista.querySelectorAll<HTMLElement>(".proy")].some((p) => p !== unidad.closest(".proy") && !!p.querySelector<HTMLElement>(":scope > .proy-cab .proy-nom")?.dataset.carpeta);
+    if (hermanos().length < 2 && !otraCarpeta()) return;
 
     const x0 = e.clientX;
     const y0 = e.clientY;
