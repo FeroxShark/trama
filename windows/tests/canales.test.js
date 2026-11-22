@@ -40,3 +40,10 @@ test("main.js: los canales que actúan (asistente:* salvo pasos, actualizar:inst
   const debenIr = ["asistente:avanzar", "asistente:conectar", "asistente:saltarLogin", "asistente:continuarLogin", "asistente:cuentas", "asistente:saltarOllama", "actualizar:instalar", "actualizar:buscar", "restos:plan", "restos:quitar"];
   for (const c of debenIr) assert.match(main, new RegExp(`ipcMain\\.handle\\("${c}", protegido\\(`), `${c} no pasa por protegido`);
 });
+
+test("main.js: una segunda instancia antes de que termine el arranque no abre la ventana (se anota y se abre después)", () => {
+  const main = src("main.js");
+  assert.match(main, /app\.on\("second-instance", \(\) => \(arranqueListo \? mostrarVentana\(\) : \(ventanaPedida = true\)\)\)/);
+  assert.match(main, /arranqueListo = true;\s*\n\s*if \(ventanaPedida\) mostrarVentana\(\);/);
+  assert.doesNotMatch(main, /app\.on\("second-instance", \(\) => mostrarVentana\(\)\)/);
+});

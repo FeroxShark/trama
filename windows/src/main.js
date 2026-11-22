@@ -465,7 +465,11 @@ function crearBandeja() {
   bandeja.on("click", () => mostrarVentana());
 }
 
-app.on("second-instance", () => mostrarVentana());
+// Una segunda instancia que llega antes de que el arranque termine (antes de `ready`, o mientras se decide si se vuelve a la versión
+// anterior) no puede abrir la ventana ya: `session` todavía no existe. Se anota y se abre al terminar el arranque.
+let arranqueListo = false;
+let ventanaPedida = false;
+app.on("second-instance", () => (arranqueListo ? mostrarVentana() : (ventanaPedida = true)));
 app.on("before-quit", (e) => {
   if (saliendo) return;
   versionAnterior.alSalir("before-quit");
@@ -501,6 +505,8 @@ app.whenReady().then(async () => {
     // Sin ventana que esperar: la carcasa en la bandeja es lo que hay.
     void versionAnterior.alVentanaLista();
   } else arrancar();
+  arranqueListo = true;
+  if (ventanaPedida) mostrarVentana();
   const u = iniciarActualizador({
     app,
     recursos: process.resourcesPath,
