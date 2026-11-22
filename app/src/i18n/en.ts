@@ -848,6 +848,7 @@ export const en = {
   "plan.notaPh": "What should change in the plan?",
   "plan.mandarNota": "Send",
   "plan.revisar": "Review with another model",
+  "plan.revisoresFallo": "Couldn't load the list of reviewers. Try again.",
   "plan.revisarTip": "A second model reads the plan and says what to improve; your leader integrates it and presents the plan again",
   "plan.revisando": "Reviewing…",
   "revision.titulo": "Review with another model",

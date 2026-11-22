@@ -36,8 +36,16 @@ const { renderToStaticMarkup } = await import("react-dom/server");
 const { createElement: h } = await import("react");
 const { cambiarIdioma } = await import("../src/i18n/index.ts");
 const { turnos } = await import("../src/hilo/turnos.ts");
-const { Turno } = await import("../src/hilo/Turno.tsx");
+const { pintorAviso, Turno } = await import("../src/hilo/Turno.tsx");
 type Mensaje = import("../src/datos/contrato.ts").Mensaje;
+
+test("al vencer la caché, el reloj vacía el texto y el estilo oculta también las acciones", () => {
+  const pintar = pintorAviso(200, "claude-opus-5-5", 50_000);
+  assert.ok(pintar(199).texto);
+  assert.deepEqual(pintar(200), { texto: "", en: Infinity });
+  const css = readFileSync(path.join(import.meta.dirname, "..", "src", "index.css"), "utf8");
+  assert.match(css, /\.caja-aviso:has\(> \.caja-aviso-t:empty\)\s*\{\s*display: none;/);
+});
 
 const ts = (s: number) => new Date(s * 1000).toISOString();
 const el = (i: number, texto: string, herramientas: string[], s: number): Mensaje => ({ i, rol: "assistant", texto, herramientas, ts: ts(s), modelo: "claude-opus-5-5" });

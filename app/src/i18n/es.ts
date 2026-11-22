@@ -837,6 +837,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "plan.notaPh": "¿Qué cambiarías del plan?",
   "plan.mandarNota": "Mandar",
   "plan.revisar": "Revisar con otro modelo",
+  "plan.revisoresFallo": "No se pudo leer la lista de revisores. Volvé a intentar.",
   "plan.revisarTip": "Un segundo modelo lee el plan y dice qué mejorar; tu líder lo integra y te presenta el plan de nuevo",
   "plan.revisando": "Revisando…",
   "revision.titulo": "Revisar con otro modelo",

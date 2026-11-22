@@ -394,7 +394,10 @@ export function suscribir(sid: string, fn: () => void) {
   }
   if (sid && !rehidratados.has(sid)) {
     rehidratados.add(sid);
-    void fuente.liderPendientes(sid).then((ps) => ps.forEach((p) => cambiarPor(sid, p)));
+    void fuente.liderPendientes(sid).then(
+      (ps) => ps.forEach((p) => cambiarPor(sid, p)),
+      () => rehidratados.delete(sid),
+    );
   }
   let s = oyentes.get(sid);
   if (!s) oyentes.set(sid, (s = new Set()));

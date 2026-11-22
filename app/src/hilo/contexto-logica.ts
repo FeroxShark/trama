@@ -2,9 +2,10 @@
 // conversación (los tokens de entrada del último turno) contra su umbral: el de
 // autocompact (líder y worker). Puro: lo prueba
 // `tests/contexto.test.ts`.
-import type { Mensaje, Tokens } from "../datos/contrato";
+import type { Mensaje, RespuestaHilo, Tokens } from "../datos/contrato";
 import type { Umbrales } from "../datos/fuente";
 import { topeAutocompact } from "../../electron/autocompact-tope.ts";
+import { cacheVencida, decidirCache, type EntradaCache } from "../../electron/cache-pregunta.ts";
 import { sistemaDe } from "./sistema-logica.ts";
 
 /** Lo que pesa la conversación: la entrada del último turno, cacheada o no. */
@@ -42,6 +43,34 @@ export function tokensParaAviso({
 }): number {
   if (compactada || compactadoDespuesDeUltimoTurno(mensajes)) return usados(vivoUsage);
   return usados(vivoUsage ?? pagUsage);
+}
+
+type TranscriptCache = Pick<RespuestaHilo, "total" | "usage" | "compactada" | "mensajes">;
+
+/** Si la decisión depende del peso y todavía no llegó, espera el transcript antes de decidir. */
+export function decidirCacheConTranscript(
+  entrada: Omit<EntradaCache, "tokens">,
+  pag: TranscriptCache | null,
+  vivoUsage: Tokens | null,
+  compactadaEnVivo: boolean,
+  leer: () => Promise<TranscriptCache>,
+) {
+  const entradaViva = vivoUsage && (vivoUsage.input_tokens !== undefined ||
+    vivoUsage.cache_read_input_tokens !== undefined || vivoUsage.cache_creation_input_tokens !== undefined) ? vivoUsage : null;
+  const decidir = (p: TranscriptCache | null) => ({
+    total: p?.total ?? 0,
+    veredicto: decidirCache({
+      ...entrada,
+      tokens: tokensParaAviso({
+        pagUsage: p?.usage,
+        vivoUsage: entradaViva,
+        compactada: compactadaEnVivo || p?.compactada,
+        mensajes: p?.mensajes,
+      }),
+    }),
+  });
+  if (pag || entradaViva || entrada.local || entrada.cruza || entrada.pref === "seguir" || !cacheVencida(entrada)) return decidir(pag);
+  return leer().then(decidir);
 }
 
 /**

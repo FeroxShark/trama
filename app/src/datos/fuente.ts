@@ -2849,10 +2849,7 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     void m.preferencias.effort(modelo, effort).catch(() => {});
   },
   async cacheVencida() {
-    return m.preferencias
-      .leer()
-      .then((p) => p.cacheVencida ?? ("preguntar" as const))
-      .catch(() => "preguntar" as const);
+    return (await m.preferencias.leer()).cacheVencida ?? "preguntar";
   },
   guardarCacheVencida(v) {
     void m.preferencias.cacheVencida(v).catch(() => {});
@@ -2989,8 +2986,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     return { restaurados: Number(r?.restaurados) || 0, borrados: Number(r?.borrados) || 0 };
   },
   async liderRevisores(ids) {
-    const r = await m.lider.revisores(ids).catch(() => null);
-    return Array.isArray(r) ? r.filter((i): i is string => typeof i === "string") : ids;
+    const r = await m.lider.revisores(ids);
+    if (!Array.isArray(r)) throw new TypeError("Lista de revisores inválida");
+    return r.filter((i) => typeof i === "string");
   },
   async liderRevisarPlan(sid, id, x) {
     const r = await m.lider.revisarPlan({ sid, id, modelo: x.modelo, effort: x.effort, nombre: x.nombre }).catch((e) => {
@@ -3142,8 +3140,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     });
   },
   async liderPendientes(sid) {
-    const l = await m.lider.pendientes(sid).catch(() => []);
-    return Array.isArray(l) ? (l as Extract<EventoLider, { tipo: "permiso" }>[]).filter((p) => p?.tipo === "permiso" && typeof p.id === "string") : [];
+    const l = await m.lider.pendientes(sid);
+    if (!Array.isArray(l)) throw new TypeError("Lista de pedidos pendientes inválida");
+    return (l as Extract<EventoLider, { tipo: "permiso" }>[]).filter((p) => p?.tipo === "permiso" && typeof p.id === "string");
   },
   async liderComandos() {
     const l = await m.lider.comandos().catch(() => []);

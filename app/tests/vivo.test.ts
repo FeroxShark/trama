@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import path from "node:path";
+import { setImmediate } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import type { EventoLider, Mensaje } from "../src/datos/contrato.ts";
 import { conversacionDe, parsearLinea } from "../electron/lider-arma.ts";
@@ -29,6 +30,10 @@ registerHooks({
 });
 
 let emitir: (x: { sid: string; e: EventoLider }) => void = () => {};
+type Permiso = Extract<EventoLider, { tipo: "permiso" }>;
+let pendientes: (sid: string) => Promise<Permiso[]> = async () => [];
+let leerPreferencias: () => Promise<{ cacheVencida?: "seguir" | "resumen" }> = async () => ({});
+let revisores: (ids: string[]) => Promise<string[]> = async (ids) => ids;
 const sinSoltar = () => () => {};
 Object.assign(globalThis, {
   location: { search: "?fixtures=0" },
@@ -36,9 +41,11 @@ Object.assign(globalThis, {
   window: {
     hilos: {
       hilos: { leer: async () => ({ n: 1, datos: { hilos: [] } }), guardados: async () => null, alCambiar: sinSoltar, alEvento: sinSoltar },
+      preferencias: { leer: () => leerPreferencias(), cacheVencida: async () => {} },
       lider: {
         alEvento: (fn: typeof emitir) => ((emitir = fn), () => {}),
-        pendientes: async () => [],
+        pendientes: (sid: string) => pendientes(sid),
+        revisores: (ids: string[]) => revisores(ids),
         // La cola vive en el main (electron/cola.ts): vivo.ts la escucha y la pide al suscribirse.
         alCola: sinSoltar,
         colas: async () => [],
@@ -50,6 +57,72 @@ Object.assign(globalThis, {
 const { comandoCrudo, confirmar, contestado, enCurso, enviado, enviadoDirecto, falloDirecto, lineasDelTurno, mensajesVistos, parando, pensandoAhora, quietoDesde, suscribir } = await import("../src/hilo/vivo.ts");
 const { turnos } = await import("../src/hilo/turnos.ts");
 const { tandasPendientes } = await import("../src/hilo/preguntas-logica.ts");
+const { fuente } = await import("../src/datos/fuente.ts");
+const { alCambiarCacheEleccion, cacheEleccion, cambiarCacheEleccion } = await import("../src/hilo/cache-eleccion.ts");
+
+test("un fallo al leer el plan pendiente permite rehidratarlo al volver al hilo", async (t) => {
+  const sid = "plan-rehidratado";
+  let lecturas = 0;
+  pendientes = async () => {
+    if (++lecturas === 1) throw new Error("Se cortó el puente");
+    return [{ tipo: "permiso", id: "plan", herramienta: "ExitPlanMode", detalle: null, plan: "Plan pendiente", preguntas: null, tool_use_id: null }];
+  };
+  t.after(() => { pendientes = async () => []; });
+
+  suscribir(sid, () => {})();
+  suscribir(sid, () => {})();
+  await setImmediate();
+  assert.equal(lecturas, 1, "comparte una lectura en curso");
+  assert.equal(enCurso(sid).pide.length, 0);
+
+  suscribir(sid, () => {})();
+  await setImmediate();
+  assert.equal(lecturas, 2);
+  assert.equal(enCurso(sid).pide[0]?.id, "plan");
+  suscribir(sid, () => {})();
+  assert.equal(lecturas, 2, "una lectura exitosa se hace una sola vez");
+});
+
+test("la preferencia guardada vuelve a leerse tras un fallo del puente", async (t) => {
+  let lecturas = 0;
+  let terminar!: (r: { cacheVencida: "resumen" }) => void;
+  leerPreferencias = async () => {
+    if (++lecturas === 1) throw new Error("Se cortó el puente");
+    return new Promise((resolver) => { terminar = resolver; });
+  };
+  t.after(() => { leerPreferencias = async () => ({}); });
+  const cambios: string[] = [];
+  t.after(alCambiarCacheEleccion(() => cambios.push(cacheEleccion())));
+
+  assert.equal(cacheEleccion(), "preguntar");
+  assert.equal(cacheEleccion(), "preguntar");
+  assert.equal(lecturas, 1);
+  await setImmediate();
+  assert.equal(cacheEleccion(), "preguntar");
+  assert.equal(lecturas, 2);
+  terminar({ cacheVencida: "resumen" });
+  await setImmediate();
+  assert.equal(cacheEleccion(), "resumen");
+  assert.deepEqual(cambios, ["resumen"]);
+
+  cambiarCacheEleccion("seguir");
+  assert.equal(cacheEleccion(), "seguir");
+  assert.equal(lecturas, 2);
+});
+
+test("un fallo del puente de revisores no habilita modelos y la tarjeta avisa en palabras", async (t) => {
+  const ids = ["claude-opus-5-5", "gemini-4-argon"];
+  revisores = async () => { throw new Error("Se cortó el puente"); };
+  t.after(() => { revisores = async (ids) => ids; });
+  await assert.rejects(fuente.liderRevisores(ids), /Se cortó el puente/);
+  revisores = async () => [ids[0]];
+  assert.deepEqual(await fuente.liderRevisores(ids), [ids[0]]);
+
+  const lider = readFileSync(path.join(import.meta.dirname, "..", "src", "hilo", "Lider.tsx"), "utf8");
+  assert.match(lider, /setRevisores\("fallo"\);\s*setRevisando\(false\)/);
+  assert.match(lider, /revisores === "fallo".*role="alert".*tr\("plan\.revisoresFallo"\)/);
+  assert.match(lider, /revisando && Array\.isArray\(revisores\)/);
+});
 
 const viejo = (i: number, rol: Mensaje["rol"], texto: string): Mensaje => ({ i, rol, texto, herramientas: [], ts: null, modelo: rol === "assistant" ? "claude-opus-5-5" : null });
 /** Lo que ya estaba en el transcript antes del turno. */

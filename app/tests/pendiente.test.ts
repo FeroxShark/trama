@@ -32,6 +32,17 @@ test("la caja sigue el cambio del servidor si todavía tiene sus valores anterio
   assert.equal(seguirServidor("high", "high", "medium"), "medium");
 });
 
+test("un cambio de esfuerzo con el mismo modelo llega a la caja y el eco conserva la elección local", () => {
+  const lider = readFileSync(path.join(import.meta.dirname, "..", "src", "hilo", "Lider.tsx"), "utf8");
+  const efecto = lider.slice(lider.indexOf("const vistoEffort"), lider.indexOf("const turnoModelo"));
+  assert.match(efecto, /setEffort\(\(e\) => seguirServidor\(e, anterior\.effort, effortServidor\)\)/);
+  assert.match(efecto, /\}, \[modeloServidor, effortServidor, compactoCacheActivo, modelo\]\)/);
+  assert.doesNotMatch(efecto, /modeloServidor === anterior\.modelo/);
+  assert.match(efecto, /modelo !== anterior\.modelo/);
+  assert.equal(seguirServidor("high", "high", "medium"), "medium");
+  assert.equal(seguirServidor("low", "high", "medium"), "low");
+});
+
 test("sin turno en curso no hay nada pendiente (el próximo mensaje sale con lo elegido y ya)", () => {
   assert.deepEqual(pendienteDe({ ocupado: false, modelo: "claude-sonnet-5-5", effort: "low", turno }), { modelo: false, effort: false });
 });

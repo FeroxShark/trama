@@ -4,19 +4,28 @@ import { fuente } from "../datos/fuente";
 import type { PrefCache } from "../../electron/cache-pregunta";
 
 let valor: PrefCache = "preguntar";
-let leido = false;
+let leido: boolean | Promise<PrefCache> = false;
 const oyentes = new Set<() => void>();
 const avisar = () => oyentes.forEach((f) => f());
 
 export const cacheEleccion = (): PrefCache => {
   if (!leido) {
-    leido = true;
-    void fuente.cacheVencida().then((v) => {
-      if (v !== valor) {
-        valor = v;
-        avisar();
-      }
-    });
+    const lectura = fuente.cacheVencida();
+    leido = lectura;
+    void lectura.then(
+      (v) => {
+        // Si la persona eligió mientras se leía, manda lo que acaba de elegir.
+        if (leido !== lectura) return;
+        leido = true;
+        if (v !== valor) {
+          valor = v;
+          avisar();
+        }
+      },
+      () => {
+        if (leido === lectura) leido = false;
+      },
+    );
   }
   return valor;
 };

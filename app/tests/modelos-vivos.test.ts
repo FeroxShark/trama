@@ -79,6 +79,15 @@ test("un catálogo nuevo aparece en el selector sin reiniciar y avisa a quien mi
   assert.equal(MODELOS.find((m) => m.id === "claude-fable-5-1")?.grupo, t("modelo.anteriores"));
 });
 
+test("el catálogo vivo invalida el segundo nivel de /model y la lista de Seguir con otro modelo", () => {
+  const lider = readFileSync(path.join(import.meta.dirname, "..", "src", "hilo", "Lider.tsx"), "utf8");
+  assert.match(lider, /const modelos = useMemo\(\(\) => \[\.\.\.MODELOS\], \[tablaModelos\]\)/);
+  const valores = lider.slice(lider.indexOf("const valores ="), lider.indexOf("const mn ="));
+  assert.match(valores, /lista: modelos\.map\(/);
+  assert.match(valores, /\[[^\n]*, modelos\],/);
+  assert.match(lider, /<SeguirCon\s+de="lider"\s+opciones=\{modelos\}/);
+});
+
 test("una lectura que no cambia nada no avisa", async () => {
   let avisos = 0;
   const soltar = alCambiarModelos(() => avisos++);

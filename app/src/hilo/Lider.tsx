@@ -63,10 +63,10 @@ import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import { DialogoCache } from "./DialogoCache";
 import { opcionCompactarCache } from "./cache-compactar";
 import { alCambiarCacheEleccion, cacheEleccion, cambiarCacheEleccion } from "./cache-eleccion";
-import { decidirCache, type EleccionCache, type VeredictoCache } from "../../electron/cache-pregunta";
+import type { EleccionCache, VeredictoCache } from "../../electron/cache-pregunta";
 import { hayVarias, opcionesMaquina, useMaquinas } from "../maquinas";
 import { Contexto } from "./Contexto";
-import { tokensParaAviso } from "./contexto-logica";
+import { decidirCacheConTranscript, tokensParaAviso } from "./contexto-logica";
 import { contextoDe, suscribirContexto, transcriptLeido } from "./contextoVivo";
 import { Avisos, HaceChat, textoAviso, useQuietoDesde } from "./Hace";
 import { latir } from "../barra/latido";
@@ -378,6 +378,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   // El cupo de cada modelo y de cada proveedor: el mismo dato que la tarjeta de cupos (sin cupo, con su hora; poco cupo, el punto ámbar).
   // La tabla de modelos cambia sin reiniciar (catálogo nuevo, Ajustes): lo armado con ella se rehace.
   const tablaModelos = useModelosVivos();
+  const modelos = useMemo(() => [...MODELOS], [tablaModelos]);
   const [configModelos, setConfigModelos] = useState<{ excluir: string[]; permitidos: PermitidosAjustes }>({
     excluir: [],
     permitidos: null,
@@ -467,20 +468,27 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     () => modeloServidor ? (effortDe(l?.effort, modeloServidor) ?? effortPara(modeloServidor, effortsLeidos() ?? {})) : undefined,
     [modeloServidor, l?.effort],
   );
-  const vistoServidor = useRef({ modelo: modeloServidor, effort: effortServidor });
+  const vistoModelo = useRef(modeloServidor);
   useEffect(() => {
-    const anterior = vistoServidor.current;
-    if (!modeloServidor || effortServidor === undefined) return;
-    vistoServidor.current = { modelo: modeloServidor, effort: effortServidor };
+    const anterior = vistoModelo.current;
+    if (!modeloServidor) return;
+    vistoModelo.current = modeloServidor;
     // Mientras compacta desde caché, esa operación restaura el modelo elegido aunque llegue tarde el eco del modelo que compactó.
-    if (modeloServidor === anterior.modelo || compactoCacheActivo) return;
-    setModelo((m) => seguirServidor(m, anterior.modelo, modeloServidor));
-    // Lo elegido para otro modelo ya lleva su propio esfuerzo, incluso al llegar la confirmación del servidor.
-    if (modelo === anterior.modelo) setEffort((e) => seguirServidor(e, anterior.effort, effortServidor));
+    if (modeloServidor === anterior || compactoCacheActivo) return;
+    setModelo((m) => seguirServidor(m, anterior, modeloServidor));
     if (!compactoCache && cambioCompacto.fase === "hecho" && modeloServidor === cambioCompacto.destino.modelo) {
       dispatchCambio({ tipo: "reiniciar" });
     }
-  }, [modeloServidor, effortServidor, cambioCompacto, compactoCache, compactoCacheActivo, modelo]);
+  }, [modeloServidor, cambioCompacto, compactoCache, compactoCacheActivo]);
+  const vistoEffort = useRef({ modelo: modeloServidor, effort: effortServidor });
+  useEffect(() => {
+    const anterior = vistoEffort.current;
+    if (!modeloServidor || effortServidor === undefined) return;
+    vistoEffort.current = { modelo: modeloServidor, effort: effortServidor };
+    // Lo elegido para otro modelo ya lleva su propio esfuerzo, incluso al llegar la confirmación del servidor.
+    if (compactoCacheActivo || modelo !== anterior.modelo || effortServidor === anterior.effort) return;
+    setEffort((e) => seguirServidor(e, anterior.effort, effortServidor));
+  }, [modeloServidor, effortServidor, compactoCacheActivo, modelo]);
   // Con un turno en curso los selectores siguen abiertos: lo elegido del mismo motor lo toma el turno ya (desde su próximo pedido a la
   // API, `cambiarEnTurno`); lo que no se puede en vivo va con el próximo mensaje. Mientras difiere de lo que usa el turno, se marca en el selector.
   const turnoModelo = modeloDe(l?.modelo);
@@ -518,13 +526,13 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const valores = useMemo<Valores>(
     () => ({
       model: {
-        lista: MODELOS.map((m) => ({ valor: m.clave, desc: m.nombre })),
-        actual: MODELOS.find((m) => m.id === modelo)?.clave ?? null,
+        lista: modelos.map((m) => ({ valor: m.clave, desc: m.nombre })),
+        actual: modelos.find((m) => m.id === modelo)?.clave ?? null,
       },
       effort: { lista: effortsOpciones(modelo).map((e) => ({ valor: e.id, desc: e.desc })), actual: effort },
       ...(agy || esDsh(modelo) || esOpencode(modelo) ? {} : { "output-style": { lista: listaEstilos.map((x) => ({ valor: x, desc: null })), actual: estilos.actual } }),
     }),
-    [agy, modelo, effort, listaEstilos, estilos.actual],
+    [agy, modelo, effort, listaEstilos, estilos.actual, modelos],
   );
   const mn = useMemo(
     () => (puede && !sinMenu && !compactoCacheActivo ? menuEn(texto, caret, comandos, valores, modelo, deOtro) : null),
@@ -635,14 +643,21 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
 
   // Cuál fue la última lectura pedida: si dos se pisan, la vieja que llega tarde no pisa a la nueva (ni baja `total`).
   const lectura = useRef(0);
+  const lecturaActual = useRef<{ sid: string; promesa: ReturnType<typeof fuente.liderConversacion> } | null>(null);
+  const leerTranscript = useCallback(async () => {
+    const r = await fuente.liderConversacion(sid, null);
+    if (r.version !== VERSION) throw new Error(tr("error.version", { que: "transcript", v: r.version, conozco: VERSION }));
+    return r;
+  }, [sid]);
   const recargar = useCallback(
     (forzar = false) => {
       if (!sid) return;
       const mia = ++lectura.current;
-      fuente.liderConversacion(sid, null).then(
+      const promesa = leerTranscript();
+      lecturaActual.current = { sid, promesa };
+      promesa.then(
         (r) => {
           if (mia !== lectura.current) return;
-          if (r.version !== VERSION) throw new Error(tr("error.version", { que: "transcript", v: r.version, conozco: VERSION }));
           setError(null);
           scroll.current = seg.pegado ? { tipo: "fondo" } : null;
           setPag((p) => {
@@ -659,10 +674,14 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
           confirmar(sid, r.total, forzar);
           transcriptLeido(sid, r);
         },
-        (e) => mia === lectura.current && setError(mensaje(e)),
+        (e) => {
+          if (mia !== lectura.current) return;
+          lecturaActual.current = null;
+          setError(mensaje(e));
+        },
       );
     },
-    [sid, seg],
+    [sid, seg, leerTranscript],
   );
 
   useEffect(() => {
@@ -1014,23 +1033,23 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       ? { veredicto: { accion: "preguntar", tokensSeguir: 128000, tokensResumen: 26000 }, crudo: "" }
       : null,
   );
-  const veredictoCache = (): VeredictoCache =>
-    decidirCache({
-      modelo: l?.modelo ?? modelo,
-      local: esLocal(l?.modelo ?? modelo),
-      cruza: !!datosCambio(modelo),
-      vence: l?.cache_vence ?? null,
-      ttl: l?.cache_ttl_s ?? null,
-      actividad: l?.actividad ?? 0,
-      tokens: tokensParaAviso({
-        pagUsage: pag?.usage,
-        vivoUsage: vivoCtx.usage,
-        compactada: Boolean(pag?.compactada || vivo.avisos.some((a) => a.clase === "compacto")),
-        mensajes: pag?.mensajes,
-      }),
-      pref: eleccionCache,
-      ahoraMs: Date.now(),
-    });
+  const veredictoCache = () =>
+    decidirCacheConTranscript(
+      {
+        modelo: l?.modelo ?? modelo,
+        local: esLocal(l?.modelo ?? modelo),
+        cruza: !!datosCambio(modelo),
+        vence: l?.cache_vence ?? null,
+        ttl: l?.cache_ttl_s ?? null,
+        actividad: l?.actividad ?? 0,
+        pref: eleccionCache,
+        ahoraMs: Date.now(),
+      },
+      pag,
+      vivoCtx.usage,
+      vivo.avisos.some((a) => a.clase === "compacto"),
+      () => lecturaActual.current?.sid === sid ? lecturaActual.current.promesa : leerTranscript(),
+    );
   /** La persona eligió: se manda el mensaje que esperaba; «recordar» lo deja guardado para la próxima. */
   const elegirCache = (e: EleccionCache, recordar: boolean) => {
     const q = preguntaCache;
@@ -1181,12 +1200,16 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     };
     if (app) {
       // La caché venció y el contexto es grande: lo recordado manda; si no, el mensaje espera en la caja hasta que se elija (DialogoCache).
-      const v = eleccion ? null : veredictoCache();
-      if (v?.accion === "preguntar") {
-        setEnviando(false);
-        return setPreguntaCache({ veredicto: v, crudo, modoNuevoYa });
-      }
-      return salir(pag?.total ?? 0, eleccion === "resumen" || v?.accion === "resumen" ? "resumen" : undefined);
+      if (eleccion) return salir(pag?.total ?? 0, eleccion === "resumen" ? "resumen" : undefined);
+      const aplicar = ({ veredicto, total }: { veredicto: VeredictoCache; total: number }) => {
+        if (veredicto.accion === "preguntar") {
+          setEnviando(false);
+          return setPreguntaCache({ veredicto, crudo, modoNuevoYa });
+        }
+        return salir(total, veredicto.accion === "resumen" ? "resumen" : undefined);
+      };
+      const decision = veredictoCache();
+      return decision instanceof Promise ? void decision.then(aplicar, mal) : aplicar(decision);
     }
     // Abierto en una terminal: primero se lo trae (cierra ese `claude`, por su pid) y recién
     // entonces sale el mensaje, con el `--resume` de siempre. Nunca dos procesos en el transcript.
@@ -1920,7 +1943,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         {seguirCon && l ? (
           <SeguirCon
             de="lider"
-            opciones={MODELOS}
+            opciones={modelos}
             actual={modeloDe(l.modelo)}
             alElegir={async (elegido) => {
               // Un líder nuevo con el resumen de éste como primer mensaje (lo arma el main); éste queda como está.
@@ -2182,9 +2205,9 @@ function PedidoPermiso({ sid, p, revisado = false }: { sid: string; p: Pedido; r
   const [mandando, setMandando] = useState(false);
   // «Revisar con otro modelo»: el selector de revisor (sólo Claude o Gemini no desactivados en Ajustes).
   const [revisando, setRevisando] = useState(plan && ((MODO.captura === "lider-plan" && MODO.variante === "revisar") || MODO.captura === "lider-revision-sin-sesion"));
-  const [revisores, setRevisores] = useState<string[] | null>(null);
+  const [revisores, setRevisores] = useState<string[] | "fallo" | null>(null);
   const tablaModelos = useModelosVivos();
-  const opciones = useMemo(() => MODELOS.filter((m) => revisores?.includes(m.id)), [revisores, tablaModelos]);
+  const opciones = useMemo(() => Array.isArray(revisores) ? MODELOS.filter((m) => revisores.includes(m.id)) : [], [revisores, tablaModelos]);
   // Lo que Ajustes > Modelos dejó prendido por modelo: de ahí salen los esfuerzos que se ofrecen (los apagados no).
   const [permitidos, setPermitidos] = useState<PermitidosAjustes>(null);
   const esfuerzos = useCallback((m: string) => esfuerzosDeRevisor(m, permitidos), [permitidos, tablaModelos]);
@@ -2197,7 +2220,14 @@ function PedidoPermiso({ sid, p, revisado = false }: { sid: string; p: Pedido; r
   useEffect(() => {
     if (!revisando) return;
     let vivo = true;
-    void fuente.liderRevisores(MODELOS.map((m) => m.id)).then((ids) => vivo && setRevisores(ids), () => vivo && setRevisores(MODELOS.map((m) => m.id)));
+    void fuente.liderRevisores(MODELOS.map((m) => m.id)).then(
+      (ids) => vivo && setRevisores(ids),
+      () => {
+        if (!vivo) return;
+        setRevisores("fallo");
+        setRevisando(false);
+      },
+    );
     void fuentePaneles.modelos().then((r) => vivo && setPermitidos(r.config.efforts_permitidos ?? null), () => {});
     return () => {
       vivo = false;
@@ -2279,7 +2309,10 @@ function PedidoPermiso({ sid, p, revisado = false }: { sid: string; p: Pedido; r
             {plan ? tr("plan.seguir") : tr("permiso.negar")}
           </button>
           {plan ? (
-            <button type="button" className="btn2" disabled={mandando || enRevision} data-tip={tr("plan.revisarTip")} onClick={() => setRevisando(true)}>
+            <button type="button" className="btn2" disabled={mandando || enRevision} data-tip={tr("plan.revisarTip")} onClick={() => {
+              setRevisores(null);
+              setRevisando(true);
+            }}>
               <ScanSearch size={14} strokeWidth={2} aria-hidden="true" />
               {tr("plan.revisar")}
             </button>
@@ -2287,7 +2320,8 @@ function PedidoPermiso({ sid, p, revisado = false }: { sid: string; p: Pedido; r
         </div>
       )}
       {error ? <div className="caja-error" role="alert">{error}</div> : null}
-      {revisando && revisores ? (
+      {revisores === "fallo" ? <div className="caja-error" role="alert">{tr("plan.revisoresFallo")}</div> : null}
+      {revisando && Array.isArray(revisores) ? (
         <SeguirCon
           de="revisar"
           opciones={opciones}

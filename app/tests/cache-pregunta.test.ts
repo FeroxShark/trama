@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { decidirCacheConTranscript } from "../src/hilo/contexto-logica.ts";
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "trama-cache-pref-"));
 process.env.HILOS_STATE = tmp;
@@ -19,6 +20,30 @@ test("caché vencida y contexto grande: pide elegir, con los tokens de cada cami
   assert.equal(v.tokensSeguir, 120_000);
   assert.equal(v.tokensResumen, TOKENS_RESUMEN);
   assert.equal(Object.hasOwn(v, "pctSeguir"), false);
+});
+
+test("con caché vencida y tokens desconocidos se espera el transcript antes de decidir", async () => {
+  const { tokens, ...entrada } = base;
+  const pag = { total: 7, usage: { cache_read_input_tokens: tokens }, mensajes: [] };
+  let llega!: (p: typeof pag) => void;
+  const lectura = new Promise<typeof pag>((resolver) => { llega = resolver; });
+  const v = decidirCacheConTranscript(entrada, null, { output_tokens: 10 }, false, () => lectura);
+  assert.ok(v instanceof Promise);
+  llega(pag);
+  assert.deepEqual(await v, { total: pag.total, veredicto: decidirCache(base) });
+
+  const noLeer = () => assert.fail("Ya se sabe si corresponde preguntar");
+  const enVivo = decidirCacheConTranscript(entrada, null, pag.usage, false, noLeer);
+  assert.deepEqual(enVivo, { total: 0, veredicto: decidirCache(base) });
+  const vigente = { ...entrada, vence: AHORA / 1000 + 30 };
+  assert.deepEqual(decidirCacheConTranscript(vigente, null, null, false, noLeer), {
+    total: 0,
+    veredicto: decidirCache({ ...vigente, tokens: 0 }),
+  });
+  await assert.rejects(
+    async () => decidirCacheConTranscript(entrada, null, null, false, async () => { throw new Error("Faltó el transcript"); }),
+    /Faltó el transcript/,
+  );
 });
 
 test("caché vigente: no pregunta (con el vencimiento que dice el statusline, o con el TTL por defecto)", () => {
