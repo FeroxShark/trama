@@ -250,9 +250,13 @@ function realpathM(p) {
 const tempRaw = win ? env.TEMP || env.TMP || env.TMPDIR || "" : "";
 const tempCand = tempRaw && !/^\/tmp\/?$/.test(posix(tempRaw)) && (process.platform === "win32" || esWinAbs(tempRaw)) ? lex(tempRaw) : "";
 const raizN = lex(env.PA_AGY_RAIZ || "/nonexistent");
+const raizReal = realpathM(env.PA_AGY_RAIZ || "/nonexistent");
 const homeN = lex(posix(HOME));
+const homeReal = realpathM(posix(HOME));
 const tempN = tempCand && normCmp(tempCand) !== normCmp(homeN) && !/^(?:\/|[a-z]:\/)$/.test(normCmp(tempCand)) ? tempCand : "";
+const tempReal = tempN ? realpathM(tempN) : "";
 const mapaN = env.PA_AGY_MAPA ? lex(env.PA_AGY_MAPA) : "";
+const mapaReal = env.PA_AGY_MAPA ? realpathM(env.PA_AGY_MAPA) : "";
 const raicesProhibidas = [homeN, "/home", "/root", "/etc", "/var", "/mnt", "/media", "/run", "/srv", "/boot", "/sys", "/proc", "/opt", "/dev"];
 const WIN_RAICES = ["users", "documents and settings", "windows", "programdata", "recovery", "system volume information", "$recycle.bin"];
 const WIN_PROHIBIDAS = new RegExp(`^(?:[a-z]:/(?:${WIN_RAICES.map(escRe).join("|")})(?:/|$)|[a-z]:/$|//)`);
@@ -268,18 +272,31 @@ const dentro = (a, b) => {
   if (!y) return false;
   return x === y || x.startsWith(y.endsWith("/") ? y : `${y}/`);
 };
-function permitida(p) {
-  if (dentro(p, raizN)) return true;
-  if (p === "/tmp" || p.startsWith("/tmp/")) return true;
-  if (tempN && dentro(p, tempN)) return true;
-  if (mapaN && igual(p, mapaN)) return true;
+function permitida(p, real = false) {
+  const r = real ? raizReal : raizN;
+  const h = real ? homeReal : homeN;
+  const t = real ? tempReal : tempN;
+  const m = real ? mapaReal : mapaN;
+  if (dentro(p, r)) return true;
+  if ((p === "/tmp" || p.startsWith("/tmp/")) && !(dentro(h, "/tmp") && dentro(p, h))) return true;
+  if (t && dentro(p, t)) return true;
+  if (m && igual(p, m)) return true;
   return ["/dev/null", "/dev/zero", "/dev/stdin", "/dev/stdout", "/dev/stderr", "/dev/urandom", "/dev/random"].includes(p) || (win && normCmp(p) === "nul");
 }
-function prohibida(p) {
-  if (permitida(p)) return false;
+function prohibida(p, real = false) {
+  if (permitida(p, real)) return false;
   if (p === "/") return true;
   if (win && WIN_PROHIBIDAS.test(normCmp(p))) return true;
-  return raicesProhibidas.some((r) => dentro(p, r));
+  const h = real ? homeReal : homeN;
+  return [h, ...raicesProhibidas].some((r) => dentro(p, r));
+}
+function rutaSale(p) {
+  const pLex = lex(p);
+  if (prohibida(pLex, false)) return true;
+  const pReal = realpathM(p);
+  if (prohibida(pReal, true)) return true;
+  if ((dentro(pLex, raizN) || dentro(pLex, raizReal)) && !dentro(pReal, raizReal)) return true;
+  return false;
 }
 function expandirWin(s, cwd) {
   const casa = posix(HOME);
@@ -327,8 +344,9 @@ function tokenSale(t, cwd) {
         if (preNorm.startsWith("//")) return true;
       }
       const preSin = /^[A-Za-z]:\/$/.test(preNorm) ? preNorm : preNorm.replace(/\/$/, "");
+      if (preSin && rutaSale(preSin)) return true;
       if (dentro(preSin, raizN)) return false;
-      if (preNorm.startsWith("/tmp/")) return false;
+      if (preNorm.startsWith("/tmp/") && !(dentro(homeN, "/tmp") && dentro(preSin, homeN))) return false;
       if (tempN && dentro(preSin, tempN) && normCmp(preNorm).startsWith(`${normCmp(tempN)}/`)) return false;
       const raices = [...raicesProhibidas, "/"];
       if (win) {
@@ -344,9 +362,12 @@ function tokenSale(t, cwd) {
       return false;
     }
     p = t;
-  } else if (`/${t}/`.includes("/../")) p = `${cwd}/${t}`;
-  else return false;
-  return prohibida(lex(p));
+  } else {
+    const sub = /[*?]/.test(t) ? t.slice(0, t.search(/[*?]/)) : t;
+    if (!sub) return false;
+    p = `${cwd}/${sub}`;
+  }
+  return rutaSale(p);
 }
 /**
  * Tokens que por sí solos no nombran nada sensible: "/", "//", "/**" (división, comentarios, JSX, prosa), "~", "~algo" (markdown,
@@ -421,9 +442,9 @@ if (worker) {
     return s.startsWith("/") || (win && (/^[A-Za-z]:/.test(s) || s.startsWith("%"))) || s.startsWith("~") || s.startsWith("$") || `/${s}/`.includes("/../");
   };
   if (cwdPedido) {
-    if (sospechosa(cwdPedido) && tokenSale(cwdPedido, raizN)) negar(msgFuera(cwdPedido));
+    if (tokenSale(cwdPedido, raizN)) negar(msgFuera(cwdPedido));
     const cwdExp = win ? expandirWin(posix(cwdPedido), raizN) : cwdPedido;
-    if (esAbsoluta(cwdExp)) cwd = lex(cwdExp);
+    cwd = lex(esAbsoluta(cwdExp) ? cwdExp : `${raizN}/${cwdExp}`);
   }
   const args = (() => {
     try {
@@ -443,7 +464,7 @@ if (worker) {
             if (v.startsWith('"')) v = v.slice(1);
             if (v.endsWith('"')) v = v.slice(0, -1);
             if (!v) continue;
-            if (sospechosa(v) && tokenSale(v, cwd)) negar(msgFuera(v));
+            if (tokenSale(v, cwd)) negar(msgFuera(v));
           }
         }
       }
@@ -487,12 +508,17 @@ if (worker) {
 if (nombre === "Write" || nombre === "Edit") {
   const raiz = env.PA_AGY_RAIZ || "";
   if (!archivo) negar(`BLOQUEADO: no se pudo saber qué archivo escribe '${herramientaCruda}'.`);
-  const real = realpathM(win ? expandirWin(posix(archivo), raizN) : archivo);
+  const archExp = win ? expandirWin(posix(archivo), cwd) : archivo;
+  const archAbs = esAbsoluta(archExp) ? archExp : `${cwd}/${archExp}`;
+  const archLex = lex(archAbs);
+  const real = realpathM(archAbs);
+  const rReal = raiz ? realpathM(raiz) : "";
+  const saleDeRaiz = rReal && (dentro(archLex, raizN) || dentro(archLex, rReal)) && !dentro(real, rReal);
   let ok = false;
-  if (raiz && dentro(real, realpathM(raiz))) ok = true;
-  if (real.startsWith("/tmp/")) ok = true;
-  if (tempN && dentro(real, tempN) && !igual(real, tempN)) ok = true;
-  if (env.PA_AGY_MAPA && igual(real, realpathM(env.PA_AGY_MAPA))) ok = true;
+  if (rReal && dentro(real, rReal)) ok = true;
+  if (!saleDeRaiz && real.startsWith("/tmp/") && !(dentro(homeReal, "/tmp") && dentro(real, homeReal))) ok = true;
+  if (!saleDeRaiz && tempReal && dentro(real, tempReal) && !igual(real, tempReal)) ok = true;
+  if (env.PA_AGY_MAPA && igual(real, mapaReal)) ok = true;
   if (!ok) negar(`BLOQUEADO: '${archivo}' está fuera de tu worktree (${raiz}). Un worker escribe sólo ahí (y en /tmp); el tree principal y el resto de la máquina los toca el jefe.`);
 }
 

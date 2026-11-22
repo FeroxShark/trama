@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -430,5 +430,39 @@ test("agy-pa: PostInvocation avisa cerca del tope y termina pasado el tope", () 
     assert.deepEqual(inv(3), {});
     assert.match(inv(27).injectSteps[0].ephemeralMessage, /te quedan como mucho 3 turnos/);
     assert.deepEqual(inv(31), { terminationBehavior: "terminate" });
+  });
+});
+
+test("agy-pa: bloquea enlaces simbólicos que salen del worktree en lectura, Cwd y comandos, y permite enlaces internos", () => {
+  conTemporal((dir) => {
+    const work = path.join(dir, "work");
+    const sub = path.join(work, "sub");
+    const fueraDir = path.join(dir, "fuera-dir");
+    mkdirSync(sub, { recursive: true });
+    mkdirSync(fueraDir, { recursive: true });
+    const fuera = path.join(dir, "fuera.txt");
+    const adentro = path.join(sub, "adentro.txt");
+    writeFileSync(fuera, "secreto");
+    writeFileSync(adentro, "ok");
+    const linkFuera = path.join(work, "link.txt");
+    const linkAdentro = path.join(work, "link-ok.txt");
+    const linkDirFuera = path.join(work, "dir-link");
+    symlinkSync(fuera, linkFuera);
+    symlinkSync(adentro, linkAdentro);
+    symlinkSync(fueraDir, linkDirFuera, process.platform === "win32" ? "junction" : "dir");
+
+    const env = entorno(dir, { PA_AGY_HB: path.join(dir, "agy.heartbeat"), PA_AGY_RAIZ: work, PA_AGY_RAMA: "rama-x" });
+    const pre = (obj: unknown) => {
+      const r = correr("agy-pa", ["pre"], obj, env);
+      assert.equal(r.rc, 0);
+      return r.stdout ? JSON.parse(r.stdout) : null;
+    };
+    assert.equal(pre(llamada("read_file", { Path: linkFuera }))?.decision, "deny", "enlace absoluto hacia afuera");
+    assert.equal(pre(llamada("read_file", { Path: "link.txt" }))?.decision, "deny", "enlace relativo hacia afuera");
+    assert.equal(pre(llamada("run_command", { CommandLine: "ls", Cwd: linkDirFuera }))?.decision, "deny", "Cwd por enlace hacia afuera");
+    assert.equal(pre(llamada("run_command", { CommandLine: `cat ${linkFuera}` }))?.decision, "deny", "comando con ruta explícita a enlace externo");
+    assert.equal(pre(llamada("run_command", { CommandLine: "cat link.txt" }))?.decision, "deny", "comando con ruta relativa a enlace externo");
+    assert.equal(pre(llamada("read_file", { Path: linkAdentro })), null, "enlace interno permitido");
+    assert.equal(pre(llamada("read_file", { Path: "link-ok.txt" })), null, "enlace interno relativo permitido");
   });
 });
