@@ -326,6 +326,9 @@ function ejecutar(caso: Caso, pa: string[], c: Contexto): Resultado {
   return res;
 }
 
+/** `autocompact` de un hilo (`pa --hilos --json`, última clave) sólo lo trae el TS (el bash está congelado; CTX-43): no se compara. */
+const sinAutocompact = (texto: string) => texto.replace(/,\s*"autocompact":\s*[^,\n}]*/g, "");
+
 /** ¿Son el mismo JSON (sin mirar la sangría)? Lo que no es JSON se compara como texto. */
 function igualJson(a: string, b: string): boolean {
   if (a === b) return true;
@@ -348,7 +351,9 @@ export function diferencias(a: Resultado, b: Resultado, o: { ignorar?: ("argv" |
       if (!x || !y) { out.push(`paso ${i + 1}: falta en uno de los dos`); continue; }
       if (x.rc !== y.rc) out.push(`paso ${i + 1}: código de salida ${x.rc} vs ${y.rc}`);
       if (ignorar.has("salida")) continue;
-      if (!(o.json ? igualJson(x.stdout, y.stdout) : x.stdout === y.stdout)) out.push(`paso ${i + 1}: stdout\n--- A\n${x.stdout}\n--- B\n${y.stdout}`);
+      const sx = sinAutocompact(x.stdout);
+      const sy = sinAutocompact(y.stdout);
+      if (!(o.json ? igualJson(sx, sy) : sx === sy)) out.push(`paso ${i + 1}: stdout\n--- A\n${x.stdout}\n--- B\n${y.stdout}`);
       if (x.stderr !== y.stderr) out.push(`paso ${i + 1}: stderr\n--- A\n${x.stderr}\n--- B\n${y.stderr}`);
     }
   }
