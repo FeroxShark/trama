@@ -93,32 +93,6 @@ function tieneAsistentePrincipal(lineas) {
   return false;
 }
 
-function rescatarAsistenteCortado(fragmento) {
-  if (!fragmento || /"isSidechain"\s*:\s*true/.test(fragmento) || /"model"\s*:\s*"<synthetic>"/.test(fragmento)) return null;
-  let usage = null;
-  const mUso = /"usage"\s*:\s*(\{[^{}]*\})/.exec(fragmento);
-  if (mUso) {
-    try {
-      usage = JSON.parse(mUso[1]);
-    } catch {}
-  }
-  let textoDesescapado = fragmento;
-  try {
-    textoDesescapado = fragmento.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
-  } catch {}
-  const nota = extraerNotaDeTexto(textoDesescapado);
-  if (!usage && !nota) return null;
-  return JSON.stringify({
-    type: "assistant",
-    message: {
-      id: "parcial",
-      model: "claude",
-      content: nota ? `${TAG_NOTA_ABRE}\n${nota}\n${TAG_NOTA_CIERRA}` : "",
-      ...(usage ? { usage } : {}),
-    },
-  });
-}
-
 function leerTramoCola(fd, size, maxBytes) {
   const start = Math.max(0, size - maxBytes);
   const leerDesde = start > 0 ? start - 1 : 0;
@@ -133,18 +107,12 @@ function leerTramoCola(fd, size, maxBytes) {
   const real = buf.subarray(0, off);
   const alineado = start === 0 || (real.length > 0 && real[0] === 0x0a);
   let texto = (start > 0 ? real.subarray(1) : real).toString("utf8");
-  let cortada = "";
   if (!alineado) {
+    // Sin el comienzo del registro no se conoce su tipo ni el autor.
     const nl = texto.indexOf("\n");
-    if (nl >= 0) {
-      cortada = texto.slice(0, nl).replace(/\r$/, "");
-      texto = texto.slice(nl + 1);
-    } else {
-      cortada = texto.replace(/\r$/, "");
-      texto = "";
-    }
+    texto = nl < 0 ? "" : texto.slice(nl + 1);
   }
-  return { start, lineas: texto.split(/\r?\n/).filter(Boolean), cortada };
+  return { start, lineas: texto.split(/\r?\n/).filter(Boolean) };
 }
 
 /** Lee sólo los últimos `maxBytes` del transcript (expandiendo si una línea grande oculta al último asistente) y conserva líneas alineadas al offset. */
@@ -161,10 +129,6 @@ export function leerColaTranscript(ruta, maxBytes = TAIL_BYTES) {
     while (!tieneAsistentePrincipal(tramo.lineas) && tramo.start > 0 && ventana < tope) {
       ventana = Math.min(tope, ventana * 2);
       tramo = leerTramoCola(fd, size, ventana);
-    }
-    if (!tieneAsistentePrincipal(tramo.lineas) && tramo.cortada) {
-      const rescatada = rescatarAsistenteCortado(tramo.cortada);
-      if (rescatada) return [rescatada, ...tramo.lineas];
     }
     return tramo.lineas;
   } catch {
@@ -454,21 +418,21 @@ export async function decidir({
     let nota = "";
     let minutos = null;
     let archivo = "";
-    let tieneCandado = false;
     try {
       mkdirSync(dirNotas, { recursive: true });
       const fin = Date.now() + 2000;
       for (;;) {
         try {
           mkdirSync(candadoDevuelta);
-          tieneCandado = true;
           break;
         } catch (e) {
-          if (e?.code !== "EEXIST" || Date.now() >= fin) break;
+          if (e?.code !== "EEXIST" || Date.now() >= fin) return null;
           Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
         }
       }
-    } catch {}
+    } catch {
+      return null;
+    }
     try {
       try {
         const guardada = readFileSync(archivoNota, "utf8").trim();
@@ -528,11 +492,9 @@ export async function decidir({
         minutos = refMs !== null ? Math.max(0, Math.floor((ahoraMs - refMs) / 60_000)) : null;
       }
     } finally {
-      if (tieneCandado) {
-        try {
-          rmdirSync(candadoDevuelta);
-        } catch {}
-      }
+      try {
+        rmdirSync(candadoDevuelta);
+      } catch {}
     }
     const { textoDevolucionNota } = await cargarTextos();
     return {
