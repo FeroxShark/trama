@@ -190,6 +190,34 @@ testPosix("recorrido entero con claude con guion: el --seguir-con cae en el mism
   assert.equal(campo(path.join(dir, `${id2}.hilo`), "modelo"), "claude-haiku-5-5");
 });
 
+test("--seguir decide si el caché está frío con el TTL y la hora del transcript", async (t) => {
+  const s = sandbox();
+  t.after(() => rmSync(s.raiz, { recursive: true, force: true }));
+  corridaVieja(s);
+  const transcript = path.join(s.proj, escapar(s.proyecto), `${SID}.jsonl`);
+  // El límite detiene la corrida después del chequeo de caché y antes de tomar los candados.
+  writeFileSync(path.join(s.estado, "limite.hasta"), String(Math.floor(Date.now() / 1000) + 3600));
+  const seguir = async (env: Env) => {
+    const io = captura();
+    const rc = await main(["demo", "--sin-jefe", "--seguir", "--id", ID, "Seguí con el test."], env, io, { ...depsReales, reparto: () => repartoFalso() });
+    assert.equal(rc, 76, io.e);
+    assert.match(io.e, /límite de sesión/);
+    return io.e;
+  };
+  const cache = (ttl: "1h" | "5m", minutos: number, mtime: Date) => {
+    const timestamp = new Date(Date.now() - minutos * 60_000).toISOString();
+    const mensaje = { type: "assistant", timestamp, message: { usage: { cache_creation: { [`ephemeral_${ttl}_input_tokens`]: 100 } } } };
+    writeFileSync(transcript, `${TRANSCRIPT}\n${JSON.stringify(mensaje)}\n`);
+    utimesSync(transcript, mtime, mtime);
+  };
+
+  cache("1h", 57, new Date(Date.now() - 57 * 60_000));
+  assert.doesNotMatch(await seguir(s.env), /caché frío/);
+  cache("5m", 6, new Date());
+  assert.match(await seguir(s.env), /sesión de hace 6min: caché frío/);
+  assert.doesNotMatch(await seguir({ ...s.env, PA_CACHE_FRIO_MIN: "0" }), /caché frío/);
+});
+
 testPosix("--seguir en caché frío: la sesión nueva recibe el resumen de traspaso antes del pedido (en caliente retoma la sesión sin resumen)", async () => {
   const s = sandbox();
   const aux = path.join(s.raiz, "aux");

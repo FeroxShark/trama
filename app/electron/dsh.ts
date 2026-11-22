@@ -80,7 +80,8 @@ export function contextoLocal(modelo: string, env: Env = process.env, plat: Plat
   } catch {
     /* sin locales.json (o roto): el nombre del modelo */
   }
-  if (!/^\w[\w.-]*$/.test(clave)) return null;
+  // En Windows, la etiqueta se puede resolver con un alias. Los dos puntos en el archivo indican un flujo de NTFS.
+  if (!/^\w[\w.:-]*$/.test(clave) || (plat === "win32" && clave.includes(":"))) return null;
   try {
     const carpeta = env.HILOS_LOCALES_DIR || c.join(configTrama(env, undefined, plat), "locales");
     const n = readFileSync(c.join(carpeta, `${clave}.env`), "utf8").match(/^LLAMA_CTX=(\d+)\s*$/m);

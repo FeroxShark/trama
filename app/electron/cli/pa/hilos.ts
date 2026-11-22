@@ -177,6 +177,8 @@ export function ultimasLineas(f: string, n: number): string[] {
   }
 }
 
+const ultimasLineasAsistente = (f: string) => ultimasLineas(f, 200).filter((l) => l.includes('"type":"assistant"'));
+
 /** El transcript `$PROJ/*\/<sid>.jsonl` de una sesión (el primero), o "". */
 export function transcriptDe(pa: Pa, sid: string): string {
   if (!/^[A-Za-z0-9._-]+$/.test(sid)) return "";
@@ -219,6 +221,25 @@ function deIso(t: unknown): number | null {
   if (!m) return null;
   const [a, mo, d, h, mi, s] = m.slice(1).map(Number) as [number, number, number, number, number, number];
   return Date.UTC(a, mo - 1, d, h, mi, s) / 1000;
+}
+
+/** El último mensaje del asistente que creó caché da el TTL y la hora. */
+function cacheCreada(as: J[]): { ttl: number; desde: number } | null {
+  const pos = (m: J, k: string) => {
+    const v = ruta(m, "message", "usage", "cache_creation", k);
+    return typeof v === "number" && v > 0;
+  };
+  const cc = as.findLast((m) => pos(m, "ephemeral_1h_input_tokens") || pos(m, "ephemeral_5m_input_tokens"));
+  if (!cc) return null;
+  const desde = deIso(cc.timestamp);
+  return desde === null ? null : { desde, ttl: pos(cc, "ephemeral_1h_input_tokens") ? 3600 : 300 };
+}
+
+const esAsistente = (m: J) => m.type === "assistant" && m.isSidechain !== true;
+
+export function cacheDeSesion(pa: Pa, sid: string): ReturnType<typeof cacheCreada> {
+  const trans = transcriptDe(pa, sid);
+  return trans ? cacheCreada(ultimasLineasAsistente(trans).map(parse).filter(esObj).filter(esAsistente)) : null;
 }
 
 // ---------------------------------------------------------------- los hechos de cada corrida
@@ -350,7 +371,7 @@ class Hilos {
       if (trans) {
         const u = primerasLineas(trans, 30).find((l) => l.includes('"type":"user"'));
         if (u !== undefined) cache.push(u);
-        for (const l of ultimasLineas(trans, 200)) if (l.includes('"type":"assistant"')) cache.push(l);
+        cache.push(...ultimasLineasAsistente(trans));
       }
     }
     if (!vivo && !this.accDe.get(id)) {
@@ -423,16 +444,10 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
   }
   // caché: el último mensaje del asistente (no sidechain) que creó caché da el TTL y la hora
   const msgs = h.cache.map(parse).filter(esObj);
-  const as = msgs.filter((m) => m.type === "assistant" && m.isSidechain !== true);
-  const pos = (m: J, k: string) => {
-    const v = ruta(m, "message", "usage", "cache_creation", k);
-    return typeof v === "number" && v > 0;
-  };
-  const cc = [...as].reverse().find((m) => pos(m, "ephemeral_1h_input_tokens") || pos(m, "ephemeral_5m_input_tokens")) ?? null;
-  const ttl0 = cc === null ? null : pos(cc, "ephemeral_1h_input_tokens") ? 3600 : 300;
-  const iso = cc === null ? null : deIso(cc.timestamp);
-  const vence = ttl0 === null || iso === null ? null : Math.floor(iso + ttl0);
-  const ttl = vence === null ? null : ttl0;
+  const as = msgs.filter(esAsistente);
+  const cache = cacheCreada(as);
+  const ttl = cache?.ttl ?? null;
+  const vence = cache ? cache.desde + cache.ttl : null;
   const primerUser = msgs.find((m) => m.type === "user");
   let tareaT: string | null = null;
   if (primerUser) {

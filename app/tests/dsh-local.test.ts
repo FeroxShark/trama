@@ -93,6 +93,20 @@ test("contextoLocal: el LLAMA_CTX del env file de la clave que declara locales.j
   assert.equal(mjs.contextoLocal("qwen38-uncensored", roto, "linux"), 2048);
 });
 
+test("un modelo con etiqueta después de los dos puntos conserva su ventana en el parche de dsh", () => {
+  const modelo = "qwen2.5:7b";
+  const alias = locales({ version: 1, modelos: [{ id: "qwen-local", alias: modelo }] }, { "qwen-local": "LLAMA_CTX=24576\n" });
+  assert.equal(ts.contextoLocal(modelo, alias), 24576);
+
+  const env = process.platform === "win32" ? alias : locales({}, { [modelo]: "LLAMA_CTX=24576\n" });
+  const contexto = ts.contextoLocal(modelo, env);
+  assert.equal(contexto, 24576);
+  const prov = ts.parsearModelo(`dsh:ollama/${modelo}`)!;
+  const parche = ts.escribirParche({ ...prov, contexto });
+  assert.match(parche, /^ {10}- id: "qwen2\.5:7b"$/m);
+  assert.match(parche, /^ {12}contextWindow: 24576$/m);
+});
+
 test("dsh --profile headless (y acp) con el parche local muestra el autocompact y el tope por modelo", { skip: SIN_DSH }, () => {
   const tmp = mkdtempSync(path.join(os.tmpdir(), "trama-dsh-dump-"));
   tmps.push(tmp);

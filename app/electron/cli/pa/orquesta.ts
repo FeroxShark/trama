@@ -26,6 +26,7 @@ import { topeDeTurnos } from "./opciones.ts";
 import { Admision, avisarParalelo, otrosWriters, runningVivo } from "./puestos.ts";
 import { esperarCupo, relanzarPorCupo, relanzarPorFallback } from "./cupo.ts";
 import { ganchosDe } from "./ganchos.ts";
+import { cacheDeSesion } from "./hilos.ts";
 import { fijarProyecto as fijarProy } from "./ramas-base.ts";
 import { campoJson, contarCompactaciones, horaMinuto, leerSalida, textoResultado } from "./resultado-lanzar.ts";
 import { edadSucios, suciosDe } from "./sucios.ts";
@@ -205,9 +206,9 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
   // --- --seguir sobre una sesión de caché frío
   let frio = false;
   let frioId = ""; // la corrida de la sesión fría: de ella sale el resumen de traspaso
-  let frioMin = Number(/^[0-9]+$/.test(env.PA_CACHE_FRIO_MIN || "55") ? env.PA_CACHE_FRIO_MIN || "55" : "55");
-  if (!Number.isFinite(frioMin)) frioMin = 55;
-  if (l.seguir && frioMin > 0) {
+  const fijo = /^[0-9]+$/.test(env.PA_CACHE_FRIO_MIN ?? "") ? Number(env.PA_CACHE_FRIO_MIN) : NaN;
+  const frioMin = Number.isFinite(fijo) ? fijo : null;
+  if (l.seguir && frioMin !== 0) {
     let fsid = "";
     let farch = "";
     if (l.runId) {
@@ -218,8 +219,11 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       fsid = leerTexto(sfile);
     }
     if (fsid) {
-      const edad = sesionEdadMin(pa, fsid, farch);
-      if (edad !== null && edad > frioMin) {
+      const cache = frioMin === null ? cacheDeSesion(pa, fsid) : null;
+      const ahora = ahoraS();
+      const edad = cache ? Math.floor((ahora - cache.desde) / 60) : sesionEdadMin(pa, fsid, farch);
+      const vencido = cache ? ahora >= cache.desde + cache.ttl : edad !== null && edad > (frioMin ?? 55);
+      if (edad !== null && vencido) {
         frio = true;
         frioId = l.runId || leerTexto(`${sfile}.ts`);
         io.err(`pa: sesión de hace ${edad >= 120 ? `${Math.floor(edad / 60)}h` : `${edad}min`}: caché frío, arranco nueva.\n`);
