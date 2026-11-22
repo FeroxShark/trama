@@ -10,6 +10,7 @@ import { leerCampo, proyectoDeId } from "./corridas.ts";
 import type { Pa } from "./entorno.ts";
 import { leerLineaSid } from "./hilo-sid.ts";
 import { comoString, cortar, ruta, transcriptDe, type J } from "./hilos.ts";
+import { contextoDeThread } from "../../codex-rollout.ts";
 import { mensajesDeStream } from "./hilo-stream.ts";
 
 // El uso no nombra --tope: es del TS y el texto tiene que seguir igual al del bash congelado (paridad).
@@ -178,7 +179,7 @@ export function cmdHilo(pa: Pa, args: string[]): number {
   const todos = t
     ? mensajes(texto)
     : stream
-      ? (mensajesDeStream(texto, leerCampo(hilo, "tarea"), leerCampo(hilo, "inicio"), leerCampo(hilo, "modelo")) as unknown as Msg[])
+      ? (mensajesDeStream(texto, leerCampo(hilo, "tarea"), leerCampo(hilo, "inicio"), leerCampo(hilo, "modelo"), (th) => contextoDeThread(th, { env: pa.env, home: pa.home, plat: pa.plat })) as unknown as Msg[])
       : [];
   const total = todos.length;
   const hasta = Math.min(total, antes === "" ? total : Number(antes));

@@ -105,3 +105,38 @@ test("PUENTES-15: si las imágenes no se pueden guardar, codex recibe el aviso e
     chmodSync(carpeta, 0o700);
   }
 });
+
+test("CTX-38: el contexto del chat es el del último pedido del rollout, no el acumulado de turn.completed; y se retoma en el turno siguiente", { timeout: 60_000 }, async () => {
+  const p = new Puente("aaaaaaaa-0000-4000-8000-000000000004", { TRAMA_FALSO_ROLLOUT: "1" });
+  p.mandar("uno");
+  await esperarHasta(() => p.resultados.length === 1, { tope: 30_000 });
+  const r1 = p.resultados[0];
+  assert.equal(r1.usage.input_tokens, 101_000, "lo que pesó el último pedido");
+  assert.equal(r1.consumo_turno.input_tokens, 91_000 + 96_000 + 101_000, "el acumulado queda aparte, como consumo");
+  assert.equal(r1.modelUsage["codex:gpt-6.1-sol"].contextWindow, 475_000, "la ventana la dice el rollout");
+  p.mandar("dos");
+  await esperarHasta(() => p.resultados.length === 2, { tope: 30_000 });
+  assert.equal(p.resultados[1].usage.input_tokens, 102_000, "reanudado: el rollout de la misma conversación sigue sumando pedidos");
+  const leerLado = () => {
+    try {
+      return JSON.parse(readFileSync(path.join(p.estado, "codex", `${p.sid}.json`), "utf8"));
+    } catch {
+      return {};
+    }
+  };
+  await esperarHasta(() => leerLado().contexto === 102_000, { tope: 15_000 }); // se anota al cerrar el turno, después del result
+  assert.equal(leerLado().ventana, 475_000);
+});
+
+test("CTX-38: sin rollout el contexto queda desconocido: el result no trae input_tokens y no se guarda el del turno anterior", { timeout: 60_000 }, async () => {
+  const p = new Puente("aaaaaaaa-0000-4000-8000-000000000005");
+  p.mandar("uno");
+  await esperarHasta(() => p.resultados.length === 1, { tope: 30_000 });
+  const r = p.resultados[0];
+  assert.equal(r.usage.input_tokens, undefined, "el acumulado de turn.completed no se toma como contexto");
+  assert.equal(r.consumo_turno.input_tokens, 9001);
+  assert.equal(p.lineas.some((l) => l.type === "stream_event" && l.event?.type === "message_start" && l.event.message?.usage?.input_tokens === 9001), false);
+  await esperarHasta(() => existsSync(path.join(p.estado, "codex", `${p.sid}.json`)), { tope: 15_000 });
+  const lado = JSON.parse(readFileSync(path.join(p.estado, "codex", `${p.sid}.json`), "utf8"));
+  assert.equal(lado.contexto, undefined);
+});

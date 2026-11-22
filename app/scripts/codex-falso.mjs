@@ -9,6 +9,9 @@
 // Una conversación existe en $HILOS_STATE/codex-falso/<id>: `resume <id>` que no existe sale con 1 y un error por stderr, sin
 // ningún evento (como el de verdad); con la que existe, sigue y cuenta los turnos.
 //   TRAMA_FALSO_FALLA=<texto>   al retomar un hilo sale con 1 y ese texto por stderr, sin eventos (un fallo que no es «no existe»).
+//   TRAMA_FALSO_ROLLOUT=1       como el de verdad, anexa a `$CODEX_HOME|~/.codex/sessions/AAAA/MM/DD/rollout-…-<id>.jsonl` un `token_count`
+//                               por pedido (3 por turno): el último pesa 100000 + 1000 × turno en una ventana de 475000, y el `turn.completed`
+//                               trae el ACUMULADO de los tres (el dato que NO es contexto).
 //   `codex login status`: «Logged in using ChatGPT» (TRAMA_FALSO_CODEX_LOGIN=0: «Not logged in», sale con 1).
 //   TRAMA_FALSO_LOG=<archivo>   una línea JSON por arranque ({ args, cwd, claves del entorno, prompt }).
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -89,4 +92,17 @@ if (/herramienta/i.test(texto)) {
 }
 const dicho = [`eco: ${texto}`, `(turno ${turno})`, `[${valor("-m")} ${valor("--sandbox")}]`].join(" ");
 salir({ type: "item.completed", item: { id: `item_${n++}`, type: "agent_message", text: dicho } });
-salir({ type: "turn.completed", usage: { input_tokens: 9000 + turno, cached_input_tokens: 4000, output_tokens: 30 } });
+if (process.env.TRAMA_FALSO_ROLLOUT === "1") {
+  const raiz = process.env.CODEX_HOME || path.join(process.env.HOME ?? "", ".codex");
+  const carpeta = path.join(raiz, "sessions", "2026", "11", "22");
+  mkdirSync(carpeta, { recursive: true });
+  const archivo = path.join(carpeta, `rollout-2026-11-22T10-00-00-${id}.jsonl`);
+  const pedidos = [0, 1, 2].map((k) => 100_000 + turno * 1000 - (2 - k) * 5000);
+  for (const entrada of pedidos) {
+    const info = { total_token_usage: { input_tokens: 0 }, last_token_usage: { input_tokens: entrada, cached_input_tokens: entrada - 500, output_tokens: 30, reasoning_output_tokens: 5 }, model_context_window: 475000 };
+    appendFileSync(archivo, JSON.stringify({ timestamp: "2026-11-22T10:00:00Z", type: "event_msg", payload: { type: "token_count", info } }) + "\n");
+  }
+  salir({ type: "turn.completed", usage: { input_tokens: pedidos.reduce((a, b) => a + b, 0), cached_input_tokens: 1000, output_tokens: 90 } });
+} else {
+  salir({ type: "turn.completed", usage: { input_tokens: 9000 + turno, cached_input_tokens: 4000, output_tokens: 30 } });
+}

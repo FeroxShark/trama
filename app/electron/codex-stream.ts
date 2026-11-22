@@ -10,11 +10,13 @@
 //                                                       aggregated_output, exit_code, status}, file_change {changes[{path,kind}]},
 //                                                       mcp_tool_call {server, tool, arguments, result?, error?}, web_search {query},
 //                                                       error {message}
-//   turn.completed  { usage: { input_tokens, cached_input_tokens, output_tokens } }
+//   turn.completed  { usage: { input_tokens, cached_input_tokens, output_tokens } }   OJO: es lo ACUMULADO de todos los pedidos del
+//                                                       turno (consumo), no lo que pesa el contexto: ése sale del rollout (codex-rollout.ts)
 //   turn.failed     { error: { message } }
 //   error           { message }
 
 import { plataformaActual, type Plataforma } from "./rutas.ts";
+import type { DatoRollout } from "./codex-rollout.ts";
 import { EFFORTS_CODEX_PA, aliasMasNuevosCodex, leerCodexModelos, ventanaCodex } from "./cli/codex-modelos.ts";
 
 /** La ventana de contexto de respaldo de los modelos de ChatGPT que corre codex (lo que dice el medidor del chat). */
@@ -65,7 +67,7 @@ function resultadoDe(i: Obj): { texto: string; error: boolean } {
   return { texto: "", error: i.status === "failed" };
 }
 
-type Uso = { input_tokens: number; output_tokens: number };
+type Uso = { input_tokens?: number; output_tokens: number };
 
 export type Opciones = {
   /** El id de sesión de Claude (el del líder en la barra): va en cada línea como `session_id`. */
@@ -74,6 +76,8 @@ export type Opciones = {
   modelo: string;
   /** Lo que pesaba el contexto al terminar el turno anterior: lo que se muestra hasta que codex dice el de este (llega recién en `turn.completed`). */
   contextoPrevio?: number | null;
+  /** La ventana real que dijo el rollout en el turno anterior (hasta que éste diga la suya). */
+  ventanaPrevia?: number | null;
 };
 
 /**
@@ -84,18 +88,26 @@ export class Traductor {
   /** El `thread_id` de codex: con él se retoma la conversación. */
   conversacion: string | null = null;
   private herramientas = new Map<string, { id: string; resultado: boolean }>();
-  private usoTurno: Uso = { input_tokens: 0, output_tokens: 0 };
+  private usoTurno: Uso = { output_tokens: 0 };
+  /** Lo que gastó el turno entero (lo acumulado de `turn.completed`): consumo, no ocupación. */
+  consumo: { input_tokens: number; cached_input_tokens: number; output_tokens: number } | null = null;
   private textos: string[] = [];
   private n = 0;
   private cerrado = false;
   /** Lo que pesaba el contexto en lo último que contestó el modelo (0: este turno no contestó nada). */
   contexto = 0;
   private readonly o: Opciones;
-  private readonly ventana: number;
+  /** La ventana de contexto: la del rollout (`model_context_window`) si la dijo; si no, la del catálogo. */
+  ventana: number;
+  /**
+   * Lo que dice el rollout de la conversación (el último pedido). Lo pone quien corre a codex ANTES de pasar el `turn.completed`
+   * (leerlo es asíncrono); `null`: no se encontró y el contexto queda desconocido, nunca el acumulado de `turn.completed`.
+   */
+  rollout: DatoRollout | null = null;
 
   constructor(o: Opciones) {
     this.o = o;
-    this.ventana = ventanaCodex(o.modelo);
+    this.ventana = o.ventanaPrevia && o.ventanaPrevia > 0 ? o.ventanaPrevia : ventanaCodex(o.modelo);
     this.contexto = o.contextoPrevio && o.contextoPrevio > 0 ? o.contextoPrevio : 0;
   }
 
@@ -205,9 +217,15 @@ export class Traductor {
   }
 
   private resultado(u: Obj): Obj[] {
-    // `input_tokens` de codex es lo que entró en el turno (con lo cacheado incluido): es el contexto de ahora.
-    this.contexto = num(u.input_tokens) ?? this.contexto;
-    this.usoTurno = { input_tokens: this.contexto, output_tokens: (num(u.output_tokens) ?? 0) + (num(u.reasoning_output_tokens) ?? 0) };
+    // `usage` de `turn.completed` es lo ACUMULADO de todos los pedidos del turno: consumo, no contexto. El contexto es lo que entró en
+    // el último pedido y sólo lo dice el rollout; sin él queda desconocido (0), nunca el acumulado.
+    const r = this.rollout;
+    this.contexto = r ? r.contexto : 0;
+    if (r?.ventana) this.ventana = r.ventana;
+    const salida = (num(u.output_tokens) ?? 0) + (num(u.reasoning_output_tokens) ?? 0);
+    this.consumo = { input_tokens: num(u.input_tokens) ?? 0, cached_input_tokens: num(u.cached_input_tokens) ?? 0, output_tokens: salida };
+    // `input_tokens` del `result` es la ocupación (así lo lee el medidor de un líder que no es de Claude); sin dato, no se pone.
+    this.usoTurno = this.contexto ? { input_tokens: this.contexto, output_tokens: salida } : { output_tokens: salida };
     // El medidor de la ventana se mueve con el `message_start`: sin esto marcaría el turno anterior (o 0) hasta el que sigue.
     const vivo = this.contexto ? [this.ev({ type: "message_start", message: { id: this.idDe("msg_codex_u", ""), usage: { input_tokens: this.contexto, output_tokens: 0 } } })] : [];
     return [...vivo, ...this.cerrar(null)];
@@ -230,6 +248,7 @@ export class Traductor {
         result: error ?? this.textos.at(-1) ?? "",
         num_turns: 1,
         usage: this.usoTurno,
+        ...(this.consumo ? { consumo_turno: this.consumo } : {}),
         modelUsage: { [this.o.modelo]: { contextWindow: this.ventana } },
         ...this.base(),
       },

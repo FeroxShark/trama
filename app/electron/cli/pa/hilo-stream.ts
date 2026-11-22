@@ -5,6 +5,7 @@
 // tras herramientas abre otro mensaje. Una línea que no parsea (la última, cortada a medio escribir) se salta. Sin timestamps por
 // línea (agy, codex) el `ts` queda null: no se inventa. opencode sí trae `timestamp` (ms). El pedido (`tarea` e `inicio` del
 // `.hilo`) es el primer mensaje, con la hora de inicio.
+import type { DatoRollout } from "../../codex-rollout.ts";
 import { cortar, type J } from "./hilos.ts";
 
 const esObj = (v: unknown): v is J => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -76,6 +77,10 @@ type Op =
   | { op: "m"; modelo: unknown }
   | { op: "c" }
   | { op: "u"; u: J }
+  /** codex: arrancó (o se retomó) la conversación `id`. */
+  | { op: "s"; id: string }
+  /** codex: el `turn.completed`; su `usage` es el ACUMULADO del turno (consumo), no lo que pesa el contexto. */
+  | { op: "ux"; u: J }
   | { op: "t"; step: unknown; txt: unknown; ts: string | null }
   | { op: "h"; id: unknown; nombre: string; entrada: J; ts: string | null }
   | { op: "r"; id: unknown; out: unknown; error: boolean };
@@ -171,8 +176,9 @@ function ops(o: J): Op[] {
   }
   if (tipo === "turn.completed") {
     const k = esObj(o.usage) ? o.usage : {};
-    return [{ op: "u", u: uso(Number(alt(k.input_tokens, 0)) - Number(alt(k.cached_input_tokens, 0)), k.output_tokens, k.cached_input_tokens, 0) }];
+    return [{ op: "ux", u: uso(Number(alt(k.input_tokens, 0)) - Number(alt(k.cached_input_tokens, 0)), k.output_tokens, k.cached_input_tokens, 0) }];
   }
+  if (tipo === "thread.started" && typeof o.thread_id === "string") return [{ op: "s", id: o.thread_id }];
   if (tipo === "turn.failed") return [tx(`✗ ${err300(ruta2(o, "error", "message"))}`)];
   if (tipo === "error") return [tx(`✗ ${err300(o.message)}`)];
   return [];
@@ -182,6 +188,7 @@ const ruta2 = (o: J, a: string, b: string): unknown => (esObj(o[a]) ? (o[a] as J
 type Item =
   | { k: "c" }
   | { k: "u"; u: J }
+  | { k: "ux" }
   | { k: "t"; step: unknown; txt: string; ts: string | null }
   | { k: "h"; id: unknown; nombre: string; entrada: J; ts: string | null; resultado?: { texto: string; error: boolean } };
 
@@ -195,12 +202,20 @@ function idx(items: Item[], id: unknown): number {
   return -1;
 }
 
-function itemsDe(objs: J[]): { items: Item[]; modelo: unknown } {
+function itemsDe(objs: J[]): { items: Item[]; modelo: unknown; thread: string | null; consumo: J | null } {
   const items: Item[] = [];
   let modelo: unknown = null;
+  let thread: string | null = null;
+  let consumo: J | null = null;
   for (const o of objs)
     for (const p of ops(o)) {
       if (p.op === "m") modelo = p.modelo;
+      else if (p.op === "s") thread = p.id;
+      else if (p.op === "ux") {
+        // Un turno de codex: el acumulado no es contexto. Corta el mensaje en curso (como cualquier fin de turno); el uso real, si hay, se pone abajo.
+        items.push({ k: "ux" });
+        consumo = p.u;
+      }
       else if (p.op === "c") items.push({ k: "c" });
       else if (p.op === "u") items.push({ k: "u", u: p.u });
       else if (p.op === "t") {
@@ -218,7 +233,7 @@ function itemsDe(objs: J[]): { items: Item[]; modelo: unknown } {
         if (j !== -1 && x && x.k === "h") x.resultado = { texto: cola15(p.out), error: p.error };
       }
     }
-  return { items, modelo };
+  return { items, modelo, thread, consumo };
 }
 
 interface Borrador {
@@ -232,7 +247,7 @@ const MARCAS = { meta: false, resumen_compact: false, origen: null, error_api: f
 const trim = (t: string) => t.replace(/^[ \t\r\n]+/, "").replace(/[ \t\r\n]+$/, "");
 
 /** Los mensajes del stream: el pedido (si lo hay) y los del asistente. Mismo molde que los del transcript de Claude. */
-export function mensajesDeStream(texto: string, tarea: string, inicio: string, modeloHilo: string): J[] {
+export function mensajesDeStream(texto: string, tarea: string, inicio: string, modeloHilo: string, rollout?: (thread: string) => DatoRollout | null): J[] {
   const objs: J[] = [];
   for (const l of texto.split("\n")) {
     if (!l) continue;
@@ -244,7 +259,10 @@ export function mensajesDeStream(texto: string, tarea: string, inicio: string, m
     }
     if (esObj(o)) objs.push(o);
   }
-  const { items, modelo } = itemsDe(objs);
+  const { items, modelo, thread } = itemsDe(objs);
+  const ultimoUx = items.reduce((r, x, i) => (x.k === "ux" ? i : r), -1);
+  // codex: el contexto es lo del último pedido del rollout; sin él, desconocido (null). El acumulado de `turn.completed` no es contexto.
+  const dato = ultimoUx >= 0 && thread && rollout ? rollout(thread) : null;
   const ms: Borrador[] = [];
   let u: J | null = null;
   let cur = false;
@@ -252,8 +270,11 @@ export function mensajesDeStream(texto: string, tarea: string, inicio: string, m
     ms.push({ textos: [], det: [], ts, usage: u });
     cur = true;
   };
-  for (const x of items) {
-    if (x.k === "c") cur = false;
+  for (const [i, x] of items.entries()) {
+    if (x.k === "ux") {
+      u = i === ultimoUx && dato ? uso(dato.contexto - dato.cacheado, dato.salida, dato.cacheado, 0) : null;
+      if (cur) ms[ms.length - 1]!.usage = u;
+    } else if (x.k === "c") cur = false;
     else if (x.k === "u") {
       u = x.u;
       if (cur) ms[ms.length - 1]!.usage = x.u;

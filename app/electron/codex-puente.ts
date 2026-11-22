@@ -23,6 +23,7 @@ import path from "node:path";
 import os from "node:os";
 import { aliasMasNuevosCodex, leerCodexModelos } from "./cli/codex-modelos.ts";
 import { entornoAgy, paraLanzar, resolverCodex } from "./binario.ts";
+import { contextoDeThread } from "./codex-rollout.ts";
 import { argsCodex, partirCodex, sandboxDe, Traductor } from "./codex-stream.ts";
 import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
 import { deDueno, dueno } from "./dueno.ts";
@@ -122,18 +123,22 @@ function anotar(o: Record<string, unknown>) {
   }
 }
 
-function leerLado(): { thread_id: string | null; contexto: number | null } {
+function leerLado(): { thread_id: string | null; contexto: number | null; ventana: number | null } {
   try {
     const o = JSON.parse(readFileSync(LADO, "utf8"));
-    return { thread_id: typeof o?.thread_id === "string" ? o.thread_id : null, contexto: typeof o?.contexto === "number" ? o.contexto : null };
+    return {
+      thread_id: typeof o?.thread_id === "string" ? o.thread_id : null,
+      contexto: typeof o?.contexto === "number" ? o.contexto : null,
+      ventana: typeof o?.ventana === "number" ? o.ventana : null,
+    };
   } catch {
-    return { thread_id: null, contexto: null };
+    return { thread_id: null, contexto: null, ventana: null };
   }
 }
 
-function guardarLado(id: string, contexto: number | null = leerLado().contexto) {
+function guardarLado(id: string, contexto: number | null = leerLado().contexto, ventana: number | null = leerLado().ventana) {
   try {
-    const texto = JSON.stringify({ version: 1, sid, thread_id: id, modelo, ...(contexto ? { contexto } : {}) }) + "\n";
+    const texto = JSON.stringify({ version: 1, sid, thread_id: id, modelo, ...(contexto ? { contexto } : {}), ...(ventana ? { ventana } : {}) }) + "\n";
     // Entero o nada: el main lo lee mientras el puente lo escribe, y un archivo a medias se leería como «sin conversación».
     const tmp = `${LADO}.${process.pid}.tmp`;
     try {
@@ -263,6 +268,8 @@ function correrCodex(prompt: string, thread: string | null, imagenes: string[], 
         return;
       }
       if (typeof o?.type === "string" && o.type.startsWith("item.")) v.pasos++;
+      // El `usage` de `turn.completed` es el acumulado del turno: el contexto de verdad es el del último pedido, en el rollout.
+      if (o?.type === "turn.completed") tr.rollout = contextoDeThread(tr.conversacion, { env: ENTORNO, home: os.homedir() });
       const antes = tr.conversacion;
       const fuera = tr.linea(o);
       if (tr.conversacion && tr.conversacion !== antes) guardarLado(tr.conversacion);
@@ -335,16 +342,17 @@ async function turno(m: Mensaje) {
   anotar({ type: "user", message: { role: "user", content: m.imagenes.length ? `${m.texto}\n[${m.imagenes.length} imagen(es) adjunta(s)]`.trim() : m.texto } });
   // Si alguna imagen no se pudo guardar, codex lo sabe (si no, contestaría como si no hubiera venido nada).
   const textoCodex = imagenes.length < m.imagenes.length ? `${m.texto}\n[${dueno()} adjuntó ${m.imagenes.length} imagen(es), pero no se pudieron guardar para que las veas; pedile que las describa.]`.trim() : m.texto;
-  const tr = new Traductor({ sid, modelo, contextoPrevio: lado.contexto });
+  const tr = new Traductor({ sid, modelo, contextoPrevio: lado.contexto, ventanaPrevia: lado.ventana });
   tr.conversacion = lado.thread_id;
   const v = await correrCodex(lado.thread_id ? textoCodex : conPrefacio(textoCodex, previo), lado.thread_id, imagenes, tr);
   let ultimo = tr;
   if (v.sinConversacion && !interrumpido) {
     // codex no encontró la conversación: una nueva con lo hablado.
-    ultimo = new Traductor({ sid, modelo, contextoPrevio: lado.contexto });
+    ultimo = new Traductor({ sid, modelo, contextoPrevio: lado.contexto, ventanaPrevia: lado.ventana });
     await correrCodex(conPrefacio(textoCodex, previo), null, imagenes, ultimo);
   }
-  if (ultimo.conversacion && ultimo.contexto) guardarLado(ultimo.conversacion, ultimo.contexto);
+  // Sin rollout el contexto quedó desconocido (0): no se guarda el del turno anterior como si siguiera valiendo.
+  if (ultimo.conversacion) guardarLado(ultimo.conversacion, ultimo.contexto || null, ultimo.rollout?.ventana ?? lado.ventana);
   cerrarTurno();
 }
 
