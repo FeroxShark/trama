@@ -255,14 +255,24 @@ export function armarRelevo(todos: Crudo[], x: { de: string; a: string; tope?: n
 
 /** El título con el que empieza todo relevo que arma Trama: lo que no lo trae lo dejó el modelo (el resumen del cierre por cupo). */
 const MARCA_RELEVO = "# Historial de esta conversación";
+const TITULO_RESUMEN = "## Resumen que dejó el modelo al cerrar por cupo";
+const TITULO_NOTA = "## Nota del modelo antes de compactar";
 
 /**
  * Lo que el modelo dejó escrito en `relevos/<sid>.md` (el resumen del cierre por cupo), si es de él: un relevo armado por Trama
- * empieza con `MARCA_RELEVO` y se vuelve a armar desde el transcript, así que no cuenta. `null` si no hay nada o es de Trama.
+ * empieza con `MARCA_RELEVO` y se vuelve a armar desde el transcript, así que no cuenta, salvo la sección del resumen que ya traía.
+ * `null` si no hay nada que pasar.
  */
 export function resumenDelModelo(previo: string | null | undefined): string | null {
   const t = (previo ?? "").trim();
-  return t && !t.startsWith(MARCA_RELEVO) ? t : null;
+  if (!t) return null;
+  if (!t.startsWith(MARCA_RELEVO)) return t;
+  // Un relevo de Trama que ya traía el resumen (dos cambios de motor seguidos): el resumen sigue viajando.
+  const i = t.indexOf(`\n${TITULO_RESUMEN}\n`);
+  if (i < 0) return null;
+  const resto = t.slice(i + TITULO_RESUMEN.length + 2);
+  const fin = resto.indexOf(`\n\n${TITULO_NOTA}\n`);
+  return (fin < 0 ? resto : resto.slice(0, fin)).trim() || null;
 }
 
 /** Recorta un texto al tope del relevo (se queda con el final, que es lo más reciente). */
@@ -278,7 +288,7 @@ export function sumarAlRelevo(texto: string, x: { resumen?: string | null; nota?
   if (texto) partes.push(texto);
   const resumen = x.resumen?.trim();
   const nota = x.nota?.trim();
-  if (resumen) partes.push(`## Resumen que dejó el modelo al cerrar por cupo\n${aTope(resumen, tope)}`);
-  if (nota) partes.push(`## Nota del modelo antes de compactar\n${aTope(nota, tope)}`);
+  if (resumen) partes.push(`${TITULO_RESUMEN}\n${aTope(resumen, tope)}`);
+  if (nota) partes.push(`${TITULO_NOTA}\n${aTope(nota, tope)}`);
   return partes.join("\n\n");
 }
