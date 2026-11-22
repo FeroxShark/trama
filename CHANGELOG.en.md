@@ -1,5 +1,9 @@
 # Changes
 
+## 0.3.25
+
+- `pa --seguir` on a Codex, Gemini, DeepSeek or OpenCode worker no longer opens it with Claude and without the conversation: it says that engine does not resume sessions and gives the command to continue with the same model.
+
 ## 0.3.24
 
 - Windows: a worker that moves on to the next model (`-m a,b,c`) or retries (goal mode) no longer opens a console window. This may be the CMD that showed up for an instant while using tools; still to be confirmed on a Windows PC.
