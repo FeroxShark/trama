@@ -34,14 +34,17 @@ const conTemporal = (f: (dir: string) => void) => {
   }
 };
 const HOOKS = "/home/ana/.claude/hooks";
-const sh: OpcionesRegistro = { carpeta: HOOKS, variante: "sh" };
-const mjs: OpcionesRegistro = { carpeta: HOOKS, variante: "mjs" };
+// Rutas de Linux: la plataforma va fija (sin ella, comandoHook usa la de la máquina y en Windows pone comillas dobles, CTX-51).
+const sh: OpcionesRegistro = { carpeta: HOOKS, variante: "sh", plataforma: "linux" };
+const mjs: OpcionesRegistro = { carpeta: HOOKS, variante: "mjs", plataforma: "linux" };
+/** Para los casos con una carpeta real del disco: la plataforma de la máquina (una ruta de Windows no se mezcla con `linux`). */
+const deAca = { plataforma: process.platform };
 const clon = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
 test("comandoHook: bash para .sh, node para .mjs, la ruta siempre entre comillas simples", () => {
-  assert.equal(comandoHook("destructive-guard", "sh", HOOKS), `bash '${HOOKS}/destructive-guard.sh'`);
-  assert.equal(comandoHook("destructive-guard", "mjs", HOOKS), `node '${HOOKS}/destructive-guard.mjs'`);
-  assert.equal(comandoHook("latido", "mjs", "/x/it's here", { node: "/opt/node" }), `/opt/node '/x/it'\\''s here/latido.mjs'`);
+  assert.equal(comandoHook("destructive-guard", "sh", HOOKS, { plataforma: "linux" }), `bash '${HOOKS}/destructive-guard.sh'`);
+  assert.equal(comandoHook("destructive-guard", "mjs", HOOKS, { plataforma: "linux" }), `node '${HOOKS}/destructive-guard.mjs'`);
+  assert.equal(comandoHook("latido", "mjs", "/x/it's here", { node: "/opt/node", plataforma: "linux" }), `/opt/node '/x/it'\\''s here/latido.mjs'`);
   assert.equal(comandoHook("statusline-espejo", "mjs", "C:\\Users\\ana\\.claude\\hooks", { plataforma: "win32", node: "C:\\Program Files\\trama\\node.exe" }), `"C:/Program Files/trama/node.exe" "C:/Users/ana/.claude/hooks/statusline-espejo.mjs"`);
   assert.equal(entreComillas("a b"), "'a b'");
   assert.equal(archivoHook("agy-pa", "mjs"), "agy-pa.mjs");
@@ -219,13 +222,13 @@ test("registrarEnAjustes: formas que no se pueden tocar sin adivinar tiran", () 
 test("registrarEnArchivo: crea el settings, es idempotente y no toca un JSON roto", () => {
   conTemporal((dir) => {
     const settings = path.join(dir, "sub", "settings.json");
-    const o = { ...mjs, carpeta: path.join(dir, "hooks") };
+    const o = { ...mjs, ...deAca, carpeta: path.join(dir, "hooks") };
     const r1 = registrarEnArchivo(settings, o);
     assert.equal(r1.estado, "registrado");
     const texto = readFileSync(settings, "utf8");
     assert.equal(texto.endsWith("}\n"), true);
     assert.equal(texto.includes("\r"), false);
-    assert.equal(JSON.parse(texto).hooks.PreToolUse[0].matcher, "Bash");
+    assert.equal(JSON.parse(texto).hooks.PreToolUse[0].matcher, process.platform === "win32" ? "Bash|PowerShell" : "Bash");
     assert.equal(registrarEnArchivo(settings, o).estado, "ya");
     assert.equal(readFileSync(settings, "utf8"), texto, "la segunda corrida no reescribe");
     writeFileSync(settings, "{roto");
@@ -243,7 +246,7 @@ test("registrarEnArchivo: deja una copia fechada la primera vez y no pisa una an
   conTemporal((dir) => {
     const settings = path.join(dir, "settings.json");
     writeFileSync(settings, JSON.stringify({ model: "opus" }));
-    const o = { ...sh, carpeta: path.join(dir, "hooks") };
+    const o = { ...sh, ...deAca, carpeta: path.join(dir, "hooks") };
     const r = registrarEnArchivo(settings, o, new Date(2026, 9, 27, 12));
     assert.equal(r.estado, "registrado");
     assert.equal((r as { copia?: string }).copia, `${settings}.trama-bak-20261027`);
@@ -260,7 +263,7 @@ test("registrarEnArchivo: un settings vacío ({}) no deja copia", () => {
   conTemporal((dir) => {
     const settings = path.join(dir, "settings.json");
     writeFileSync(settings, "{}");
-    registrarEnArchivo(settings, { ...sh, carpeta: dir });
+    registrarEnArchivo(settings, { ...sh, ...deAca, carpeta: dir });
     assert.equal(readdirSync(dir).some((n) => n.includes("bak")), false);
   });
 });
@@ -273,14 +276,14 @@ test("registrarEnArchivo: si el settings es un enlace escribe el archivo real y 
     chmodSync(real, 0o600);
     const enlace = path.join(dir, "settings.json");
     symlinkSync(real, enlace);
-    const r = registrarEnArchivo(enlace, { ...mjs, carpeta: dir });
+    const r = registrarEnArchivo(enlace, { ...mjs, ...deAca, carpeta: dir });
     assert.equal(r.estado, "registrado");
     assert.equal(lstatSync(enlace).isSymbolicLink(), true, "el enlace sigue siendo un enlace");
     assert.equal(existsSync(real), true);
     assert.equal(JSON.parse(readFileSync(real, "utf8")).hooks.PreToolUse.length, 1);
     assert.equal(statSync(real).mode & 0o777, 0o600);
     const nuevo = path.join(dir, "nuevo", "settings.json");
-    registrarEnArchivo(nuevo, { ...mjs, carpeta: dir });
+    registrarEnArchivo(nuevo, { ...mjs, ...deAca, carpeta: dir });
     assert.equal(statSync(nuevo).mode & 0o777, 0o600, "un settings nuevo no sale legible por todos");
   });
 });
