@@ -4,7 +4,7 @@
 // que viven ahí. Puro (sin `electron` ni imports locales): lo prueba
 // `tests/binario.test.ts` con `node --test`.
 import { execFile, execFileSync, spawn, type ChildProcess, type ExecFileException, type ExecFileOptions, type ExecFileSyncOptions, type SpawnOptions } from "node:child_process";
-import { accessSync, constants, readdirSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { caminoDe, carpetaApp, carpetaBin, delimitadorDe, homeDe, nodeWindows, plataformaActual, type Plataforma } from "./rutas.ts";
@@ -296,6 +296,26 @@ export function envSinNavegador(env: Env = process.env, plat: Plataforma = plata
   return e;
 }
 
+const leerSiHay = (f: string): string | null => {
+  try {
+    return readFileSync(f, "utf8");
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * El programa al que llama un `.cmd` de npm (cmd-shim): la ruta relativa a la carpeta del `.cmd` y si se corre con node (un `.js`) o directo
+ * (un `.exe`). `null` si el archivo no es un shim de npm (los `.cmd` propios de Trama, por ejemplo, ponen variables antes).
+ */
+export function destinoShimNpm(cmd: string, leer: (f: string) => string | null): { destino: string; conNode: boolean } | null {
+  const t = leer(cmd);
+  if (!t || !/^@ECHO off/i.test(t.trimStart())) return null;
+  const m = [...t.matchAll(/(\"%_prog%\"\s+)?"%dp0%\\([^"%]+)"\s+%\*/g)].pop();
+  if (!m) return null;
+  return { destino: m[2]!, conNode: Boolean(m[1]) };
+}
+
 /** Cómo se lanza un comando: el ejecutable, sus argumentos y si Node debe pasarlos tal cual (`windowsVerbatimArguments`). */
 export type Lanzar = { file: string; args: string[]; verbatim: boolean };
 
@@ -305,6 +325,18 @@ export type Lanzar = { file: string; args: string[]; verbatim: boolean };
  */
 export function paraLanzar(cmd: string, args: string[], env: Env = process.env, plat: Plataforma = plataformaActual()): Lanzar {
   if (plat !== "win32" || !ES_CMD.test(cmd)) return { file: cmd, args, verbatim: false };
+  // El `.cmd` de npm sólo llama al programa de verdad: se lanza ése, sin cmd.exe. Así pasan los argumentos que cmd.exe no acepta (la tarea de
+  // un worker trae saltos de línea: con `claude.cmd` de npm no arrancaba ningún worker, medido en el CI de Windows).
+  const shim = destinoShimNpm(cmd, leerSiHay);
+  if (shim) {
+    const dir = path.win32.dirname(cmd);
+    const destino = path.win32.join(dir, shim.destino);
+    if (existsSync(destino)) {
+      if (!shim.conNode) return { file: destino, args, verbatim: false };
+      const nodeAlLado = path.win32.join(dir, "node.exe");
+      return { file: existsSync(nodeAlLado) ? nodeAlLado : "node", args: [destino, ...args], verbatim: false };
+    }
+  }
   const linea = [cmd, ...args].map(argParaCmd).join(" ");
   return { file: env.ComSpec || env.COMSPEC || "cmd.exe", args: ["/d", "/s", "/c", `"${linea}"`], verbatim: true };
 }
