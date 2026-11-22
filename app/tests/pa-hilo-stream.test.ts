@@ -65,7 +65,7 @@ test("codex: comandos con su resultado, cambios de archivos, búsqueda y respues
   assert.equal(m[1].herramientas_det[2].entrada.file_path, "/x/a.ts, /x/b.ts");
   assert.equal(m[2].texto, "Listo, cambié dos archivos.");
   assert.equal(m[2].modelo, "gpt-5.5");
-  assert.deepEqual(m[2].usage, { input_tokens: 60, output_tokens: 7, cache_read_input_tokens: 40, cache_creation_input_tokens: 0 }); // lo cacheado aparte
+  assert.equal(m[2].usage, null); // `turn.completed` trae el acumulado del turno: sin rollout el contexto es desconocido (CTX-38, tests/codex-rollout.test.ts)
 });
 
 test("codex en vuelo: el comando que empezó se ve sin resultado", () => {

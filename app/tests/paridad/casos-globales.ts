@@ -384,7 +384,7 @@ export const casosGlobales: Caso[] = [
   hilo1("agy: los 2 últimos", ["--hilo", ID_AGY, "--json", "-n", "2"], 0, { preparar: conStream(ID_AGY, AGY, "agy:gemini-3.8-flash-high") }),
   hilo1("agy: corriendo (herramienta abierta y línea cortada)", ["--hilo", ID_AGY_VIVO, "--json"], 0, { preparar: conStream(ID_AGY_VIVO, AGY_VIVO, "gemini-3.8-flash-high") }),
   hilo1("agy: cortado por la cuenta", ["--hilo", ID_AGY_ERROR, "--json"], 0, { preparar: conStream(ID_AGY_ERROR, AGY_ERROR, "gemini-4-argon-high") }),
-  hilo1("codex: stream", ["--hilo", ID_CODEX, "--json"], 0, { preparar: conStream(ID_CODEX, CODEX, "codex:gpt-5.5") }),
+  hilo1("codex: stream", ["--hilo", ID_CODEX, "--json"], 0, { preparar: conStream(ID_CODEX, CODEX, "codex:gpt-5.5"), divergenciaSalida: "el usage de turn.completed es el acumulado del turno: sin rollout el TS lo deja null (CTX-38); el bash congelado lo da como contexto" }),
   hilo1("codex: corriendo", ["--hilo", ID_CODEX_VIVO, "--json"], 0, { preparar: conStream(ID_CODEX_VIVO, CODEX_VIVO, "codex:gpt-5.5") }),
   hilo1("opencode: stream", ["--hilo", ID_OC, "--json"], 0, { preparar: conStream(ID_OC, OPENCODE, "opencode:opencode/x-free") }),
   hilo1("opencode: cortado por el cupo", ["--hilo", ID_OC_ERROR, "--json"], 0, { preparar: conStream(ID_OC_ERROR, OPENCODE_ERROR, "opencode:opencode/x-free") }),

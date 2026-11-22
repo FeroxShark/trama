@@ -9,6 +9,7 @@ const fin = { type: "turn.completed", usage: { input_tokens: 15000, output_token
 test("al terminar el turno el medidor se mueve: un message_start con lo que pesa el contexto", () => {
   const t = new Traductor({ sid: "s1", modelo: "gpt-5.4" });
   t.linea(msg);
+  t.rollout = { contexto: 15000, cacheado: 0, salida: 200, ventana: null }; // lo que dice el rollout del último pedido (CTX-38)
   const out = t.linea(fin);
   const ms = out.filter((o) => o.type === "stream_event" && o.event.type === "message_start");
   assert.equal(ms.length, 1);
