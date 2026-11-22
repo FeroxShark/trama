@@ -34,13 +34,13 @@ Verificado en `main` (tsc ×2 y `npm test` 4221 pasan, `check:changed` verde en 
 |---|---|---|
 | CTX-12 (bloque variable repetido en `--resume` de workers Claude) | ARREGLADO | `0aa0b14a` |
 | CTX-13 (`argsCierre` sin `--exclude-dynamic-system-prompt-sections`) | ARREGLADO (el efecto en caché sigue sin medir) | `0aa0b14a` |
-| CTX-17 (caché fría con 55 min plano en `orquesta.ts`) | En worker Codex (`20261122-030113-1531213`) | pendiente |
-| CTX-20 (regex de modelo sin `:` en `dsh.ts`) | En worker Codex (`20261122-030113-1531213`) | pendiente |
+| CTX-17 (caché fría con 55 min plano en `orquesta.ts`) | ARREGLADO (usa el TTL del transcript como `hilos.ts`; 55 min de respaldo; respeta `PA_CACHE_FRIO_MIN`) | `54abcca2`, integrado |
+| CTX-20 (regex de modelo sin `:` en `dsh.ts`) | ARREGLADO (acepta `:`; en Windows los `:` se rechazan por ADS de NTFS) | `54abcca2`, integrado |
 
 Paquetes del plan:
 
 - P5 (workers Claude): hecho, salvo la medición del efecto de CTX-13.
-- P7 (menores): en curso.
+- P7 (menores): hecho (CTX-17 y CTX-20). Verificado: `npm test` 4223/4223, tsc ×2 OK, `check:changed` verde.
 - P1 (podas del líder), P2 (nota y medidor), P3 (workers de otros motores), P4 (MCP y avisos), P6 (suscripciones), P8 (ventanas y medidores), P9 (paridad con Windows): sin empezar. Cambian lo que ve la persona en P1, P2, P3, P4, P6 y P8 y necesitan decisión de Ferox; P9 necesita correr en Windows.
 
 Prueba del worker Codex (`20261122-025216-1422372`, hilo-lider): funciona. Commit automático de `pa` (`37bc0262`), tests de cola 22/22. Lo que quedó «NO ARREGLADO» en ese reporte son HILO-LIDER-1, 2, 3 y 14: el brief prohibía tocar `app/src/` (interfaz) y los cuatro arreglos son de interfaz y traducciones. Falta un brief que sí permita `app/src/`:
