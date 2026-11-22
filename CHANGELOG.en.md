@@ -1,5 +1,11 @@
 # Changes
 
+## 0.3.28
+
+- Context panel: every piece that is always loaded (system, tools, MCP, skills, memory) says «Worth it», «Doubtful» or «Spare», with an icon and the reason in one line («never used in 30 days», «duplicate of workers (user)»). At the top, «Fixed: N k per message · recoverable: M k», and each list starts with what costs the most and gets used the least.
+- Context panel for Gemini, ChatGPT, DeepSeek, OpenCode and local models: it used to say «no breakdown». Now it lists what Trama sends that engine at launch, part by part (its instructions, your rules, memory, the board card), with what was trimmed marked; the rest is the messages.
+- The context window of ChatGPT, DeepSeek, OpenCode and Ollama is no longer taken as 1 M: the ring's percentage uses each engine's own (ChatGPT's comes from the Codex catalog).
+
 ## 0.3.27
 
 - Windows: Claude workers also start with Claude installed through npm (`claude.cmd`). Before, none started and `pa` said the install was broken. The same goes for Codex, Gemini and OpenCode installed through npm.
