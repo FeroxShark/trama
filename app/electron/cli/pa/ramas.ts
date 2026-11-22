@@ -107,8 +107,13 @@ function esArchivo(p: string): boolean {
 
 /** `nombre_registry`: el nombre del registry de ese slug, o el slug. */
 export const nombreRegistry = (pa: Pa, slug: string) => registryPorSlug(pa, slug, "name") || slug;
-/** `tests_registry`: el `tests` del registry (un comando), o "". */
-export const testsRegistry = (pa: Pa, slug: string) => registryPorSlug(pa, slug, "tests");
+/**
+ * `tests_registry`: el `tests` del registry (un comando), o "". Campos opcionales por plataforma (`tests_windows`, `tests_linux`): si
+ * el de esta plataforma existe manda; si no, vale `tests` (el de siempre). `--integrar --tests` lo corre con `bash -c` en Linux y con
+ * `cmd.exe /c` en Windows (ver `correrTests`), así que un `tests` único tiene que andar en las dos shells (`npm test`, `node x.mjs`).
+ */
+export const testsRegistry = (pa: Pa, slug: string) =>
+  registryPorSlug(pa, slug, pa.plat === "win32" ? "tests_windows" : "tests_linux") || registryPorSlug(pa, slug, "tests");
 
 // ---------------------------------------------------------------- integradas.tsv y eventos.jsonl
 

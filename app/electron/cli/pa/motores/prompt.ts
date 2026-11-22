@@ -140,7 +140,7 @@ export function promptOtroMotor(o: { contrato: string; mds: string[]; carpetas: 
     if ((tamano(md) ?? 0) <= 0) continue;
     let txt: string;
     try {
-      txt = leer(md);
+      txt = leer(md).replace(/\r\n?/g, "\n"); // un CLAUDE.md de Windows puede venir con CRLF: no se le pasan `\r` al modelo
     } catch {
       continue;
     }

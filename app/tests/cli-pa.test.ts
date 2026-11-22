@@ -93,7 +93,12 @@ testPosix("la ayuda es la del encabezado de motor/bin/pa (salvo el tope de turno
     const j = ls.findIndex((l, k) => k >= i && l.includes("Al llegar:"));
     return [...ls.slice(0, i), ...ls.slice(j + 1)];
   };
-  assert.deepEqual(sinBloque(`${AYUDA.join("\n")}\n`.split("\n")), sinBloque(r.stdout.split("\n")));
+  // tampoco las líneas de `--integrar --tests` sobre bash/cmd (CTX-60): el bash congelado no las trae
+  const sinTestsPorShell = (ls: string[]) => {
+    const i = ls.findIndex((l) => l.includes("Se corre con `bash -c` en Linux"));
+    return i < 0 ? ls : [...ls.slice(0, i), ...ls.slice(i + 3)];
+  };
+  assert.deepEqual(sinTestsPorShell(sinBloque(`${AYUDA.join("\n")}\n`.split("\n"))), sinTestsPorShell(sinBloque(r.stdout.split("\n"))));
 });
 
 testPosix("el contrato y sus variantes son copia literal del bash", () => {

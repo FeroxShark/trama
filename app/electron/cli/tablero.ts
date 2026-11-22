@@ -10,7 +10,7 @@
 // Entorno: TABLERO_DIR, TABLERO_VISTA, PA_STATE, PROYECTOS_REGISTRY, BARRENDERO_DIR, TRAMA_DUENO, TRAMA_PERFIL.
 import { appendFileSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeSync } from "node:fs";
 import path from "node:path";
-import { configTrama, estadoPa, homeDe, registroProyectos, vistaTablero } from "../rutas.ts";
+import { caminoDe, configTrama, estadoPa, homeDe, plataformaActual, registroProyectos, vistaTablero, type Plataforma } from "../rutas.ts";
 import { conReintentoSync } from "./base/archivo.ts";
 import { esPrincipal } from "./base/principal.ts";
 import { git } from "./base/git.ts";
@@ -322,7 +322,7 @@ function fechaArgDe(t: string): string | null | undefined {
 
 type Tx = { items: Item[]; cambio: boolean };
 
-class Tablero {
+export class Tablero {
   home: string;
   dir: string;
   items: string;
@@ -338,18 +338,21 @@ class Tablero {
   readonly io: Io;
   private leerStdin: () => string;
 
-  constructor(env: Env, io: Io, leerStdin: () => string = () => readFileSync(0, "utf8")) {
+  readonly plat: Plataforma;
+
+  constructor(env: Env, io: Io, leerStdin: () => string = () => readFileSync(0, "utf8"), plat: Plataforma = plataformaActual()) {
     this.env = env;
     this.io = io;
     this.leerStdin = leerStdin;
-    this.home = homeDe(env);
+    this.plat = plat;
+    this.home = homeDe(env, plat);
     this.dir = env.TABLERO_DIR || path.join(this.home, "tablero");
     this.items = path.join(this.dir, "items.jsonl");
     this.seq = path.join(this.dir, "seq");
     this.archivo = path.join(this.dir, "hecho");
-    this.vista = vistaTablero(env, this.home);
-    this.paState = estadoPa(env, this.home);
-    this.registry = registroProyectos(env, this.home);
+    this.vista = vistaTablero(env, this.home, this.plat);
+    this.paState = estadoPa(env, this.home, this.plat);
+    this.registry = registroProyectos(env, this.home, this.plat);
   }
 
   aviso = (msg: string) => this.io.err(`tablero: ${msg}\n`);
@@ -366,7 +369,7 @@ class Tablero {
     if (this._dueno === null) {
       let n = strip(this.env.TRAMA_DUENO ?? "");
       if (!n) {
-        const perfil = this.env.TRAMA_PERFIL || path.join(configTrama(this.env, this.home), "perfil.json");
+        const perfil = this.env.TRAMA_PERFIL || caminoDe(this.plat).join(configTrama(this.env, this.home, this.plat), "perfil.json");
         try {
           const j = JSON.parse(readFileSync(perfil, "utf8"));
           n = strip(esObjeto(j) && verdad(j.dueno) ? String(j.dueno) : "");
@@ -375,7 +378,7 @@ class Tablero {
         }
       }
       if (!n) {
-        const u = strip(this.env.USER ?? "");
+        const u = strip(this.env.USER ?? (this.plat === "win32" ? this.env.USERNAME : "") ?? "");
         n = u.slice(0, 1).toUpperCase() + u.slice(1);
       }
       this._dueno = n || "el usuario";

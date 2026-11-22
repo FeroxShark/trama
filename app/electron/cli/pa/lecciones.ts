@@ -20,7 +20,7 @@ export function fechaLocal(d = new Date()): string {
 
 const leer = (f: string): string | null => {
   try {
-    return readFileSync(f, "utf8");
+    return readFileSync(f, "utf8").replace(/\r\n?/g, "\n"); // un lecciones.md editado en Windows puede traer CRLF
   } catch {
     return null;
   }

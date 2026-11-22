@@ -235,13 +235,19 @@ export function chequearCodex(d: DatosChequeo): string {
   return "";
 }
 
+/**
+ * ¿Hay un node para los runners de dsh y opencode? En Windows los corre el mismo node que trae Trama (`process.execPath`, ver
+ * `programaDe` en otros-motores.ts), así que no hace falta uno en el PATH del sistema; en Linux se sigue mirando el PATH (como el bash).
+ */
+const nodeDisponible = (env: Env, plat: Plataforma) => plat === "win32" || !!enPath("node", [], env, plat);
+
 /** opencode (el programa): modelo bien armado, privacidad, node, el runner y opencode instalado. El login no se mira. */
 export function chequearOpencode(modelo: string, d: DatosChequeo): string {
   const plat = d.plat ?? plataformaActual();
   if (!calza(OC_MODELOS, modelo)) return `'${modelo}' no es un modelo de opencode (opencode:<proveedor>/<modelo>)`;
   const m = privacidadDe(d.proyecto, d.tarea, "OpenCode", d.env);
   if (m) return m;
-  if (!enPath("node", [], d.env, plat)) return "node no está en el PATH (opencode lo necesita)";
+  if (!nodeDisponible(d.env, plat)) return "node no está en el PATH (opencode lo necesita)";
   if (esNvidia(modelo) && !dshClave("NVIDIA_API_KEY", d.env, plat))
     return `falta NVIDIA_API_KEY para '${modelo}' (NVIDIA NIM, gratis: sacala en build.nvidia.com y ponela en ${clavesEnv(d.env, plat)} como NVIDIA_API_KEY=…, o en el entorno)`;
   if (!existsSync(opencodeCorrer(d.env))) return `falta ${opencodeCorrer(d.env)}`;
@@ -259,7 +265,7 @@ export async function chequearDsh(modelo: string, d: DatosChequeo & { locales?: 
     const m = privacidadDe(d.proyecto, d.tarea, prov, d.env);
     if (m) return m;
   }
-  if (!enPath("node", [], d.env, plat)) return "node no está en el PATH (dsh lo necesita)";
+  if (!nodeDisponible(d.env, plat)) return "node no está en el PATH (dsh lo necesita)";
   if (!existsSync(dshCorrer(d.env))) return `falta ${dshCorrer(d.env)}`;
   if (!dshBin(d.env, plat))
     return plat === "win32" ? "dsh no está instalado (npm i -g @deepseek-ai/dsh)" : "dsh no está instalado (npm i -g --prefix ~/.local @deepseek-ai/dsh, o motor/scripts/instalar-producto.sh)";
