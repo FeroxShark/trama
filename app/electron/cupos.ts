@@ -273,6 +273,16 @@ export function refrescarCupos(forzar = false, fondo = false): Promise<CuposLeid
   return enVuelo;
 }
 
+/**
+ * La lectura del minuto de la cabecera: pide el uso de las cuentas agregadas y, a la vez, relee `reparto`; si el pedido trajo datos
+ * nuevos, relee otra vez para mostrarlos. TODAS las lecturas son de fondo (CACHE_QUOTA_FONDO_S): la de después del pedido, con la vida
+ * corta del /quota de agy, levantaba un `agy -p` más (language server y un log nuevo) cada 5 min sólo para repintar el mismo número.
+ */
+export function sondeoDeFondo(pedirUso: () => Promise<boolean>, refrescar: typeof refrescarCupos = refrescarCupos): void {
+  void pedirUso().then((nuevo) => { if (nuevo) void refrescar(true, true); });
+  void refrescar(true, true);
+}
+
 /** La última lectura en caché; dispara un refresco de fondo si venció el TTL. */
 export function cuposActuales(): CuposLeidos | null {
   if (modoAisladoSinCupos()) return null;

@@ -15,7 +15,7 @@ registerHooks({
   },
 });
 
-const { CACHE_QUOTA_FONDO_S, entornoCupos, lecturaClaudeDeCupos, parsearCuposReparto } = await import("../electron/cupos.ts");
+const { CACHE_QUOTA_FONDO_S, entornoCupos, lecturaClaudeDeCupos, parsearCuposReparto, sondeoDeFondo } = await import("../electron/cupos.ts");
 
 const AHORA = Date.parse("2026-10-24T18:00:00Z");
 const s = (iso: string) => Math.round(Date.parse(iso) / 1000);
@@ -212,5 +212,25 @@ describe("entornoCupos: la lectura de fondo no relanza `agy -p /quota` a cada ra
   });
   it("si la persona ya fijó REPARTO_CACHE_S, gana la suya", () => {
     assert.equal(entornoCupos({ REPARTO_CACHE_S: "5" }, true).REPARTO_CACHE_S, "5");
+  });
+});
+
+describe("sondeoDeFondo (CTX-35)", () => {
+  it("todas las lecturas del minuto, también la de después de un pedido con datos nuevos, son de fondo", async () => {
+    const llamadas: [boolean, boolean][] = [];
+    const refrescar = ((forzar = false, fondo = false) => {
+      llamadas.push([forzar, fondo]);
+      return Promise.resolve(null);
+    }) as Parameters<typeof sondeoDeFondo>[1];
+    sondeoDeFondo(() => Promise.resolve(true), refrescar);
+    await new Promise((r) => setImmediate(r));
+    assert.equal(llamadas.length, 2);
+    for (const [, fondo] of llamadas) assert.equal(fondo, true);
+  });
+  it("sin datos nuevos del pedido, una sola lectura", async () => {
+    let n = 0;
+    sondeoDeFondo(() => Promise.resolve(false), (() => (n++, Promise.resolve(null))) as Parameters<typeof sondeoDeFondo>[1]);
+    await new Promise((r) => setImmediate(r));
+    assert.equal(n, 1);
   });
 });

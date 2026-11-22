@@ -107,7 +107,7 @@ import { armarReporte } from "./reporte.ts";
 import { bajarReportes, claveLectura, enviarReporte, urlReportes } from "./reporte-anonimo.ts";
 import { cuentasVarias } from "./cuentas-varias-canales.ts";
 import { cuentasDeEstaMaquinaVarias } from "./cuentas-varias.ts";
-import { alCambiarCupos, cuposActuales, refrescarCupos } from "./cupos.js";
+import { alCambiarCupos, cuposActuales, refrescarCupos, sondeoDeFondo } from "./cupos.js";
 import { esLoopback, modoLocal } from "./modo-local.js";
 import { DIR, leerStatusline, SESIONES, type Statusline } from "./statusline.js";
 import * as tablero from "./tablero.js";
@@ -814,8 +814,7 @@ function mirarSl() {
   // Los cupos de las demás suscripciones (reparto): se releen cada minuto desde acá, no desde la vista.
   setInterval(() => {
     if (hayClientes()) {
-      void lider.pedirUsoCuentas().then((nuevo) => { if (nuevo) void refrescarCupos(true); });
-      void refrescarCupos(true, true);
+      sondeoDeFondo(() => lider.pedirUsoCuentas());
       avisar(); // el uso gratis de OpenCode lo anota el puente (otro proceso) en agotado.json: se relee acá
     } else {
       // Sin nadie mirando, el cierre por cupo igual vigila.
