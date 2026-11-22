@@ -2,7 +2,7 @@
 // fallo ya relanzado, integrado, descartado o visto no sigue en el chip "N falló" ni en el ícono rojo de su líder; una
 // decisión ya contestada no sigue en "N esperan". Puro: lo prueba `tests/atencion-vigente.test.ts`.
 import { cerrado } from "../datos/contrato.ts";
-import { fin, frenado, type Item } from "./arbol.ts";
+import { esFallo, fin, type Item } from "./arbol.ts";
 
 /** Cuándo abrió el usuario cada worker (`leidos.json`, id → epoch s). Abrir un fallo lo deja visto. */
 export type Leidos = Readonly<Record<string, number>>;
@@ -15,7 +15,7 @@ export type Leidos = Readonly<Record<string, number>>;
  *  (c) el usuario ya lo vio. Sólo cuenta para un fallo: abrir una decisión no la contesta.
  * `items`: los workers con el estado que muestra la barra (`estadoVisto`, con lo optimista ya puesto).
  */
-export function resueltosDe(items: readonly Item[], leidos: Leidos): Set<string> {
+export function resueltosDe(items: readonly Item[], leidos: Leidos, ahora?: number): Set<string> {
   // Índices por rama y por `sigue_de`: que la lista crezca no vuelve esto cuadrático.
   const porRama = new Map<string, Item[]>();
   const porOrigen = new Map<string, Item[]>();
@@ -27,7 +27,7 @@ export function resueltosDe(items: readonly Item[], leidos: Leidos): Set<string>
   const out = new Set<string>();
   for (const it of items) {
     const { h } = it;
-    const fallo = it.estado === "murio" && !frenado(it);
+    const fallo = esFallo(it, ahora);
     if (!fallo && it.estado !== "decision") continue;
     const deSuRama = h.rama ? (porRama.get(h.rama) ?? []) : [];
     const despues = (x: Item) => x.h.id !== h.id && x.h.inicio > h.inicio;
