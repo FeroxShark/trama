@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.3.26
+
+- Windows: los workers de OpenCode instalado con npm usan `opencode.cmd`. Antes `pa` tomaba el script sin extensión que npm deja al lado, y Windows no lo puede ejecutar.
+
 ## 0.3.25
 
 - `pa --seguir` sobre un worker de Codex, Gemini, DeepSeek u OpenCode ya no lo abre con Claude y sin la conversación: avisa que ese motor no retoma sesiones y da el comando para seguirlo con el mismo modelo.
