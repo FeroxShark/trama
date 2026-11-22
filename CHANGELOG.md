@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.3.27
+
+- Windows: los workers de Claude arrancan también con Claude instalado por npm (`claude.cmd`). Antes no arrancaba ninguno y `pa` decía que la instalación estaba rota. Lo mismo para Codex, Gemini y OpenCode instalados por npm.
+
 ## 0.3.26
 
 - Windows: los workers de OpenCode instalado con npm usan `opencode.cmd`. Antes `pa` tomaba el script sin extensión que npm deja al lado, y Windows no lo puede ejecutar.
