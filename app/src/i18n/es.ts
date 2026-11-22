@@ -9,6 +9,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "estado.decision": "Te necesita",
   "estado.faltaInfo": "Le falta info",
   "estado.termino": "Terminó",
+  "estado.noTermino": "No terminó",
   "estado.trabado": "Trabado",
   "estado.fallo": "Murió",
   "estado.frenado": "Frenado",
