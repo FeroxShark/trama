@@ -65,7 +65,7 @@ export function wtDePuesto(x: Proyecto, p: string | number): string {
 }
 
 /** Igualdad de rutas: Windows no distingue mayúsculas ni barras. */
-const mismaRuta = (pa: Pa, a: string, b: string) =>
+export const mismaRuta = (pa: Pa, a: string, b: string) =>
   pa.plat === "win32" ? path.win32.resolve(a).toLowerCase() === path.win32.resolve(b).toLowerCase() : a === b;
 
 /** `puesto_de_ruta`: worktrees/<slug> -> 1, worktrees/<slug>@k -> k, cualquier otra -> aca (el tree principal). */
@@ -573,6 +573,51 @@ async function gitComun(x: Proyecto, cwd: string): Promise<string> {
   } catch {
     return d;
   }
+}
+
+/**
+ * Marca de dueño de `$STATE/<slug>`: el archivo `ruta` con la ruta real del proyecto. Dos proyectos con la misma carpeta final
+ * (`/a/demo` y `/b/demo`) comparten slug y por tanto estado, worktree y cola: sin esto se pisan (PA-CLI-3). Devuelve false (con el
+ * aviso ya dado) si el estado es de OTRO repositorio que existe. Se llama al lanzar, antes de tomar puesto; nunca en `--hilos`.
+ */
+export async function guardarDuenoDelEstado(x: Proyecto): Promise<boolean> {
+  const marca = path.join(x.dir, "ruta");
+  const mia = x.ruta;
+  const leerMarca = (): string => {
+    try {
+      return readFileSync(marca, "utf8").split(/\r?\n/)[0]!.trim();
+    } catch {
+      return "";
+    }
+  };
+  let anotada = leerMarca();
+  if (!anotada) {
+    // sin marca: este proyecto la reclama (`wx`: si otro proceso la escribió justo ahora, se mira de nuevo)
+    try {
+      mkdirSync(x.dir, { recursive: true });
+      writeFileSync(marca, `${mia}\n`, { flag: "wx" });
+      return true;
+    } catch {
+      anotada = leerMarca();
+      if (!anotada) return true;
+    }
+  }
+  if (mismaRuta(x.pa, anotada, mia)) return true;
+  if (!existsSync(anotada)) {
+    // el proyecto se movió: la marca pasa a la ruta nueva
+    try {
+      writeFileSync(marca, `${mia}\n`);
+    } catch {
+      // sin escribir sigue andando; la guarda de `asegurarWorktree` es el respaldo
+    }
+    return true;
+  }
+  const [suyo, mio] = [await gitComun(x, anotada), await gitComun(x, mia)];
+  if (suyo && mio && mismaRuta(x.pa, suyo, mio)) return true;
+  x.pa.io.err(
+    `pa: el estado '${x.slug}' ya es del proyecto en ${anotada}, y ${mia} es otro repositorio con el mismo nombre de carpeta ('${x.slug}'): comparten worktrees, cola y sesiones y se pisarían. No arranco. Renombrá una carpeta.\n`,
+  );
+  return false;
 }
 
 /** `asegurar_worktree`: el worktree de un puesto, creado (en HEAD suelto) si no existe. Requiere el candado de git. */
