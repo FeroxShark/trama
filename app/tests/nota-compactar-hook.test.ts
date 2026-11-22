@@ -476,7 +476,7 @@ test("workers (settingsWorker y armarLanzamiento): usa umbralesNota (tope 75% na
   );
 });
 
-test("líderes (settingsCierreCupo y lider.nuevo): un solo JSON con cierre-cupo y nota-compactar, respeta umbralesNota, autocompact_lider y nota_compactar", { timeout: 20_000 }, async () => {
+test("líderes (settingsCierreCupo y lider.nuevo): un solo JSON con cierre-cupo y nota-compactar, respeta umbralesNota, autocompact_lider y nota_compactar", { timeout: 20_000, skip: soloPosix("claude falso por shebang") }, async () => {
   const dir = nuevoDir();
   const prev = {
     HILOS_STATE: process.env.HILOS_STATE,
