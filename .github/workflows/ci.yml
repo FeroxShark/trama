@@ -4,24 +4,14 @@ on:
   push:
 
 jobs:
-  sondeo-cadena:
+  sondeo-detector:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
-          path: trama
-      - uses: actions/checkout@v4
-        with:
-          path: sondeo-src
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: dependencias de la app
-        working-directory: trama/app
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
-        run: npm ci --ignore-scripts
-      - name: cadena de lanzar_worker
-        run: node sondeo-src/sondeo/cadena.mjs trama
+      - name: detector con una ventana de control
+        shell: powershell
+        run: |
+          $j = Start-Job { Start-Sleep 12; Start-Process cmd -ArgumentList '/c','ping','-n','3','127.0.0.1' }
+          powershell -ExecutionPolicy Bypass -File sondeo/detectar-ventanas.ps1 -Segundos 25 -Salida "$env:TEMP\v.txt"
+          Get-Content "$env:TEMP\v.txt"
