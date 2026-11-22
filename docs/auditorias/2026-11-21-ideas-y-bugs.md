@@ -7,10 +7,10 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 ## Resumen
 
 - **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
-  - arreglado: 126
-  - refutado: 14
-  - pendiente: 13
-  - arreglado a medias: 5
+  - arreglado: 130
+  - refutado: 15
+  - pendiente: 9
+  - arreglado a medias: 4
 - **Ideas: 102**.
 
 | Área | Bugs | Arreglados | Pendientes |
@@ -23,8 +23,8 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 | El CLI de `pa` | 15 | 15 | 0 |
 | Puentes a otros motores | 20 | 19 | 1 |
 | Reparto y cupos | 15 | 15 | 0 |
-| Sistema: instalación, actualización y servicio | 16 | 15 | 1 |
-| Vistos trabajando esta noche | 16 | 5 | 11 |
+| Sistema: instalación, actualización y servicio | 16 | 16 | 0 |
+| Vistos trabajando esta noche | 16 | 7 | 8 |
 
 ## Bugs
 
@@ -655,7 +655,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/proyectos-borrar.ts` línea 234-238 (`papeleraProyecto`)
 - Arreglo: Llamar `negarSiVivos(p, deps)` siempre, antes de `papelera`. Test en `tests/proyectos-borrar.test.ts`: retirado + vivo → rechaza.
 
-**B130 · En Windows la «papelera» puede borrar para siempre si la carpeta no entra en la Papelera de Reciclaje** (`SISTEMA-4`, severidad media) · **PENDIENTE**
+**B130 · En Windows la «papelera» puede borrar para siempre si la carpeta no entra en la Papelera de Reciclaje** (`SISTEMA-4`, severidad media) · **ARREGLADO**
 - Qué pasa: `DeleteDirectory(..., 'OnlyErrorDialogs', 'SendToRecycleBin')` se usa para no mostrar diálogos. Si Windows no puede meter la carpeta en la papelera (tamaño, unidad de red), puede borrarla de forma permanente sin preguntar. Eso rompe la regla «nunca borra de forma definitiva».
 - Dónde: `app/electron/proyectos-borrar.ts` línea 135 (`papeleraReal`)
 - Arreglo: Usar `UIOption.AllDialogs` (que obliga a confirmar) o chequear tamaño y unidad antes. Más seguro: mover con `Shell.Application`/`SHFileOperation` con `FOF_ALLOWUNDO` sin `FOF_NOCONFIRMATION` y tratar «cancelado» como `fallo`. Test: sólo de forma, porque el comando es de Windows.
@@ -700,7 +700,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/actualizacion-trama.ts` línea 129 (`correrSuelto`)
 - Arreglo: Linux: `process.kill(-hijo.pid, "SIGTERM")`. Windows: `taskkill /T /F` con `windowsHide`.
 
-**B139 · Descubrir: si una fuente falla y la otra anda, la fallida no se reintenta por 24 horas, y el registro MCP queda cortado** (`SISTEMA-13`, severidad baja) · **ARREGLADO A MEDIAS**
+**B139 · Descubrir: si una fuente falla y la otra anda, la fallida no se reintenta por 24 horas, y el registro MCP queda cortado** (`SISTEMA-13`, severidad baja) · **ARREGLADO**
 - Qué pasa: Si GitHub falla pero el registro MCP contesta, `actualizado` se pone en `ahora`, y la caché se considera vigente un día. Abrir la sección no vuelve a intentar GitHub, y quedan skills viejas o ninguna. Aparte, `bajarMcp` pide como mucho 6 páginas de 100, sin avisar que el catálogo está incompleto (el registro tiene bastante más).
 - Dónde: `app/electron/descubrir.ts` líneas 516-522 (`catalogo`) y 324-332 (`bajarMcp`)
 - Arreglo: Considerar vigente sólo si los dos `errores` son `null`, o reintentar la fuente con error. Guardar `truncado: true` y mostrarlo en la interfaz (texto es/en).
@@ -732,7 +732,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/pa/orquesta.ts`, `app/electron/cli/reparto.ts`.
 - Arreglo: tope de workers vivos por suscripción según el cupo libre y lo medido por corrida; los demás esperan en cola.
 
-**B145 · Se pierde el mensaje final cuando un hook hace seguir el turno** (`NOCHE-15`, severidad alta) · **PENDIENTE**
+**B145 · Se pierde el mensaje final cuando un hook hace seguir el turno** (`NOCHE-15`, severidad alta) · **ARREGLADO**
 - Qué pasa: el modelo cierra el turno con un resumen, un hook de fin de turno lo hace seguir, y en el chat queda sólo «Ran N commands» con el texto siguiente: el resumen desaparece (el lector de voz sí lo leyó).
 - Dónde: `app/src/hilo/Lider.tsx` y `app/src/hilo/Turno.tsx` (cómo se agrupa el texto previo a una continuación).
 - Arreglo: el texto anterior a una continuación por hook se conserva como mensaje propio; test con un transcript que tenga dos textos separados por la respuesta del hook.
@@ -757,7 +757,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/pa/hilo.ts` (`pa --hilos --json`) y la barra.
 - Arreglo: estado propio «en cola» con el modelo pedido.
 
-**B150 · Aviso de «no terminó bien» con el worker terminado en 0** (`NOCHE-7`, severidad media) · **PENDIENTE**
+**B150 · Aviso de «no terminó bien» con el worker terminado en 0** (`NOCHE-7`, severidad media) · **ARREGLADO**
 - Qué pasa: un worker que cerró bien (rc 0, con commits) llegó al líder con el aviso de falla.
 - Dónde: `app/electron/avisos-worker.ts`.
 - Arreglo: decidir el texto por el código de salida y el estado final, con test de un worker que termina bien después de un reintento.
@@ -797,7 +797,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/cli/pa/opciones.ts` (`topeDeTurnos`).
 - Arreglo: que el brief o el tipo puedan pedir una lista («hasta N ítems») y el tope crezca con ella, o partir la lista sola en varias corridas en serie.
 
-**B158 · Los workers sin líder aparecen colgados de otro líder** (`NOCHE-16`, severidad baja) · **PENDIENTE**
+**B158 · Los workers sin líder aparecen colgados de otro líder** (`NOCHE-16`, severidad baja) · **REFUTADO**
 - Qué pasa: workers lanzados desde un servicio, sin sesión de líder, se dibujan bajo otro líder del mismo proyecto y al morir quedan ahí como «en cola, nunca arrancó · falló».
 - Dónde: `app/src/barra/` (a qué líder se cuelga un worker).
 - Arreglo: un grupo «sin líder» por proyecto, o colgarlos del líder que diga la corrida.
