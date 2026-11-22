@@ -465,7 +465,7 @@ test("--tarea: corridas que terminan a la vez no repiten intento (el conteo va d
   const T = "est-paralelo";
   assert.equal(pa(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "calienta el puesto"]).rc, 0); // que los puestos existan antes de la carrera
   const corre = (i: number) => new Promise<{ rc: number | null; err: string }>((res) => {
-    const p = spawn(path.join(MOTOR, "bin", "pa"), ["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "--tarea", T, "--subtarea", "TP", `paralelo ${i}`], { env: entorno({ PA_PUESTOS: "4", PA_RAM_WORKER_MB: "0", PA_RAM_RESERVA_MB: "0" }) }); // 4 puestos (con 3, el cuarto sale 75) y sin el chequeo de RAM de la máquina
+    const p = spawn(path.join(MOTOR, "bin", "pa"), ["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "--tarea", T, "--subtarea", "TP", `paralelo ${i}`], { env: entorno({ PA_PUESTOS: "4", PA_RAM_WORKER_MB: "0", PA_RAM_RESERVA_MB: "0", PA_TOPE_VIVOS: "0" }) }); // 4 puestos (con 3, el cuarto sale 75), sin el chequeo de RAM de la máquina y sin el tope de vivos por cupo (default 3)
     let err = "";
     p.stderr.on("data", (d) => (err += d));
     p.on("close", (rc) => res({ rc, err }));
