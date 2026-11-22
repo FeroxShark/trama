@@ -2,7 +2,7 @@
 // los filtros, cómo se resalta lo buscado y cómo se cuenta. Pura: lo prueba `tests/riel.test.ts`.
 import { dondeSeVe } from "../../electron/reemplazos.ts";
 import { activo, atencionItem, compararLideres, liderEspera, normal, type Arbol, type Atencion, type Carpeta, type Item, type Rama } from "./arbol.ts";
-import { modoOrden } from "./orden.ts";
+import { modoOrden, ORDEN0, prioridadPrendida } from "./orden.ts";
 import type { Orden } from "../datos/contrato.ts";
 import type { Recientes } from "./recientes.ts";
 
@@ -125,16 +125,25 @@ export const ordenAtencion = (cs: readonly Carpeta[], resueltos?: ReadonlySet<st
 };
 
 /**
- * Actualiza la foto de `ordenAtencion` cuando la lista no está congelada o cuando el usuario cambió el orden
- * (`cambioOrden`: arrastrar, Subir/Bajar, modo o prioridad), para que reordenar desde la lista se vea de inmediato.
+ * Con la lista congelada, actualiza la foto de `ordenAtencion` sólo si cambió el orden de carpetas, el modo o la prioridad.
  */
 export const actualizarOrdenProyectos = (
   actual: readonly string[],
   cs: readonly Carpeta[],
   congelada: boolean,
-  cambioOrden: boolean,
+  anterior: Orden | undefined,
+  orden: Orden | undefined,
   resueltos?: ReadonlySet<string>,
-): string[] => (!congelada || cambioOrden || actual.length === 0 ? ordenAtencion(cs, resueltos) : [...actual]);
+): string[] => {
+  const carpetasAntes = anterior?.carpetas ?? ORDEN0.carpetas;
+  const carpetasAhora = orden?.carpetas ?? ORDEN0.carpetas;
+  const cambioOrden =
+    modoOrden(anterior) !== modoOrden(orden) ||
+    prioridadPrendida(anterior) !== prioridadPrendida(orden) ||
+    carpetasAntes.length !== carpetasAhora.length ||
+    carpetasAhora.some((proyecto, i) => proyecto !== carpetasAntes[i]);
+  return !congelada || cambioOrden || actual.length === 0 ? ordenAtencion(cs, resueltos) : [...actual];
+};
 
 /** Las carpetas en el orden de `lista` (la foto de `ordenAtencion`); lo que no está en ella va al final, como venía. */
 export function segunLista(cs: readonly Carpeta[], lista: readonly string[]): Carpeta[] {
