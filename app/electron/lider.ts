@@ -70,7 +70,7 @@ import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { barrerEtiqueta, nuevaEtiqueta, VARIABLE } from "./huerfanos.js";
 import { arranqueDe } from "./local.js";
 import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts";
-import { fragmentoVigente } from "./apagados.ts";
+import { settingsLider } from "./apagados.ts";
 import { carpetaHooksCierre, carpetaHooksNota, settingsCierreCupo } from "./cierre-cupo-texto.ts";
 import { conClaves } from "./claves.ts";
 import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTramaApp, tramaParaAcp } from "./mcp.ts";
@@ -708,13 +708,6 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   } catch (e) {
     silencio("mcp-lanzar")(e);
   }
-  // El apagado global de Trama (skills, MCP, herramientas y memoria que no se cargan): un `--settings` más, sólo a un líder de Claude de verdad.
-  let apagados: string | undefined;
-  try {
-    if (clase === "claude" && !local && !extra.ollama) apagados = fragmentoVigente();
-  } catch (e) {
-    silencio("apagados-lanzar")(e);
-  }
   // Los hooks del motor (cierre por cupo y nota antes de compactar) en UN solo `--settings` para un líder de Claude oficial (ni locales ni Ollama).
   const hooksBase = carpetaHooksNota();
   if (hooksBase) void cargarTextosNota(hooksBase).catch(() => {});
@@ -742,6 +735,13 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
     }
   } catch (e) {
     silencio("cierre-cupo-lanzar")(e);
+  }
+  // El apagado global de Trama (skills, MCP, herramientas y memoria que no se cargan) va adentro del mismo `--settings`: con dos,
+  // Claude Code se queda sólo con el último y lo apagado se volvía a cargar en cada líder.
+  try {
+    if (clase === "claude" && !local && !extra.ollama) cierreCupo = settingsLider(cierreCupo);
+  } catch (e) {
+    silencio("apagados-lanzar")(e);
   }
   const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : clase === "opencode" ? "opencode" : clase === "codex" ? "codex" : path.basename(CLAUDE).replace(/\.(exe|cmd|bat)$/i, "");
   const p =
@@ -774,7 +774,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: [LINEA_CHAT, extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, cierreCupo, autocompact: tope, advisor: asesor, fast: g.fast, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
+      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, cierreCupo, autocompact: tope, advisor: asesor, fast: g.fast, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
   const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, topeNota, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ...(g.ultracode && oficial ? { ultracode: true } : {}), ...(g.fast && oficial ? { fast: true } : {}), ...(clase === "claude" && !local && !extra.ollama && argvFast(g.modelo, g.fast).length ? { fastArgv: true } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null, usoContexto: null, compactadoMs: 0, autoCompactEncolado: false, geminiNotaPedidaCiclo: false };
   procs.set(g.sid, x);
   // Ultracode va tras el arranque, por el mismo canal que el cambio en vivo (el argv no lo lleva): si Claude Code no lo acepta, queda apagado.
