@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.3.25
+
+- `pa --seguir` sobre un worker de Codex, Gemini, DeepSeek u OpenCode ya no lo abre con Claude y sin la conversación: avisa que ese motor no retoma sesiones y da el comando para seguirlo con el mismo modelo.
+
 ## 0.3.24
 
 - Windows: un worker que prueba con el modelo siguiente (`-m a,b,c`) o que repite intentos (modo objetivo) ya no abre una ventana de consola. Puede ser el CMD que aparecía un instante al usar herramientas; falta confirmarlo en una PC con Windows.
