@@ -1389,13 +1389,28 @@ function agyFallo(state: string, cuenta: Obj | null): void {
 const ARGS_QUOTA = ["-p", "/quota", "--output-format", "json"];
 const CACHE_RESPALDO_S = 900; // si agy no contesta a tiempo, vale una lectura de hasta 15 min (REPARTO_CACHE_RESPALDO_S) antes que "sin dato"
 
+/** Si algún bucket de una lectura de `/quota` tenía su reinicio entre cuando se leyó (`leido`, segundos) y `now`: esa lectura ya no vale como actual. */
+function cruzoReinicio(j: unknown, leido: number, now: Date): boolean {
+  try {
+    for (const g of get(get(get(j as Obj, "command", {}), "data", {}), "groups", [])) {
+      for (const b of get(g, "buckets", [])) {
+        const r = parseIso(get(b, "reset_time"));
+        if (r && r.getTime() > leido * 1000 && r.getTime() <= now.getTime()) return true;
+      }
+    }
+  } catch {
+    /* sin dato */
+  }
+  return false;
+}
+
 /** La caché de `agy /quota` de la cuenta: `fresca` si todavía vale (ttlCache), `respaldo` si venció hace poco (sirve si agy no contesta). */
-function cacheQuota(state: string, cuenta: Obj | null): { fresca: Obj | null; respaldo: Obj | null } {
+function cacheQuota(state: string, cuenta: Obj | null, now: Date): { fresca: Obj | null; respaldo: Obj | null } {
   try {
     const c = leerJson(readFileSync(path.join(state, `quota${suf(get(cuenta, "id"))}.json`), "utf8"));
     if (!verdad(c.json)) return { fresca: null, respaldo: null };
     const edad = ahoraS() - c.leido;
-    if (edad <= ttlCache(c.json)) return { fresca: c.json, respaldo: null };
+    if (edad <= ttlCache(c.json) && !cruzoReinicio(c.json, c.leido, now)) return { fresca: c.json, respaldo: null };
     return { fresca: null, respaldo: edad <= pyFloat(E.REPARTO_CACHE_RESPALDO_S ?? CACHE_RESPALDO_S) ? c.json : null };
   } catch {
     return { fresca: null, respaldo: null };
@@ -1405,7 +1420,7 @@ function cacheQuota(state: string, cuenta: Obj | null): { fresca: Obj | null; re
 function quotaAgy(state: string, _now: Date, cuenta: Obj | null = null): Obj | null {
   const cid = get(cuenta, "id");
   const cache = path.join(state, `quota${suf(cid)}.json`);
-  const { fresca, respaldo } = cacheQuota(state, cuenta);
+  const { fresca, respaldo } = cacheQuota(state, cuenta, _now);
   if (fresca) return fresca;
   if (agyPausado(state, cuenta)) return respaldo;
   let j: Obj;
@@ -1527,6 +1542,8 @@ function cuposGoogle(cfg: Obj, state: string, now: Date, cuenta: Obj | null = nu
       for (const b of get(g, "buckets", [])) {
         const w = ({ weekly: "7d", "5h": "5h" } as Obj)[get(b, "window")];
         const rf = get(b, "remaining_fraction");
+        const rt = parseIso(get(b, "reset_time"));
+        if (rt && rt <= now) continue; // el reinicio ya pasó: su porcentaje es de la ventana anterior (sin dato, no lleno)
         if (w && esNumPy(rf)) vs[w] = ventana(w, 1 - Number(rf), get(b, "reset_time"));
       }
       porId[gid] = vs;
@@ -2339,7 +2356,7 @@ async function leerEnParalelo(now: Date, elegir = false): Promise<void> {
     for (const cuenta of cuentasGoogleALeer()) {
       if (agyPausado(state, cuenta)) continue;
       const env = envCuenta(cuenta);
-      if (!cacheQuota(state, cuenta).fresca) pedir("agy", ARGS_QUOTA, { timeoutS: topeQuota(), cwd: os.tmpdir(), env });
+      if (!cacheQuota(state, cuenta, now).fresca) pedir("agy", ARGS_QUOTA, { timeoutS: topeQuota(), cwd: os.tmpdir(), env });
       if (E.REPARTO_AGY_MODELOS_FIJO === undefined && !cacheAgyModelos(state, cuenta).fresca) pedir("agy", ["models"], { timeoutS: topeAgyModelos(), cwd: os.tmpdir(), env });
     }
     if (E.REPARTO_OPENCODE !== "0" && E.REPARTO_SIN_DSH !== "1" && !E.REPARTO_OPENCODE_FIJO) {
