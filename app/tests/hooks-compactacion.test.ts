@@ -119,7 +119,8 @@ test("resumen-modelos.mjs buscarReparto: en Windows el bin\\reparto.cmd de la in
     repartoFalso(bin, "x");
     const real = path.join(bin, process.platform === "win32" ? "reparto.cmd" : "reparto");
     assert.equal(buscarReparto({ PATH: bin, PATHEXT: ".CMD" }, process.platform, path.join(dir, "app", "hooks")), real);
-    assert.equal(buscarReparto({ PATH: path.join(dir, "no") }, process.platform, path.join(dir, "app", "hooks")), null);
+    // sin reparto en el PATH ni una instalación al lado de los hooks (en Windows mira …\app\hooks\..\..\bin)
+    assert.equal(buscarReparto({ PATH: path.join(dir, "no") }, process.platform, path.join(dir, "sin-instalacion", "app", "hooks")), null);
     if (process.platform === "win32") assert.equal(buscarReparto({ PATH: path.join(dir, "no") }, "win32", path.join(dir, "app", "hooks")), real, "la de la instalación (…\\app\\hooks\\..\\..\\bin)");
     else assert.equal(buscarReparto({ PATH: path.join(dir, "no") }, "linux", path.join(dir, "app", "hooks")), null, "en Linux sólo el PATH");
   });
