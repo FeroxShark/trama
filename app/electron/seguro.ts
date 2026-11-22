@@ -66,6 +66,15 @@ export function motivoNoSeguro(h: HiloSeguro, ultima: HiloSeguro | undefined, ct
 }
 
 /**
+ * El motivo para el aviso de fin de un worker (autointegrar.ts, `integracionDe`). La fila es de la última barrida: si ahí el worker
+ * seguía, su motivo de entonces («no terminó bien», «sigue corriendo») ya no vale, porque el aviso llega justo porque terminó.
+ */
+export function motivoAlTerminar(h: HiloSeguro, ultima: HiloSeguro | undefined, ctx: Contexto): string | null {
+  if (vivo(h)) return h.jefe_id && ctx.liderVivo(h.jefe_id) ? "la integra el líder que la lanzó" : "la barrida todavía no la tomó";
+  return motivoNoSeguro(h, ultima, ctx);
+}
+
+/**
  * Seguro = terminó bien y no pide nada (listo o decision con "DECISION: nada"),
  * rc 0 si se sabe, con commits, el worker ya no corre, el proyecto tiene `tests`
  * (`--integrar --tests` es la red) y no lo lanzó un líder que siga vivo. Se
