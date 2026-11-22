@@ -9,7 +9,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
-import { alSalir, argsCierre, argsClaude, armarLanzamiento, configClaudeDe, contratoClaude, envDeLaLlamada, HERRAMIENTAS_LEER, lineaSkillsDiseno, promptDe, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
+import { alSalir, argsCierre, argsClaude, armarLanzamiento, configClaudeDe, contratoClaude, envDeLaLlamada, HERRAMIENTAS_LEER, lanzarClaude, lineaSkillsDiseno, promptDe, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
 import { plataformaActual } from "../electron/rutas.ts";
 import { anotarTablero, faltaParaLider, medir } from "../electron/cli/pa/ganchos.ts";
 import { campoDe, decisionEsNada, epochReset, verificadoDe } from "../electron/cli/pa/resultado-lanzar.ts";
@@ -171,6 +171,31 @@ test("al_salir: .ultimo con el lock, .listo sólo en async, y el rastro vivo se 
     assert.equal(existsSync(l.run), false);
     rmSync(listoF, { force: true });
   }
+});
+
+test("sesión que ya no existe: la corrida deja en <id>.sid la nueva sesión, así --seguir --id la retoma (B086)", async () => {
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-sid-"));
+  const pa = paFalso(raiz);
+  const c = corrida(raiz, { resume: true, sid: "11111111-1111-4111-8111-111111111111" });
+  mkdirSync(c.ruta, { recursive: true });
+  const viejo = c.sid;
+  let llamadas = 0;
+  const rc = await lanzarClaude(pa, c, {
+    senalesProceso: false,
+    async ejecutar(l) {
+      llamadas++;
+      if (llamadas === 1) {
+        writeFileSync(l.err, "No conversation found with session ID: 11111111\n");
+        return 1;
+      }
+      writeFileSync(l.out, JSON.stringify({ result: "RESULTADO: listo.\nDECISION: nada\nSIGUE: nada", is_error: false }));
+      return 0;
+    },
+  });
+  assert.equal(rc, 0);
+  assert.equal(llamadas, 2);
+  assert.notEqual(c.sid, viejo);
+  assert.equal(readFileSync(path.join(pa.state, "demo", `${c.ts}.sid`), "utf8"), c.sid, "el .sid de la corrida es la sesión recuperada, no la rota");
 });
 
 test("medicion.tsv: --indivisible deja el motivo en la última columna (sólo TS); sin él la columna queda vacía", async () => {

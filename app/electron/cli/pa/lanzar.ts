@@ -12,7 +12,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { agregarLinea, escribirAtomico } from "../base/archivo.ts";
+import { agregarLinea, escribirAtomico, escribirAtomicoSync } from "../base/archivo.ts";
 import { esEjecutable } from "../base/buscar.ts";
 import { paraLanzar, resolverClaude } from "../../binario.ts";
 import { tomar } from "../base/lock.ts";
@@ -806,6 +806,15 @@ export function escribirCorrida(l: Lanzamiento): void {
 }
 
 /** `guardar_sesion`: el casillero `<slug>.session` (+ `.ts`) para `--seguir`; un --leer no lo toca. */
+/** El `<ts>.sid` de la corrida (atómico): `--seguir --id <ts>` retoma esa sesión, así que tiene que ser la última que de verdad existió. */
+function escribirSidCorrida(l: Lanzamiento, sid: string): void {
+  try {
+    escribirAtomicoSync(path.join(l.dir, `${l.c.ts}.sid`), sid);
+  } catch {
+    /* como el resto del rastro: no tira la corrida */
+  }
+}
+
 export function guardarSesion(l: Lanzamiento, sid: string): void {
   if (l.c.leer) return;
   writeFileSync(l.sfile, sid);
@@ -1134,6 +1143,7 @@ export async function lanzarClaude(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): 
     if (!c.leer) rmSync(l.sfile, { force: true });
     c.resume = false;
     c.sid = randomUUID();
+    escribirSidCorrida(l, c.sid);
     l.transcript = path.join(proj, escapar(c.rutaTrabajo), `${c.sid}.jsonl`);
     const i = l.args.indexOf("--resume");
     if (i >= 0) l.args.splice(i, 2, "--session-id", c.sid);
@@ -1144,7 +1154,10 @@ export async function lanzarClaude(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): 
   // 3b. se quedó sin turnos: auto-cierre con un resume corto, y si no, 78.
   if (campoJson(leerSalida(l.out), "subtype") === "error_max_turns") {
     const nuevoSid = campoJson(leerSalida(l.out), "session_id");
-    if (nuevoSid) guardarSesion(l, nuevoSid);
+    if (nuevoSid) {
+      guardarSesion(l, nuevoSid);
+      escribirSidCorrida(l, nuevoSid);
+    }
     io.err(`${res()}\n`);
     io.err(statsResultado(leerSalida(l.out), proj));
     io.err(`pa: el worker de '${c.slug}' se quedó sin turnos (tope ${c.maxTurns || "?"}).\n`);
