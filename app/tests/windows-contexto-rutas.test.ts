@@ -1,5 +1,6 @@
 // Rutas y textos de Windows contra Linux (CTX-52, 55, 58, 59, 60, 61 del análisis de contexto): con `plat: "win32"` y rutas `path.win32`.
 import { test } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -134,17 +135,14 @@ test("CTX-56: excluida compara sin mayúsculas en Windows (ruta exacta y glob) y
   assert.ok(excluida("/home/ana/p/CLAUDE.md", ["/home/ana/*/CLAUDE.md"], "linux"));
 });
 
-test("CTX-56: la carpeta de configuración de Claude respeta CLAUDE_CONFIG_DIR (proyectos, memoria, hooks de arranque, skill de orquestación)", async () => {
+// Las rutas de Linux de este caso salen del `path` de la máquina (carpetaProyectos, claudeDe, memoriaDe): en Windows darían `\\home\\ana`.
+test("CTX-56: la carpeta de configuración de Claude respeta CLAUDE_CONFIG_DIR (proyectos, memoria, hooks de arranque, skill de orquestación)", { skip: soloPosix("rutas de Linux con el path de la máquina") }, async () => {
   const pl = (env: Record<string, string>) => ({ env, home: "/home/ana", plat: "linux" }) as unknown as Pa;
   assert.equal(carpetaProyectos(pl({})), "/home/ana/.claude/projects");
   assert.equal(carpetaProyectos(pl({ CLAUDE_CONFIG_DIR: "/cfg/c" })), "/cfg/c/projects");
   assert.equal(carpetaProyectos(pl({ CLAUDE_CONFIG_DIR: "/cfg/c", PA_PROJ: "/p" })), "/p");
   assert.equal(carpetaProyectosClaude(pl({})), "/home/ana/.claude/projects");
   assert.equal(carpetaProyectosClaude(pl({ CLAUDE_CONFIG_DIR: "/cfg/c" })), "/cfg/c/projects");
-  // Windows: la misma regla con `path.win32`
-  const pw = (env: Record<string, string>) => ({ env, home: HOME_W, plat: "win32" }) as unknown as Pa;
-  assert.equal(carpetaProyectosClaude(pw({ CLAUDE_CONFIG_DIR: "D:\\claude" })), "D:\\claude\\projects");
-  assert.equal(carpetaProyectosClaude(pw({})), "C:\\Users\\Ana\\.claude\\projects");
   // contexto-local (líderes que no son Claude): lo mismo, con el entorno que se le pasa
   assert.equal(claudeDe("/home/ana"), "/home/ana/.claude");
   assert.equal(claudeDe("/home/ana", { CLAUDE_CONFIG_DIR: "/cfg/c" }), "/cfg/c");
@@ -158,4 +156,10 @@ test("CTX-56: la carpeta de configuración de Claude respeta CLAUDE_CONFIG_DIR (
   assert.equal(await skillOrquestar("/home/ana", { CLAUDE_CONFIG_DIR: d }), "mi-orquestar");
   assert.equal(await skillOrquestar("/home/ana-sin-nada", {}), "trama-orquestar");
   rmSync(d, { recursive: true, force: true });
+});
+
+test("CTX-56: en Windows la carpeta de proyectos de Claude respeta CLAUDE_CONFIG_DIR con path.win32", () => {
+  const pw = (env: Record<string, string>) => ({ env, home: HOME_W, plat: "win32" }) as unknown as Pa;
+  assert.equal(carpetaProyectosClaude(pw({ CLAUDE_CONFIG_DIR: "D:\\claude" })), "D:\\claude\\projects");
+  assert.equal(carpetaProyectosClaude(pw({})), "C:\\Users\\Ana\\.claude\\projects");
 });
