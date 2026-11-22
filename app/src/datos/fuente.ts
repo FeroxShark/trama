@@ -2636,7 +2636,7 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     return r?.ok === true ? { ok: true as const } : { ok: false as const, error: typeof r?.error === "string" ? r.error.slice(0, 200) : "" };
   },
   async avisoVuelta() {
-    return avisoVueltaValido(await m.trama.avisoVuelta?.().catch(() => null));
+    return avisoVueltaValido(await m.trama.avisoVuelta?.());
   },
   async faltasSetup() {
     return faltasValidas(await m.setup.estado().catch(() => null));
