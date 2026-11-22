@@ -113,7 +113,7 @@ export function repartoProceso(pa: Pa): Reparto {
       return r.codigo === 0 ? recortar(r.salida) : "";
     },
     plan(sub, args) {
-      const r = spawnSync(prefijo[0]!, [...prefijo.slice(1), "--plan", sub, ...args], { env: entornoCmd(prefijo, entorno()) as NodeJS.ProcessEnv, stdio: "inherit" });
+      const r = spawnSync(prefijo[0]!, [...prefijo.slice(1), "--plan", sub, ...args], { env: entornoCmd(prefijo, entorno()) as NodeJS.ProcessEnv, stdio: "inherit", windowsHide: true });
       return r.status ?? (r.error ? 127 : 1);
     },
   };
