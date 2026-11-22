@@ -142,6 +142,7 @@ function banco({ contesta = () => false, ahora0 = 0 } = {}) {
       const h = b.lanzados.find((x) => x.pid === pid);
       setImmediate(() => h?.salir(1));
     },
+    pidAdoptado: () => b.pidAdoptado,
     log: (m) => b.logs.push(m),
     intervaloMs: 1000,
     graciaMs: 5000,
@@ -301,4 +302,22 @@ test("leer el PATH y la clave Run sale en base64 de UTF-8: un acento del perfil 
   const v = "C:\\Users\\José\\bin;C:\\Ñandú";
   assert.equal(n.deBase64(`${Buffer.from(v, "utf8").toString("base64")}\r\n`), v);
   assert.equal(n.deBase64(""), "");
+});
+
+test("supervisor: parar() apaga también al motor adoptado (por el pid de `dueno`)", async () => {
+  const b = banco({ contesta: () => true });
+  b.pidAdoptado = 4242;
+  await b.sup.iniciar();
+  assert.equal(b.sup.estado().fase, "adoptado");
+  await b.sup.parar();
+  assert.deepEqual(b.matados, [4242]);
+  assert.equal(b.sup.estado().fase, "parado");
+});
+
+test("supervisor: parar() con un adoptado sin pid legible no mata nada ni tira", async () => {
+  const b = banco({ contesta: () => true });
+  b.pidAdoptado = NaN;
+  await b.sup.iniciar();
+  await b.sup.parar();
+  assert.deepEqual(b.matados, []);
 });

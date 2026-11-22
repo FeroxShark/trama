@@ -102,6 +102,8 @@ function crearSupervisor(deps) {
     lanzar,
     chequear,
     matar,
+    // El pid del motor que no lanzó este supervisor (el «adoptado»): sale de `dueno`. Sin esto, parar() no puede apagarlo.
+    pidAdoptado = () => null,
     log = () => {},
     intervaloMs = 5000,
     fallasMax = 3,
@@ -234,6 +236,7 @@ function crearSupervisor(deps) {
   }
 
   async function parar() {
+    const eraAdoptado = fase === "adoptado";
     parando = true;
     reloj.clearTimeout(sondeo);
     reloj.clearTimeout(relanzo);
@@ -244,6 +247,11 @@ function crearSupervisor(deps) {
     // Se suelta ya (su salida, que llega después, no relanza nada): así un `iniciar()` enseguida, tras una actualización, lanza otro.
     hijo = null;
     if (h) await Promise.resolve(matar(h.pid)).catch((e) => log(`no pude parar al motor ${h.pid}: ${e.message}`));
+    // Un motor adoptado (quedó de una carcasa caída) también se apaga: si no, node.exe sigue abierto y la actualización no puede reemplazarlo.
+    if (!h && eraAdoptado) {
+      const pid = Number(await Promise.resolve(pidAdoptado()).catch(() => null));
+      if (Number.isInteger(pid) && pid > 0) await Promise.resolve(matar(pid)).catch((e) => log(`no pude parar al motor adoptado ${pid}: ${e.message}`));
+    }
     fase = "parado";
   }
 

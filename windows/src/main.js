@@ -107,6 +107,13 @@ const supervisor = nativo.crearSupervisor({
   lanzar: nativo.lanzarMotor(rutasNativas),
   chequear: nativo.chequearRpc({ token: () => nativo.leerToken(rutasNativas.token) }),
   matar: nativo.matarArbol,
+  pidAdoptado: () => {
+    try {
+      return Number(JSON.parse(fs.readFileSync(rutasNativas.dueno, "utf8")).pid);
+    } catch {
+      return null;
+    }
+  },
   log: (m) => log(`motor: ${m}`),
 });
 
