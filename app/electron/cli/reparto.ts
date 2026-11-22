@@ -1925,6 +1925,9 @@ function rateLimitsCodex(now: Date): Obj {
   } catch {
     /* sin orden */
   }
+  // Por ventana vale la medición más nueva por su timestamp (el mtime del archivo sólo cuando el evento no trae uno): un transcript viejo
+  // que sigue recibiendo escrituras sin medición no tapa a otro con una lectura posterior. A igual hora gana el archivo más reciente.
+  const mejor: Record<string, { t: number; w: Obj }> = {};
   for (const f of archivos.slice(0, 8)) {
     let filas: string[];
     try {
@@ -1932,6 +1935,7 @@ function rateLimitsCodex(now: Date): Obj {
     } catch {
       continue;
     }
+    const delArchivo: Record<string, { t: number; w: Obj }> = {};
     for (const linea of [...filas].reverse()) {
       if (!linea.includes("rate_limits")) continue;
       let ev: Obj;
@@ -1952,12 +1956,12 @@ function rateLimitsCodex(now: Date): Obj {
           continue;
         }
       }
-      const out: Obj = {};
       for (const k of ["primary", "secondary"]) {
         const w = get(rl, k);
         if (!esDict(w) || !esNumPy(w.used_percent)) continue;
         const mins = get(w, "window_minutes");
         const wid = esNumPy(mins) && Number(mins) <= 720 ? "5h" : verdad(mins) ? "7d" : k === "primary" ? "5h" : "7d";
+        if (wid in delArchivo) continue;
         const ra = get(w, "resets_at");
         let vuelve: Date | null;
         if (esNumPy(ra)) vuelve = new Date(Number(ra) * 1000);
@@ -1965,12 +1969,15 @@ function rateLimitsCodex(now: Date): Obj {
         else if (esNumPy(get(w, "resets_in_seconds"))) vuelve = new Date(tEv.getTime() + Number(w.resets_in_seconds) * 1000);
         else vuelve = null;
         if (vuelve !== null && vuelve <= now) continue;
-        out[wid] = ventana(wid, Number(w.used_percent) / 100.0, iso(vuelve));
+        delArchivo[wid] = { t: tEv.getTime(), w: ventana(wid, Number(w.used_percent) / 100.0, iso(vuelve)) };
       }
-      if (Object.keys(out).length) return out;
+      if ("5h" in delArchivo && "7d" in delArchivo) break;
     }
+    for (const [wid, c] of Object.entries(delArchivo)) if (!(wid in mejor) || c.t > mejor[wid]!.t) mejor[wid] = c;
   }
-  return {};
+  const out: Obj = {};
+  for (const [wid, c] of Object.entries(mejor)) out[wid] = c.w;
+  return out;
 }
 
 function cuposOpenai(cfg: Obj, now: Date): Obj {
