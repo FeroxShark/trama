@@ -69,6 +69,8 @@ export type Hilo = {
    * (`null`, o el campo no viene: un `pa` viejo). Sólo `false` se marca: la UI no dice nada de los demás.
    */
   verificado?: boolean | null;
+  /** `pa --hilos --json`: un worker `entregado` que falló (código de salida distinto de 0 o `is_error`): la barra dice «No terminó», no «Terminó». Ausente en un `pa` viejo. */
+  fallo?: boolean;
   /** Lo pone el main, no `pa`: cuándo vio morir la app a este worker (electron/vigia.ts). Sin verlo, no viene. */
   murio_en?: number | null;
   /**
