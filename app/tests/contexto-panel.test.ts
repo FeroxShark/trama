@@ -113,14 +113,14 @@ test("worker (port de pa): el --settings lleva el apagado global si Trama dejó 
   assert.deepEqual(con.claudeMdExcludes, [`${pa.home}/CLAUDE.md`, "/ruta/CLAUDE.md"]);
 });
 
-test("líder: --settings con el pedazo sólo para Claude de verdad (no local ni Ollama)", () => {
+test("líder: el --settings (hooks y apagado juntos) sólo para Claude de verdad (no local ni Ollama)", () => {
   const base = { modelo: "claude-opus-5-5", effort: "high", sid: "11111111-2222-3333-4444-555555555555", nombre: "trama-1", resume: false };
-  const con = argvLider({ ...base, apagados: "/c/apagados-claude.json" });
-  assert.deepEqual(con.slice(con.indexOf("--settings"), con.indexOf("--settings") + 2), ["--settings", "/c/apagados-claude.json"]);
+  const con = argvLider({ ...base, cierreCupo: "/c/settings-lider.json" });
+  assert.deepEqual(con.slice(con.indexOf("--settings"), con.indexOf("--settings") + 2), ["--settings", "/c/settings-lider.json"]);
   assert.ok(!argvLider(base).includes("--settings"));
-  const ollama = argvLider({ ...base, modelo: "llama3", apagados: "/c/a.json", ollama: { url: "http://127.0.0.1:11434", modelo: "llama3" } });
+  const ollama = argvLider({ ...base, modelo: "llama3", cierreCupo: "/c/a.json", ollama: { url: "http://127.0.0.1:11434", modelo: "llama3" } });
   assert.ok(!ollama.includes("/c/a.json"));
-  const local = argvLider({ ...base, apagados: "/c/a.json", local: { url: "http://127.0.0.1:8080", ctx: 32768 } });
+  const local = argvLider({ ...base, cierreCupo: "/c/a.json", local: { url: "http://127.0.0.1:8080", ctx: 32768 } });
   assert.ok(!local.includes("/c/a.json"));
 });
 
