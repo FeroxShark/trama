@@ -160,6 +160,8 @@ Revisión simple medida: 16 250 tokens sin adjuntos y 26 287 con. Debate (estima
 
 ## Hallazgos
 
+Las líneas y citas de esta tabla son de la primera auditoría. Donde difieren, mandan «Segunda lectura» y «Cierre de dudosos» (abajo en el doc).
+
 Orden por impacto. Veredicto con evidencia de hoy. «Peso» es medido o estimado según se indique.
 
 | ID | Orígenes | Motor y rol | Plataforma | Suscripción | Qué pasa | Peso | Veredicto | Arreglo | Archivos |
