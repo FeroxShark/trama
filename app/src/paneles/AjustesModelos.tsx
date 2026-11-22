@@ -32,6 +32,7 @@ import { ModelosParaWorkers } from "./AjustesWorkers";
 import { PlanesSuscripcion } from "./AjustesPlanes";
 import type { VistaPlanes } from "../../electron/costo-planes-texto";
 import { AutocompactFilas } from "./AjustesAutocompact";
+import { AjustesMemoria } from "./AjustesMemoria";
 import { AdvisorFilas } from "./AjustesAdvisor";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
 import { LocalesDetectados } from "./LocalesDetectados";
@@ -573,6 +574,10 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
 
           <Dato nombre="ajustes.mdlAdvisor" que="ajustes.mdlAdvisorQue">
             <AdvisorFilas b={b} cambiar={cambiar} motivo={e?.advisor?.motivo} />
+          </Dato>
+
+          <Dato nombre="ajustes.mdlMemoria" que="ajustes.mdlMemoriaQue">
+            <AjustesMemoria b={b} cambiar={cambiar} />
           </Dato>
 
           <Dato nombre="ajustes.mdlPermitirMax" que="ajustes.mdlPermitirMaxQue">

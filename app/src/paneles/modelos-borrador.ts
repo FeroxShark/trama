@@ -50,6 +50,7 @@ import {
   type TopeVivosConfig,
 } from "../../electron/modelos-tipos";
 import type { AdvisorConfig } from "../../electron/advisor";
+import { MOTORES_MEMORIA, type MotorMemoria } from "../../electron/modelos-tipos";
 import type { AjustesCierre } from "../../electron/valida-ajustes";
 import type { EffortCalidad } from "../../electron/efforts-calidad";
 import { defDe, effortDeModelo, TABLA } from "../hilo/modelos";
@@ -89,6 +90,8 @@ export type Borrador = {
   advisor: AdvisorConfig;
   /** Cierre ordenado cuando se acaba el cupo (`cierre` del archivo): sólo lo que se tocó; lo demás vale `CIERRE_DEFECTO`. Sin campos la clave no se escribe. */
   cierre: Partial<AjustesCierre>;
+  /** Memoria compartida (`memoria_compartida` del archivo): sólo los motores apagados (`false`); los que faltan reciben la memoria y la ficha del tablero. */
+  memoriaCompartida: Partial<Record<MotorMemoria, boolean>>;
   /** Workers vivos a la vez por grupo de cupo (`tope_vivos`); sin elegir vale 3 y no se escribe. Con un objeto a mano, Ajustes cambia sólo el `*`. */
   topeVivos?: TopeVivosConfig;
   /** Qué hace `pa` si un modelo no tiene cupo; sin elegir se escribe nada y vale `otro`. */
@@ -129,6 +132,7 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   ),
   advisor: { ...(e.config.advisor ?? {}) },
   cierre: { ...(e.config.cierre ?? {}) },
+  memoriaCompartida: { ...(e.config.memoria_compartida ?? {}) },
   ...(e.config.tope_vivos !== undefined ? { topeVivos: typeof e.config.tope_vivos === "number" ? e.config.tope_vivos : { ...e.config.tope_vivos } } : {}),
   ...(e.config.sin_cupo ? { sin_cupo: e.config.sin_cupo } : {}),
   ...(e.config.perfil ? { perfil: e.config.perfil } : {}),
@@ -191,6 +195,7 @@ export function configDe(b: Borrador): ConfigModelos | null {
     ...(notaActiva && notaTareaPctValido(notaTareaPct) ? { nota_compactar_tarea_pct: notaTareaPct } : {}),
     ...(Object.keys(b.advisor).length ? { advisor: { ...b.advisor } } : {}),
     ...(Object.keys(b.cierre).length ? { cierre: { ...b.cierre } } : {}),
+    ...(Object.keys(b.memoriaCompartida).length ? { memoria_compartida: { ...b.memoriaCompartida } } : {}),
     gemini: {},
     ...(b.topeVivos !== undefined && b.topeVivos !== TOPE_VIVOS_DEFECTO ? { tope_vivos: typeof b.topeVivos === "number" ? b.topeVivos : { ...b.topeVivos } } : {}),
     ...(b.sin_cupo ? { sin_cupo: b.sin_cupo } : {}),
@@ -222,6 +227,7 @@ const huella = (c: ConfigModelos) =>
     c.nota_compactar_tarea_pct ?? NOTA_TAREA_PCT_DEFECTO,
     Object.entries(c.advisor ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     Object.entries(c.cierre ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
+    MOTORES_MEMORIA.map((m) => c.memoria_compartida?.[m] !== false),
     c.tope_vivos ?? TOPE_VIVOS_DEFECTO,
     c.sin_cupo ?? null,
     c.perfil ?? "equilibrado",

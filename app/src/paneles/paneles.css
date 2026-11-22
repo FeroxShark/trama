@@ -1905,6 +1905,16 @@
   min-height: 2.25rem;
   padding-right: var(--esp-2);
 }
+.mdl-memoria-est {
+  margin-left: auto;
+  color: var(--texto-4);
+  font-family: var(--font-sans);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+}
+.mdl-memoria-est[data-on] {
+  color: var(--texto-2);
+}
 .mdl-destrabar-nom {
   min-width: 0;
   overflow: hidden;
