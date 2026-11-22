@@ -103,7 +103,8 @@ test("git.mjs: lo bloqueado sale con 2 y BLOQUEADO por stderr; lo permitido lleg
     assert.equal(b.stdout, "");
     const ok = correrMjs("git", ["add", "a.ts"], d);
     assert.equal(ok.status, 7);
-    assert.match(ok.stdout, /FALSO-git add a\.ts/);
+    // en Windows el git falso es un .cmd: va por el shell con cada argumento entre comillas dobles (el git real es un .exe, sin shell)
+    assert.match(ok.stdout, /FALSO-git "?add"? "?a\.ts"?/);
   }));
 
 test("cargo.mjs: lo bloqueado sale con 2; lo permitido llega al cargo de verdad con su código", () =>
@@ -113,7 +114,7 @@ test("cargo.mjs: lo bloqueado sale con 2; lo permitido llega al cargo de verdad 
     assert.match(b.stderr, /^BLOQUEADO: build de release/);
     const ok = correrMjs("cargo", ["build"], d);
     assert.equal(ok.status, 7);
-    assert.match(ok.stdout, /FALSO-cargo build/);
+    assert.match(ok.stdout, /FALSO-cargo "?build"?/);
   }));
 
 test("sin el binario de verdad en el PATH sale con 127 y lo dice", () =>
