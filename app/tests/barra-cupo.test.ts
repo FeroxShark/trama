@@ -56,7 +56,7 @@ describe("barra de cupo", () => {
     assert.equal(ariaBarra("5 h", v), "5 h: 85 % usado, queda poco, vuelve a las 17:40");
     cambiarIdioma("en");
     const w = vistaBarra({ pct: 100, vuelve: AHORA + 2 * H }, AHORA);
-    assert.equal(ariaBarra("Week", w), "Week: 100 % used, out of quota, back at 17:00");
+    assert.equal(ariaBarra("Week", w), "Week: 100% used, out of quota, back at 17:00");
     assert.equal(vistaBarra({ pct: null }, AHORA).texto, "no data");
     cambiarIdioma("es");
   });
