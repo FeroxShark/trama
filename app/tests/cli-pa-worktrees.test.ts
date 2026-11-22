@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { testPosix } from "./plataforma.ts";
 import { prologo, type Env, type Pa } from "../electron/cli/pa/entorno.ts";
-import { commitearHuerfano as commitearHuerfanoBase, fijarProyecto } from "../electron/cli/pa/ramas-base.ts";
+import { commitearHuerfano as commitearHuerfanoBase, fijarProyecto, puestoDeRuta as puestoDeRutaBase, PUESTO_INTEGRAR, wtDePuesto as wtDePuestoBase } from "../electron/cli/pa/ramas-base.ts";
 import {
   adoptarHuerfanas,
   desenlazarCaches,
@@ -91,6 +91,20 @@ test("puestos por ruta en Windows: %LOCALAPPDATA%\\trama\\wt\\<slug>\\<k> (corto
   // con PA_STATE manda el estado (los tests): la disposición de siempre
   const pb = { ...pa, state: "C:\\e", env: { PA_STATE: "C:\\e" } } as unknown as Pa;
   assert.equal(wtDePuesto({ pa: pb, slug: "demo" } as Proyecto, "2"), path.win32.join("C:\\e", "worktrees", "demo@2"));
+});
+
+test("integrar (ramas-base) usa la misma disposición que el lanzamiento: la corta de Windows, el puesto `integrar` y PA_STATE explícito (B082)", () => {
+  const pa = { state: "C:\\U\\AppData\\Local\\trama\\estado\\pa", plat: "win32", env: { LOCALAPPDATA: "C:\\U\\AppData\\Local" }, home: "C:\\U" } as unknown as Pa;
+  const x = { pa, slug: "demo" } as Proyecto;
+  assert.equal(wtDePuestoBase(x, "2"), wtDePuesto(x, "2"));
+  assert.equal(wtDePuestoBase(x, PUESTO_INTEGRAR), "C:\\U\\AppData\\Local\\trama\\wt\\demo\\integrar");
+  assert.equal(puestoDeRutaBase(x, "C:\\U\\AppData\\Local\\trama\\wt\\demo\\2"), "2");
+  assert.equal(puestoDeRutaBase(x, wtDePuestoBase(x, PUESTO_INTEGRAR)), PUESTO_INTEGRAR);
+  assert.equal(puestoDeRutaBase(x, "C:\\U\\proyectos\\demo"), "aca");
+  // con PA_STATE explícito, la disposición larga de siempre
+  const pb = { state: "C:\\e", plat: "win32", env: { PA_STATE: "C:\\e" }, home: "C:\\U" } as unknown as Pa;
+  assert.equal(wtDePuestoBase({ pa: pb, slug: "demo" } as Proyecto, "2"), path.win32.join("C:\\e", "worktrees", "demo@2"));
+  assert.equal(puestoDeRutaBase({ pa: pb, slug: "demo" } as Proyecto, path.win32.join("C:\\e", "worktrees", "demo@2")), "2");
 });
 
 testPosix("preparar: rama nueva desde HEAD en el worktree del puesto, con node_modules, .env y la memoria compartidos", async () => {

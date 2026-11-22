@@ -74,7 +74,7 @@ export function puestoDeRuta(x: Proyecto, r: string): string {
     const base = path.win32.join(raizWorktrees(x.pa), x.slug);
     if (mismaRuta(x.pa, path.win32.dirname(r), base)) {
       const k = path.win32.basename(r);
-      if (/^[0-9]+$/.test(k)) return k;
+      if (/^[0-9]+$/.test(k) || k === "integrar") return k;
     }
     return "aca";
   }

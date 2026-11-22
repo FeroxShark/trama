@@ -9,6 +9,7 @@ import { probar, tomar, type Lock } from "../base/lock.ts";
 import { rutaReal } from "../proyecto-ruta.ts";
 import type { Pa } from "./entorno.ts";
 import { rescatarSiAjeno } from "./rescate.ts";
+import { puestoDeRuta as puestoDeRutaLanzar, raizWorktrees, wtDePuesto as wtDePuestoLanzar } from "./worktrees.ts";
 
 /** Un proyecto ya resuelto (lo que deja `fijar_proyecto` del bash): nombre como lo dijo el que llama, ruta real, slug y su carpeta de estado. */
 export interface Proy {
@@ -108,7 +109,8 @@ export async function wtDeRama(x: Proy, rama: string): Promise<string> {
 // ---------------------------------------------------------------- puestos y candados
 
 export const sufPuesto = (p: string) => (p === "" || p === "1" ? "" : `@${p}`);
-export const wtDePuesto = (x: Proy, p: string) => path.join(x.pa.state, "worktrees", x.slug + sufPuesto(p));
+/** Lo mismo que el lanzamiento (`worktrees.ts`): en Windows sin PA_STATE el worktree vive en `%LOCALAPPDATA%\trama\wt\<slug>\<k>`. */
+export const wtDePuesto = (x: Proy, p: string) => wtDePuestoLanzar({ ...x, ts: "" }, p);
 export const lockDePuesto = (x: Proy, p: string) => path.join(x.pa.lockdir, x.slug + sufPuesto(p));
 
 /**
@@ -120,10 +122,7 @@ export const PUESTO_INTEGRAR = "integrar";
 
 /** `puesto_de_ruta`: 1, k o `aca` (cualquier ruta que no sea un puesto de pa). */
 export function puestoDeRuta(x: Proy, r: string): string {
-  const base = path.join(x.pa.state, "worktrees", x.slug);
-  if (r === base) return "1";
-  if (r.startsWith(base + "@")) return r.slice(r.lastIndexOf("@") + 1);
-  return "aca";
+  return puestoDeRutaLanzar({ ...x, ts: "" }, r);
 }
 
 /** `puesto_de_corrida`: el `puesto=` de la corrida o, en las viejas, el que se deduce de `ruta_trabajo`. */
@@ -246,13 +245,19 @@ function buscarBuild(raiz: string): string[] {
 /** ¿Tiene algo trackeado adentro? */
 const trackeados = (x: Proy, wt: string, rel: string) => git(["ls-files", "--", rel], { cwd: wt, env: x.pa.env }).then((r) => r.salida.trim() !== "");
 
+/** ¿`wt` está adentro de la carpeta de worktrees de pa (la larga de Linux o la corta de Windows)? */
+const adentroPuestos = (x: Proy, wt: string) => {
+  const raiz = raizWorktrees(x.pa);
+  return x.pa.plat === "win32" ? wt.toLowerCase().startsWith(`${raiz}\\`.toLowerCase()) : adentroDe(wt, raiz);
+};
+
 /**
  * `dirs_de_build`: rutas relativas de los dirs de build/cache de un worktree de pa (nunca del tree principal). Con `borrar`, uno con CACHEDIR.TAG que no está en la lista de nombres sólo vale si es de cargo.
  * Ésta es la búsqueda (síncrona); el filtro de trackeados lo agrega `dirsDeBuildOk`. Para `sucios_de` alcanza con ésta: un `??` nunca
  * tiene nada trackeado.
  */
 export function dirsDeBuild(x: Proy, wt: string, borrar = false): string[] {
-  if (!adentroDe(wt, path.join(x.pa.state, "worktrees")) || !existsSync(path.join(wt, ".git"))) return [];
+  if (!adentroPuestos(x, wt) || !existsSync(path.join(wt, ".git"))) return [];
   return buscarBuild(wt)
     .filter((d) => !borrar || NOMBRES_BUILD.has(path.basename(d)) || existsSync(path.join(d, ".rustc_info.json")))
     .map((d) => path.relative(wt, d).split(path.sep).join("/"));
