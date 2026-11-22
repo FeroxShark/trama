@@ -573,6 +573,8 @@ function cerrarTurno() {
   // Un «Mandar ya» que no alcanzó a entrar (llegó entre vueltas o con el `result` ya dado) sale primero, como turno propio.
   cola.unshift(...directos.splice(0));
   const siguiente = cola.shift();
+  // Un turno que arranca solo (sale de la cola) no pasa por `mandar` de lider.ts: este aviso es lo que lo vuelve a poner como ocupado.
+  if (siguiente !== undefined) salir({ type: "system", subtype: "status", status: "requesting", session_id: sid });
   if (siguiente !== undefined) void turnoSeguro(siguiente);
   else if (stdinCerrado) terminar(0);
 }

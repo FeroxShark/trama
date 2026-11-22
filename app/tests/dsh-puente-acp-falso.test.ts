@@ -98,3 +98,12 @@ for (const modo of ["pensando", "partido", "stderr-partido", "error-data"]) {
     assert.ok(existsSync(agotado) && JSON.parse(readFileSync(agotado, "utf8"))["opencode-free"]?.hasta, "el uso gratis quedó marcado agotado");
   });
 }
+
+test("PUENTES-9: el puente avisa «requesting» al arrancar el mensaje que esperaba en la cola", { timeout: 60_000 }, async () => {
+  const p = new Puente("sin-modelo");
+  p.mandar("uno");
+  p.mandar("dos"); // llegan juntos: el segundo queda en la cola del puente
+  await hasta(() => p.resultados.length === 2, 30_000, `faltó un turno; stderr: ${p.stderr.slice(-400)}`);
+  const tipos = p.lineas.map((l) => (l.type === "result" ? "result" : l.type === "system" && l.status === "requesting" ? "requesting" : "")).filter(Boolean);
+  assert.deepEqual(tipos, ["result", "requesting", "result"]);
+});

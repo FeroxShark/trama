@@ -356,6 +356,8 @@ function cerrarTurno() {
   ocupado = false;
   anotarSesion("idle");
   const siguiente = cola.shift();
+  // Un turno que arranca solo (sale de la cola) no pasa por `mandar` de lider.ts: este aviso es lo que lo vuelve a poner como ocupado.
+  if (siguiente !== undefined) salir({ type: "system", subtype: "status", status: "requesting", session_id: sid });
   if (siguiente !== undefined) void turnoSeguro(siguiente);
   else if (stdinCerrado) terminar(0);
 }
