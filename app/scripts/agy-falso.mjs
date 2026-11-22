@@ -139,7 +139,7 @@ const pensar = async (razonamiento) => {
   step({ state: "DONE", step_type: "agent_response", duration_seconds: 0.4, usage: { input_tokens: 5000, output_tokens: 40, thinking_tokens: 40, cache_read_tokens: 0, total_tokens: 5040 } });
   paso++;
 };
-const piensa = /pienso/i.test(texto);
+const piensa = /pienso/i.test(texto) || process.env.TRAMA_FALSO_PIENSA === "siempre"; // TRAMA_FALSO_PIENSA=siempre: razona en cada vuelta, diga lo que diga el prompt
 const herramienta = async (nombre, parametros, salida) => {
   step({ state: "ACTIVE", step_type: "tool", tool_name: nombre, tool_info: { name: nombre, parameters: parametros } });
   await dormir(ms);

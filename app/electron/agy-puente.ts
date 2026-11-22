@@ -617,7 +617,7 @@ async function destrabar(primera: Vuelta, trPrimera: Traductor): Promise<Traduct
     abiertos.push(registrarDestrabo(modelo, b.que));
     vigilante?.reiniciar();
     const conversacion = tr.conversacion ?? leerLado().conversation_id;
-    tr = new Traductor({ sid, modelo, contextoPrevio: leerLado().contexto });
+    tr = new Traductor({ sid, modelo, contextoPrevio: leerLado().contexto, pensamiento: razonamiento });
     tr.conversacion = conversacion;
     ({ v, tr } = await conDirectos(await correrAgy(avisoDestrabo(b.que, intento), conversacion, tr), tr));
   }

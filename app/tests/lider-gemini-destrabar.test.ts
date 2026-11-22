@@ -87,6 +87,21 @@ test("un Gemini que se repite se corta, recibe el aviso en su conversación y te
   assert.equal(c.bien, 1);
 });
 
+test("PUENTES-13: el razonamiento de la vuelta de destrabo también llega (no sólo el de la primera)", { timeout: 60_000 }, async () => {
+  process.env.TRAMA_FALSO_PIENSA = "siempre";
+  process.env.HILOS_AGY_BRAIN = path.join(tmp, "brain"); // donde agy deja su razonamiento
+  try {
+    const sid = await lider.nuevo({ modelo: "gemini-4-hydrogen", effort: "low", texto: "bucle: descargá eso" });
+    await hasta(() => de(sid, "fin").length === 1);
+    assert.equal(nudges().length >= 1, true, "hubo destrabo");
+    const pensado = de(sid, "mensaje").map((m) => m.pensado).filter(Boolean);
+    assert.ok(pensado.length >= 2, "razonamiento de la primera vuelta y de la del destrabo: " + JSON.stringify(pensado));
+  } finally {
+    delete process.env.TRAMA_FALSO_PIENSA;
+    delete process.env.HILOS_AGY_BRAIN;
+  }
+});
+
 test("el mismo error repetido también se corta, aunque cambie el comando", { timeout: 60_000 }, async () => {
   const antes = nudges().length;
   const sid = await lider.nuevo({ modelo: "gemini-4-hydrogen", effort: "low", texto: "bucle-error: probá eso" });
