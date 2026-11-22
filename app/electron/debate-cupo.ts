@@ -24,6 +24,10 @@ export function cupoLibreDeModelo(modelo: string, cupos: CuposLeidos | null, aho
     const l = libreDe(s, ahoraS);
     if (l !== null) libres.push(l);
   }
-  if (!libres.length && prov === "claude" && cupos.claude) libres.push(100 - Math.max(cupos.claude.cincoH, cupos.claude.sieteD));
+  if (!libres.length && prov === "claude" && cupos.claude) {
+    // Una ventana sin dato (`null`) no cuenta: manda la conocida.
+    const usados = [cupos.claude.cincoH, cupos.claude.sieteD].filter((v): v is number => v !== null);
+    if (usados.length) libres.push(100 - Math.max(...usados));
+  }
   return libres.length ? Math.max(...libres) : null;
 }

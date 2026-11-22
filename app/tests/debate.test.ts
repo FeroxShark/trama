@@ -294,3 +294,10 @@ test("cupoLibreDeModelo: el de la suscripción del modelo; agotada es 0, sin dat
   assert.equal(cupoLibreDeModelo("ollama:x", cupos, 1000), null);
   assert.equal(cupoLibreDeModelo("claude-fable-5-2", null), null);
 });
+
+test("cupoLibreDeModelo: con una sola ventana de Claude conocida usa esa; sin ninguna, null (REPARTO-CUPOS-14)", () => {
+  const base = { ts: 0, suscripciones: [] };
+  assert.equal(cupoLibreDeModelo("claude-fable-5-2", { ...base, claude: { cincoH: 30, sieteD: null } }, 1000), 70);
+  assert.equal(cupoLibreDeModelo("claude-fable-5-2", { ...base, claude: { cincoH: null, sieteD: 85 } }, 1000), 15);
+  assert.equal(cupoLibreDeModelo("claude-fable-5-2", { ...base, claude: { cincoH: null, sieteD: null } }, 1000), null);
+});
