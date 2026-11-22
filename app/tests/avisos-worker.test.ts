@@ -417,3 +417,14 @@ test("una tanda con varios FALTA explica cómo resolverlo una sola vez; los dem�
   assert.match(texto, /--seguir --id 3 /);
   assert.deepEqual(avisoDeTexto(texto)?.trabajos.map((x) => x.id), ["1", "2", "3"], "la línea de referencia no se lee como otro worker");
 });
+
+test("B150: un worker que falló una vez y el reintento terminó bien (rc 0) no llega como falla por el código viejo", async () => {
+  const { av, avisos } = armar();
+  await av.hilos([fila("r", "trabajando")]);
+  // El primer intento salió con 1; `pa` lo relanza (`inicio`) y el reintento termina bien antes de que llegue su `fin`.
+  av.eventos([{ tipo: "fin", id: "r", rc: 1 }, { tipo: "inicio", id: "r" }]);
+  await av.hilos([fila("r", "entregado", { commits: 2 })]);
+  assert.deepEqual(avisos.map((a) => [a.tipo, a.rc]), [["fin", undefined]]);
+  assert.match(textoParaLider(avisos[0]), /terminó/);
+  assert.doesNotMatch(textoParaLider(avisos[0]), /falló|código/);
+});

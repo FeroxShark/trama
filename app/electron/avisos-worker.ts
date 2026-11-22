@@ -364,8 +364,11 @@ export function crearAvisosWorker(d: Deps) {
     /** Líneas nuevas de `eventos.jsonl`. */
     eventos(es: readonly EventoWorker[]) {
       for (const e of es) {
-        if (e.tipo === "inicio") iniciados.add(e.id);
-        else if (e.tipo === "fin") {
+        if (e.tipo === "inicio") {
+          iniciados.add(e.id);
+          // Un reintento arranca de nuevo: el código con que salió el intento anterior ya no vale (B150).
+          rcs.delete(e.id);
+        } else if (e.tipo === "fin") {
           iniciados.add(e.id);
           if (typeof e.rc === "number") rcs.set(e.id, e.rc);
         }
