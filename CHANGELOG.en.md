@@ -1,5 +1,18 @@
 # Changes
 
+## 0.3.20
+
+- The chip of a ChatGPT model says which one it is and at what effort ("Sol 6.2 high"), not just "Gpt".
+- Codex workers: what they leave done is saved in their branch. Before, their environment did not let them commit and the work was left loose.
+- Picking the effort right after switching models is no longer lost.
+- Sidebar: reordering chats does not move the projects around, and the return notice is requested again if the first query failed.
+- Gemini, Codex, DeepSeek and OpenCode: 15 fixes in how their turns, steps, errors and cut-offs are read.
+- Routing and quotas: 6 fixes in model choice and quota reading.
+- Command guards: a credential with escaped quotes no longer slips past the redaction of the notice, and a Compose file that cannot be fully reviewed is blocked.
+- Gemini workers on Windows: the write permission inside the working folder works again.
+- Note before compacting: a cut-off record is not taken as the model's reply, and the note is not lost if two processes save it at once.
+- System and window: 17 internal fixes (startup, channels, updating and service).
+
 ## 0.3.19
 
 - Compacting with a note from the model: before compacting, the model writes itself a note with what it does not want to lose (goal, requests, decisions, what comes next) and gets it back afterwards. In the chat it shows as a folded card «Note to carry past compaction», and the compaction divider says «with note» and has «View note». It applies to Claude leaders and workers and to Gemini leaders; Codex, DeepSeek and OpenCode do not compact and the interface says so.

@@ -1,5 +1,18 @@
 # Cambios
 
+## 0.3.20
+
+- El chip de un modelo de ChatGPT dice cuál es y con qué esfuerzo («Sol 6.2 high»), no sólo «Gpt».
+- Workers de Codex: lo que dejan hecho queda guardado en su rama. Antes su entorno no los dejaba commitear y el trabajo quedaba suelto.
+- Elegir el esfuerzo justo después de cambiar de modelo ya no se pierde.
+- Barra: reordenar chats no mueve los proyectos de lugar, y el aviso de vuelta se vuelve a pedir si la primera consulta falló.
+- Gemini, Codex, DeepSeek y OpenCode: 15 arreglos en cómo se leen sus turnos, pasos, errores y cortes.
+- Reparto y cupos: 6 arreglos en la elección de modelo y la lectura de cupos.
+- Guardias de comandos: una credencial con comillas escapadas ya no se escapa de la redacción del aviso, y un archivo Compose que no se puede revisar entero se bloquea.
+- Workers de Gemini en Windows: el permiso de escritura dentro de la carpeta de trabajo vuelve a andar.
+- Nota al compactar: no toma por respuesta del modelo un registro cortado y no se pierde si dos procesos la guardan a la vez.
+- Sistema y ventana: 17 arreglos internos (arranque, canales, actualización y servicio).
+
 ## 0.3.19
 
 - Compactar con nota del modelo: antes de compactar, el modelo se escribe una nota con lo que no quiere perder (objetivo, pedidos, decisiones, qué sigue) y la recibe de vuelta después. En el chat sale como una tarjeta plegada «Nota para no perder al compactar» y el divisor de la compactación dice «con nota» y trae «Ver la nota». Vale para líderes y workers de Claude y para líderes de Gemini; Codex, DeepSeek y OpenCode no compactan y la interfaz lo dice.
