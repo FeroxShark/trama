@@ -36,12 +36,20 @@ Verificado en `main` (tsc ×2 y `npm test` 4221 pasan, `check:changed` verde en 
 | CTX-13 (`argsCierre` sin `--exclude-dynamic-system-prompt-sections`) | ARREGLADO (el efecto en caché sigue sin medir) | `0aa0b14a` |
 | CTX-17 (caché fría con 55 min plano en `orquesta.ts`) | ARREGLADO (usa el TTL del transcript como `hilos.ts`; 55 min de respaldo; respeta `PA_CACHE_FRIO_MIN`) | `54abcca2`, integrado |
 | CTX-20 (regex de modelo sin `:` en `dsh.ts`) | ARREGLADO (acepta `:`; en Windows los `:` se rechazan por ADS de NTFS) | `54abcca2`, integrado |
+| CTX-4 (MCP y skills en workers de otros motores) | A MEDIAS: las skills se sincronizan sólo si el motor las usa y el MCP `trama` no se registra con `--strict-mcp-config`; un motor igual puede cargar lo que ya tenga en su propia configuración global | `592d4212` |
+| CTX-5 (`AGENTS.md` dos veces en Codex) | ARREGLADO en Codex (no se pega si el CLI lo lee de la carpeta de trabajo; el `CLAUDE.md` del dueño lleva el mismo tope). Gemini lo sigue recibiendo pegado: su lectura automática no se verificó | `592d4212` |
+| CTX-8 (prompt por `argv` en Codex y agy) | ARREGLADO: el prompt va por stdin (prueba de 40 000 caracteres con argumentos de Windows). FALTA EN Windows: probarlo con los binarios nativos | `592d4212` |
+| CTX-37 (dos `ventanaDe`) | REFUTADO: `contexto-previa.ts` ya reconoce la ventana de 1 M | — |
+| CTX-40, CTX-41, CTX-42, CTX-45, CTX-46 | ARREGLADO (desglose con `postTokens`, TTL que prefiere 5 min, lecturas que renuevan la caché, panel de subagentes, un solo estimador de 3,5 caracteres por token) | `a7a35ff9` |
+| CTX-44 (porcentaje del aviso de la nota) | A MEDIAS: el hook usa el porcentaje configurado (`nota_compactar_pct`, 85 por defecto); en modo nativo falta pasarle el techo efectivo (va en P2) | `a7a35ff9` |
 
 Paquetes del plan:
 
 - P5 (workers Claude): hecho, salvo la medición del efecto de CTX-13.
 - P7 (menores): hecho (CTX-17 y CTX-20). Verificado: `npm test` 4223/4223, tsc ×2 OK, `check:changed` verde.
-- P1 (podas del líder), P2 (nota y medidor), P3 (workers de otros motores), P4 (MCP y avisos), P6 (suscripciones), P8 (ventanas y medidores), P9 (paridad con Windows): sin empezar. Cambian lo que ve la persona en P1, P2, P3, P4, P6 y P8 y necesitan decisión de Ferox; P9 necesita correr en Windows.
+- P3 (workers de otros motores) y P8 (ventanas y medidores): hechos e integrados. Verificado: tsc ×2, vite, `npm test` 4236/4236, paridad 1361/1361.
+- P2 (nota y medidor, con el resto de CTX-44) y P6 (suscripciones): en curso. Ferox dejó la elección de paquetes en manos del líder.
+- P1 (podas del líder) y P4 (MCP y avisos): sin empezar. P9 (paridad con Windows) necesita correr en Windows.
 
 Prueba del worker Codex (`20261122-025216-1422372`, hilo-lider): funciona. Commit automático de `pa` (`37bc0262`), tests de cola 22/22. Lo que quedó «NO ARREGLADO» en ese reporte son HILO-LIDER-1, 2, 3 y 14: el brief prohibía tocar `app/src/` (interfaz) y los cuatro arreglos son de interfaz y traducciones. Falta un brief que sí permita `app/src/`:
 - HILO-LIDER-1: una confirmación tardía pisa la elección de modelo en la caja.
