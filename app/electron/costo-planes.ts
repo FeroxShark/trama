@@ -7,7 +7,8 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { estadoHilos, homeDe, plataformaActual, type Plataforma } from "./rutas.ts";
 import { hayAgy } from "./capacidades.ts";
-import { planDeClaude, RUTA_PRIORS, URL_PRIORS, validarPriors, type DatosPriors, type VistaPlanes } from "./costo-planes-texto.ts";
+import { planDeCredenciales } from "./credenciales-claude.ts";
+import { RUTA_PRIORS, URL_PRIORS, validarPriors, type DatosPriors, type VistaPlanes } from "./costo-planes-texto.ts";
 
 export { URL_PRIORS };
 /** Cuánto vale la caché antes de volver a pedir. */
@@ -99,11 +100,7 @@ export const rutaCredencialesClaude = (env: Env = process.env, plat: Plataforma 
 /** El plan de Claude según el credentials: sólo mira `subscriptionType` y `rateLimitTier`; cualquier error o dato raro, `null`. */
 export async function planClaudeDetectado(ruta: string = rutaCredencialesClaude()): Promise<string | null> {
   try {
-    const j = JSON.parse(await readFile(ruta, "utf8")) as unknown;
-    const oauth = j && typeof j === "object" ? (j as Record<string, unknown>).claudeAiOauth : null;
-    if (!oauth || typeof oauth !== "object") return null;
-    const o = oauth as Record<string, unknown>;
-    return planDeClaude(o.subscriptionType, o.rateLimitTier);
+    return planDeCredenciales(await readFile(ruta, "utf8"));
   } catch {
     return null;
   }

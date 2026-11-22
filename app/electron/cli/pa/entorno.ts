@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { caminoDe, carpetaApp, carpetaBin, configTrama, estadoPa, homeDe, plataformaActual, type Plataforma } from "../../rutas.ts";
 import { campos, listarPares } from "../base/proc.ts";
+import { planPaDeClaude } from "../../credenciales-claude.ts";
 
 export type Env = Record<string, string | undefined>;
 export type Io = { out: (s: string) => void; err: (s: string) => void };
@@ -194,18 +195,24 @@ export function planDeCuentaEnUso(env: Env, home: string): "pro" | "max" | null 
     const id = j.preferidas?.claude;
     if (typeof id !== "string" || id === "claude" || !Array.isArray(j.cuentas)) return null;
     const c = (j.cuentas as Array<Record<string, unknown>>).find((x) => x && x.id === id && x.proveedor === "claude");
-    const plan = typeof c?.plan === "string" ? c.plan.toLowerCase() : "";
-    return plan === "pro" || plan === "max" ? plan : null;
+    if (!c) return null;
+    const plan = typeof c.plan === "string" ? c.plan.toLowerCase() : "";
+    if (plan === "pro" || plan === "max") return plan;
+    // sin plan propio en cuentas.json: el tipo de suscripción de la sesión de esa cuenta (su carpeta de configuración)
+    const dir = typeof c.dir === "string" && c.dir ? (c.dir === "~" ? home : c.dir.startsWith("~/") ? path.join(home, c.dir.slice(2)) : c.dir) : path.join(path.dirname(path.resolve(f)), "cuentas", id);
+    return planPaDeClaude(dir);
   } catch {
     return null;
   }
 }
 
-/** El plan de la suscripción: PA_PLAN, si no el de la cuenta de Claude en uso (si lo tiene), si no `$STATE/plan`, si no `pro`; uno inválido avisa y sigue como pro. */
+/** El plan de la suscripción: PA_PLAN, si no el de la cuenta de Claude en uso (si lo tiene), si no `$STATE/plan`, si no el de la sesión de Claude Code, si no `pro`; uno inválido avisa y sigue como pro. */
 export function planDe(env: Env, state: string, io: Io, home?: string): "pro" | "max" {
   let p = env.PA_PLAN ?? "";
   if (!p && home !== undefined) p = planDeCuentaEnUso(env, home) ?? "";
   if (!p && existsSync(path.join(state, "plan"))) p = primeraLinea(path.join(state, "plan"));
+  // sin nada elegido: el tipo de suscripción de la sesión de Claude Code (sólo el plan, nunca los tokens)
+  if (!p && home !== undefined) p = planPaDeClaude(env.CLAUDE_CONFIG_DIR || path.join(home, ".claude")) ?? "";
   p = minus(p) || "pro";
   if (p === "pro" || p === "max") return p;
   io.err(`pa: plan '${p}' no existe (PA_PLAN o ${state}/plan: pro o max); sigo como pro.\n`);
