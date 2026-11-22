@@ -44,6 +44,7 @@ import {
   type Solapamiento,
 } from "./resultado-lanzar.ts";
 import { deltaSucios, limpiarBuild } from "./sucios.ts";
+import { commitearCambiosDelWorker } from "./worktrees.ts";
 import { contratoBase, entornoOllama } from "./motores/llamada.ts";
 import { arreglarJsonOllama } from "./motores/salida.ts";
 import type { Local } from "./motores/chequeo.ts";
@@ -982,12 +983,24 @@ export async function lanzarClaude(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): 
     return rc;
   };
 
+  let intentoCommit = false;
+  const guardarCambios = async () => {
+    if (intentoCommit || c.motor !== "codex" || c.leer || !c.usaWorktree || !c.tengoLock) return;
+    intentoCommit = true;
+    try {
+      await commitearCambiosDelWorker({ pa, proyecto: c.proyecto, ruta: c.ruta, slug: c.slug, dir: l.dir, ts: c.ts }, c.rutaTrabajo, c.rama);
+    } catch (e) {
+      io.err(`pa: no pude commitear los cambios del worker ${c.ts}: ${(e as Error).message}\n`);
+    }
+  };
+
   const salir = async (rc: number) => {
     if (escuchar) {
       process.off("SIGTERM", matar);
       process.off("SIGINT", matar);
     }
     o.senal?.removeEventListener("abort", matar);
+    await guardarCambios();
     await alSalir(l, rc, g);
     return rc;
   };
@@ -1151,6 +1164,8 @@ export async function lanzarClaude(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): 
   }
 
   // --- salida
+  // El resumen de la rama ya tiene que contar el commit antes de anunciar que la corrida terminó.
+  await guardarCambios();
   io.out(await mostrarResultado(l.out, { proj, env: pa.env, solapamiento: g.solapamiento }));
   const nuevoSid = campoJson(leerSalida(l.out), "session_id");
   if (nuevoSid) guardarSesion(l, nuevoSid);

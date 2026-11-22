@@ -263,7 +263,7 @@ const casosBloque: Caso[] = [
 
 // ============================================================================ argv y entorno de cada motor
 
-type Armar = { motor: string; modelo: string; leer?: boolean; actualizar?: boolean; maxTurns?: string; ocEffort?: string; mapa?: boolean; claudeMd?: boolean; env?: Record<string, string> };
+type Armar = { motor: string; modelo: string; leer?: boolean; actualizar?: boolean; maxTurns?: string; ocEffort?: string; mapa?: boolean; claudeMd?: boolean; env?: Record<string, string>; divergenciaSalida?: string };
 const armar = (nombre: string, o: Armar): Caso =>
   mo(
     `armado: ${nombre}`,
@@ -284,6 +284,7 @@ const armar = (nombre: string, o: Armar): Caso =>
       o.ocEffort ?? "",
     ],
     {
+      divergenciaSalida: o.divergenciaSalida,
       preparar: (c) => {
         escribir(path.join(c.proyecto, "AGENTS.md"), "Reglas del proyecto.\n");
         if (o.mapa) escribir(aux(c, "mapa", "demo.md"), "mapa\n");
@@ -296,7 +297,7 @@ const casosArmar: Caso[] = [
   armar("agy", { motor: "agy", modelo: "gemini-4-argon-high" }),
   armar("agy: claude por agy, --leer y --actualizar, timeout propio", { motor: "agy", modelo: "agy:claude-opus-5-5-high", leer: true, actualizar: true, env: { PA_AGY_TIMEOUT: "60" } }),
   armar("agy sin CLAUDE.md del dueño", { motor: "agy", modelo: "gemini-4-argon-low", claudeMd: false }),
-  armar("codex con el .git común, CARGO_TARGET_DIR y el mapa", { motor: "codex", modelo: "codex:gpt-6-sol-high", mapa: true, env: { CARGO_TARGET_DIR: "/tmp/target-x" } }),
+  armar("codex con el .git común, CARGO_TARGET_DIR y el mapa", { motor: "codex", modelo: "codex:gpt-6-sol-high", mapa: true, env: { CARGO_TARGET_DIR: "/tmp/target-x" }, divergenciaSalida: "El TS agrega el párrafo de cierre a los escritores de Codex. El bash está congelado." }),
   armar("codex --leer (read-only, sin --add-dir)", { motor: "codex", modelo: "codex:gpt-6.1-sol-low", leer: true, mapa: true }),
   armar("dsh deepseek: sin el CLAUDE.md del dueño", { motor: "dsh", modelo: "dsh:deepseek/deepseek-v4-flash" }),
   armar("dsh ollama: CLAUDE.md, --url y --max-pasos", { motor: "dsh", modelo: "dsh:ollama/qwen3-coder:30b", maxTurns: "12", env: { OLLAMA_HOST: "http://gpu:11434/" } }),

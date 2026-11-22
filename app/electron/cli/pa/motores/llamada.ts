@@ -145,8 +145,11 @@ export function armarLlamada(d: DatosLlamada): Llamada {
   }
 
   if (d.motor === "codex") {
-    // Sandbox de codex: workspace-write (el worktree y el .git común, donde commitea un worktree; sin red) o read-only en --leer.
-    const p = promptCon([claudeMdDueno(d.env, home)]);
+    // El sandbox protege el .git del worktree aun con --add-dir. El commit lo hace pa al cerrar.
+    const p = promptCon([claudeMdDueno(d.env, home)]) + (d.leer ? "" :
+      "\n\nPara esta corrida de Codex, este párrafo tiene prioridad sobre las indicaciones anteriores sobre commits y tests. " +
+      "No corras `git add` ni `git commit`: el sandbox no deja escribir en git. Dejá los cambios en el árbol y, si estás en un worktree de la corrida, pa los commitea al terminar. " +
+      "Los tests que abren sockets locales no corren en el sandbox. Corré los archivos de prueba que tocaste con `node scripts/test.mjs <archivo>` y decí en VERIFICACION cuáles no pudiste correr.");
     const base = d.modelo.startsWith("codex:") ? d.modelo.slice(6) : d.modelo;
     const ultimo = path.join(d.dir, `${d.ts}.codex-ultimo`);
     const args = [

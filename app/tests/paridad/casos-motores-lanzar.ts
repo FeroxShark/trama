@@ -33,6 +33,7 @@ const mo = (nombre: string, args: string[], rc: number, o: Partial<Caso> = {}): 
 
 // el .json de codex y el de los runners llevan la duración real: se compara todo lo demás
 const SIN_DURACION = [/\.json$/];
+const PROMPT_CODEX_ESCRITOR = "El TS agrega el párrafo de cierre a los escritores de Codex. El bash está congelado.";
 
 const ok = (result: string): Respuesta => ({
   json: { type: "result", subtype: "success", is_error: false, result, session_id: "@SID@", num_turns: 3, duration_ms: 4200, total_cost_usd: 0.12345 },
@@ -47,10 +48,10 @@ export const casosMotoresLanzar: Caso[] = [
   mo("agy: sin el plugin pa-worker cae a Claude", ["demo", "--sin-jefe", "-m", "gemini-4-argon-low", BRIEF], 78, { env: { FALSO_MODO: "sin-hooks" } }),
   mo("agy: --seguir no va", ["demo", "--sin-jefe", "--seguir", "-m", "gemini-4-argon-low", BRIEF], 2),
   // --- codex ---
-  mo("codex: worktree con resultado completo", ["demo", "--sin-jefe", "-m", "codex:gpt-6-sol-medium", BRIEF], 0, { estadoIgnorar: SIN_DURACION }),
+  mo("codex: worktree con resultado completo", ["demo", "--sin-jefe", "-m", "codex:gpt-6-sol-medium", BRIEF], 0, { estadoIgnorar: SIN_DURACION, divergencia: PROMPT_CODEX_ESCRITOR }),
   mo("codex: --leer (sandbox de sólo lectura)", ["demo", "--sin-jefe", "--leer", "-m", "codex:gpt-6-luna-low", "¿qué hace esto?"], 0, { estadoIgnorar: SIN_DURACION }),
   mo("codex: sin sesión cae a Claude", ["demo", "--sin-jefe", "-m", "codex:gpt-6-sol-medium", BRIEF], 78, { env: { FALSO_MODO: "sin-login" }, estadoIgnorar: SIN_DURACION }),
-  mo("codex: límite de uso falla con 1", ["demo", "--sin-jefe", "-m", "codex:gpt-6-astra-high", BRIEF], 1, { env: { FALSO_MODO: "cupo" }, estadoIgnorar: SIN_DURACION }),
+  mo("codex: límite de uso falla con 1", ["demo", "--sin-jefe", "-m", "codex:gpt-6-astra-high", BRIEF], 1, { env: { FALSO_MODO: "cupo" }, estadoIgnorar: SIN_DURACION, divergencia: PROMPT_CODEX_ESCRITOR }),
   // --- opencode y dsh (el runner node que ya es node) ---
   mo("opencode: worktree con resultado completo", ["demo", "--sin-jefe", "-m", "opencode:opencode/big-pickle", BRIEF], 0, { estadoIgnorar: SIN_DURACION }),
   mo("opencode: con --effort", ["demo", "--sin-jefe", "-m", "opencode:opencode/big-pickle", "--effort", "high", BRIEF], 0, { estadoIgnorar: SIN_DURACION }),

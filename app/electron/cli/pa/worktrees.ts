@@ -17,7 +17,7 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSy
 import path from "node:path";
 import { raizWindows } from "../../rutas.ts";
 import { enlazarArchivo, enlazarDir, borrarSinSeguir, esLink } from "../base/enlaces.ts";
-import { git, parsearWorktrees } from "../base/git.ts";
+import { git, gitOk, parsearWorktrees } from "../base/git.ts";
 import { tomar, type Lock } from "../base/lock.ts";
 import type { Pa } from "./entorno.ts";
 import { rescatarSiAjeno } from "./rescate.ts";
@@ -432,6 +432,34 @@ export async function limpiarBuild(x: Proyecto, wt: string): Promise<void> {
       /* `|| true` */
     }
   }
+}
+
+/** Entradas de `status --porcelain -z --no-renames`: rutas literales, con las bajas incluidas. */
+export function rutasParaCommit(sucios: string[], excluidos: string[]): string[] {
+  return sucios.map((l) => l.slice(3)).filter((r) => r && !r.endsWith("/") &&
+    !excluidos.some((fuera) => r === fuera || r.startsWith(`${fuera}/`)));
+}
+
+/** Guarda el trabajo de un worker que no puede escribir en git. El que llama todavía tiene el puesto. */
+export async function commitearCambiosDelWorker(x: Proyecto, wt: string, rama: string): Promise<void> {
+  const opciones = { cwd: wt, env: x.pa.env };
+  const estado = await gitOk(["status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames"], opciones);
+  if (!estado) return;
+  const sucios = estado.split("\0");
+  const fuera = [...await dirsDeBuild(x, wt), ...nodeModules(wt, "link")];
+  if (esLink(path.join(wt, ".venv"))) fuera.push(".venv");
+  const rutas = rutasParaCommit(sucios, fuera);
+  if (!rutas.length) return;
+  if (await gitOk(["symbolic-ref", "--quiet", "HEAD"], opciones) !== `refs/heads/${rama}`) {
+    throw new Error(`el worktree ya no está en la rama ${rama}`);
+  }
+  const pathspec = ["--pathspec-from-file=-", "--pathspec-file-nul"];
+  const nuevas = rutasParaCommit(sucios.filter((l) => l.startsWith("??")), fuera);
+  // -N alcanza para que commit --only conozca los archivos nuevos, sin pisar lo que ya estaba en el índice.
+  if (nuevas.length) await gitOk(["--literal-pathspecs", "add", "-N", ...pathspec], { ...opciones, input: `${nuevas.join("\0")}\0` });
+  await gitOk(["--literal-pathspecs", "commit", "--only", "-qm", `pa: cambios del worker (${x.ts})`, ...pathspec], {
+    ...opciones, input: `${rutas.join("\0")}\0`,
+  });
 }
 
 /** La carpeta de proyectos de Claude (`$PROJ`). */
