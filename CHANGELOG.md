@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.3.23
+
+- Todos los motores saben lo mismo: los chats y workers de Gemini, ChatGPT, DeepSeek, OpenCode y los modelos locales reciben tu memoria, y los chats también la ficha del tablero. Los workers de DeepSeek y OpenCode reciben además tu CLAUDE.md. En Ajustes > Modelos > «Memoria compartida» hay un interruptor por motor; lo que compartís llega al proveedor de ese motor. De la memoria se saca toda línea con pinta de clave, mail o teléfono.
+- Al cambiar de motor a mitad de un chat, el modelo nuevo recibe también el resumen que dejó el cierre por cupo y la última nota antes de compactar. Antes ese resumen se borraba.
+- El aviso de un worker que terminó bien ya no dice «no terminó bien».
+
 ## 0.3.22
 
 - Dos cambios seguidos en Ajustes (modelos, NVIDIA NIM o el plan de OpenCode) se guardan en el orden en que los hiciste. Antes, sobre todo en Windows, el primero podía pisar al segundo.
