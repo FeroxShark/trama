@@ -75,10 +75,15 @@ test("Windows: sin duplicados aunque cambien mayúsculas, barras o la barra fina
   assert.deepEqual(ps[0], { name: "Tienda", path: "C:\\Users\\Ana\\Proyectos\\Tienda", logo: "data:image/png;base64,xx", extra: 1 }, "lo anotado queda tal cual");
 });
 
-test("Windows: dos carpetas con el mismo nombre en lugares distintos no repiten nombre; los worktrees de pa no se anotan", async () => {
+test("Windows: otra carpeta con el nombre final de un proyecto no se agrega sola; los worktrees de pa tampoco", async () => {
   const f = nuevoRegistro([{ name: "app", path: "C:\\x\\app" }]);
   const alta = await registrarCarpetas(f, ["D:\\otro\\app", "C:\\Users\\Ana\\AppData\\Local\\trama\\estado\\pa\\worktrees\\app@2", "C:\\Users\\Ana\\pa\\worktrees\\app@1"], WIN);
-  assert.deepEqual(alta, ["otro-app"]);
+  assert.deepEqual(alta, []);
+});
+
+test("Windows: un proyecto cuyo NOMBRE es el de otra carpeta (nombre distinto de la carpeta) no impide anotar esa carpeta", async () => {
+  const f = nuevoRegistro([{ name: "app", path: "C:\\x\\tienda" }]);
+  assert.deepEqual(await registrarCarpetas(f, ["D:\\otro\\app"], WIN), ["otro-app"]);
 });
 
 test("Linux: se anota con el nombre de la carpeta; ~ y sistema no; repetidos con barra final no", async () => {
@@ -90,6 +95,18 @@ test("Linux: se anota con el nombre de la carpeta; ~ y sistema no; repetidos con
     ["trama", "shark", "web"],
   );
   assert.deepEqual(await registrarCarpetas(f, ["/home/ana/Proyectos/shark", "/srv/web/"], LIN), []);
+});
+
+test("otra carpeta con el mismo nombre final que un proyecto ya anotado no se agrega sola (comparten el estado de pa, B079)", async () => {
+  const f = nuevoRegistro([{ name: "web", path: "/srv/web" }]);
+  assert.deepEqual(await registrarCarpetas(f, ["/home/ana/otros/web", "/home/ana/otros/blog"], LIN), ["blog"]);
+  assert.deepEqual(leer(f).map((p) => p.path), ["/srv/web", "/home/ana/otros/blog"]);
+  // dos nuevas con el mismo nombre en la misma tanda: entra la primera
+  const g = nuevoRegistro([]);
+  assert.deepEqual(await registrarCarpetas(g, ["/a/demo", "/b/demo"], LIN), ["demo"]);
+  // Windows: sin distinguir mayúsculas
+  const w = nuevoRegistro([{ name: "Tienda", path: "C:\\Users\\Ana\\Tienda" }]);
+  assert.deepEqual(await registrarCarpetas(w, ["D:\\otro\\TIENDA"], WIN), []);
 });
 
 test("carpeta que no existe: no se anota", async () => {
