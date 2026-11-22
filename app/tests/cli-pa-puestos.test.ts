@@ -7,8 +7,10 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { esperarHasta } from "./esperar.ts";
 import { prologo, Salida, type Env } from "../electron/cli/pa/entorno.ts";
-import { Admision, describirPuestos, memDisponibleMb, otrosWriters, puestoLibre, ramAlcanza, ramReservadaMb, workersSueltos } from "../electron/cli/pa/puestos.ts";
+import { Admision, describirPuestos, grupoDeTope, memDisponibleMb, otrosWriters, puestoLibre, ramAlcanza, ramReservadaMb, workersSueltos } from "../electron/cli/pa/puestos.ts";
+import { Modelos, problemaModelos, topeDeGrupo, type TopeVivos } from "../electron/cli/pa/modelos.ts";
 import type { Proyecto } from "../electron/cli/pa/worktrees.ts";
 
 function armar(extra: Env = {}, conGit = true) {
@@ -237,4 +239,154 @@ test("otros writers y describir puestos: los vivos del proyecto (sin el propio),
   writeFileSync(path.join(s.state, "demo@aca.running"), `id=t4\njefe=j\ntarea=${largo}\n`);
   // printf %.80s corta por bytes: 40 «ñ»
   assert.equal(describirPuestos(s.proy("t"), ["aca", "5"]), `    tree principal: id t4 · jefe j · ${"ñ".repeat(40)}\n    puesto 5: tomado (arrancando)\n`);
+});
+
+// ---------------------------------------------------------------- tope de workers vivos por grupo de cupo (tope_vivos, B144)
+
+/** Un grupo por prefijo, como `grupoDeModelo` de reparto pero sin cargarlo. */
+const grupoFalso = (m: string): string | null => (m.startsWith("claude-") ? "claude-oficial" : m.startsWith("codex:") ? "codex" : m.startsWith("dsh:ollama/") ? "dsh-ollama" : null);
+const cupoDe = (topes: TopeVivos, modelo: string, cuenta = "") => ({
+  topes,
+  grupoDe: (m: string, c: string) => grupoDeTope(m, c, grupoFalso),
+  actual: () => ({ modelo, cuenta }),
+});
+
+test("tope_vivos: cuatro al mismo grupo dejan tres corriendo y el cuarto en cola o 75; otro grupo no se frena", async () => {
+  const s = armar({ PA_TOPE: "10" });
+  const topes: TopeVivos = { defecto: 3, porGrupo: {} };
+  const claude = [1, 2, 3].map((i) => new Admision(s.proy(`t${i}`), { cupo: cupoDe(topes, "claude-sonnet-5-5") }));
+  for (const a of claude) {
+    assert.equal(await a.tomarLugar(), true);
+    await a.soltarTope();
+  }
+  assert.deepEqual(claude.map((a) => a.lugar), ["1", "2", "3"]);
+  // el cuarto, del mismo grupo: sin lugar, con el motivo del grupo (hay lugares libres: no es el tope global)
+  const cuarto = new Admision(s.proy("t4"), { cupo: cupoDe(topes, "claude-opus-5-5") });
+  assert.equal(await cuarto.tomarLugar(), false);
+  assert.equal(cuarto.motivoTope, "cupo: 3 workers vivos en claude-oficial (tope 3)");
+  await sale(() => cuarto.tomarPuesto(), 75);
+  assert.match(s.err(), /cupo: 3 workers vivos en claude-oficial \(tope 3\)\. Entre todos los proyectos/);
+  // otro grupo entra aunque el de Claude esté lleno
+  const codex = new Admision(s.proy("t5"), { cupo: cupoDe(topes, "codex:gpt") });
+  assert.equal(await codex.tomarLugar(), true);
+  await codex.soltarTope();
+  // al soltar uno de Claude, el cuarto entra
+  await claude[0]!.soltarTodo();
+  assert.equal(await cuarto.tomarLugar(), true);
+  await cuarto.soltarTope();
+  for (const a of [...claude, cuarto, codex]) await a.soltarTodo();
+});
+
+test("tope_vivos: con --async el cuarto hace cola con el motivo del grupo y entra cuando se libera uno", async () => {
+  const s = armar({ PA_TOPE: "10" });
+  const topes: TopeVivos = { defecto: 2, porGrupo: {} };
+  const a = new Admision(s.proy("t1"), { cupo: cupoDe(topes, "claude-sonnet-5-5") });
+  const b = new Admision(s.proy("t2"), { cupo: cupoDe(topes, "claude-sonnet-5-5") });
+  await a.tomarPuesto();
+  await b.tomarPuesto();
+  const c = new Admision(s.proy("t3"), { cupo: cupoDe(topes, "claude-sonnet-5-5"), async: true });
+  const espera = c.tomarPuesto();
+  await esperarHasta(() => existsSync(path.join(s.state, "demo", "t3.cola")));
+  assert.equal(readFileSync(path.join(s.state, "demo", "t3.cola"), "utf8"), "cupo: 2 workers vivos en claude-oficial (tope 2)");
+  await a.soltarTodo();
+  await espera;
+  assert.ok(c.puesto !== "");
+  assert.equal(existsSync(path.join(s.state, "demo", "t3.cola")), false);
+  await b.soltarTodo();
+  await c.soltarTodo();
+});
+
+test("tope_vivos: 0 apaga el tope; un objeto manda por grupo, por proveedor y con `*` para el resto", async () => {
+  const s = armar({ PA_TOPE: "10" });
+  const sinTope: TopeVivos = { defecto: 0, porGrupo: {} };
+  const libres = [1, 2, 3, 4, 5].map((i) => new Admision(s.proy(`t${i}`), { cupo: cupoDe(sinTope, "claude-sonnet-5-5") }));
+  for (const a of libres) {
+    assert.equal(await a.tomarLugar(), true);
+    await a.soltarTope();
+  }
+  for (const a of libres) await a.soltarTodo();
+
+  assert.equal(topeDeGrupo({ defecto: 3, porGrupo: { claude: 2 } }, "claude-oficial"), 2);
+  assert.equal(topeDeGrupo({ defecto: 3, porGrupo: { claude: 2 } }, "codex"), 3);
+  assert.equal(topeDeGrupo({ defecto: 3, porGrupo: { "claude-oficial": 1, claude: 2 } }, "claude-oficial@otra"), 1);
+  assert.equal(topeDeGrupo({ defecto: 3, porGrupo: { codex: 0 } }, "codex"), null);
+  assert.equal(topeDeGrupo({ defecto: 3, porGrupo: {} }, null), null);
+
+  const topes: TopeVivos = { defecto: 3, porGrupo: { claude: 1 } };
+  const a = new Admision(s.proy("u1"), { cupo: cupoDe(topes, "claude-sonnet-5-5") });
+  assert.equal(await a.tomarLugar(), true);
+  await a.soltarTope();
+  const b = new Admision(s.proy("u2"), { cupo: cupoDe(topes, "claude-sonnet-5-5") });
+  assert.equal(await b.tomarLugar(), false);
+  assert.equal(b.motivoTope, "cupo: 1 workers vivos en claude-oficial (tope 1)");
+  // el resto de los grupos usa `*` (3)
+  const cs = [1, 2, 3].map((i) => new Admision(s.proy(`v${i}`), { cupo: cupoDe(topes, "codex:gpt") }));
+  for (const c of cs) {
+    assert.equal(await c.tomarLugar(), true);
+    await c.soltarTope();
+  }
+  const c4 = new Admision(s.proy("v4"), { cupo: cupoDe(topes, "codex:gpt") });
+  assert.equal(await c4.tomarLugar(), false);
+  assert.equal(c4.motivoTope, "cupo: 3 workers vivos en codex (tope 3)");
+  for (const x of [a, b, ...cs, c4]) await x.soltarTodo();
+});
+
+test("tope_vivos: --leer cuenta; Ollama no tiene tope; la cuenta agregada es otro grupo; un cambio de modelo reescribe el grupo", async () => {
+  const s = armar({ PA_TOPE: "10" });
+  const topes: TopeVivos = { defecto: 1, porGrupo: {} };
+  const lector = new Admision(s.proy("t1"), { leer: true, cupo: cupoDe(topes, "claude-sonnet-5-5") });
+  await lector.esperarLugar();
+  assert.equal(readFileSync(path.join(s.pa.lockdir, "@tope@1.grupo"), "utf8"), "claude-oficial");
+  const otro = new Admision(s.proy("t2"), { cupo: cupoDe(topes, "claude-sonnet-5-5") });
+  assert.equal(await otro.tomarLugar(), false);
+  assert.match(otro.motivoTope, /^cupo: 1 workers vivos en claude-oficial/);
+  // otra cuenta del mismo proveedor: su propia ventana, otro grupo
+  const agregada = new Admision(s.proy("t3"), { cupo: cupoDe(topes, "claude-sonnet-5-5", "mia") });
+  assert.equal(await agregada.tomarLugar(), true);
+  await agregada.soltarTope();
+  // Ollama: sin grupo, sin tope
+  const o1 = new Admision(s.proy("t4"), { cupo: cupoDe(topes, "dsh:ollama/x") });
+  const o2 = new Admision(s.proy("t5"), { cupo: cupoDe(topes, "dsh:ollama/x") });
+  for (const o of [o1, o2]) {
+    assert.equal(await o.tomarLugar(), true);
+    await o.soltarTope();
+  }
+  // el lector pasa a Codex (un relanzamiento por cupo): libera el grupo de Claude
+  await lector.cambiarGrupo("codex:gpt", "");
+  assert.equal(await otro.tomarLugar(), true);
+  await otro.soltarTope();
+  for (const x of [lector, otro, agregada, o1, o2]) await x.soltarTodo();
+});
+
+test("tope_vivos: un worker suelto (su pa ya no está) cuenta para su grupo por el modelo de su .running", async () => {
+  const s = armar({ PA_TOPE: "10" });
+  mkdirSync(s.state, { recursive: true });
+  writeFileSync(path.join(s.state, "otro.running"), `id=x\nproyecto=otro\npid=${process.pid}\npa_pid=999999999\nmodelo=claude-sonnet-5-5\ncuenta=claude\n`);
+  const a = new Admision(s.proy("t1"), { cupo: cupoDe({ defecto: 1, porGrupo: {} }, "claude-opus-5-5") });
+  assert.equal(await a.tomarLugar(), false);
+  assert.equal(a.motivoTope, "cupo: 1 workers vivos en claude-oficial (tope 1)");
+  const b = new Admision(s.proy("t2"), { cupo: cupoDe({ defecto: 1, porGrupo: {} }, "codex:gpt") });
+  assert.equal(await b.tomarLugar(), true);
+  await b.soltarTodo();
+});
+
+test("tope_vivos: modelos.json lo valida y lo lee (número, objeto con `*`, default 3, 0 = apagado)", () => {
+  const leer = (extra: Record<string, unknown>) => {
+    const raiz = mkdtempSync(path.join(os.tmpdir(), "pa-tope-"));
+    const archivo = path.join(raiz, "modelos.json");
+    writeFileSync(archivo, JSON.stringify({ version: 1, ...extra }));
+    return new Modelos({ TRAMA_MODELOS: archivo }, { out: () => {}, err: () => {} }, raiz).topeVivos();
+  };
+  assert.deepEqual(leer({}), { defecto: 3, porGrupo: {} });
+  assert.deepEqual(leer({ tope_vivos: 5 }), { defecto: 5, porGrupo: {} });
+  assert.deepEqual(leer({ tope_vivos: 0 }), { defecto: 0, porGrupo: {} });
+  assert.deepEqual(leer({ tope_vivos: { "*": 4, claude: 2 } }), { defecto: 4, porGrupo: { claude: 2 } });
+  assert.deepEqual(leer({ tope_vivos: { claude: 2 } }), { defecto: 3, porGrupo: { claude: 2 } });
+  // PA_TOPE_VIVOS (el arnés de paridad) lo pisa
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "pa-tope-"));
+  assert.deepEqual(new Modelos({ PA_TOPE_VIVOS: "0" }, { out: () => {}, err: () => {} }, raiz).topeVivos(), { defecto: 0, porGrupo: {} });
+  assert.match(problemaModelos({ version: 1, tope_vivos: -1 }), /^tope_vivos -1/);
+  assert.match(problemaModelos({ version: 1, tope_vivos: "tres" }), /^tope_vivos "tres"/);
+  assert.match(problemaModelos({ version: 1, tope_vivos: { claude: 1.5 } }), /^tope_vivos/);
+  assert.equal(problemaModelos({ version: 1, tope_vivos: { "*": 3 } }), "");
 });
