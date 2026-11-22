@@ -293,7 +293,8 @@ export function recolectarEstado(dir: string, ignorar: RegExp[], r: Raices): Rec
   return salida;
 }
 
-const IGNORAR_ESTADO = [/^lock(\/|$)/, /^worktrees(\/|$)/, /\.log$/, /\.lock$/];
+// `<slug>/ruta` es la marca de dueño del estado (PA-CLI-3 / B079): sólo la escribe el TS. Divergencia a propósito: el bash está congelado y no la crea.
+const IGNORAR_ESTADO = [/^lock(\/|$)/, /^worktrees(\/|$)/, /\.log$/, /\.lock$/, /^[^/]+\/ruta$/];
 
 /** Corre el caso completo con el `pa` dado (comando + argumentos previos) y devuelve lo observable, ya normalizado.
  *  Sin `sandbox` crea uno propio y lo borra al terminar, también si el caso falla. Con `sandbox`, lo usa y lo deja: lo borra el llamador. */
