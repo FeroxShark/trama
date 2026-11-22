@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.3.22
+
+- Dos cambios seguidos en Ajustes (modelos, NVIDIA NIM o el plan de OpenCode) se guardan en el orden en que los hiciste. Antes, sobre todo en Windows, el primero podía pisar al segundo.
+
 ## 0.3.21
 
 - Menos tokens por mensaje en los chats de Claude: las herramientas que no se usan quedan apagadas, lo que cambia en cada mensaje sale de la parte fija y todo va en un solo archivo de ajustes. Antes Claude Code leía sólo el último y lo apagado en el panel de Contexto no le llegaba.

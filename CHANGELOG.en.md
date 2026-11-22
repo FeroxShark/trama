@@ -1,5 +1,9 @@
 # Changes
 
+## 0.3.22
+
+- Two settings changes in a row (models, NVIDIA NIM or the OpenCode plan) are saved in the order you made them. Before, mostly on Windows, the first one could overwrite the second.
+
 ## 0.3.21
 
 - Fewer tokens per message in Claude chats: unused tools are turned off, what changes every message is out of the fixed part, and everything goes in a single settings file. Before, Claude Code read only the last one and what you turned off in the Context panel did not reach it.
