@@ -265,3 +265,17 @@ testPosix("--seguir en caché frío: la sesión nueva recibe el resumen de trasp
   assert.match(texto, /- Falta: el test de a\.ts\./);
   assert.ok(texto.indexOf("# Traspaso") < texto.indexOf("Cerrá el test de a.ts."), "el resumen va antes del pedido");
 });
+
+test("--seguir-con: un secreto del transcript no se manda a otra empresa aunque el pedido extra sea inocuo (B077)", async () => {
+  const s = sandbox();
+  const dir = corridaVieja(s, { conTranscript: false });
+  writeFileSync(path.join(dir, `${ID}.json`), JSON.stringify({ result: "La clave es sk-FICTICIA1234567890 y falta el test." }));
+  const motores = { chequearGemini: async () => "", chequearCodex: async () => "", chequearDsh: async () => "", estadoLocal: async () => "" };
+  const r = await pa(["demo", "--sin-jefe", "--seguir-con", "gemini-4-neon-high", "--id", ID, "Terminá el test."], s.env, { motores });
+  assert.equal(r.rc, 96, r.e);
+  assert.match(r.e, /una clave de API/);
+  assert.equal(r.l, null, "no lanza");
+  // a Claude (no sale de la suscripción) sí va
+  const ok = await pa(["demo", "--sin-jefe", "--seguir-con", "claude-haiku-5-5", "--id", ID, "Terminá el test."], s.env, { motores });
+  assert.equal(ok.rc, 0, ok.e);
+});

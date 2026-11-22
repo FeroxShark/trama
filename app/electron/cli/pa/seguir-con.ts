@@ -8,8 +8,21 @@ import { resumenDeTranscript, resumenTraspaso } from "../../resumen-traspaso.ts"
 import { esArchivo, pidCorridaVivo, leerCampo, leerTexto, listar } from "./corridas.ts";
 import type { Pa } from "./entorno.ts";
 import { carpetaProyectos, escapar } from "./lanzar.ts";
+import { dshProveedor, esOpencode } from "./motores/modelos.ts";
+import { secretoEn } from "./motores/privacidad.ts";
 
 export type ResultadoSeguirCon = { ok: true; tarea: string } | { ok: false; mensaje: string; codigo: number };
+
+/**
+ * El resumen de traspaso se arma DESPUÉS de elegir el motor (la política sólo vio el pedido corto): si el motor manda el texto a otra
+ * empresa y el resumen trae un secreto, el motivo de por qué no va ("" = puede ir). Claude y los locales no mandan nada afuera.
+ */
+export function secretoDelResumen(motor: string, modelo: string, tarea: string): string {
+  if (motor === "claude" || motor === "ollama") return "";
+  if (motor === "dsh" && !esOpencode(modelo) && dshProveedor(modelo) === "ollama") return "";
+  const m = secretoEn(tarea);
+  return m ? `el resumen de la conversación anterior parece traer ${m}` : "";
+}
 
 /** El transcript de la sesión de la corrida: bajo el cwd de la corrida, o en cualquier carpeta de proyectos de claude. */
 function transcriptDe(pa: Pa, sid: string, rutaTrabajo: string): string | null {

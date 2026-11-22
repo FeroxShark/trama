@@ -18,7 +18,7 @@ import { Salida, conDueno, jefeId, nombreDueno, paqueteApp, prologo, salir, type
 import { Modelos } from "./modelos.ts";
 import { correrLista, escanear, legible, opcionesIniciales, parsearOpciones } from "./opciones.ts";
 import { correrObjetivo, type DepsObjetivo } from "./objetivo.ts";
-import { armarSeguirCon } from "./seguir-con.ts";
+import { armarSeguirCon, secretoDelResumen } from "./seguir-con.ts";
 import { aplicarPolitica, leerCampo, llamadaDe, modeloFlojo, slugDe, type DepsPolitica, type Llamada, type Motores } from "./politica.ts";
 import { cuentasProceso, repartoProceso, type Cuentas, type Reparto } from "./programas.ts";
 import { cmdRubrica } from "./rubrica.ts";
@@ -474,6 +474,11 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
     if (!r.ok) {
       io.err(r.mensaje);
       return r.codigo;
+    }
+    const secreto = secretoDelResumen(l.motor, l.modelo, r.tarea);
+    if (secreto) {
+      io.err(`pa: no lanzo '${l.modelo}': ${secreto} (no se manda a otra empresa). Seguí con un modelo de Claude o un local.\n`);
+      return 96;
     }
     l.tarea = r.tarea;
     l.retomaDe = l.runId;

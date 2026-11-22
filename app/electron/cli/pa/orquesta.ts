@@ -17,7 +17,7 @@ import { prefijoDe, repartoProceso } from "./programas.ts";
 import { type DeProyecto, type Proyecto as ProyectoCli } from "./cli.ts";
 import { argsHijo, lanzarAsync } from "./async.ts";
 import { armarActualizar } from "./auditar.ts";
-import { armarSeguirCon } from "./seguir-con.ts";
+import { armarSeguirCon, secretoDelResumen } from "./seguir-con.ts";
 import { esArchivo, idCorrida, leerCampo, leerTexto, listar } from "./corridas.ts";
 import { avisarFalta, jefeId, jefeNombre, type Env, type Pa } from "./entorno.ts";
 import { carpetaProyectos, claudeFalla, claudeRc, correrClaude, escapar, limiteDe, lanzarClaude, type Corrida, type Ganchos, type OpcionesLanzar } from "./lanzar.ts";
@@ -453,7 +453,9 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
     // --- --seguir en caché frío: la sesión es nueva, así que lleva el mismo resumen de traspaso que --seguir-con (sin él sólo vería el texto corto)
     if (frio && frioId && !l.actualizar && !l.retomaDe) {
       const r = await armarSeguirCon(pa, { slug, dir }, frioId, "", tarea, "caché frío: sesión nueva");
-      if (r.ok) tarea = r.tarea;
+      const secreto = r.ok ? secretoDelResumen(motor, l.modelo, r.tarea) : "";
+      if (secreto) io.err(`pa: (no mando el resumen de la sesión fría a '${l.modelo}': ${secreto}. Va sólo el pedido.)\n`);
+      else if (r.ok) tarea = r.tarea;
       else io.err(`pa: (no pude armar el resumen de la sesión fría: ${r.mensaje.replace(/^pa: /, "").trim()} Va sólo el pedido.)\n`);
     }
 
