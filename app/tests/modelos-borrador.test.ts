@@ -18,7 +18,7 @@ registerHooks({
   },
 });
 
-const { agregarExcluido, agregarLocal, borradorDe, configDe, cupoDe, efectivoBorrador, elegirEffortLider, elegirLider, elegirWorker, esAutomatico, excluidoDe, EXCLUIR_MAX, modelosPara, nombreGemini, destrabarOn, ponerAutomatico, ponerDestrabar, ponerPermitirMax, quitarExcluido, quitarLocal, sucio, todoEn } = await import("../src/paneles/modelos-borrador.ts");
+const { agregarExcluido, agregarLocal, borradorDe, ponerTopeVivos, topeVivosDe, configDe, cupoDe, efectivoBorrador, elegirEffortLider, elegirLider, elegirWorker, esAutomatico, excluidoDe, EXCLUIR_MAX, modelosPara, nombreGemini, destrabarOn, ponerAutomatico, ponerDestrabar, ponerPermitirMax, quitarExcluido, quitarLocal, sucio, todoEn } = await import("../src/paneles/modelos-borrador.ts");
 
 const estado = (config: Partial<EstadoModelos["config"]> = {}, existe = true): EstadoModelos => ({
   version: 1,
@@ -292,4 +292,19 @@ test("cierre: el umbral se valida de 2 a 20, entero; vacío vuelve a la fábrica
   assert.equal(validarCierre({ umbral: 21 }), "ajustes.errCierreUmbral");
   assert.equal(validarCierre({ umbral: 5, activo: true, retomar_solo: false }), null);
   assert.equal(validarCierre({ otro: 1 }), "ajustes.errCierreForma");
+});
+
+test("tope_vivos: Ajustes muestra un número (3 de fábrica, 0 apagado) y sobre un objeto cambia sólo el `*`", () => {
+  const b = borradorDe(estado());
+  assert.equal(topeVivosDe(b), 3);
+  assert.equal("tope_vivos" in configDe(b)!, false);
+  assert.equal(sucio(estado(), ponerTopeVivos(b, 5)), true);
+  assert.equal(configDe(ponerTopeVivos(b, 5))!.tope_vivos, 5);
+  assert.equal(configDe(ponerTopeVivos(b, 0))!.tope_vivos, 0);
+  assert.equal(topeVivosDe(ponerTopeVivos(b, 99)), 10);
+  assert.equal(sucio(estado(), ponerTopeVivos(b, 3)), false);
+  const o = borradorDe(estado({ tope_vivos: { "*": 4, claude: 2 } }));
+  assert.equal(topeVivosDe(o), 4);
+  assert.deepEqual(configDe(ponerTopeVivos(o, 6))!.tope_vivos, { "*": 6, claude: 2 });
+  assert.equal(topeVivosDe(borradorDe(estado({ tope_vivos: { claude: 2 } }))), 3);
 });
