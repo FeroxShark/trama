@@ -14,8 +14,11 @@ export const esPrefCache = (x: unknown): x is PrefCache => x === "preguntar" || 
 export const UMBRAL_TOKENS = 40_000;
 /** Cuánto vive la caché de cada motor si no se sabe (s): Claude escribe con 5 min salvo que el pedido diga 1 h; agy no dice nada, se asume lo mismo. */
 export const TTL_DEFECTO_S = { claude: 300, gemini: 300 } as const;
-/** Lo que pesa empezar con el relevo: el prompt de sistema y las herramientas (~16 mil) más el relevo mismo (TOPE_RELEVO de 40 mil caracteres ≈ 10 mil). */
-export const TOKENS_RESUMEN = 26_000;
+/**
+ * Lo que pesa empezar con el relevo: el prompt de sistema y las herramientas de un líder de Claude (22 751 medidos con `get_context_usage`
+ * el 2026-11-22, CTX-1) más el relevo mismo (TOPE_RELEVO de 40 mil caracteres ≈ 10 mil). Antes decía 26 mil, con 16 mil de sistema (CTX-47).
+ */
+export const TOKENS_RESUMEN = 33_000;
 
 export type EntradaCache = {
   /** El modelo del líder (el motor de la caché que vale es el suyo). */
