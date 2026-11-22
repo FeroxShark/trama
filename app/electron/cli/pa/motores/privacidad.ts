@@ -52,6 +52,12 @@ const INSTALAR =
   /(^|[^\p{L}\p{N}_-])((npm|pnpm|yarn|bun)\s+(install|add|i)|pip3?\s+install|cargo\s+(install|add|update)|makepkg|pacman\s+-S|paru|yay\s|apt(-get)?\s+install|docker\s+(compose|stats|ps|exec|logs|pull|run))([^\p{L}\p{N}_-]|$)/iu;
 const IPV4 = /(^|[^0-9.])([0-9]{1,3}\.){3}[0-9]{1,3}([^0-9.]|$)/;
 const RUTA = /(^|[\s`"(])(~|\$HOME|\/home|\/etc|\/var|\/opt|\/mnt|\/srv|\/root)(\/[^\s`"')]*)?/g;
+// Las rutas de Windows (sólo cuando la carpeta del proyecto es de Windows): letra de unidad, UNC y las variables de perfil de cmd.
+const RUTA_WIN = /(^|[\s`"(])([A-Za-z]:[\\/][^\s`"')]*|\\\\[^\s`"')]+|%(?:USERPROFILE|APPDATA|LOCALAPPDATA|HOMEPATH|TEMP|TMP)%[^\s`"')]*)/g;
+/** ¿La carpeta del proyecto es una ruta de Windows (`C:\...` o `\\servidor\...`)? */
+const esRutaWin = (r: string) => /^[A-Za-z]:[\\/]/.test(r) || r.startsWith("\\\\");
+/** Rutas de Windows comparables: barras `/`, sin barra final y en minúsculas (el disco no distingue mayúsculas). */
+const normWin = (r: string) => r.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
 
 /**
  * ¿El pedido necesita red o leer fuera del worktree? → qué encontró («una URL», «una ruta fuera del proyecto: …»), o "" si nada.
@@ -65,6 +71,17 @@ export function afueraEn(t: string, ruta: string, home: string = process.env.HOM
   if (enAlgunaLinea(INSTALAR, t)) return "instalar paquetes o tocar docker";
   if (enAlgunaLinea(IPV4, t)) return "una IP";
   const r = ruta.replace(/\/$/, "");
+  if (esRutaWin(ruta)) {
+    const rw = normWin(ruta);
+    for (const l of t.split("\n")) {
+      for (const m of l.matchAll(RUTA_WIN)) {
+        const p = m[2]!.replace(/[.,:;]$/, "");
+        const n = normWin(p);
+        if (rw && (n === rw || n.startsWith(rw + "/"))) continue;
+        return `una ruta fuera del proyecto: ${p}`;
+      }
+    }
+  }
   for (const l of t.split("\n")) {
     for (const m of l.matchAll(RUTA)) {
       let p = m[0].replace(/^[\s`"(]/, "");

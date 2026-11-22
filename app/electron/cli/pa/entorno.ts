@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { caminoDe, carpetaApp, carpetaBin, estadoPa, homeDe, plataformaActual, type Plataforma } from "../../rutas.ts";
+import { caminoDe, carpetaApp, carpetaBin, configTrama, estadoPa, homeDe, plataformaActual, type Plataforma } from "../../rutas.ts";
 import { campos, listarPares } from "../base/proc.ts";
 
 export type Env = Record<string, string | undefined>;
@@ -306,10 +306,10 @@ export function prologo(argv: string[], env: Env, io: Io, plat: Plataforma = pla
 // ---------------------------------------------------------------- dueño y jefe
 
 /** El nombre del dueño: TRAMA_DUENO → `dueno` de perfil.json → el usuario con mayúscula inicial → "el usuario". */
-export function nombreDueno(env: Env, home: string = homeDe(env)): string {
+export function nombreDueno(env: Env, home: string = homeDe(env), plat: Plataforma = plataformaActual()): string {
   let n = env.TRAMA_DUENO ?? "";
   if (!n) {
-    const p = env.TRAMA_PERFIL || path.join(env.XDG_CONFIG_HOME || path.join(home, ".config"), "trama", "perfil.json");
+    const p = env.TRAMA_PERFIL || caminoDe(plat).join(configTrama(env, home, plat), "perfil.json");
     try {
       const d = (JSON.parse(readFileSync(p, "utf8")) as { dueno?: unknown } | null)?.dueno;
       if (d !== undefined && d !== null && d !== false) n = typeof d === "string" ? d : JSON.stringify(d);

@@ -20,7 +20,7 @@ import { matarArbol } from "../base/proc.ts";
 import { comandoCierreCupo, comandoHook, comandoNotaCompactar, entreComillas, EVENTOS_NOTA_COMPACTAR, type VarianteHook } from "../hooks.ts";
 import { CIERRE_TAREA, CIERRE_TURNOS, SIN_JEFE, conJefe } from "./contrato.ts";
 import { contratoActualizar } from "./auditar.ts";
-import { caminoDe, configTrama } from "../../rutas.ts";
+import { caminoDe, configTrama, type Plataforma } from "../../rutas.ts";
 import { sumarFragmento } from "../../apagados.ts";
 import { leerUmbralYa } from "../../contexto.ts";
 import { ventanaDe } from "../../contexto-previa.ts";
@@ -315,9 +315,7 @@ export function settingsWorker(
   }
   let deny: string[] = [];
   if (o.espejo) {
-    const d = cam.dirname(o.espejo);
-    const r = `~${d.startsWith(pa.home) ? d.slice(pa.home.length) : d}`;
-    deny = [`Read(/${d}/**)`, `Bash(*${d}*)`, `Bash(*${r}*)`];
+    deny = denyEspejo(o.espejo, pa.home, pa.plat);
   }
   // La guardia del usuario y la nuestra no se registran las dos: si él ya tiene una, el guard corre una vez por Bash.
   const guardOtro = guardEnSettings(o.configClaude ?? path.join(pa.home, ".claude"));
@@ -426,8 +424,28 @@ export function lineaSkillsDiseno(instaladas: string[]): string {
   return `Al empezar, antes de tocar nada, cargá con la herramienta Skill estas skills de diseño, que están instaladas en esta máquina: ${instaladas.join(", ")}. Son parte del trabajo de interfaz, no opcionales.`;
 }
 
+/**
+ * Lo que el worker no puede leer ni nombrar de la carpeta del espejo (`--espejo`): `Read(//ruta/**)` (la doble barra es «absoluta» en las
+ * reglas de Claude Code) y la ruta suelta en Bash. En Windows la ruta se escribe con `/` y la unidad en minúscula (`//c/Users/...`: así
+ * Claude Code normaliza las rutas de Windows antes de comparar), se cubren las dos barras y el worker tiene también PowerShell.
+ */
+export function denyEspejo(espejo: string, home: string, plat: Plataforma): string[] {
+  const cam = caminoDe(plat);
+  const d = cam.dirname(espejo);
+  if (plat !== "win32") {
+    const r = `~${d.startsWith(home) ? d.slice(home.length) : d}`;
+    return [`Read(/${d}/**)`, `Bash(*${d}*)`, `Bash(*${r}*)`];
+  }
+  const barras = d.replace(/\\/g, "/");
+  const posix = barras.replace(/^([A-Za-z]):/, (_m, l: string) => `/${l.toLowerCase()}`);
+  const h = home.replace(/\\/g, "/");
+  const r = `~${barras.toLowerCase().startsWith(h.toLowerCase()) ? barras.slice(h.length) : barras}`;
+  const nombres = [...new Set([d, barras, r])];
+  return [`Read(/${posix}/**)`, ...nombres.flatMap((n) => [`Bash(*${n}*)`, `PowerShell(*${n}*)`])];
+}
+
 /** El bloque del proyecto en el mapa de interconexiones (`mapa_proy`; PA_MAPA_DIR sólo para los tests). */
-export const mapaDe = (pa: Pa, slug: string) => path.join(pa.env.PA_MAPA_DIR || path.join(pa.env.XDG_CONFIG_HOME || path.join(pa.home, ".config"), "trama", "mapa"), `${slug}.md`);
+export const mapaDe = (pa: Pa, slug: string) => caminoDe(pa.plat).join(pa.env.PA_MAPA_DIR || caminoDe(pa.plat).join(configTrama(pa.env, pa.home, pa.plat), "mapa"), `${slug}.md`);
 
 /**
  * El texto de `--append-system-prompt` de un worker (el system prompt): lo ESTABLE, idéntico byte a byte entre corridas del

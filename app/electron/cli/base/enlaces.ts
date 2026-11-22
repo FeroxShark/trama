@@ -2,7 +2,9 @@
 //   carpeta: symlink en POSIX; junction en Windows (no pide privilegios; el destino tiene que ser absoluto).
 //   archivo: symlink en POSIX; en Windows hardlink si el destino está en el mismo volumen, y si no, copia.
 // Ojo en Windows: un hardlink o una copia NO siguen al original si una herramienta lo reescribe con rename (se desacoplan); para
-// los `.env` y similares (se leen, no se reescriben) alcanza. Ojo también con `realpath` sobre un junction: devuelve el destino.
+// los `.env` y similares (se leen, no se reescriben) alcanza. Lo nuestro (`escribirAtomico*` de base/archivo.ts) ya escribe en el lugar
+// cuando el archivo tiene otros nombres (enlace duro), así que `settings.json` y `CLAUDE.md` siguen juntos; una copia sí se desacopla
+// hasta que `asegurarCuenta` la rehace. Ojo también con `realpath` sobre un junction: devuelve el destino.
 import { copyFileSync, linkSync, lstatSync, readdirSync, rmdirSync, symlinkSync, unlinkSync, chmodSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { plataformaActual, type Plataforma } from "../../rutas.ts";

@@ -1,7 +1,7 @@
 // Escritura de archivos que sobrevive al antivirus de Windows (EBUSY/EPERM/EACCES en rename y borrados) y a dos `pa` a la vez.
 // Siempre `\n` (nunca `\r\n`) en lo que se escribe: los contratos de disco se comparan byte a byte.
-import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { appendFile, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { tomar } from "./lock.ts";
 
@@ -50,11 +50,22 @@ export function conReintentoSync<T>(f: () => T, maxMs = 2000): T {
 /** Texto con `\n` siempre (un `\r\n` o `\r` suelto que venga de afuera se normaliza). Los Buffer pasan tal cual. */
 export const conLF = (x: string | Uint8Array): string | Uint8Array => (typeof x === "string" ? x.replace(/\r\n?/g, "\n") : x);
 
+/**
+ * ¿`ruta` es un archivo con otros nombres (enlace duro)? Un `rename` lo reemplazaría por un inodo nuevo y los otros nombres quedarían con
+ * el contenido viejo: es lo que pasa con `settings.json` y `CLAUDE.md` en las cuentas agregadas de Windows (`enlazarArchivo` hace un
+ * hardlink). Para esos se escribe en el lugar: deja de ser atómico, pero nadie queda desacoplado.
+ */
+const conOtrosNombres = (st: { nlink: number; isFile(): boolean } | null) => !!st && st.isFile() && st.nlink > 1;
+
 const tmpDe = (ruta: string) => `${ruta}.tmp.${process.pid}.${Math.random().toString(36).slice(2, 8)}`;
 
 /** Escribe `contenido` en `ruta` de forma atómica: `<ruta>.tmp.*` + rename, con reintento si el antivirus tiene el archivo. Crea la carpeta. */
 export async function escribirAtomico(ruta: string, contenido: string | Uint8Array, o: OpcionesReintento & { modo?: number } = {}): Promise<void> {
   await mkdir(path.dirname(ruta), { recursive: true });
+  if (conOtrosNombres(await stat(ruta).catch(() => null))) {
+    await conReintento(() => writeFile(ruta, conLF(contenido)), o.maxMs);
+    return;
+  }
   const tmp = tmpDe(ruta);
   const renombrar = o.renombrar ?? rename;
   try {
@@ -68,6 +79,16 @@ export async function escribirAtomico(ruta: string, contenido: string | Uint8Arr
 
 export function escribirAtomicoSync(ruta: string, contenido: string | Uint8Array, o: { maxMs?: number; modo?: number; renombrar?: (de: string, a: string) => void } = {}): void {
   mkdirSync(path.dirname(ruta), { recursive: true });
+  let st = null;
+  try {
+    st = statSync(ruta);
+  } catch {
+    /* no existe: se crea con el rename de siempre */
+  }
+  if (conOtrosNombres(st)) {
+    conReintentoSync(() => writeFileSync(ruta, conLF(contenido)), o.maxMs);
+    return;
+  }
   const tmp = tmpDe(ruta);
   const renombrar = o.renombrar ?? renameSync;
   try {

@@ -1,7 +1,7 @@
 // cli/base/archivo.ts: escritura atómica con reintento (EPERM simulado), append bajo lock, JSON tolerante, siempre "\n".
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { linkSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { rename } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -89,4 +89,24 @@ test("leerJson: BOM y \\r\\n bien; falta, vacío o roto da el defecto sin tirar"
   writeFileSync(f, "  \n");
   assert.equal(await leerJson(f), undefined);
   assert.deepEqual(await leerJson(path.join(d, "no"), []), []);
+});
+
+test("un archivo con enlace duro se escribe en el lugar: el otro nombre ve el cambio (CTX-57, cuentas agregadas de Windows)", async () => {
+  const d = dir();
+  const real = path.join(d, "settings.json");
+  const cuenta = path.join(d, "cuenta-settings.json");
+  writeFileSync(real, "viejo\n");
+  linkSync(real, cuenta);
+  escribirAtomicoSync(real, "uno\r\n");
+  assert.equal(readFileSync(cuenta, "utf8"), "uno\n");
+  await escribirAtomico(real, "dos\n");
+  assert.equal(readFileSync(cuenta, "utf8"), "dos\n");
+  assert.deepEqual(readdirSync(d).sort(), ["cuenta-settings.json", "settings.json"], "sin .tmp sobrante");
+  // sin otros nombres sigue siendo el rename de siempre (un EPERM simulado se reintenta)
+  const solo = path.join(d, "solo.json");
+  writeFileSync(solo, "a");
+  let n = 0;
+  escribirAtomicoSync(solo, "b", { renombrar: (de, a) => { if (n++ === 0) throw err("EPERM"); renameSync(de, a); } });
+  assert.equal(readFileSync(solo, "utf8"), "b");
+  assert.equal(n, 2);
 });

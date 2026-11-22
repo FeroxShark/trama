@@ -225,7 +225,10 @@ function colocarEspejo(pa: Pa, proyecto: string, src: string): string {
     salir(2);
   }
   const p = fijarProyecto(pa, rutaOSalir(pa, proyecto));
-  if (src.startsWith(`${p.dir}/espejos/`)) return src;
+  // Ya colocado: está bajo `<dir>/espejos/` (en Windows, con cualquier barra y sin distinguir mayúsculas).
+  const w = pa.plat === "win32";
+  const norm = (x: string) => (w ? x.replace(/\\/g, "/").toLowerCase() : x);
+  if (norm(src).startsWith(`${norm(p.dir)}/espejos/`)) return src;
   const dest = path.join(p.dir, "espejos", `${sello()}-${process.pid}`, path.basename(src));
   try {
     mkdirSync(path.dirname(dest), { recursive: true });
@@ -341,7 +344,7 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
       return cmdRubrica(argv.slice(1), modelos, io);
     case "--nota":
       if (!argv[1]) {
-        io.err(`uso: pa --nota "<texto>"  (pedido de ${nombreDueno(env, pa.home)}, decisión, qué sigue)\n`);
+        io.err(`uso: pa --nota "<texto>"  (pedido de ${nombreDueno(env, pa.home, pa.plat)}, decisión, qué sigue)\n`);
         return 2;
       }
       anotar(pa, argv[1]);
@@ -369,7 +372,7 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
   // Lo que le queda a una corrida --async de su lista -m (lo pasa el padre; no se hereda a los procesos del worker).
   const fbResto = env.PA_FALLBACK_RESTO ?? "";
   delete env.PA_FALLBACK_RESTO;
-  const dueno = nombreDueno(env, pa.home);
+  const dueno = nombreDueno(env, pa.home, pa.plat);
   const esc = escanear(args, env, dueno);
   // --espejo se mueve una sola vez, antes de cualquier intento de -m a,b,c (los intentos reciben la ruta ya movida).
   if (esc.esp >= 0) {

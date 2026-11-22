@@ -34,19 +34,23 @@ function idiomaDeLaApp() {
 }
 
 /** La cuenta de Claude de esta sesión: `claude` (la de siempre) o el id de la agregada cuya carpeta es CLAUDE_CONFIG_DIR; `null` si no se sabe. */
-export function cuentaDeSesion(e = env) {
+export function cuentaDeSesion(e = env, plat = process.platform) {
+  const w = plat === "win32";
+  const c = w ? path.win32 : path;
   const dir = e.CLAUDE_CONFIG_DIR;
-  const h = e.HOME || e.USERPROFILE || casa();
+  // En Windows el home es USERPROFILE (HOME puede venir de un Git Bash ajeno); en Linux, HOME.
+  const h = (w ? e.USERPROFILE || e.HOME : e.HOME || e.USERPROFILE) || casa();
   if (!dir) return "claude";
-  const igual = (a, b) => path.resolve(a) === path.resolve(b);
-  if (igual(dir, path.join(h, ".claude"))) return "claude";
-  const archivo = e.TRAMA_CUENTAS || path.join(e.TRAMA_CUENTAS_HOME || h, ".config", "trama", "cuentas.json");
+  // En Windows las rutas no distinguen mayúsculas (`c:\` y `C:\`) ni el sentido de la barra.
+  const igual = (a, b) => (w ? c.resolve(a).toLowerCase() === c.resolve(b).toLowerCase() : c.resolve(a) === c.resolve(b));
+  if (igual(dir, c.join(h, ".claude"))) return "claude";
+  const archivo = e.TRAMA_CUENTAS || c.join(e.TRAMA_CUENTAS_HOME || h, ".config", "trama", "cuentas.json");
   const lista = leerJson(archivo)?.cuentas;
   if (!Array.isArray(lista)) return null;
-  for (const c of lista) {
-    if (!c || c.proveedor !== "claude" || typeof c.id !== "string") continue;
-    const propia = typeof c.dir === "string" && c.dir ? c.dir.replace(/^~(?=[\\/]|$)/, h) : path.join(path.dirname(archivo), "cuentas", c.id);
-    if (igual(propia, dir)) return c.id;
+  for (const x of lista) {
+    if (!x || x.proveedor !== "claude" || typeof x.id !== "string") continue;
+    const propia = typeof x.dir === "string" && x.dir ? x.dir.replace(/^~(?=[\\/]|$)/, h) : c.join(c.dirname(archivo), "cuentas", x.id);
+    if (igual(propia, dir)) return x.id;
   }
   return null;
 }

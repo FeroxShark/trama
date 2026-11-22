@@ -10,7 +10,7 @@
 // Entorno: TABLERO_DIR, TABLERO_VISTA, PA_STATE, PROYECTOS_REGISTRY, BARRENDERO_DIR, TRAMA_DUENO, TRAMA_PERFIL.
 import { appendFileSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeSync } from "node:fs";
 import path from "node:path";
-import { estadoPa, homeDe, registroProyectos, vistaTablero } from "../rutas.ts";
+import { configTrama, estadoPa, homeDe, registroProyectos, vistaTablero } from "../rutas.ts";
 import { conReintentoSync } from "./base/archivo.ts";
 import { esPrincipal } from "./base/principal.ts";
 import { git } from "./base/git.ts";
@@ -366,7 +366,7 @@ class Tablero {
     if (this._dueno === null) {
       let n = strip(this.env.TRAMA_DUENO ?? "");
       if (!n) {
-        const perfil = this.env.TRAMA_PERFIL || path.join(this.env.XDG_CONFIG_HOME || path.join(this.home, ".config"), "trama", "perfil.json");
+        const perfil = this.env.TRAMA_PERFIL || path.join(configTrama(this.env, this.home), "perfil.json");
         try {
           const j = JSON.parse(readFileSync(perfil, "utf8"));
           n = strip(esObjeto(j) && verdad(j.dueno) ? String(j.dueno) : "");

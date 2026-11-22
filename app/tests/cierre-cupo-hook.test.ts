@@ -158,3 +158,20 @@ test("el registro en el settings del usuario agrega el hook una vez por evento y
   assert.equal(h.PostToolUse!.length, 2);
   assert.equal(h.UserPromptSubmit!.length, 1);
 });
+
+test("cuentaDeSesion en Windows: USERPROFILE manda y las rutas no distinguen mayúsculas ni barras (CTX-52)", async () => {
+  const { cuentaDeSesion } = (await import(pathToFileURL(HOOK).href)) as { cuentaDeSesion: (e: Record<string, string>, plat: string) => string | null };
+  const base = { USERPROFILE: "C:\\Users\\Ana", HOME: "/c/Users/otra" };
+  // la de siempre: la carpeta llega con otra capitalización de la unidad y barras mezcladas
+  assert.equal(cuentaDeSesion({ ...base, CLAUDE_CONFIG_DIR: "c:/users/ana/.claude" }, "win32"), "claude");
+  // una agregada sin `dir`: su carpeta cuelga de la de cuentas.json
+  const dir = mkdtempSync(path.join(os.tmpdir(), "cuentas-win-"));
+  const json = path.join(dir, "cuentas.json");
+  writeFileSync(json, JSON.stringify({ cuentas: [{ id: "c2", proveedor: "claude" }, { id: "c3", proveedor: "claude", dir: "~\\cuentas-x" }] }));
+  assert.equal(cuentaDeSesion({ ...base, TRAMA_CUENTAS: json, CLAUDE_CONFIG_DIR: "C:\\Users\\ANA\\cuentas-x" }, "win32"), "c3");
+  // sin coincidencia: null (no se avisa), no un error
+  assert.equal(cuentaDeSesion({ ...base, TRAMA_CUENTAS: json, CLAUDE_CONFIG_DIR: "D:\\otra" }, "win32"), null);
+  // Linux sigue distinguiendo mayúsculas
+  assert.equal(cuentaDeSesion({ HOME: "/home/ana", CLAUDE_CONFIG_DIR: "/home/Ana/.claude", TRAMA_CUENTAS: json }, "linux"), null);
+  assert.equal(cuentaDeSesion({ HOME: "/home/ana", CLAUDE_CONFIG_DIR: "/home/ana/.claude" }, "linux"), "claude");
+});
