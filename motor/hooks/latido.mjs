@@ -12,8 +12,9 @@
 // El comportamiento es el del .sh línea por línea; los comentarios largos de los porqués viven allá.
 // Diferencias conocidas: `desc` se corta a 160 BYTES como `cut -c` de GNU (igual que el .sh); el candado de `.turnos` es una
 // carpeta (`<hb>.turnos.lock.d`) en lugar de flock, así que no excluye a un latido.sh corriendo a la vez sobre el mismo archivo.
+import { execFileSync } from "node:child_process";
 import { mkdirSync, openSync, closeSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync, accessSync, constants, writeSync } from "node:fs";
-import { homedir, userInfo } from "node:os";
+import { homedir, uptime, userInfo } from "node:os";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 
@@ -118,7 +119,53 @@ function nombreDueno() {
 const alt = (a, b) => (a === null || a === undefined || a === false ? b : a);
 
 // 3. GUARDIA DE --leer. Es una ALLOWLIST: lo que no está acá se bloquea, incluido todo lo que no se reconoce.
-const palabras = (s) => s.split(/[ \t\n]+/).filter(Boolean); // `read -ra`
+function palabras(s) {
+  const res = [];
+  let cur = "";
+  let hay = false;
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (/[ \t\n]/.test(c)) {
+      if (hay) res.push(cur);
+      cur = "";
+      hay = false;
+      i++;
+    } else if (c === "'") {
+      const j = s.indexOf("'", i + 1);
+      if (j < 0) return [];
+      cur += s.slice(i + 1, j);
+      hay = true;
+      i = j + 1;
+    } else if (c === '"') {
+      i++;
+      for (;;) {
+        if (i >= s.length) return [];
+        if (s[i] === '"') {
+          i++;
+          break;
+        }
+        if (s[i] === "\\" && i + 1 < s.length && '"\\'.includes(s[i + 1])) {
+          cur += s[i + 1];
+          i += 2;
+        } else {
+          cur += s[i++];
+        }
+      }
+      hay = true;
+    } else if (c === "\\" && i + 1 < s.length && /[ \t'"\\]/.test(s[i + 1])) {
+      cur += s[i + 1];
+      hay = true;
+      i += 2;
+    } else {
+      cur += c;
+      hay = true;
+      i++;
+    }
+  }
+  if (hay) res.push(cur);
+  return res;
+}
 function gitDeLectura(c) {
   if (!c || c.includes("\n") || c.includes("||") || c.includes("$(")) return false;
   // nada de encadenar, redirigir ni sustituir. Sobre-bloquea un `;` entre comillas: aceptable.
@@ -138,7 +185,10 @@ function gitDeLectura(c) {
     primero = false;
     if (t[0] !== "git") return false;
     let i = 1;
-    while (t[i] === "-C" || t[i] === "--no-pager") i += t[i] === "-C" ? 2 : 1;
+    while (t[i] === "-C" || t[i] === "--no-pager") {
+      if (t[i] === "-C" && i + 1 >= t.length) return false;
+      i += t[i] === "-C" ? 2 : 1;
+    }
     const sub = t[i] ?? "";
     const resto = t.slice(i + 1);
     for (const a of resto) {
@@ -177,6 +227,49 @@ function gitDeLectura(c) {
   return true;
 }
 
+const MARGEN_PID_MS = 2000;
+function camposStat(stat) {
+  const i = stat.lastIndexOf(")");
+  if (i < 0) return null;
+  const r = stat.slice(i + 1).trim().split(/\s+/);
+  return r.length >= 20 ? r : null;
+}
+function pidWriterValido(pid, escritoMs) {
+  if (!pid || pid <= 0 || !Number.isInteger(pid)) return false;
+  try {
+    process.kill(pid, 0);
+  } catch (e) {
+    if (e?.code !== "EPERM") return false;
+  }
+  if (process.platform === "linux") {
+    try {
+      const c = camposStat(readFileSync(`/proc/${pid}/stat`, "utf8"));
+      if (!c || c[0] === "Z" || c[0] === "X") return false;
+      const st = readFileSync(`/proc/${pid}/status`, "utf8");
+      const tgid = /^Tgid:\s*(\d+)/m.exec(st)?.[1];
+      const id = /^Pid:\s*(\d+)/m.exec(st)?.[1];
+      if (tgid && id && tgid !== id) return false;
+      const ini = Date.now() - uptime() * 1000 + Number(c[19]) * 10;
+      if (Number.isFinite(ini) && ini > escritoMs + MARGEN_PID_MS) return false;
+    } catch {
+      return false;
+    }
+  } else if (process.platform === "win32") {
+    try {
+      const t = execFileSync(
+        "powershell",
+        ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToFileTimeUtc()`],
+        { encoding: "utf8", windowsHide: true, timeout: 10_000 },
+      ).trim();
+      if (/^\d+$/.test(t)) {
+        const ini = Number(t) / 10_000 - 11_644_473_600_000;
+        if (Number.isFinite(ini) && ini > escritoMs + MARGEN_PID_MS) return false;
+      }
+    } catch {}
+  }
+  return true;
+}
+
 /** Otro worker que ESCRIBE vivo en el mismo proyecto (los --leer no cuentan). */
 function otroWriterVivo() {
   if (!hb) return false;
@@ -204,20 +297,18 @@ function otroWriterVivo() {
   } catch {}
   for (const r of candidatos) {
     let texto;
+    let stR;
     try {
-      if (!statSync(r).isFile() || r === propio) continue;
+      stR = statSync(r);
+      if (!stR.isFile() || r === propio) continue;
       texto = readFileSync(r, "utf8");
     } catch {
       continue;
     }
     if (valor(texto, "leer") === "1") continue;
-    let pid = valor(texto, "pid");
-    if (!pid) pid = valor(texto, "pa_pid");
-    if (/^\d+$/.test(pid) && Number(pid) > 0) {
-      try {
-        process.kill(Number(pid), 0);
-        return true;
-      } catch {}
+    for (const campoPid of ["pid", "pa_pid"]) {
+      const pid = valor(texto, campoPid);
+      if (/^\d+$/.test(pid) && pidWriterValido(Number(pid), stR.mtimeMs)) return true;
     }
   }
   return false;

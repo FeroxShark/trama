@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -191,6 +191,17 @@ test("latido: instalar dependencias se bloquea sólo si hay otro worker que escr
     const r = instalar();
     assert.equal(r.rc, 2);
     assert.match(r.stderr, /otro worker corriendo/);
+
+    // Un .running viejo (mtime anterior al arranque del proceso) tiene un pid reciclado y se descarta
+    const otroRunning = path.join(estado, "demo@2.running");
+    utimesSync(otroRunning, 0, 0);
+    assert.equal(instalar().rc, 0, "pid reciclado en un .running viejo no bloquea");
+
+    // Fallback a pa_pid válido (y pid inexistente adelante)
+    const ahoraS = Date.now() / 1000;
+    writeFileSync(otroRunning, `proyecto=demo\npid=2147483000\npa_pid=${process.pid}\n`);
+    utimesSync(otroRunning, ahoraS, ahoraS);
+    assert.equal(instalar().rc, 2, "fallback a pa_pid vivo y reciente bloquea");
   });
 });
 
@@ -215,10 +226,25 @@ test("latido: --leer sólo deja pasar git de lectura", () => {
     const hb = path.join(dir, "w1.heartbeat");
     const env = entorno(dir);
     const rc = (cmd: string) => correr("latido", [hb, "pre", "leer"], bash(cmd), env).rc;
-    for (const ok of ["git log --oneline", "git -C /x diff HEAD | head -50", "git --no-pager show HEAD", "git branch", "git branch --list 'f*'", "git branch -vv", "git worktree list", "git stash list", "git stash show"]) {
+    for (const ok of [
+      "git log --oneline",
+      "git -C /x diff HEAD | head -50",
+      'git -C "carpeta con espacios" status',
+      "git -C 'carpeta con espacios' log --oneline",
+      'git -C "carpeta con \\"comillas\\"" status',
+      "git -C carpeta\\ con\\ espacios status",
+      'git -C "C:\\Users\\Ana Perez\\Mi Proyecto" status',
+      "git --no-pager show HEAD",
+      "git branch",
+      "git branch --list 'f*'",
+      "git branch -vv",
+      "git worktree list",
+      "git stash list",
+      "git stash show",
+    ]) {
       assert.equal(rc(ok), 0, ok);
     }
-    for (const mal of ["ls", "git log; ls", "git log > x", "git log $(x)", "git diff --output=x", "git grep -Oless x", "git branch nueva", "git branch -d x", "git worktree add x", "git stash pop", "git commit -m x", "git log | sort -o x", "git log || ls"]) {
+    for (const mal of ["ls", "git log; ls", "git log > x", "git log $(x)", "git diff --output=x", "git grep -Oless x", "git branch nueva", "git branch -d x", "git worktree add x", "git stash pop", "git commit -m x", "git log | sort -o x", "git log || ls", 'git -C "sin cerrar status']) {
       assert.equal(rc(mal), 2, mal);
     }
     assert.equal(correr("latido", [hb, "pre", "leer"], { tool_name: "Read", tool_input: {} }, env).rc, 0);
