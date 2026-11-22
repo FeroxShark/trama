@@ -2871,6 +2871,7 @@ export const en = {
   "lider.cruceHecho": "Switched to {modelo}: the next reply comes from a new {motor} session",
   "cache.titulo": "This conversation has been idle for a while",
   "cache.texto": "The cache (the model's quick memory) expired: if you continue as is, it has to reread everything said so far before answering. Pick how to continue; your message waits here.",
+  "cache.textoProbable": "The cache (the model's quick memory) has probably expired (we don't know how long this model's lasts; we assume about 5 minutes): if you continue as is and it did, it has to reread everything said so far before answering. Pick how to continue; your message waits here.",
   "cache.seguir": "Continue the same session",
   "cache.seguirDet": "Rereads the whole context: about {k}k tokens with {modelo}.",
   "cache.resumen": "Start with a summary",

@@ -43,6 +43,8 @@ export type VeredictoCache = {
   accion: "enviar" | "preguntar" | "resumen";
   tokensSeguir: number;
   tokensResumen: number;
+  /** El «venció» salió del TTL de por defecto (nadie midió cuánto vive la caché): el diálogo dice que probablemente venció, no que venció. */
+  ttlSupuesto?: boolean;
 };
 
 /** ¿Venció su caché? Sin ningún dato (nunca habló) no se sabe: no vencida. */
@@ -53,11 +55,16 @@ export function cacheVencida(e: Pick<EntradaCache, "modelo" | "vence" | "ttl" | 
   return venceS !== null && e.ahoraMs / 1000 >= venceS;
 }
 
+/** ¿El vencimiento sale de la suposición `TTL_DEFECTO_S` y no de un dato (`vence` del statusline o `ttl` del transcript)? */
+export function ttlSupuesto(e: Pick<EntradaCache, "vence" | "ttl" | "actividad">): boolean {
+  return e.vence === null && e.ttl === null && e.actividad > 0;
+}
+
 /** ¿«Empezar con resumen» abriría otra conversación? Claude no reabre un `--session-id` ya usado (lider.ts `mandarConResumen`); agy sigue en la misma. */
 export const abreOtra = (modelo: string): boolean => motorDeCache(modelo) === "claude";
 
 export function decidirCache(e: EntradaCache): VeredictoCache {
-  const base = { tokensSeguir: e.tokens, tokensResumen: Math.min(e.tokens, TOKENS_RESUMEN) };
+  const base = { tokensSeguir: e.tokens, tokensResumen: Math.min(e.tokens, TOKENS_RESUMEN), ...(ttlSupuesto(e) ? { ttlSupuesto: true } : {}) };
   const motor = motorDeCache(e.modelo);
   const aplica = !e.local && !e.cruza && (motor === "claude" || motor === "gemini");
   if (!aplica || e.tokens < UMBRAL_TOKENS || !cacheVencida(e)) return { ...base, accion: "enviar" };

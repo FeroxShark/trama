@@ -14,10 +14,11 @@ import { ARCHIVOS_NOTA_COMPACTAR, comandoNotaCompactar, EVENTOS_NOTA_COMPACTAR }
 import { settingsCierreCupo } from "../electron/cierre-cupo-texto.ts";
 import { argvLider } from "../electron/lider-arma.ts";
 import { armarLanzamiento, settingsWorker, type Corrida } from "../electron/cli/pa/lanzar.ts";
+import { FRASE_COMPACTA } from "../electron/cli/pa/contrato.ts";
 import { Modelos, problemaModelos } from "../electron/cli/pa/modelos.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
 import { guardarModelos, leerModelos, notaCompactarGuardado, notaCompactarPctGuardado, notaCompactarTareaPctGuardado } from "../electron/modelos-config.ts";
-import { leerConfig, umbralesNota, unir, validarConfig } from "../electron/modelos-tipos.ts";
+import { baseNota, leerConfig, umbralesNota, unir, validarConfig } from "../electron/modelos-tipos.ts";
 
 registerHooks({
   resolve(spec, ctx, next) {
@@ -37,7 +38,7 @@ const hookMod = (await import(pathToFileURL(HOOK).href)) as {
   TAIL_BYTES: number;
   MAX_COLA_BYTES: number;
   estadoHilos: (e?: Record<string, string | undefined>, plat?: string) => string;
-  parsearArgs: (argv?: string[]) => { umbral: number | null; umbralTarea: number | null };
+  parsearArgs: (argv?: string[]) => { umbral: number | null; umbralTarea: number | null; base: number | null };
   leerColaTranscript: (ruta: string, maxBytes?: number) => string[];
   ultimoUsoDeLineas: (lineas: string[]) => { tokens: number | null; compactada: boolean };
   extraerNotaDeTexto: (texto: string) => string | null;
@@ -49,6 +50,7 @@ const hookMod = (await import(pathToFileURL(HOOK).href)) as {
     transcript?: string;
     umbral?: number | null;
     umbralTarea?: number | null;
+    base?: number | null;
     hilos?: string;
     ahoraMs?: number;
     idioma?: string;
@@ -57,7 +59,8 @@ const hookMod = (await import(pathToFileURL(HOOK).href)) as {
   }) => Promise<{ hookSpecificOutput: { hookEventName: string; additionalContext: string } } | null>;
 };
 
-const { textoDevolucionNota, TOPE_NOTA } = (await import(pathToFileURL(path.join(HOOKS, "nota-compactar-textos.mjs")).href)) as {
+const { textoDevolucionNota, TOPE_NOTA, textoPedidoNota } = (await import(pathToFileURL(path.join(HOOKS, "nota-compactar-textos.mjs")).href)) as {
+  textoPedidoNota: (o: { idioma?: string }) => string;
   TOPE_NOTA: number;
   textoDevolucionNota: (o: { idioma?: string; nota: string; minutos?: number | null; archivo?: string; tope?: number }) => string;
 };
@@ -89,11 +92,13 @@ test("ruta de estado en win32 con usuario de mentira trama-falso y en Linux", ()
 });
 
 test("parsearArgs lee --umbral y --umbral-tarea y los deja null si faltan o no sirven", () => {
-  assert.deepEqual(hookMod.parsearArgs(["--umbral", "255000", "--umbral-tarea", "180000"]), { umbral: 255000, umbralTarea: 180000 });
-  assert.deepEqual(hookMod.parsearArgs(["--umbral=170000", "--umbral-tarea=120000"]), { umbral: 170000, umbralTarea: 120000 });
-  assert.deepEqual(hookMod.parsearArgs([]), { umbral: null, umbralTarea: null });
-  assert.deepEqual(hookMod.parsearArgs(["--umbral", "abc", "--umbral-tarea", "-1"]), { umbral: null, umbralTarea: null });
-  assert.deepEqual(hookMod.parsearArgs(["--umbral", "-5"]), { umbral: null, umbralTarea: null });
+  assert.deepEqual(hookMod.parsearArgs(["--umbral", "255000", "--umbral-tarea", "180000"]), { umbral: 255000, umbralTarea: 180000, base: null });
+  assert.deepEqual(hookMod.parsearArgs(["--umbral", "170000", "--base", "200000"]), { umbral: 170000, umbralTarea: null, base: 200000 });
+  assert.deepEqual(hookMod.parsearArgs(["--base=1000000"]), { umbral: null, umbralTarea: null, base: 1000000 });
+  assert.deepEqual(hookMod.parsearArgs(["--umbral=170000", "--umbral-tarea=120000"]), { umbral: 170000, umbralTarea: 120000, base: null });
+  assert.deepEqual(hookMod.parsearArgs([]), { umbral: null, umbralTarea: null, base: null });
+  assert.deepEqual(hookMod.parsearArgs(["--umbral", "abc", "--umbral-tarea", "-1", "--base", "x"]), { umbral: null, umbralTarea: null, base: null });
+  assert.deepEqual(hookMod.parsearArgs(["--umbral", "-5"]), { umbral: null, umbralTarea: null, base: null });
 });
 
 test("no pide bajo el umbral ni sin umbral; pide suave una vez y fuerte una sola vez por ciclo", async () => {
@@ -499,22 +504,41 @@ test("CLI por spawnSync: siempre sale con 0, sin salida si no corresponde, y flu
 
 // ============================================================================ Configuración nota_compactar, porcentajes y umbralesNota
 
-test("el aviso suave muestra la ocupación con el porcentaje configurado o el 85 por defecto", async (t) => {
+test("el pedido de la nota y el contrato del worker piden lo mismo al terminar: cerrar el pedazo y terminar con SIGUE (es y en)", () => {
+  assert.match(textoPedidoNota({ idioma: "es" }), /cerrá el pedazo que estás haciendo.*terminá con SIGUE: lo que falta/);
+  assert.match(textoPedidoNota({ idioma: "en" }), /finish the piece you are on.*end with SIGUE: what is left/);
+  assert.doesNotMatch(textoPedidoNota({ idioma: "es" }), /seguí con lo que estabas haciendo/);
+  assert.doesNotMatch(textoPedidoNota({ idioma: "en" }), /continue with what you were doing/);
+  assert.match(FRASE_COMPACTA, /cerrá el pedazo que estás haciendo.*terminá con SIGUE: lo que falta/);
+});
+
+test("el aviso suave dice la ocupación sobre la base que le pasa el comando (--base), con pct 70, 85 y nativo; sin base no dice porcentaje", async () => {
   const dir = nuevoDir();
   const tr = path.join(dir, "sesion.jsonl");
-  const modelos = path.join(dir, "modelos.json");
-  const anterior = process.env.TRAMA_MODELOS;
-  t.after(() => {
-    if (anterior === undefined) delete process.env.TRAMA_MODELOS;
-    else process.env.TRAMA_MODELOS = anterior;
-  });
-  process.env.TRAMA_MODELOS = modelos;
   escribirTranscript(tr, [linAsistente([{ type: "text", text: "trabajando" }], { input_tokens: 120_000 })]);
-  const aviso = (sesion: string, umbral: number) =>
-    hookMod.decidir({ evento: "PostToolUse", sesion, transcript: tr, umbral, umbralTarea: 120_000, hilos: dir, idioma: "es" });
-  assert.match((await aviso("predeterminado", 170_000))?.hookSpecificOutput.additionalContext ?? "", /al 60 %/);
-  writeFileSync(modelos, JSON.stringify({ nota_compactar_pct: 70 }));
-  assert.match((await aviso("configurado", 140_000))?.hookSpecificOutput.additionalContext ?? "", /al 60 %/);
+  const aviso = (sesion: string, umbral: number, base: number | null) =>
+    hookMod.decidir({ evento: "PostToolUse", sesion, transcript: tr, umbral, umbralTarea: 100_000, base, hilos: dir, idioma: "es" });
+  const texto = async (sesion: string, umbral: number, base: number | null) => (await aviso(sesion, umbral, base))?.hookSpecificOutput.additionalContext ?? "";
+  // Tope de 200 000 con 70 % fuerte (umbral 140 000): 120 000 de 200 000 es 60 %, no el 73 % que salía de reconstruirlo con 85.
+  const { fuerte: f70 } = umbralesNota({ tope: 200_000, ventana: 1_000_000, pct: 70 });
+  assert.equal(f70, 140_000);
+  assert.match(await texto("p70", f70, baseNota({ tope: 200_000, ventana: 1_000_000 })), /al 60 %/);
+  // Con 85 % (umbral 170 000) es lo mismo: la cuenta no depende del porcentaje fuerte.
+  const { fuerte: f85 } = umbralesNota({ tope: 200_000, ventana: 1_000_000, pct: 85 });
+  assert.match(await texto("p85", f85, baseNota({ tope: 200_000, ventana: 1_000_000 })), /al 60 %/);
+  // Nativo en 1 M: el techo es la ventana entera. Con 600 000 de uso el aviso suave (umbral 600 000) dice 60 %, no el 69 % que salía de
+  // reconstruirlo con 85 sobre el umbral de 750 000.
+  const nativo = umbralesNota({ ventana: 1_000_000 });
+  assert.equal(nativo.fuerte, 750_000);
+  assert.equal(nativo.suave, 600_000);
+  const trGrande = path.join(dir, "grande.jsonl");
+  escribirTranscript(trGrande, [linAsistente([{ type: "text", text: "trabajando" }], { input_tokens: 600_000 })]);
+  const rNativo = await hookMod.decidir({ evento: "PostToolUse", sesion: "nativo", transcript: trGrande, umbral: nativo.fuerte, umbralTarea: nativo.suave, base: baseNota({ ventana: 1_000_000 }), hilos: dir, idioma: "es" });
+  assert.match(rNativo?.hookSpecificOutput.additionalContext ?? "", /al 60 %/);
+  // Sin base (un comando viejo o un techo que no se conoce): el aviso no inventa un porcentaje.
+  const sinBase = await texto("sin-base", 170_000, null);
+  assert.match(sinBase, /subiendo/);
+  assert.doesNotMatch(sinBase, /\d %/);
 });
 
 test("nota_compactar, nota_compactar_pct y nota_compactar_tarea_pct en modelos.json y umbralesNota", async () => {
@@ -624,14 +648,14 @@ test("workers (settingsWorker y armarLanzamiento): usa umbralesNota (tope 75% na
   // Nativo 1M (claude-sonnet-5-5) -> 750 000 y --umbral-tarea 600 000
   const s1 = JSON.parse(armarLanzamiento(paBase(), corrida()).settings);
   const cmd1 = s1.hooks.PreCompact[0].hooks[0].command as string;
-  assert.match(cmd1, /nota-compactar\.mjs' --umbral 750000 --umbral-tarea 600000$/);
+  assert.match(cmd1, /nota-compactar\.mjs' --umbral 750000 --umbral-tarea 600000 --base 1000000$/);
   assert.equal(s1.hooks.SessionStart[0].matcher, "compact");
   assert.ok(s1.hooks.PostToolUse.some((g: { hooks: { command: string }[] }) => g.hooks[0]!.command.includes("nota-compactar.mjs")));
   assert.ok(s1.hooks.UserPromptSubmit.some((g: { hooks: { command: string }[] }) => g.hooks[0]!.command.includes("nota-compactar.mjs")));
 
   // Con autocompact 300 000 -> 255 000 y 180 000
   const s2 = JSON.parse(armarLanzamiento(paBase(), corrida({ modelo: "claude-haiku-5-5", autocompact: "300000" })).settings);
-  assert.match(s2.hooks.PreCompact[0].hooks[0].command, /--umbral 255000 --umbral-tarea 180000$/);
+  assert.match(s2.hooks.PreCompact[0].hooks[0].command, /--umbral 255000 --umbral-tarea 180000 --base 300000$/);
 
   // Ollama: sin nota-compactar
   const sOllama = JSON.parse(armarLanzamiento(paBase(), corrida({ motor: "ollama", local: { url: "http://127.0.0.1:11434", modelo: "qwen3" } })).settings);
@@ -647,7 +671,18 @@ test("workers (settingsWorker y armarLanzamiento): usa umbralesNota (tope 75% na
 
   // Llamada directa a settingsWorker con opciones explícitas (claude-opus-4-6 200k nativo -> 150k / 120k)
   const sw = JSON.parse(settingsWorker(paBase(), { hb: "/tmp/hb", leer: false, modelo: "claude-opus-4-6", autocompact: "" }));
-  assert.match(sw.hooks.PreCompact[0].hooks[0].command, /--umbral 150000 --umbral-tarea 120000$/);
+  assert.match(sw.hooks.PreCompact[0].hooks[0].command, /--umbral 150000 --umbral-tarea 120000 --base 200000$/);
+  // Sin tope de Trama pero con `autoCompactWindow` en el settings de Claude Code (ventana de 1 M): los umbrales del worker salen de 200 000,
+  // igual que los del líder, y el aviso mide la ocupación contra esos 200 000.
+  const carpetaClaude = path.join(dir, "cuenta-claude");
+  mkdirSync(carpetaClaude, { recursive: true });
+  writeFileSync(path.join(carpetaClaude, "settings.json"), JSON.stringify({ autoCompactWindow: 200_000 }));
+  const swSettings = JSON.parse(settingsWorker(paBase(), { hb: "/tmp/hb", leer: false, modelo: "claude-sonnet-5-5", autocompact: "", configClaude: carpetaClaude }));
+  assert.match(swSettings.hooks.PreCompact[0].hooks[0].command, /--umbral 170000 --umbral-tarea 120000 --base 200000$/);
+  // El tope de Trama (`--autocompact`) le gana al del settings; un worker local no lee el de Claude Code.
+  const swTope = JSON.parse(settingsWorker(paBase(), { hb: "/tmp/hb", leer: false, modelo: "claude-sonnet-5-5", autocompact: "300000", configClaude: carpetaClaude }));
+  assert.match(swTope.hooks.PreCompact[0].hooks[0].command, /--umbral 255000 --umbral-tarea 180000 --base 300000$/);
+  assert.equal(comandoNotaCompactar("/h", { umbral: 170000, umbralTarea: 120000, base: 200000, plataforma: "linux" }), "node '/h/nota-compactar.mjs' --umbral 170000 --umbral-tarea 120000 --base 200000");
   assert.deepEqual(ARCHIVOS_NOTA_COMPACTAR, ["nota-compactar.mjs", "nota-compactar-textos.mjs"]);
   assert.equal(EVENTOS_NOTA_COMPACTAR.length, 4);
   assert.equal(comandoNotaCompactar("/h", { umbral: 170000, plataforma: "linux" }), "node '/h/nota-compactar.mjs' --umbral 170000");
@@ -696,15 +731,15 @@ test("líderes (settingsCierreCupo y lider.nuevo): un solo JSON con cierre-cupo 
     assert.ok(hooks1);
     assert.equal(hooks1.PostToolUse!.length, 2);
     assert.match(hooks1.PostToolUse![0]!.hooks[0]!.command, /cierre-cupo\.mjs/);
-    assert.match(hooks1.PostToolUse![1]!.hooks[0]!.command, /nota-compactar\.mjs' --umbral 340000 --umbral-tarea 240000$/);
+    assert.match(hooks1.PostToolUse![1]!.hooks[0]!.command, /nota-compactar\.mjs' --umbral 340000 --umbral-tarea 240000 --base 400000$/);
     assert.equal(hooks1.SessionStart![0]!.matcher, "compact");
-    assert.match(hooks1.PreCompact![0]!.hooks[0]!.command, /--umbral 340000 --umbral-tarea 240000$/);
+    assert.match(hooks1.PreCompact![0]!.hooks[0]!.command, /--umbral 340000 --umbral-tarea 240000 --base 400000$/);
 
     // 2. Con tope nativo null en Sonnet 5.5 -> 75 % de 1 000 000 = 750 000 (nunca supera 75 %), suave 600 000
     const s2 = await lider.nuevo({ modelo: "claude-sonnet-5-5", effort: "high", texto: "hola" });
     await esperarHasta(() => readFileSync(log, "utf8").includes(s2), { tope: 8000 });
     const hooks2 = settingsDe(s2).find((x) => x.hooks)?.hooks as Record<string, { hooks: { command: string }[] }[]>;
-    assert.match(hooks2.PreCompact![0]!.hooks[0]!.command, /--umbral 750000 --umbral-tarea 600000$/);
+    assert.match(hooks2.PreCompact![0]!.hooks[0]!.command, /--umbral 750000 --umbral-tarea 600000 --base 1000000$/);
 
     // 2b. Sin tope de Trama pero con `autoCompactWindow` en el settings de Claude Code: la nota se pide antes de ESA compactación.
     mkdirSync(path.join(dir, "claude"), { recursive: true });
@@ -712,13 +747,13 @@ test("líderes (settingsCierreCupo y lider.nuevo): un solo JSON con cierre-cupo 
     const s2b = await lider.nuevo({ modelo: "claude-sonnet-5-5", effort: "high", texto: "hola" });
     await esperarHasta(() => readFileSync(log, "utf8").includes(s2b), { tope: 8000 });
     const hooks2b = settingsDe(s2b).find((x) => x.hooks)?.hooks as Record<string, { hooks: { command: string }[] }[]>;
-    assert.match(hooks2b.PreCompact![0]!.hooks[0]!.command, /--umbral 170000 --umbral-tarea 120000$/);
+    assert.match(hooks2b.PreCompact![0]!.hooks[0]!.command, /--umbral 170000 --umbral-tarea 120000 --base 200000$/);
     // El tope de Trama le gana al del settings.
     writeFileSync(modelosF, JSON.stringify({ version: 1, autocompact_lider: { defecto: null, por_modelo: { sonnet: 400_000 } } }));
     const s2c = await lider.nuevo({ modelo: "claude-sonnet-5-5", effort: "high", texto: "hola" });
     await esperarHasta(() => readFileSync(log, "utf8").includes(s2c), { tope: 8000 });
     const hooks2c = settingsDe(s2c).find((x) => x.hooks)?.hooks as Record<string, { hooks: { command: string }[] }[]>;
-    assert.match(hooks2c.PreCompact![0]!.hooks[0]!.command, /--umbral 340000 --umbral-tarea 240000$/);
+    assert.match(hooks2c.PreCompact![0]!.hooks[0]!.command, /--umbral 340000 --umbral-tarea 240000 --base 400000$/);
 
     // 3. Con nota_compactar: false -> sólo cierre-cupo
     writeFileSync(modelosF, JSON.stringify({ version: 1, nota_compactar: false }));

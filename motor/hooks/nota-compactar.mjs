@@ -36,18 +36,6 @@ const leerJson = (f) => {
   }
 };
 
-/** El porcentaje fuerte guardado en la misma configuración que usan la app y `pa`. */
-function porcentajeNota() {
-  const win = process.platform === "win32";
-  const casa = win ? env.USERPROFILE || env.HOME || homedir() : env.HOME || homedir();
-  const dir = win
-    ? path.join(env.LOCALAPPDATA || path.join(casa, "AppData", "Local"), "trama", "config")
-    : path.join(env.XDG_CONFIG_HOME || path.join(casa, ".config"), "trama");
-  const archivo = env.TRAMA_MODELOS ?? env.HILOS_MODELOS ?? path.join(dir, "modelos.json");
-  const pct = leerJson(archivo)?.nota_compactar_pct;
-  return Number.isInteger(pct) && pct >= 50 && pct <= 95 ? pct : 85;
-}
-
 /** El idioma de la app (`preferencias.json` de su estado); sin él, el de la terminal; por defecto `es`. */
 function idiomaDeLaApp(hilos = estadoHilos()) {
   const p = leerJson(path.join(hilos, "preferencias.json"));
@@ -55,10 +43,11 @@ function idiomaDeLaApp(hilos = estadoHilos()) {
   return /^en/i.test(env.LC_ALL || env.LANG || "") ? "en" : "es";
 }
 
-/** Parsea `--umbral <tokens>` y `--umbral-tarea <tokens>` de argv; `null` si falta o no es un entero positivo. */
+/** Parsea `--umbral`, `--umbral-tarea` y `--base` (el techo en tokens de la ocupación) de argv; `null` si falta o no es un entero positivo. */
 export function parsearArgs(argv = process.argv.slice(2)) {
   let umbral = null;
   let umbralTarea = null;
+  let base = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--umbral" && i + 1 < argv.length) {
@@ -73,9 +62,15 @@ export function parsearArgs(argv = process.argv.slice(2)) {
     } else if (typeof a === "string" && a.startsWith("--umbral-tarea=")) {
       const n = Number(a.slice("--umbral-tarea=".length));
       if (Number.isFinite(n) && n > 0) umbralTarea = Math.floor(n);
+    } else if (a === "--base" && i + 1 < argv.length) {
+      const n = Number(argv[++i]);
+      if (Number.isFinite(n) && n > 0) base = Math.floor(n);
+    } else if (typeof a === "string" && a.startsWith("--base=")) {
+      const n = Number(a.slice("--base=".length));
+      if (Number.isFinite(n) && n > 0) base = Math.floor(n);
     }
   }
-  return { umbral, umbralTarea };
+  return { umbral, umbralTarea, base };
 }
 
 const rutaEsSubagente = (ruta) => typeof ruta === "string" && /(?:^|[\\/])subagents[\\/]/.test(ruta);
@@ -387,6 +382,7 @@ export async function decidir({
   transcript,
   umbral = null,
   umbralTarea = null,
+  base = null,
   hilos = estadoHilos(),
   ahoraMs = Date.now(),
   idioma,
@@ -572,7 +568,8 @@ export async function decidir({
     } catch {
       return null;
     }
-    const pct = conFuerte ? Math.min(99, Math.max(1, Math.round((uso.tokens * porcentajeNota()) / umbral))) : null;
+    // Sin `--base` (el techo con el que se midió el umbral) no se sabe cuánto es el 100 %: el aviso no dice un porcentaje inventado.
+    const pct = typeof base === "number" && Number.isFinite(base) && base > 0 ? Math.min(99, Math.max(1, Math.round((uso.tokens * 100) / base))) : null;
     const { textoPedidoNotaSuave } = await cargarTextos();
     return {
       hookSpecificOutput: {
@@ -586,7 +583,7 @@ export async function decidir({
 }
 
 function main() {
-  const { umbral, umbralTarea } = parsearArgs();
+  const { umbral, umbralTarea, base } = parsearArgs();
   let doc = {};
   try {
     doc = JSON.parse(readFileSync(0, "utf8"));
@@ -602,6 +599,7 @@ function main() {
     transcript: doc.transcript_path,
     umbral,
     umbralTarea,
+    base,
     esSubagente,
   }).then((r) => {
     if (r) process.stdout.write(JSON.stringify(r) + "\n");

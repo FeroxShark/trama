@@ -78,8 +78,17 @@ function resultadoDe(output: unknown): { texto: string; error: boolean } {
 
 type Uso = { input_tokens: number; output_tokens: number };
 
-/** El `usage` de agy como el de Claude. Sin campos de caché: el numerito de la barra es del caché de Anthropic, no del de Gemini. */
-const usoClaude = (u: Obj | undefined): Uso => ({ input_tokens: num(u?.input_tokens) ?? 0, output_tokens: (num(u?.output_tokens) ?? 0) + (num(u?.thinking_tokens) ?? 0) });
+/**
+ * El `usage` de agy como el de Claude. `input_tokens` de agy EXCLUYE lo que leyó del caché (`cache_read_tokens`), pero el contexto
+ * que ocupó el paso es las dos cosas juntas (como en el worker, `cli/pa/hilo-stream.ts`): con `conCache` se suman, y es lo que
+ * lee el anillo, `decidirCache` y el umbral de la nota. Sin campos de caché aparte: el numerito de la barra es del caché de
+ * Anthropic, no del de Gemini. Lo que se factura o cuenta para el cupo no sale de este stream (el `.json` del worker,
+ * `agyAJson`, deja `inputTokens` y `cacheReadInputTokens` por separado).
+ */
+const usoClaude = (u: Obj | undefined, conCache = true): Uso => ({
+  input_tokens: (num(u?.input_tokens) ?? 0) + (conCache ? (num(u?.cache_read_tokens) ?? 0) : 0),
+  output_tokens: (num(u?.output_tokens) ?? 0) + (num(u?.thinking_tokens) ?? 0),
+});
 
 export type Opciones = {
   /** El id de sesión de Claude (el del líder en la barra): va en cada línea como `session_id`. */
@@ -265,7 +274,8 @@ export class Traductor {
     if (this.cerrado) return [];
     this.cerrado = true;
     const ok = r.status === "SUCCESS";
-    const u = usoClaude(r.usage);
+    // El `usage` del cierre es la suma del turno, no el contexto: su respaldo no lleva el caché (el contexto sale del último paso).
+    const u = usoClaude(r.usage, false);
     const respuesta = str(r.response) ?? "";
     return [
       {

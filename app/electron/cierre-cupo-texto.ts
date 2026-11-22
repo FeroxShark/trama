@@ -53,6 +53,8 @@ export type OpcionesSettingsHooks = {
   umbralNota?: number | null;
   /** Umbral suave en tokens al terminar una tarea (`--umbral-tarea <tokens>`). */
   umbralTareaNota?: number | null;
+  /** Techo en tokens de la ocupación (`--base <tokens>`, ver `baseNota`): el 100 % del porcentaje que el aviso suave le dice al modelo. */
+  baseNota?: number | null;
   /** Agregar `nota-compactar.mjs` sin `--umbral` (sólo copiar/devolver). */
   notaSinUmbral?: boolean;
   /** Incluir `cierre-cupo.mjs` (default `true`). */
@@ -78,6 +80,7 @@ export function settingsCierreCupo(hooks: string, o: OpcionesSettingsHooks = {})
       ...o,
       umbral: conUmbral ? o.umbralNota : null,
       umbralTarea: conUmbral ? o.umbralTareaNota : null,
+      base: conUmbral ? o.baseNota : null,
     });
     for (const e of EVENTOS_NOTA_COMPACTAR) {
       const matcher = "matcher" in e ? { matcher: e.matcher } : {};

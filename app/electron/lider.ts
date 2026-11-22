@@ -79,7 +79,7 @@ import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { partirCodex } from "./codex-stream.ts";
 import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
 import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, notaCompactarGuardado, notaCompactarPctGuardado, notaCompactarTareaPctGuardado, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
-import { umbralesNota } from "./modelos-tipos.ts";
+import { baseNota, umbralesNota } from "./modelos-tipos.ts";
 import { VENTANA_GEMINI } from "./agy-stream.ts";
 import { cargarTextosNota, debeAutoCompactar, extraerNotaDeTexto, guardarNotaSiCambia, idiomaDeEstado, mtimeNota, textosNotaCargados, usoDeLineaStream, type UmbralesNota } from "./nota-compactar-main.ts";
 import { ventanaDe } from "./contexto-previa.ts";
@@ -730,6 +730,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
         plataforma: plat,
         umbralNota: u?.fuerte ?? null,
         umbralTareaNota: u?.suave ?? null,
+        baseNota: u ? baseNota({ tope: topeNota, ventana: ventanaDe(g.modelo) }) : null,
         conCierre: Boolean(hooksCierre),
       });
     }

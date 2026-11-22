@@ -15,7 +15,7 @@ const PEDIDOS = {
     "- Qué sigue (pasos exactos)",
     "- Rutas, ids y comandos exactos",
     "- Qué NO hacer",
-    "Si te falta poco para un corte natural, terminá y escribila; si no, escribila ahora. Después de compactar se te va a devolver entera. Después de escribirla, seguí con lo que estabas haciendo.",
+    "Si te falta poco para un corte natural, terminá y escribila; si no, escribila ahora. Después de compactar se te va a devolver entera. Después de escribirla, cerrá el pedazo que estás haciendo y no abras otro; si sos un worker, hacé commit y terminá con SIGUE: lo que falta.",
   ].join("\n"),
   en: [
     "[Trama · context] You are running low on context before compaction. In your NEXT response, write a note to yourself between `[[nota-compactar]]` and `[[/nota-compactar]]` with these sections (max ~600 words):",
@@ -26,7 +26,7 @@ const PEDIDOS = {
     "- What is next (exact steps)",
     "- Exact paths, ids and commands",
     "- What NOT to do",
-    "If you are close to a natural cutoff, finish up and write it; otherwise write it now. After compacting, it will be returned to you in full. After writing it, continue with what you were doing.",
+    "If you are close to a natural cutoff, finish up and write it; otherwise write it now. After compacting, it will be returned to you in full. After writing it, finish the piece you are on and do not start another; if you are a worker, commit and end with SIGUE: what is left.",
   ].join("\n"),
 };
 

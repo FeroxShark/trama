@@ -2857,6 +2857,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "lider.cruceHecho": "Cambiado a {modelo}: la próxima respuesta sale de una sesión nueva de {motor}",
   "cache.titulo": "Esta conversación estuvo quieta un rato",
   "cache.texto": "La caché (la memoria rápida del modelo) venció: si seguís igual, tiene que releer todo lo hablado antes de contestar. Elegí cómo seguir; tu mensaje espera acá.",
+  "cache.textoProbable": "La caché (la memoria rápida del modelo) probablemente venció (no sabemos cuánto dura la de este modelo; suponemos unos 5 minutos): si seguís igual y venció, tiene que releer todo lo hablado antes de contestar. Elegí cómo seguir; tu mensaje espera acá.",
   "cache.seguir": "Seguir la misma sesión",
   "cache.seguirDet": "Relee todo el contexto: unos {k} mil tokens con {modelo}.",
   "cache.resumen": "Empezar con resumen",

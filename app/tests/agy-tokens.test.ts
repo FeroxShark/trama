@@ -50,3 +50,23 @@ test("agy con la forma de Claude: input sin caché (4) + caché leída (22732) +
     { inputTokens: 4, cacheReadInputTokens: 22732, outputTokens: 191 },
   );
 });
+
+// El stream que ve el líder (agy-stream.ts) sí suma la caché leída: es el CONTEXTO del paso (anillo, decidirCache, nota), como en el worker.
+import { Traductor } from "../electron/agy-stream.ts";
+
+test("agy líder: el contexto de un paso es input + caché leída (como el worker), y el cierre usa el último paso", () => {
+  const t = new Traductor({ sid: "s", modelo: "gemini-4-argon-high" });
+  const cierre = (usage: object) => ({ event: "step_update", step_update: { conversation_id: "c", step_index: 1, step_type: "agent_response", state: "DONE", text_delta: "hola", usage } });
+  const lineas = [
+    ...t.linea(cierre({ input_tokens: 30, output_tokens: 5, thinking_tokens: 0, cache_read_tokens: 200 })),
+    ...t.linea({ event: "result", result: { status: "SUCCESS", response: "hola", duration_seconds: 1, usage: { input_tokens: 30, output_tokens: 5, cache_read_tokens: 2_000_000 } } }),
+  ] as any[];
+  const entero = lineas.find((l) => l.type === "assistant");
+  assert.equal(entero.message.usage.input_tokens, 230);
+  assert.equal(entero.message.usage.cache_read_input_tokens, undefined, "la caché no viaja con campos de Anthropic: sólo cuenta para el contexto");
+  const r = lineas.find((l) => l.type === "result");
+  assert.equal(r.usage.input_tokens, 230);
+  // Sin pasos con uso, el respaldo es el `usage` del cierre (suma del turno) y no se le suma su caché.
+  const solo = new Traductor({ sid: "s", modelo: "gemini-4-argon-high" }).linea({ event: "result", result: { status: "SUCCESS", response: "x", usage: { input_tokens: 30, output_tokens: 5, cache_read_tokens: 2_000_000 } } }) as any[];
+  assert.equal(solo.find((l) => l.type === "result").usage.input_tokens, 30);
+});

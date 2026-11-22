@@ -59,6 +59,16 @@ export const notaTareaPctValido = (x: unknown): x is number =>
   x === 0 || (typeof x === "number" && Number.isInteger(x) && x >= NOTA_TAREA_PCT_MIN && x <= NOTA_TAREA_PCT_MAX);
 
 /**
+ * El techo en tokens contra el que se mide «cuánto contexto lleva»: el tope de compactación si lo hay (nunca más que la ventana)
+ * o la ventana entera con compactación nativa. Es la base de los umbrales y el 100 % del porcentaje que el hook le dice al modelo.
+ */
+export function baseNota(o: { tope?: number | null; ventana: number }): number {
+  const ventana = Number.isFinite(o.ventana) && o.ventana > 0 ? Math.round(o.ventana) : 200_000;
+  const tope = typeof o.tope === "number" && Number.isFinite(o.tope) && o.tope > 0 ? Math.round(o.tope) : null;
+  return tope ? Math.min(tope, ventana) : ventana;
+}
+
+/**
  * Umbrales en tokens para pedir la nota antes de compactar (`fuerte`) y al terminar una tarea (`suave`).
  * Con compactación nativa (`tope == null`), el umbral fuerte nunca supera el 75 % de la ventana (nativa compacta antes del 85 %),
  * y el suave siempre queda estrictamente por debajo del fuerte (o `null` si `tareaPct === 0`).
@@ -69,11 +79,10 @@ export function umbralesNota(o: {
   pct?: number | null;
   tareaPct?: number | null;
 }): { fuerte: number; suave: number | null } {
-  const ventana = Number.isFinite(o.ventana) && o.ventana > 0 ? Math.round(o.ventana) : 200_000;
   const pct = notaPctValido(o.pct) ? o.pct : NOTA_PCT_DEFECTO;
   const tareaPct = notaTareaPctValido(o.tareaPct) ? o.tareaPct : NOTA_TAREA_PCT_DEFECTO;
   const tope = typeof o.tope === "number" && Number.isFinite(o.tope) && o.tope > 0 ? Math.round(o.tope) : null;
-  const base = tope ? Math.min(tope, ventana) : ventana;
+  const base = baseNota(o);
   const pctFuerte = tope ? pct : Math.min(pct, NOTA_NATIVO_TECHO_PCT);
   const fuerte = Math.max(1, Math.round(base * (pctFuerte / 100)));
   if (tareaPct === 0) return { fuerte, suave: null };

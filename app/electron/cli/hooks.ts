@@ -51,13 +51,16 @@ export type OpcionesNotaCompactar = OpcionesComando & {
   umbral?: number | null;
   /** Umbral suave en tokens para sugerir la nota al terminar una tarea (`--umbral-tarea <tokens>`). */
   umbralTarea?: number | null;
+  /** Techo en tokens contra el que se mide la ocupación (`--base <tokens>`): lo que el aviso suave dice como «%». Sin él, el aviso no dice porcentaje. */
+  base?: number | null;
 };
-/** Su comando: `node '<carpeta>/nota-compactar.mjs' --umbral <tokens> [--umbral-tarea <tokens>]` (sin los flags si faltan). */
+/** Su comando: `node '<carpeta>/nota-compactar.mjs' --umbral <tokens> [--umbral-tarea <tokens>] [--base <tokens>]` (sin los flags si faltan). */
 export function comandoNotaCompactar(carpeta: string, o: OpcionesNotaCompactar = {}): string {
   const base = comandoHook("nota-compactar", "mjs", carpeta, o);
   const u = typeof o.umbral === "number" && Number.isFinite(o.umbral) && o.umbral > 0 ? Math.round(o.umbral) : null;
   const ut = typeof o.umbralTarea === "number" && Number.isFinite(o.umbralTarea) && o.umbralTarea > 0 ? Math.round(o.umbralTarea) : null;
-  return `${base}${u ? ` --umbral ${u}` : ""}${ut ? ` --umbral-tarea ${ut}` : ""}`;
+  const b = typeof o.base === "number" && Number.isFinite(o.base) && o.base > 0 ? Math.round(o.base) : null;
+  return `${base}${u ? ` --umbral ${u}` : ""}${ut ? ` --umbral-tarea ${ut}` : ""}${b ? ` --base ${b}` : ""}`;
 }
 
 export type OpcionesComando = {

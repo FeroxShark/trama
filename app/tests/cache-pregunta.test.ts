@@ -98,3 +98,19 @@ test("recordar mi elección: se guarda en preferencias, se cambia y se borra con
   assert.equal((await leerPreferencias()).cacheVencida, undefined);
   rmSync(tmp, { recursive: true, force: true });
 });
+
+test("sin TTL medido (ni vence ni ttl) el veredicto marca ttlSupuesto: el diálogo dice «probablemente venció»; con dato, no", async () => {
+  const supuesto = decidirCache(base);
+  assert.equal(supuesto.accion, "preguntar");
+  assert.equal(supuesto.ttlSupuesto, true);
+  // El TTL vino del transcript (cache_creation) o el vencimiento del statusline: es una medición.
+  assert.equal(decidirCache({ ...base, ttl: 300 }).ttlSupuesto, undefined);
+  assert.equal(decidirCache({ ...base, vence: AHORA / 1000 - 10 }).ttlSupuesto, undefined);
+  // Gemini: agy no dice nada, siempre es suposición.
+  assert.equal(decidirCache({ ...base, modelo: "gemini-4-argon-high" }).ttlSupuesto, true);
+  const { es } = await import("../src/i18n/es.ts");
+  const { en } = await import("../src/i18n/en.ts");
+  assert.match((es as Record<string, string>)["cache.textoProbable"]!, /probablemente venció/);
+  assert.match((en as Record<string, string>)["cache.textoProbable"]!, /probably expired/);
+  assert.match((es as Record<string, string>)["cache.texto"]!, /venció:/);
+});

@@ -125,7 +125,7 @@ export function DialogoCache({
           {t("cache.titulo")}
         </h3>
         <p id={`${id}-d`} className="cambio-d">
-          {t("cache.texto")}
+          {t(v.ttlSupuesto ? "cache.textoProbable" : "cache.texto")}
         </p>
         <div className="cache-opciones">
           {opSeguir}
