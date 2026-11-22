@@ -177,8 +177,8 @@ export { planOpencode, PLANES_OPENCODE, type PlanOpencode };
 export async function guardarPlanOpencode(plan: unknown, env: Env = process.env, home: string = os.homedir()): Promise<PlanOpencode> {
   if (!(PLANES_OPENCODE as readonly unknown[]).includes(plan)) throw errorT("main.opencodePlan", { v: String(plan).slice(0, 20) });
   const ruta = rutaModelosOc(env, home);
-  // leer → unir → escribir en fila por archivo real, la misma de `guardarModelos` (modelos-config.ts): dos guardados no se pisan
-  const clave = await realpath(ruta).catch(() => path.resolve(ruta));
+  // leer → unir → escribir en fila por archivo, la misma de `guardarModelos` (modelos-config.ts, misma clave): dos guardados no se pisan
+  const clave = path.resolve(ruta);
   await enFilaModelos(clave, async () => {
     let texto: string | null = null;
     try {
