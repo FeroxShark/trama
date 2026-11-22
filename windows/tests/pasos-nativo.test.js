@@ -267,3 +267,12 @@ test("sin Trama vieja (0 importadas) no dice nada; si el comando falla no frena 
   assert.equal(r.espera, "login", "la instalación siguió");
   assert.equal(c.guardado.cuentasImportadas, undefined, "sin marca: se reintenta");
 });
+
+test("un nombre heredado de Object (toString, constructor) no es un proveedor de login", async () => {
+  const b = banco();
+  for (const mal of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
+    await assert.rejects(b.asistente.conectar(mal), /desconocido/);
+    assert.throws(() => b.asistente.saltarLogin(mal), /desconocido/);
+  }
+  assert.deepEqual(b.lineas, []);
+});

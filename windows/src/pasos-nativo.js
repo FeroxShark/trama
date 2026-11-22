@@ -160,7 +160,7 @@ function crearAsistenteNativo(deps) {
   };
 
   function saltarLogin(proveedor) {
-    if (!PROVEEDORES_LOGIN[proveedor]) throw new Error(`Proveedor desconocido: ${proveedor}`);
+    if (!Object.hasOwn(PROVEEDORES_LOGIN, proveedor)) throw new Error(`Proveedor desconocido: ${proveedor}`);
     guardar({ loginSaltado: { ...(guardado().loginSaltado || {}), [proveedor]: true } });
   }
 
@@ -176,7 +176,7 @@ function crearAsistenteNativo(deps) {
   }
 
   async function conectar(proveedor) {
-    const cli = PROVEEDORES_LOGIN[proveedor];
+    const cli = Object.hasOwn(PROVEEDORES_LOGIN, proveedor) ? PROVEEDORES_LOGIN[proveedor] : null;
     if (!cli) throw new Error(`Proveedor desconocido: ${proveedor}`);
     await abrirConsola(cli);
   }
