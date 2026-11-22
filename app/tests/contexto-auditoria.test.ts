@@ -24,6 +24,11 @@ test("agrupar: por archivo, el que más ahorra primero, y dentro el hallazgo má
   assert.deepEqual(g[1].pendientes, ["h1", "h3"]);
 });
 
+test("agrupar: dentro de un archivo, pendientes primero, luego los que cambiaron y al final los aplicados", () => {
+  const g = agrupar({ hallazgos: [h("h1", "/a/a.md", 90, "aplicado"), h("h2", "/a/a.md", 60, "invalido"), h("h3", "/a/a.md", 5), h("h4", "/a/a.md", 20)] });
+  assert.deepEqual(g[0].hallazgos.map((x) => x.id), ["h4", "h3", "h2", "h1"]);
+});
+
 test("agrupar: un archivo ya todo aplicado queda al final", () => {
   const g = agrupar({ hallazgos: [h("h1", "/a/a.md", 500, "aplicado"), h("h2", "/a/b.md", 10)] });
   assert.deepEqual(g.map((x) => x.nombre), ["b.md", "a.md"]);

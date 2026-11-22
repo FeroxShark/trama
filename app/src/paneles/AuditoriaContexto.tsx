@@ -6,6 +6,7 @@ import { ArrowLeftRight, Check, CircleAlert, Copy, Hourglass, LoaderCircle, Rule
 import type { Auditoria, Hallazgo, TipoHallazgo } from "../../electron/auditoria-contexto-texto";
 import { fuenteContexto } from "../datos/contexto";
 import { MODELOS, nombreModelo } from "../hilo/opciones";
+import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { locale, t } from "../i18n";
 import { useIdioma } from "../i18n/react";
@@ -61,8 +62,9 @@ function FilaHallazgo({ h, puede, ocupado, alAplicar }: { h: Hallazgo; puede: bo
       ) : h.estado === "invalido" ? (
         <p className="cp-au-estado" data-estado="invalido">
           <CircleAlert size={14} strokeWidth={2} aria-hidden />
-          <span>
-            <b>{t("ctxp.aud.invalido")}</b> {t("ctxp.aud.invalidoNota")}
+          <span className="cp-au-estado-txt">
+            <b>{t("ctxp.aud.invalido")}</b>
+            <span>{t("ctxp.aud.invalidoNota")}</span>
           </span>
         </p>
       ) : puede ? (
@@ -193,6 +195,15 @@ export function AuditoriaContexto({ proyecto, puede }: { proyecto: string; puede
     [aud],
   );
 
+  // Captura `contexto-auditoria`: el panel baja solo hasta la revisión (queda debajo del desglose de la vista previa).
+  const raiz = useRef<HTMLElement>(null);
+  const llegada = useRef(false);
+  useEffect(() => {
+    if (MODO.captura !== "contexto-auditoria" || llegada.current || !aud) return;
+    llegada.current = true;
+    raiz.current?.scrollIntoView({ block: "start" });
+  }, [aud]);
+
   const vista = lanzando ? "corriendo" : vistaDe(aud);
   const grupos = aud && vista === "hallazgos" ? agrupar(aud) : [];
   const tot = aud && vista === "hallazgos" ? totales(aud) : null;
@@ -200,7 +211,7 @@ export function AuditoriaContexto({ proyecto, puede }: { proyecto: string; puede
   const rev = aud ? resumenArchivos(aud.archivos) : null;
 
   return (
-    <section className="cp-au" aria-label={t("ctxp.aud.titulo")}>
+    <section className="cp-au" ref={raiz} aria-label={t("ctxp.aud.titulo")}>
       <h4 className="cp-h">
         <span>{t("ctxp.aud.titulo")}</span>
       </h4>
@@ -244,7 +255,7 @@ export function AuditoriaContexto({ proyecto, puede }: { proyecto: string; puede
             <div className="cp-au-total">
               <span className="cp-au-total-etq">{t("ctxp.aud.posibleEtq")}</span>
               <b className="cp-au-cifra cp-num">{t("ctxp.aud.ahorro", { n: miles(tot.posible) })}</b>
-              <span className="cp-nota">{t("ctxp.aud.cuenta", { pendientes: tot.pendientes, total: aud.hallazgos.length })}</span>
+              <p className="cp-nota cp-au-cuenta">{t("ctxp.aud.cuenta", { pendientes: tot.pendientes, total: aud.hallazgos.length })}</p>
             </div>
             {puede && pendientes.length ? (
               <button type="button" className="btn2" disabled={pendientes.some((id) => ocupados.has(id))} onClick={() => void aplicar(pendientes)}>

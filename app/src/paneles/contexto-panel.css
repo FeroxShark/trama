@@ -1285,6 +1285,10 @@
   letter-spacing: -0.01em;
   line-height: 1.2;
 }
+.cp-au-total .cp-au-cuenta {
+  margin: 0;
+  padding: 0;
+}
 .cp-au-ahorrado {
   padding: 0 var(--esp-1);
 }
@@ -1468,6 +1472,11 @@
 }
 .cp-au-estado b {
   font-weight: 600;
+}
+.cp-au-estado-txt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-0-5);
 }
 .cp-au-h[data-estado="aplicado"] .cp-au-razon,
 .cp-au-h[data-estado="invalido"] .cp-au-razon {

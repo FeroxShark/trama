@@ -403,3 +403,39 @@ export function auditoriaFalsa(proyecto: string, aplicados: readonly string[] = 
     respaldo: aplicados.length ? "/home/persona/.local/state/trama/md-backup/2026-11-22-1314" : null,
   };
 }
+
+/** Captura `contexto-prefacio-codex`: el líder de ChatGPT (Codex) no tiene un prompt de Claude Code: lo suyo es el prefacio que le arma Trama, parte por parte (todo estimado), con la memoria recortada. */
+export function prefacioCodexFalso(lider: string): Desglose {
+  const partes = [
+    { titulo: "Quién sos y cómo trabajás", tokens: 1_150, recortado: false, cortados: 0 },
+    { titulo: "CLAUDE.md de ~/proyectos/atlas", tokens: 1_840, recortado: false, cortados: 0 },
+    { titulo: "AGENTS.md de ~/proyectos/atlas", tokens: 2_460, recortado: false, cortados: 0 },
+    { titulo: "Memoria del dueño (MEMORY.md)", tokens: 3_000, recortado: true, cortados: 1_420 },
+    { titulo: "Tablero y estado al arrancar (salida de los hooks de arranque)", tokens: 640, recortado: false, cortados: 0 },
+  ];
+  const fijo = partes.reduce((n, p) => n + p.tokens, 0);
+  const usado = 41_300;
+  return {
+    version: 1,
+    quien: { tipo: "lider", id: lider },
+    motor: "codex",
+    fuente: "prefacio",
+    estimado: true,
+    modelo: "codex:gpt-6.1-sol",
+    usado,
+    ventana: 400_000,
+    ventanaEstimada: true,
+    categorias: [cat("prefacio", fijo, true), cat("mensajes", usado - fijo, true)],
+    herramientas: [],
+    mcp: [],
+    skills: [],
+    memoria: [],
+    sistema: [],
+    prefacio: partes,
+    usos: { herramientas: {}, skills: {}, mcp: {}, hook: {} },
+    medidoEn: null,
+    desactualizado: false,
+    sinUso: { herramientas: [], mcp: [], skills: [] },
+    motivo: null,
+  };
+}

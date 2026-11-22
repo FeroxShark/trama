@@ -7,7 +7,7 @@ import type { Catalogo, VistaApagados } from "../../electron/contexto-panel";
 import type { VistaPrevia } from "../../electron/contexto-previa";
 import type { Auditoria } from "../../electron/auditoria-contexto-texto";
 import type { GastoSubagentes } from "../../electron/subagentes-gasto";
-import { APAGADOS_FALSOS, auditoriaFalsa, catalogoFalso, desgloseFalso, previaFalsa, subagentesFalsos } from "./fixtures-contexto";
+import { APAGADOS_FALSOS, auditoriaFalsa, catalogoFalso, desgloseFalso, prefacioCodexFalso, previaFalsa, subagentesFalsos } from "./fixtures-contexto";
 import type { TipoApagado } from "../paneles/contexto-vista";
 
 export type Quien = { lider: string } | { worker: string } | { subagente: { lider: string; id: string } };
@@ -55,6 +55,8 @@ const fija: FuenteContexto = {
   async desglose(q) {
     await espera(40);
     const d = desgloseFalso(q);
+    // Captura `contexto-prefacio-codex`: el líder corre con ChatGPT, así que su desglose es el prefacio de Trama (los workers siguen siendo de Claude).
+    if (MODO.captura === "contexto-prefacio-codex" && d.quien.tipo === "lider") return prefacioCodexFalso(d.quien.id);
     // Captura `contexto-panel` con HILOS_VARIANTE=lleno: el líder con la ventana casi llena (el anillo y la tarjeta en ámbar, con su palabra).
     if (MODO.captura === "contexto-panel" && MODO.variante === "lleno" && d.quien.tipo === "lider" && d.usado !== null) {
       const extra = 70_000;

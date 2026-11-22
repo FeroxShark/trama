@@ -476,6 +476,12 @@ function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; ui
   useEffect(() => {
     if (foco) document.getElementById(`${uid}-${foco}`)?.scrollIntoView({ block: "nearest" });
   }, [foco, abierta, uid]);
+  // Captura `contexto-prefacio-codex`: baja hasta las partes del prefacio, que quedan debajo del anillo y el mapa.
+  useEffect(() => {
+    if (MODO.captura !== "contexto-prefacio-codex" || inicial !== "prefacio") return;
+    const x = setTimeout(() => document.getElementById(`${uid}-cat-prefacio`)?.scrollIntoView({ block: "center" }), 150);
+    return () => clearTimeout(x);
+  }, [inicial, uid]);
   const vacio = motivoDe(d);
   if (vacio && !cats.length) return <p className="cp-nada">{vacio}</p>;
   const baja = d.usado !== null && usado !== null && usado < d.usado;
@@ -1278,7 +1284,7 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
                     <b>{lider.nombre || t("lider.sesionJefe")}</b>
                     {lider.modelo ? <small>{nombreModelo(modeloDe(lider.modelo) ?? lider.modelo)}</small> : null}
                   </h3>
-                  {deLider?.d ? <Detalle key={lider.id} d={deLider.d} uid={`l-${lider.id}`} lider={lider} alRefrescar={refrescar} inicial={MODO.captura === "contexto-panel-cat" ? "skills" : null} /> : <Cargando carga={deLider} alReintentar={refrescar} />}
+                  {deLider?.d ? <Detalle key={lider.id} d={deLider.d} uid={`l-${lider.id}`} lider={lider} alRefrescar={refrescar} inicial={MODO.captura === "contexto-panel-cat" ? "skills" : MODO.captura === "contexto-prefacio-codex" ? "prefacio" : null} /> : <Cargando carga={deLider} alReintentar={refrescar} />}
                 </section>
                 <section className="cp-sesion" aria-label={t("ctxp.workers", { n: workers.length })}>
                   <h3 className="cp-h">

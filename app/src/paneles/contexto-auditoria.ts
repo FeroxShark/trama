@@ -30,13 +30,16 @@ export function nombresCortos(rutas: readonly string[]): Map<string, string> {
 export type GrupoArchivo = {
   ruta: string;
   nombre: string;
-  /** Los hallazgos del archivo, los que más ahorran primero. */
+  /** Los hallazgos del archivo: pendientes (los que más ahorran primero), luego los que cambiaron y al final los aplicados. */
   hallazgos: Hallazgo[];
   /** Tokens por mensaje que todavía se pueden ahorrar en este archivo (sólo los pendientes). */
   ahorroPosible: number;
   /** Los ids de los pendientes (lo que «Aplicar todos» de este archivo aplica). */
   pendientes: string[];
 };
+
+/** Dentro de un archivo: lo pendiente primero, después lo que cambió (pide una nueva revisión) y al final lo ya aplicado. */
+const RANGO: Record<Hallazgo["estado"], number> = { pendiente: 0, invalido: 1, aplicado: 2 };
 
 /** Los hallazgos por archivo: primero el archivo donde más se puede ahorrar; los que ya no ahorran nada (todo aplicado) al final, por nombre. */
 export function agrupar(a: Pick<Auditoria, "hallazgos">): GrupoArchivo[] {
@@ -48,7 +51,7 @@ export function agrupar(a: Pick<Auditoria, "hallazgos">): GrupoArchivo[] {
     return {
       ruta,
       nombre: nombres.get(ruta) ?? ruta,
-      hallazgos: [...hs].sort((x, y) => y.ahorro - x.ahorro),
+      hallazgos: [...hs].sort((x, y) => RANGO[x.estado] - RANGO[y.estado] || y.ahorro - x.ahorro),
       ahorroPosible: pend.reduce((n, h) => n + h.ahorro, 0),
       pendientes: pend.map((h) => h.id),
     };

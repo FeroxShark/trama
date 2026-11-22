@@ -25,7 +25,7 @@ export function acopleInicialBarra(p: ParamsInicialAcople): Acople {
   if (p.datosFijos) {
     let a = acopleDeFabrica();
     if (p.captura === "acople-app-movido") a = mover(a, "contexto", "izq");
-    else if (p.captura === "contexto-angosto") a = redimensionar(mover(a, "contexto", "izq"), "izq", 320);
+    else if (p.captura === "contexto-angosto" || ((p.captura === "contexto-auditoria" || p.captura === "contexto-prefacio-codex") && p.variante === "angosto")) a = redimensionar(mover(a, "contexto", "izq"), "izq", 320);
     else if (p.captura === "contexto-abajo") a = mover(a, "contexto", "abajo");
     else if (p.captura === "acople-cupo" && p.variante === "plegado") a = cerrar(a, "contexto");
     else if (p.captura === "acople-cupo") {

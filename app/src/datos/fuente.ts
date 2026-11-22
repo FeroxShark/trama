@@ -809,14 +809,21 @@ const lideresFijos = (): RespuestaLideres =>
   conEspera(
     MODO.captura === "lider-gemini"
       ? conGemini(lideresBase())
-      : MODO.captura === "lider-aviso-cambio"
-        ? conAvisoCambio(lideresBase())
-        : lideresBase(),
+      : MODO.captura === "contexto-prefacio-codex"
+        ? conCodex(lideresBase())
+        : MODO.captura === "lider-aviso-cambio"
+          ? conAvisoCambio(lideresBase())
+          : lideresBase(),
   );
 /** Captura `lider-gemini`: el líder de la app que se abre corre con Gemini (su razonamiento y sus comandos se ven, no la frase tierna). */
 const conGemini = (r: RespuestaLideres): RespuestaLideres => {
   const id = r.lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? r.lideres[0]?.id;
   return { ...r, lideres: r.lideres.map((l) => (l.id === id ? { ...l, modelo: "gemini-4-hydrogen", effort: "low" } : l)) };
+};
+/** Captura `contexto-prefacio-codex`: el líder de la app que se abre corre con ChatGPT (Codex). */
+const conCodex = (r: RespuestaLideres): RespuestaLideres => {
+  const id = r.lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? r.lideres[0]?.id;
+  return { ...r, lideres: r.lideres.map((l) => (l.id === id ? { ...l, modelo: "GPT-6.1 Sol", effort: "medium" } : l)) };
 };
 /** Captura `lider-aviso-cambio`: líder de la app ocioso con caché vivo (`sin-compactar`: motor sin `/compact`). */
 const conAvisoCambio = (r: RespuestaLideres): RespuestaLideres => {
