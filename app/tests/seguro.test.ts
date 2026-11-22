@@ -1,7 +1,7 @@
 // "Integrar solo lo seguro" (B22): el predicado de electron/seguro.ts.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { esSeguro, idLanzado, motivoNoSeguro, seguras, ultimasPorRama, type HiloSeguro } from "../electron/seguro.ts";
+import { esSeguro, idLanzado, motivoAlTerminar, motivoNoSeguro, seguras, ultimasPorRama, type HiloSeguro } from "../electron/seguro.ts";
 
 const ctx = { tests: (p: string) => p === "atlas", liderVivo: (sid: string) => sid === "vivo" };
 
@@ -89,4 +89,14 @@ test("motivoNoSeguro: dice en pocas palabras por qué una rama no se integra sol
   assert.equal(motivoNoSeguro(h({ rc: 3 }), undefined, ctx), "salió con código 3");
   assert.equal(motivoNoSeguro(h({ estado: "murio" }), undefined, ctx), "no terminó bien");
   assert.equal(motivoNoSeguro(h(), h({ id: "otra" }), ctx), "su rama tiene una corrida más nueva");
+});
+
+test("motivoAlTerminar: con la fila de una barrida en la que el worker seguía, no dice «no terminó bien»", () => {
+  // El aviso de fin llega porque terminó: la fila vieja («trabajando») no sirve para juzgarlo.
+  assert.equal(motivoAlTerminar(h({ estado: "trabajando", jefe_id: "vivo" }), undefined, ctx), "la integra el líder que la lanzó");
+  assert.equal(motivoAlTerminar(h({ estado: "trabajando" }), undefined, ctx), "la barrida todavía no la tomó");
+  assert.equal(motivoAlTerminar(h({ estado: "colgado", jefe_id: "muerto" }), undefined, ctx), "la barrida todavía no la tomó");
+  // Con la fila ya terminada manda la regla de siempre.
+  assert.equal(motivoAlTerminar(h({ decision_nada: false }), undefined, ctx), "pide una decisión");
+  assert.equal(motivoAlTerminar(h(), undefined, ctx), null);
 });
