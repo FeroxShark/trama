@@ -158,16 +158,11 @@ test("Windows: ningún proceso de fondo abre una consola visible (sin `windowsHi
   // El principio de la llamada de las que no se ocultan a propósito: terminal a la vista, salida heredada o rama que no es de Windows.
   const aPropósito = [
     'execFile("systemctl"', // main: el servicio del motor en Linux
-    "spawn(process.execPath, process.argv.slice(1), { detached: true", // motor: se relanza suelto; `detached` ya no tiene consola
     "spawn(term,", // actualizador: la terminal donde corre la actualización
     "spawn(term[0]!", // workers: `ver` en una terminal
-    "spawn(prog,", // cuentas: el comando de la persona, con stdio heredado
-    "spawnSync(prefijo[0]!", // pa: subcomando con stdio heredado
-    "spawnSync(process.execPath, [...process.execArgv", // pa: relanzarse con stdio heredado
     'execFileSync("ps"', // la rama no Windows de la lista de procesos
     "spawn(c, a, op)", // envoltorios: quien los llama pasa `windowsHide`
     "spawn({ detached })", // un comentario
-    "spawn(p.cmd, p.args, { cwd: p.cwd, detached: true", // `detached` ya no tiene consola: `windowsHide` no cambia nada
   ];
   const raiz = new URL("../electron/", import.meta.url);
   const faltan: string[] = [];
