@@ -338,6 +338,62 @@ test("extraerNotaDeTexto y ultimaNotaDeLineas ignoran etiquetas dentro de códig
   assert.equal(readFileSync(path.join(dir, "notas", "s-cod.md"), "utf8"), "nota real anterior");
 });
 
+test("leerColaTranscript: recupera línea assistant grande (>256 KiB), nota dentro de línea grande y uso antes de herramienta grande", async () => {
+  const dir = nuevoDir();
+
+  // 1. Un solo registro assistant de 300 000 caracteres con usage alto y nota incluida
+  const trGrande = path.join(dir, "asistente-grande.jsonl");
+  const lineaGrande = linAsistente(
+    [{ type: "text", text: `${"a".repeat(300_000)}\n[[nota-compactar]]\nnota en linea grande\n[[/nota-compactar]]` }],
+    { input_tokens: 900_000 },
+  );
+  escribirTranscript(trGrande, [lineaGrande]);
+  const leidas1 = hookMod.leerColaTranscript(trGrande);
+  assert.equal(leidas1.length, 1);
+  assert.equal(hookMod.ultimoUsoDeLineas(leidas1).tokens, 900_000);
+  assert.equal(hookMod.ultimaNotaDeLineas(leidas1)?.texto, "nota en linea grande");
+
+  const rPedir = await hookMod.decidir({ evento: "PostToolUse", sesion: "s-grande", transcript: trGrande, umbral: 750_000, hilos: dir, idioma: "es" });
+  assert.ok(rPedir, "pide la nota aunque la línea assistant supere 256 KiB");
+  assert.equal(readFileSync(path.join(dir, "notas", "s-grande.md"), "utf8"), "nota en linea grande");
+
+  // 2. Un resultado de herramienta grande (user) después del último assistant no oculta el uso ni la nota
+  const trTool = path.join(dir, "tool-grande.jsonl");
+  const lineaAsist = linAsistente(
+    [{ type: "text", text: "[[nota-compactar]]nota previa a tool[[/nota-compactar]]" }],
+    { input_tokens: 800_000 },
+  );
+  const lineaTool = JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "tool_result", content: "z".repeat(300_000) }] } });
+  escribirTranscript(trTool, [lineaAsist, lineaTool]);
+  const leidas2 = hookMod.leerColaTranscript(trTool);
+  assert.equal(hookMod.ultimoUsoDeLineas(leidas2).tokens, 800_000);
+  assert.equal(hookMod.ultimaNotaDeLineas(leidas2)?.texto, "nota previa a tool");
+});
+
+test("leerColaTranscript: conserva la primera línea cuando el offset coincide con inicio de línea (LF y CRLF)", () => {
+  const dir = nuevoDir();
+  const l1 = JSON.stringify({ type: "user", message: { content: "registro anterior" } });
+  const l2 = linAsistente([{ type: "text", text: "respuesta" }], { input_tokens: 42_000 });
+
+  // LF: offset 0, offset exactamente alineado con l2 y offset dentro de l1
+  const trLf = path.join(dir, "alineado-lf.jsonl");
+  writeFileSync(trLf, `${l1}\n${l2}\n`);
+  const bytesL2Lf = Buffer.byteLength(`${l2}\n`);
+  assert.equal(hookMod.leerColaTranscript(trLf, Buffer.byteLength(`${l1}\n${l2}\n`)).length, 2, "offset 0");
+  const exactoLf = hookMod.leerColaTranscript(trLf, bytesL2Lf);
+  assert.deepEqual(exactoLf, [l2], "offset alineado conserva la línea completa");
+  assert.equal(hookMod.ultimoUsoDeLineas(exactoLf).tokens, 42_000);
+  assert.deepEqual(hookMod.leerColaTranscript(trLf, bytesL2Lf + 5), [l2], "offset dentro de l1 descarta l1 y conserva l2");
+
+  // CRLF: corte después de \r\n (alineado) y corte en medio de \r\n (entre \r y \n)
+  const trCrlf = path.join(dir, "alineado-crlf.jsonl");
+  writeFileSync(trCrlf, `${l1}\r\n${l2}\r\n`);
+  const bytesL2Crlf = Buffer.byteLength(`${l2}\r\n`);
+  assert.deepEqual(hookMod.leerColaTranscript(trCrlf, bytesL2Crlf), [l2], "CRLF: corte justo después de \\n");
+  assert.deepEqual(hookMod.leerColaTranscript(trCrlf, bytesL2Crlf + 1), [l2], "CRLF: corte entre \\r y \\n");
+  assert.deepEqual(hookMod.leerColaTranscript(trCrlf, bytesL2Crlf + 4), [l2], "CRLF: corte dentro de l1");
+});
+
 test("recorta a 12 000 caracteres con aviso de recorte (es y en)", () => {
   const larga = "a".repeat(15_000);
   const es = textoDevolucionNota({ idioma: "es", nota: larga, minutos: 2, archivo: "/estado/notas/s1.md" });

@@ -15,6 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const env = process.env;
 export const TAIL_BYTES = 256 * 1024;
+export const MAX_COLA_BYTES = 16 * 1024 * 1024;
 export const SESION_OK = /^[A-Za-z0-9._-]{1,128}$/;
 
 /** Estado de la app (`HILOS_STATE` o el default por plataforma; misma regla que `cierre-cupo.mjs` / `rutas.ts`). */
@@ -81,7 +82,72 @@ function ultimaLineaEsSubagente(lineas) {
   return false;
 }
 
-/** Lee sólo los últimos `maxBytes` del transcript y descarta la primera línea si quedó cortada por el offset. */
+function tieneAsistentePrincipal(lineas) {
+  for (let i = lineas.length - 1; i >= 0; i--) {
+    try {
+      const o = JSON.parse(lineas[i]);
+      if (!o || typeof o !== "object" || o.isSidechain === true) continue;
+      if (o.type === "assistant" && o.isApiErrorMessage !== true && o.message?.model !== "<synthetic>") return true;
+    } catch {}
+  }
+  return false;
+}
+
+function rescatarAsistenteCortado(fragmento) {
+  if (!fragmento || /"isSidechain"\s*:\s*true/.test(fragmento) || /"model"\s*:\s*"<synthetic>"/.test(fragmento)) return null;
+  let usage = null;
+  const mUso = /"usage"\s*:\s*(\{[^{}]*\})/.exec(fragmento);
+  if (mUso) {
+    try {
+      usage = JSON.parse(mUso[1]);
+    } catch {}
+  }
+  let textoDesescapado = fragmento;
+  try {
+    textoDesescapado = fragmento.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  } catch {}
+  const nota = extraerNotaDeTexto(textoDesescapado);
+  if (!usage && !nota) return null;
+  return JSON.stringify({
+    type: "assistant",
+    message: {
+      id: "parcial",
+      model: "claude",
+      content: nota ? `${TAG_NOTA_ABRE}\n${nota}\n${TAG_NOTA_CIERRA}` : "",
+      ...(usage ? { usage } : {}),
+    },
+  });
+}
+
+function leerTramoCola(fd, size, maxBytes) {
+  const start = Math.max(0, size - maxBytes);
+  const leerDesde = start > 0 ? start - 1 : 0;
+  const len = size - leerDesde;
+  const buf = Buffer.allocUnsafe(len);
+  let off = 0;
+  while (off < len) {
+    const n = readSync(fd, buf, off, len - off, leerDesde + off);
+    if (n <= 0) break;
+    off += n;
+  }
+  const real = buf.subarray(0, off);
+  const alineado = start === 0 || (real.length > 0 && real[0] === 0x0a);
+  let texto = (start > 0 ? real.subarray(1) : real).toString("utf8");
+  let cortada = "";
+  if (!alineado) {
+    const nl = texto.indexOf("\n");
+    if (nl >= 0) {
+      cortada = texto.slice(0, nl).replace(/\r$/, "");
+      texto = texto.slice(nl + 1);
+    } else {
+      cortada = texto.replace(/\r$/, "");
+      texto = "";
+    }
+  }
+  return { start, lineas: texto.split(/\r?\n/).filter(Boolean), cortada };
+}
+
+/** Lee sólo los últimos `maxBytes` del transcript (expandiendo si una línea grande oculta al último asistente) y conserva líneas alineadas al offset. */
 export function leerColaTranscript(ruta, maxBytes = TAIL_BYTES) {
   if (typeof ruta !== "string" || !ruta) return [];
   let fd;
@@ -89,21 +155,18 @@ export function leerColaTranscript(ruta, maxBytes = TAIL_BYTES) {
     fd = openSync(ruta, "r");
     const size = fstatSync(fd).size;
     if (size <= 0) return [];
-    const start = Math.max(0, size - maxBytes);
-    const len = size - start;
-    const buf = Buffer.allocUnsafe(len);
-    let off = 0;
-    while (off < len) {
-      const n = readSync(fd, buf, off, len - off, start + off);
-      if (n <= 0) break;
-      off += n;
+    let ventana = Math.max(1, maxBytes);
+    const tope = maxBytes >= TAIL_BYTES ? Math.max(maxBytes, MAX_COLA_BYTES) : maxBytes;
+    let tramo = leerTramoCola(fd, size, ventana);
+    while (!tieneAsistentePrincipal(tramo.lineas) && tramo.start > 0 && ventana < tope) {
+      ventana = Math.min(tope, ventana * 2);
+      tramo = leerTramoCola(fd, size, ventana);
     }
-    let texto = buf.subarray(0, off).toString("utf8");
-    if (start > 0) {
-      const nl = texto.indexOf("\n");
-      texto = nl >= 0 ? texto.slice(nl + 1) : "";
+    if (!tieneAsistentePrincipal(tramo.lineas) && tramo.cortada) {
+      const rescatada = rescatarAsistenteCortado(tramo.cortada);
+      if (rescatada) return [rescatada, ...tramo.lineas];
     }
-    return texto.split("\n").filter(Boolean);
+    return tramo.lineas;
   } catch {
     return [];
   } finally {
