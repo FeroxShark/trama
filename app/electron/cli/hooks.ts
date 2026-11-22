@@ -79,6 +79,14 @@ export const matcherShell = (plataforma: NodeJS.Platform = process.platform): st
 /** `@sh` de jq: siempre entre comillas simples. */
 export const entreComillas = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
 
+/**
+ * Un argumento entre comillas para el shell con el que Claude Code corre los hooks. Linux: comillas simples (`@sh` de jq). Windows:
+ * comillas dobles, las únicas que entienden `cmd.exe` (por donde pasa `correrHook` de `contexto-local.ts`) y Git Bash; una `"` dentro va
+ * como `\"` (la lee igual el `node.exe` que recibe el argumento; una ruta de Windows no puede llevarla).
+ */
+export const comillasShell = (s: string, plataforma: NodeJS.Platform = process.platform): string =>
+  plataforma === "win32" ? `"${s.replace(/"/g, '\\"')}"` : entreComillas(s);
+
 function rutaParaShell(ruta: string, plataforma: NodeJS.Platform): string {
   return plataforma === "win32" ? ruta.replace(/\\/g, "/") : ruta;
 }
@@ -88,8 +96,8 @@ export function comandoHook(nombre: NombreHook, variante: VarianteHook, carpeta:
   const plataforma = o.plataforma ?? process.platform;
   const ruta = rutaParaShell(plataforma === "win32" ? path.win32.join(carpeta, archivoHook(nombre, variante)) : path.posix.join(carpeta, archivoHook(nombre, variante)), plataforma);
   const interprete = variante === "sh" ? "bash" : rutaParaShell(o.node ?? "node", plataforma);
-  const cmd = variante === "sh" || !/[\s'"]/.test(interprete) ? interprete : entreComillas(interprete);
-  return `${cmd} ${entreComillas(ruta)}`;
+  const cmd = variante === "sh" || !/[\s'"]/.test(interprete) ? interprete : comillasShell(interprete, plataforma);
+  return `${cmd} ${comillasShell(ruta, plataforma)}`;
 }
 
 /** El `hooks.json` del plugin de agy para la variante pedida (el de `motor/agy/pa-worker/hooks.json` es el de `sh`). */
@@ -106,6 +114,8 @@ export function hooksJsonAgy(variante: VarianteHook): Record<string, unknown> {
 
 type Json = Record<string, unknown>;
 const esObjeto = (v: unknown): v is Json => v !== null && typeof v === "object" && !Array.isArray(v);
+/** Una palabra del comando de un hook: entre comillas simples (con `'\''` adentro), dobles (con `\"` adentro) o sin comillas. */
+const TOKEN = `(?:'(?:[^']|'\\\\'')*'|"(?:[^"\\\\]|\\\\.)*"|\\S+)`;
 const marca = (nombre: NombreHook) => new RegExp(`${nombre}\\.(sh|mjs)`);
 /** Dentro de un comando nuestro, la variante en la que está escrito. */
 const varianteDe = (comando: string, nombre: NombreHook): VarianteHook | null => {
@@ -169,13 +179,14 @@ export function registrarEnAjustes(ajustes: Json, o: OpcionesRegistro): boolean 
   const actual = esObjeto(sl) && typeof sl.command === "string" ? sl.command : "";
   if (marca("statusline-espejo").test(actual)) {
     if (esObjeto(sl) && varianteDe(actual, "statusline-espejo") !== o.variante) {
-      // `bash '<ruta>.sh' bash -c '…'` -> `node '<ruta>.mjs' bash -c '…'`: sólo cambia el principio.
-      const resto = actual.replace(/^\S+\s+(?:'(?:[^']|'\\'')*'|\S+)/, "");
+      // `bash '<ruta>.sh' bash -c '…'` -> `node '<ruta>.mjs' bash -c '…'`: sólo cambia el principio (el intérprete y la ruta, entre comillas simples o dobles).
+      const resto = actual.replace(new RegExp(`^${TOKEN}\\s+${TOKEN}`), "");
       sl.command = espejo + resto;
       cambio = true;
     }
   } else if (esObjeto(sl) && (sl.type === undefined || sl.type === null || sl.type === false ? "command" : sl.type) === "command" && actual !== "") {
-    sl.command = `${espejo} bash -c ${entreComillas(actual)}`;
+    // En Windows con la variante .mjs el espejo encadena el statusline de antes en Node (`--comando`, por el shell de la plataforma): sin `bash -c`.
+    sl.command = o.plataforma === "win32" && o.variante === "mjs" ? `${espejo} --comando ${comillasShell(actual, "win32")}` : `${espejo} bash -c ${entreComillas(actual)}`;
     cambio = true;
   } else if (sl === undefined || sl === null) {
     ajustes.statusLine = { type: "command", command: espejo };

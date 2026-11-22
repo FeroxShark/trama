@@ -243,3 +243,15 @@ test("PUENTES-19: un proyecto fuera de ~ usa el tope de proyecto (no el de 4000 
   assert.ok(claude && claude.tokens > 4000, JSON.stringify(ctx.partes));
   assert.ok(ctx.partes.some((p) => p.titulo.startsWith("AGENTS.md de proj")), "el AGENTS.md quedó afuera: " + JSON.stringify(ctx.partes));
 });
+
+test("CTX-51 correrHook en Windows: el comando de un hook de Trama pasa por cmd /d /s /c sin comillas simples; en Linux, por /bin/sh -c", async () => {
+  const { comandoHook } = await import("../electron/cli/hooks.ts");
+  const { shellDe } = await import("../electron/procesos.ts");
+  const win = comandoHook("latido", "mjs", "C:\\Users\\Ana López\\AppData\\Local\\trama\\app\\hooks", { plataforma: "win32", node: "C:\\Program Files\\trama\\node.exe" });
+  const sh = shellDe("sh", win, { ComSpec: "C:\\Windows\\System32\\cmd.exe" }, "win32");
+  assert.deepEqual(sh.args.slice(0, 3), ["/d", "/s", "/c"]);
+  assert.equal(sh.args[3], `"${win}"`);
+  assert.ok(!win.includes("'"), win);
+  const lin = comandoHook("latido", "mjs", "/home/ana/.claude/hooks", { plataforma: "linux" });
+  assert.deepEqual(shellDe("sh", lin, {}, "linux"), { file: "/bin/sh", args: ["-c", lin], verbatim: false });
+});

@@ -116,6 +116,19 @@ test("statusline-espejo: le pasa la entrada al statusline original y devuelve su
   });
 });
 
+test("CTX-51 statusline-espejo: --comando corre el statusline de antes por el shell de la plataforma (sin bash -c)", () => {
+  conTemporal((dir) => {
+    const env = entorno(dir);
+    const eco = `"${process.execPath}" -e "process.stdin.pipe(process.stdout)"`;
+    const r = correr("statusline-espejo", ["--comando", eco], ESTADO_LINEA, env);
+    assert.equal(r.rc, 0);
+    assert.deepEqual(JSON.parse(r.stdout), ESTADO_LINEA);
+    assert.equal(correr("statusline-espejo", ["--comando", `"${process.execPath}" -e "process.exit(7)"`], ESTADO_LINEA, env).rc, 7);
+    // El par: con argv, como siempre.
+    assert.deepEqual(JSON.parse(correr("statusline-espejo", [process.execPath, "-e", "process.stdin.pipe(process.stdout)"], ESTADO_LINEA, env).stdout), ESTADO_LINEA);
+  });
+});
+
 // ============================================================================ latido
 
 const leerHb = (ruta: string) => Object.fromEntries(readFileSync(ruta, "utf8").trimEnd().split("\n").map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));

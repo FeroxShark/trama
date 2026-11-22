@@ -136,8 +136,8 @@ test("settings en Windows: hooks .mjs con node y el deny del espejo", () => {
   pa.bin = "C:\\trama\\app\\motor\\bin";
   const s = JSON.parse(settingsWorker(pa, { hb: "C:\\estado\\demo.heartbeat", leer: true, espejo: "C:\\Users\\x\\estado\\espejos\\1\\t.test.ts", node: "C:\\trama\\node\\node.exe" }));
   const cmds = [s.hooks.PreToolUse[0].hooks[0].command, s.hooks.PreToolUse[1].hooks[0].command, s.hooks.PostToolUse[0].hooks[0].command] as string[];
-  assert.ok(cmds.every((c) => c.startsWith("C:/trama/node/node.exe '") && !c.includes("bash") && !c.includes(".sh'")), cmds.join("\n"));
-  assert.match(cmds[1]!, /latido\.mjs' 'C:\/estado\/demo\.heartbeat' pre leer$/);
+  assert.ok(cmds.every((c) => c.startsWith('C:/trama/node/node.exe "') && !c.includes("bash") && !c.includes(".sh") && !c.includes("'")), cmds.join("\n"));
+  assert.match(cmds[1]!, /latido\.mjs" "C:\/estado\/demo\.heartbeat" pre leer$/);
   // CTX-55: Read con la unidad en minúscula y la ruta suelta nombrada en Bash y en PowerShell, con las dos barras y con ~
   assert.deepEqual(s.permissions.deny, [
     "Read(//c/Users/x/estado/espejos/1/**)",

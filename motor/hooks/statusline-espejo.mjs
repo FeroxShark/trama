@@ -175,7 +175,11 @@ try {
 
 const comando = process.argv.slice(2);
 if (comando.length === 0) process.exit(0);
-const r = spawnSync(comando[0], comando.slice(1), { input: entrada, stdio: ["pipe", "inherit", "inherit"], windowsHide: true });
+// `--comando "<texto>"` (lo escribe el instalador en Windows, sin bash): el statusline de antes como un solo texto, que corre el
+// shell de la plataforma (cmd.exe allá). Sin el flag, el comando va como argv (`bash -c '…'` en Linux).
+const r = comando[0] === "--comando"
+  ? spawnSync(comando.slice(1).join(" "), [], { input: entrada, stdio: ["pipe", "inherit", "inherit"], shell: true, windowsHide: true })
+  : spawnSync(comando[0], comando.slice(1), { input: entrada, stdio: ["pipe", "inherit", "inherit"], windowsHide: true });
 if (r.error) {
   process.stderr.write(`statusline-espejo: no pude correr ${comando[0]}: ${r.error.message}\n`);
   process.exit(127);

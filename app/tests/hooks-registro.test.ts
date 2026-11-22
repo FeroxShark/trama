@@ -11,6 +11,7 @@ import {
   archivoHook,
   ARCHIVOS_NOTA_COMPACTAR,
   comandoHook,
+  comillasShell,
   comandoNotaCompactar,
   entreComillas,
   EVENTOS_NOTA_COMPACTAR,
@@ -40,7 +41,7 @@ test("comandoHook: bash para .sh, node para .mjs, la ruta siempre entre comillas
   assert.equal(comandoHook("destructive-guard", "sh", HOOKS), `bash '${HOOKS}/destructive-guard.sh'`);
   assert.equal(comandoHook("destructive-guard", "mjs", HOOKS), `node '${HOOKS}/destructive-guard.mjs'`);
   assert.equal(comandoHook("latido", "mjs", "/x/it's here", { node: "/opt/node" }), `/opt/node '/x/it'\\''s here/latido.mjs'`);
-  assert.equal(comandoHook("statusline-espejo", "mjs", "C:\\Users\\ana\\.claude\\hooks", { plataforma: "win32", node: "C:\\Program Files\\trama\\node.exe" }), `'C:/Program Files/trama/node.exe' 'C:/Users/ana/.claude/hooks/statusline-espejo.mjs'`);
+  assert.equal(comandoHook("statusline-espejo", "mjs", "C:\\Users\\ana\\.claude\\hooks", { plataforma: "win32", node: "C:\\Program Files\\trama\\node.exe" }), `"C:/Program Files/trama/node.exe" "C:/Users/ana/.claude/hooks/statusline-espejo.mjs"`);
   assert.equal(entreComillas("a b"), "'a b'");
   assert.equal(archivoHook("agy-pa", "mjs"), "agy-pa.mjs");
   assert.deepEqual(apoyoDeHooks("sh"), ["docker-guard.py"]);
@@ -52,7 +53,7 @@ test("comandoNotaCompactar y EVENTOS_NOTA_COMPACTAR: con y sin --umbral, en Linu
   assert.equal(comandoNotaCompactar(HOOKS, { plataforma: "linux" }), `node '${HOOKS}/nota-compactar.mjs'`);
   assert.equal(
     comandoNotaCompactar("C:\\Users\\trama-falso\\hooks", { plataforma: "win32", node: "C:\\Program Files\\trama\\node.exe", umbral: 850_000 }),
-    `'C:/Program Files/trama/node.exe' 'C:/Users/trama-falso/hooks/nota-compactar.mjs' --umbral 850000`,
+    `"C:/Program Files/trama/node.exe" "C:/Users/trama-falso/hooks/nota-compactar.mjs" --umbral 850000`,
   );
   assert.deepEqual(EVENTOS_NOTA_COMPACTAR, [
     { evento: "PostToolUse" },
@@ -83,6 +84,31 @@ test("CTX-48 registrarEnAjustes: el guard cubre Bash|PowerShell en Windows (tamb
   const b: Record<string, any> = viejo();
   assert.equal(registrarEnAjustes(b, { ...mjs, plataforma: "linux" }), false);
   assert.deepEqual(b.hooks.PreToolUse.map((g: any) => g.matcher), ["Bash", "Bash"]);
+});
+
+test("CTX-51 comandoHook y statusLine: en Windows comillas dobles y sin bash -c; en Linux, comillas simples y bash -c como siempre", () => {
+  const win = { carpeta: "C:\\Users\\Ana López\\.claude\\hooks", variante: "mjs", plataforma: "win32", node: "C:\\Program Files\\trama\\node.exe" } as const;
+  // Sin comillas simples en ningún lado: cmd.exe no las entiende. Una ruta sin espacios queda sin comillas el intérprete.
+  assert.equal(comandoHook("latido", "mjs", win.carpeta, win), `"C:/Program Files/trama/node.exe" "C:/Users/Ana López/.claude/hooks/latido.mjs"`);
+  assert.equal(comandoHook("latido", "mjs", "C:\\h", { plataforma: "win32", node: "C:\\node\\node.exe" }), `C:/node/node.exe "C:/h/latido.mjs"`);
+  assert.equal(comillasShell('a "b"', "win32"), `"a \\"b\\""`);
+  assert.equal(comillasShell("it's", "linux"), `'it'\\''s'`);
+  assert.equal(comandoHook("latido", "mjs", "/home/ana/.claude/hooks", { plataforma: "linux", node: "/opt/n o/node" }), `'/opt/n o/node' '/home/ana/.claude/hooks/latido.mjs'`);
+  // El statusline de antes: en Windows lo encadena el espejo en Node (--comando); Linux sigue con `bash -c '…'`.
+  const previo = () => ({ statusLine: { type: "command", command: `"C:/Users/Ana López/mi linea.cmd" --corta` } as Record<string, unknown> });
+  const a = previo();
+  assert.equal(registrarEnAjustes(a, win), true);
+  const cmd = (a.statusLine as Record<string, string>).command!;
+  assert.equal(cmd, `"C:/Program Files/trama/node.exe" "C:/Users/Ana López/.claude/hooks/statusline-espejo.mjs" --comando "\\"C:/Users/Ana López/mi linea.cmd\\" --corta"`);
+  assert.doesNotMatch(cmd, /bash|'/);
+  assert.equal(registrarEnAjustes(a, win), false, "idempotente");
+  const l = previo();
+  registrarEnAjustes(l, { carpeta: "/home/ana/.claude/hooks", variante: "mjs", plataforma: "linux" });
+  assert.equal((l.statusLine as Record<string, string>).command, `node '/home/ana/.claude/hooks/statusline-espejo.mjs' bash -c '"C:/Users/Ana López/mi linea.cmd" --corta'`);
+  // Pasar de .sh a .mjs en Windows con un espejo ya envuelto (comillas simples de antes o dobles): sólo cambia el principio.
+  const viejo = { statusLine: { type: "command", command: `'C:/Program Files/x/node.exe' 'C:/h/statusline-espejo.sh' bash -c 'otro'` } };
+  assert.equal(registrarEnAjustes(viejo, win), true);
+  assert.equal(viejo.statusLine.command, `"C:/Program Files/trama/node.exe" "C:/Users/Ana López/.claude/hooks/statusline-espejo.mjs" bash -c 'otro'`);
 });
 
 test("hooksJsonAgy: la variante sh es exactamente el hooks.json del plugin", () => {

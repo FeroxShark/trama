@@ -17,7 +17,7 @@ import { esEjecutable } from "../base/buscar.ts";
 import { paraLanzar, resolverClaude } from "../../binario.ts";
 import { tomar } from "../base/lock.ts";
 import { matarArbol } from "../base/proc.ts";
-import { comandoCierreCupo, comandoHook, comandoNotaCompactar, entreComillas, EVENTOS_NOTA_COMPACTAR, matcherShell, type VarianteHook } from "../hooks.ts";
+import { comandoCierreCupo, comandoHook, comandoNotaCompactar, comillasShell, EVENTOS_NOTA_COMPACTAR, matcherShell, type VarianteHook } from "../hooks.ts";
 import { CIERRE_TAREA, CIERRE_TURNOS, SIN_JEFE, conJefe } from "./contrato.ts";
 import { contratoActualizar } from "./auditar.ts";
 import { caminoDe, configTrama, type Plataforma } from "../../rutas.ts";
@@ -272,7 +272,7 @@ export function settingsWorker(
   const opc = { node: o.node, plataforma: pa.plat === "win32" ? ("win32" as const) : ("linux" as const) };
   const guard = comandoHook("destructive-guard", variante, hooks, opc);
   const latido = comandoHook("latido", variante, hooks, opc);
-  const hb = entreComillas(pa.plat === "win32" ? o.hb.replace(/\\/g, "/") : o.hb);
+  const hb = comillasShell(pa.plat === "win32" ? o.hb.replace(/\\/g, "/") : o.hb, opc.plataforma);
   const modo = o.leer ? " leer" : "";
   // Cierre por cupo (motor/hooks/cierre-cupo.mjs): le avisa al worker, una vez por ventana, que cierre. Sin el archivo no se registra.
   const cierreCupo = existsSync(cam.join(hooks, "cierre-cupo.mjs")) ? [{ hooks: [{ type: "command", command: comandoCierreCupo(hooks, opc), timeout: 10 }] }] : [];
