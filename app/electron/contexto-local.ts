@@ -140,13 +140,15 @@ export async function armarContexto(x: {
   let libre = topeParaCtx(x.ctx);
   const partes: Contexto["partes"] = [];
   const bloques: string[] = [];
-  const poner = (titulo: string, cuerpo: string, tope: number, donde: string) => {
-    if (!cuerpo.trim() || libre <= 0) return;
+  /** Agrega la parte y devuelve el texto que quedó de verdad (recortado si hizo falta; `""` si no entró). */
+  const poner = (titulo: string, cuerpo: string, tope: number, donde: string): string => {
+    if (!cuerpo.trim() || libre <= 0) return "";
     const t = recortar(cuerpo.trim(), Math.min(tope, libre), donde);
     const tokens = tokensDe(t);
     libre -= tokens;
     partes.push({ titulo, tokens, recortado: t !== cuerpo.trim() });
     bloques.push(`## ${titulo}\n${t}`);
+    return t;
   };
 
   // Un `@archivo` suelto en su línea (el import de Claude Code: CLAUDE.md que sólo dice `@AGENTS.md`) se reemplaza por el contenido del archivo,
@@ -160,7 +162,8 @@ export async function armarContexto(x: {
   const archivos = carpetasDe(home, cwd).map((d) => path.join(d, "CLAUDE.md"));
   const textos = await Promise.all(archivos.map(async (f) => [f, await leer(f)] as const));
   // Primero lo de `~` (trato, seguridad, tablero), después tablero y memoria, y al final los de proyecto, con lo que quede.
-  const [primero, ...proyecto] = textos;
+  // Un cwd fuera de `~` no tiene carpetas intermedias: su CLAUDE.md es del proyecto (con lo que quede), no el «primero» de tope fijo.
+  const [primero, ...proyecto] = textos[0] && path.dirname(textos[0][0]) === home ? textos : [undefined, ...textos];
   if (primero) poner(`CLAUDE.md de ${path.dirname(primero[0]) === home ? "~" : path.dirname(primero[0])}`, sinSecciones(await conImports(primero[0], primero[1]), fuera), 4000, primero[0]);
 
   const salidas = gemini ? [] : await Promise.all((await hooksDeArranque(home, leer)).map((c) => hook(c, cwd).then(textoDeHook, () => "")));
@@ -177,12 +180,11 @@ export async function armarContexto(x: {
     const agents = sinSecciones(await conImports(agentsRuta, await leer(agentsRuta)), fuera);
     if (agents.trim() && !claude.includes(agents.trim())) poner(`AGENTS.md de ${dir} (instrucciones del proyecto para todos los modelos)`, agents, libre, agentsRuta);
   };
-  // Un cwd fuera de `~` no tiene carpetas intermedias: su CLAUDE.md es el "primero" y también es el del proyecto.
-  if (primero && path.dirname(primero[0]) !== home) await agentsAparte(path.dirname(primero[0]), sinSecciones(await conImports(primero[0], primero[1]), fuera));
-  for (const [f, t] of proyecto) {
+  for (const [f, t] of proyecto as Array<readonly [string, string | null]>) {
     const claude = sinSecciones(await conImports(f, t), fuera);
-    poner(`CLAUDE.md de ${path.dirname(f)}`, claude, libre, f);
-    await agentsAparte(path.dirname(f), claude);
+    // Lo que se compara con AGENTS.md es lo que quedó en el contexto: si el recorte cortó antes de sus reglas, van aparte.
+    const incluido = poner(`CLAUDE.md de ${path.dirname(f)}`, claude, libre, f);
+    await agentsAparte(path.dirname(f), incluido);
   }
 
   return { texto: bloques.length ? `# Contexto ${deDueno()} (cargado al arrancar este líder)\n\n${bloques.join("\n\n")}` : "", partes, tokens: topeParaCtx(x.ctx) - libre };
