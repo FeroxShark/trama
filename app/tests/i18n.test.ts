@@ -18,13 +18,12 @@ test("cada clave tiene las mismas {variables} en los dos idiomas", () => {
   }
 });
 
-test("el inglés usa leader y conserva el espaciado de los porcentajes interpolados", () => {
-  const porcentajes = (s: string) => [...s.matchAll(/\{\w+\} ?%/g)].map((m) => m[0]).sort();
+test("el inglés usa leader y escribe los porcentajes pegados («85%», como se usa en inglés)", () => {
   assert.equal(en["lider.nuevo"], "New leader");
   for (const k of Object.keys(en) as (keyof typeof en)[]) {
     // Los recorridos de pantalla tienen su propio diccionario en src/guia.
     if (!k.startsWith("tour.")) assert.doesNotMatch(en[k], /\bleads?\b/i, k);
-    assert.deepEqual(porcentajes(en[k]), porcentajes(es[k]), k);
+    assert.doesNotMatch(en[k], /\{\w+\} %/, k);
   }
 });
 
