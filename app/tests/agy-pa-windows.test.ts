@@ -175,3 +175,14 @@ test("win32: mensajes de commit, URLs, objetos JS y comillas no dan falsos posit
     assert.match(pre("run_command", { CommandLine: "curl.exe https://ejemplo.com" })?.reason ?? "", /sin red/);
   });
 });
+
+test("win32: una raíz con espacios entre comillas es un solo argumento; una ruta externa con el mismo prefijo sigue cerrada (HOOKS-MOTOR-11)", () => {
+  const raiz = `${CASA}\\Mis Proyectos\\wt`;
+  conWorkerWin((pre) => {
+    assert.equal(pre("run_command", { CommandLine: `Get-Content "${raiz}\\src\\a.ts"` }), null);
+    assert.equal(pre("run_command", { CommandLine: `git -C '${raiz}' log` }), null);
+    assert.equal(pre("run_command", { CommandLine: `type "${raiz.replaceAll("\\", "/")}/a.ts"` }), null);
+    assert.match(pre("run_command", { CommandLine: `Get-Content "${raiz}-otro\\a.ts"` })?.reason ?? "", /privacidad/);
+    assert.match(pre("run_command", { CommandLine: `Get-Content "${CASA}\\Mis Proyectos\\otro\\a.ts"` })?.reason ?? "", /privacidad/);
+  }, raiz);
+});

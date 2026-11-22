@@ -86,6 +86,24 @@ for (const variante of VARIANTES) {
 
 for (const variante of VARIANTES) {
   const skip = saltear(variante[0]);
+  test(`agy-pa: una raíz con espacios entre comillas es un solo argumento; una ruta externa con el mismo prefijo sigue cerrada (HOOKS-MOTOR-11) [${variante[0]}]`, { skip }, () => {
+  conWorker(variante, (pre) => {
+    const raiz = "/home/trama-falso/mi carpeta/wt";
+    const extra = { PA_AGY_RAIZ: raiz };
+    assert.equal(pre("run_command", { CommandLine: `cat "${raiz}/a.ts"` }, extra), null);
+    assert.equal(pre("run_command", { CommandLine: `git -C '${raiz}' log --oneline` }, extra), null);
+    assert.equal(pre("run_command", { CommandLine: `ls "${raiz}"` }, extra), null);
+    // el mismo prefijo, otra carpeta: bloqueada
+    assert.match(pre("run_command", { CommandLine: `cat "${raiz}-otro/a.ts"` }, extra)?.reason ?? "", /privacidad/);
+    assert.match(pre("run_command", { CommandLine: 'cat "/home/trama-falso/mi carpeta/otro/a.ts"' }, extra)?.reason ?? "", /privacidad/);
+    // juntar la raíz no esconde un segundo argumento ajeno
+    assert.match(pre("run_command", { CommandLine: `sh -c "${raiz}/x.sh /etc/passwd"` }, extra)?.reason ?? "", /privacidad/);
+  });
+});
+}
+
+for (const variante of VARIANTES) {
+  const skip = saltear(variante[0]);
   test(`agy-pa: un '/' o '~' de prosa o de código no es una ruta, pero las rutas sensibles siguen cerradas [${variante[0]}]`, { skip }, () => {
   conWorker(variante, (pre) => {
     // los comandos reales que se negaron: "/" suelto dentro de un echo

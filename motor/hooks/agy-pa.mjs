@@ -413,6 +413,20 @@ function partirDosPuntos(w) {
   }
   return out;
 }
+/**
+ * Una raíz con espacios entre comillas (`cat "/home/x/mi carpeta/wt/a.ts"`) es UN argumento: se marca el espacio para que el corte por
+ * palabras no la parta en «/home/x/mi» y «carpeta/wt/a.ts». Sólo cuando la raíz abre una comilla (sin comillas el shell sí la parte) y
+ * termina en una barra, una comilla o un final: una ruta externa con el mismo prefijo (`…/wt-otro`) no se junta y se mira como siempre.
+ */
+const MARCA_ESPACIO = "\u0001";
+function protegerRaiz(c) {
+  const raiz = (env.PA_AGY_RAIZ || "").replace(/[\\/]+$/, "");
+  if (!/[ \t]/.test(raiz)) return c;
+  const sep = win ? "[\\\\/]+" : "/+";
+  const cuerpo = raiz.split(win ? /[\\/]+/ : /\/+/).map(escRe).join(sep);
+  const re = new RegExp(`(["'])${cuerpo}(?=$|[\\s"'/\\\\;&|)<>])`, win ? "gi" : "g");
+  return c.replace(re, (m) => m.replace(/[ \t]/g, MARCA_ESPACIO));
+}
 /** Todo token de un texto de comando que salga del worktree -> lo devuelve (o null). */
 function comandoSale(c, cwd) {
   const suelto = sinTexto(c);
@@ -421,11 +435,12 @@ function comandoSale(c, cwd) {
     .split("\n")
     .map((l) => l.replace(/(-m|--message)[\s=]+("[^"$`]*"|'[^']*')/g, " "))
     .join("\n");
-  c = c.replaceAll("${HOME}", "$HOME");
+  c = protegerRaiz(c.replaceAll("${HOME}", "$HOME"));
   if (win) c = c.replace(/\$\{env:([A-Za-z_][A-Za-z0-9_]*)\}/gi, "$env:$1");
   const delim = win ? /[ \t\n;|&<>()"'`=,{}[\]]+/ : /[ \t\n;|&<>()"'`=:,{}[\]]+/;
   for (const bruto of c.split(delim)) {
-    for (const tok of partirDosPuntos(bruto)) {
+    for (const parte of partirDosPuntos(bruto)) {
+      const tok = parte.replaceAll(MARCA_ESPACIO, " ");
       if (!tok) continue;
       if (ambiguo(tok) && !new RegExp(`(^|[\\s;&|(<>=])${escRe(tok)}($|[\\s;&|)<>])`).test(suelto)) continue;
       if (tokenSale(tok, cwd)) return tok;

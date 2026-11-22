@@ -194,7 +194,17 @@ comando_sale() {   # $1 = comando, $2 = cwd
   # el mensaje de un commit puede nombrar rutas sin leerlas; sólo si no ejecuta nada adentro
   c="$(sed -E "s/(-m|--message)[[:space:]=]+(\"[^\"\$\`]*\"|'[^']*')/ /g" <<<"$c")"
   c="${c//\$\{HOME\}/\$HOME}"
+  # Una raíz con espacios que abre una comilla es UN argumento: se marca el espacio (\001) para que el corte por palabras no la parta.
+  local raiz="${PA_AGY_RAIZ%/}" marcada pre
+  if [[ "$raiz" == *' '* ]]; then
+    marcada="${raiz// /$'\001'}"
+    for pre in '"' "'"; do
+      c="${c//"$pre$raiz/"/"$pre$marcada/"}"
+      c="${c//"$pre$raiz$pre"/"$pre$marcada$pre"}"
+    done
+  fi
   while IFS= read -r tok; do
+    tok="${tok//$'\001'/ }"
     [[ -n "$tok" ]] || continue
     if ambiguo "$tok"; then
       esc="$(printf '%s' "$tok" | sed 's/[][\.*^$+?(){}|]/\\&/g')"
