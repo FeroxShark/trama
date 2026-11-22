@@ -18,7 +18,8 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-servidor-"));
 const vivos = new Set<ChildProcess>();
 after(() => {
   for (const p of vivos) p.kill("SIGKILL");
-  rmSync(tmp, { recursive: true, force: true });
+  // un proceso recién matado puede seguir escribiendo en tmp un instante: ENOTEMPTY al borrar (CI, 2026-11-22); se reintenta
+  rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
 // --- un checkout falso -----------------------------------------------------------------------------
