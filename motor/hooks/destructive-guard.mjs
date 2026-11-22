@@ -38,6 +38,13 @@ const expandir = (p) => (p === "~" || p.startsWith("~/") ? casa() + p.slice(1) :
 const escapar = (s) => s.replace(/[()[\]{}?*+\-|^$\\.&~# \t\n\r\v\f]/g, (c) => `\\${c}`);
 const esObjeto = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const R = String.raw;
+const redactarCmd = (s) =>
+  s
+    .replace(/\b([A-Za-z_][A-Za-z0-9_]*\s*=\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/g, (m, pre) =>
+      /^(?:CARGO_(?:BUILD_)?TARGET_DIR|LABEL|X)\s*=$/.test(pre) ? m : `${pre}<redactado>`,
+    )
+    .replace(/((?:--?(?:token|api[-_]?key|secret|password|pass|auth|clave|credential)|bearer)\s*[=:\s]\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/gi, "$1<redactado>")
+    .replace(/\b(sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|AKIA[A-Z0-9]{8,})\b/g, "<redactado>");
 
 function leerStdin() {
   try {
@@ -73,7 +80,7 @@ async function main() {
   // Se aplica en todos lados (ver el .sh): los patrones son sólo de cosas catastróficas, así que no cuesta falsos positivos.
   const cmdBruto = (esObjeto(d.tool_input) ? d.tool_input.command : "") || "";
   const cmd = typeof cmdBruto === "string" ? cmdBruto : "";
-  const corto = [...cmd].slice(0, 300).join("");
+  const corto = redactarCmd([...cmd].slice(0, 300).join(""));
 
   const patrones = [
     R`(?<![\w-])rm\s+(-[a-zA-Z]*\s+)*-?[a-zA-Z]*[rf][a-zA-Z]*\b.*\s(/|~|\$HOME|\.config|\.claude)`,

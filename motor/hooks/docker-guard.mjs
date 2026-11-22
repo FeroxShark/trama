@@ -876,6 +876,14 @@ function revisarInitDeServicio(s, archivo, donde, exe) {
   }
 }
 
+const redactarCmd = (s) =>
+  s
+    .replace(/\b([A-Za-z_][A-Za-z0-9_]*\s*=\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/g, (m, pre) =>
+      /^(?:CARGO_(?:BUILD_)?TARGET_DIR|LABEL|X)\s*=$/.test(pre) ? m : `${pre}<redactado>`,
+    )
+    .replace(/((?:--?(?:token|api[-_]?key|secret|password|pass|auth|clave|credential)|bearer)\s*[=:\s]\s*)(?:"[^"]*"|'[^']*'|[^\s;|&]+)/gi, "$1<redactado>")
+    .replace(/\b(sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|AKIA[A-Z0-9]{8,})\b/g, "<redactado>");
+
 /** d = JSON del hook. 2 = bloquear (motivo por stderr), 0 = pasa. Lo llama destructive-guard.mjs. */
 export function revisar(d) {
   if (!esObjeto(d) || d.tool_name !== "Bash") return 0;
@@ -886,7 +894,7 @@ export function revisar(d) {
     analizar(cmd, new Ctx(typeof d.cwd === "string" ? d.cwd : null));
   } catch (e) {
     if (e instanceof Bloqueo) {
-      escribirErr(`GUARD: docker/podman bloqueado: ${e.message}. ${EXPLICACION.replaceAll("{D}", nombreDueno())} | cmd: ${[...cmd].slice(0, 300).join("")}`);
+      escribirErr(`GUARD: docker/podman bloqueado: ${e.message}. ${EXPLICACION.replaceAll("{D}", nombreDueno())} | cmd: ${redactarCmd([...cmd].slice(0, 300).join(""))}`);
       return 2;
     }
     escribirErr(`docker-guard: error interno (deja pasar):\n${e?.stack ?? e}\n`);

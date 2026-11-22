@@ -320,6 +320,43 @@ test("destructive-guard: la config (guard.json) agrega destinos de backup y el c
   });
 });
 
+test("destructive-guard y docker-guard: los mensajes de bloqueo redactan credenciales y asignaciones privadas en stderr", () => {
+  conTemporal((dir) => {
+    const env = entorno(dir);
+    const marcador = "VALOR_FICTICIO_PRIVADO_123";
+    // 1. Bloqueo destructivo general
+    const r1 = correr("destructive-guard", [], bash(`TOKEN=${marcador} rm -rf carpeta`), env);
+    assert.equal(r1.rc, 2);
+    assert.equal(r1.stdout.includes(marcador), false);
+    assert.equal(r1.stderr.includes(marcador), false);
+    assert.match(r1.stderr, /TOKEN=<redactado>/);
+
+    // 2. Bloqueo de sesión gráfica
+    const r2 = correr("destructive-guard", [], bash(`CLAVE=${marcador} pkill sway`), env);
+    assert.equal(r2.rc, 2);
+    assert.equal(r2.stdout.includes(marcador), false);
+    assert.equal(r2.stderr.includes(marcador), false);
+
+    // 3. Bloqueo de docker-guard
+    const r3 = correr("destructive-guard", [], bash(`API_KEY=${marcador} docker run --privileged debian`), env);
+    assert.equal(r3.rc, 2);
+    assert.equal(r3.stdout.includes(marcador), false);
+    assert.equal(r3.stderr.includes(marcador), false);
+
+    // 4. Bloqueo por falta de módulo externo (copia aislada de destructive-guard.mjs sin docker-guard.mjs)
+    const copiaGuard = path.join(dir, "destructive-guard.mjs");
+    writeFileSync(copiaGuard, readFileSync(hook("destructive-guard"), "utf8"));
+    const r4 = spawnSync(process.execPath, [copiaGuard], {
+      input: JSON.stringify(bash(`SECRET=${marcador} docker ps`)),
+      encoding: "utf8",
+      env,
+    });
+    assert.equal(r4.status, 2);
+    assert.equal(r4.stdout.includes(marcador), false);
+    assert.equal(r4.stderr.includes(marcador), false);
+  });
+});
+
 test("docker-guard: analiza el comando (wrappers, shells, heredocs, imágenes locales no) y exporta revisar", async () => {
   const { revisar } = (await import(pathToFileURL(hook("docker-guard")).href)) as { revisar: (d: unknown) => number };
   const r = (command: string, extra: Record<string, unknown> = {}) => revisar({ tool_name: "Bash", tool_input: { command }, ...extra });
