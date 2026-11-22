@@ -107,6 +107,8 @@ function guionDeRestauracion({ origen, destino, exe, pid, args = [] }) {
   const abrir = `start "" "${path.win32.join(destino, exe)}"${extra ? ` ${extra}` : ""}`;
   return [
     "@echo off",
+    // El guion se escribe en UTF-8: sin esto cmd lee «José» en la página de códigos del sistema y robocopy/start fallan.
+    "chcp 65001 >nul",
     "rem Trama: vuelve a la versión anterior. Lo escribe la propia Trama (windows/src/version-anterior.js); se borra solo al terminar.",
     `powershell -NoProfile -NonInteractive -Command "Wait-Process -Id ${pid} -Timeout 60 -ErrorAction SilentlyContinue" >nul 2>&1`,
     `robocopy "${origen}" "${destino}" /MIR /R:3 /W:1 /NFL /NDL /NJH /NJS /NP >nul`,

@@ -268,3 +268,12 @@ test("servicio: copiarAlEstarLista guarda al llegar la ventana (así una instala
   await v.alVentanaLista();
   assert.equal(almacen.leer().respaldo.version, "0.2.25");
 });
+
+test("el guion de cmd con acentos en el perfil: la segunda línea es `chcp 65001`, antes de robocopy y start", () => {
+  const g = V.guionDeRestauracion({ origen: "C:\\Users\\José\\AppData\\Local\\trama\\anterior\\Trama-0.2.25", destino: "C:\\Users\\José\\AppData\\Local\\Programs\\Trama", exe: "Trama.exe", pid: 7 });
+  const l = g.split(/\r?\n/);
+  assert.equal(l[0], "@echo off");
+  assert.match(l[1], /^chcp 65001 >nul$/);
+  assert.ok(g.indexOf("chcp 65001") < g.indexOf("robocopy"));
+  assert.match(g, /José/);
+});
