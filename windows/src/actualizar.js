@@ -112,6 +112,8 @@ function crearActualizador({ autoUpdater, onEstado, log = () => {}, canal = null
     log(`actualizador: ${e?.message || e}`);
     if (esLimite(e)) {
       pausaHasta = reloj.ahora() + PAUSA_LIMITE_MS;
+      // A mano ya se dijo «buscando»: sin salir de esa fase, las búsquedas siguientes saldrían sin hacer nada.
+      if (fase === "buscando") decir({ fase: "al-dia" });
       return;
     }
     if (enFondo) {

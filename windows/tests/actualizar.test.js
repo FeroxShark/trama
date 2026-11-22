@@ -237,3 +237,13 @@ test("una versión que Actualizar seguro desechó no se baja ni se anuncia; una 
   assert.equal(au.autoDownload, true);
   assert.deepEqual(fases, ["buscando", "descargando"]);
 });
+
+test("Buscar a mano con un límite (429) no deja la fase en «buscando»: se puede volver a buscar", async () => {
+  const eventos = [];
+  const au = falso({ alBuscar: (a) => { a.emit("checking-for-update"); a.emit("error", error("HTTP error: 429", { statusCode: 429 })); } });
+  const u = crearActualizador({ autoUpdater: au, onEstado: (e) => eventos.push(e.fase), reloj: reloj0(), log: () => {} });
+  await u.buscar();
+  assert.notEqual(eventos.at(-1), "buscando");
+  await u.buscar();
+  assert.equal(au.busquedas, 2);
+});
