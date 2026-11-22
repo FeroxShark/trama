@@ -6,7 +6,7 @@
 // modelos-tipos.ts); el líder sólo le suma sus filtros de seguridad (nada que parezca un flag) y nunca escribe.
 // Node puro: los tests lo usan directo (`TRAMA_MODELOS` o `HILOS_MODELOS` cambian la ruta; `pa` y Ollama, siempre falsos).
 import { readFileSync } from "node:fs";
-import { mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { configTrama, homeDe } from "./rutas.ts";
 import { hayAgy, hayClaude } from "./capacidades.ts";
@@ -142,18 +142,40 @@ export async function leerModelos(correr?: CorrerPa, ruta = rutaModelos()): Prom
  */
 export async function guardarModelos(x: unknown, correr?: CorrerPa, ruta = rutaModelos()): Promise<EstadoModelos> {
   const c = validarConfig(x);
-  const crudo = await leerCrudo(ruta);
-  if (crudo.error) throw new Error(crudo.error);
-  const texto = JSON.stringify(unir(crudo.obj, c), null, 2) + "\n";
-  if (texto !== crudo.texto) {
+  // Todo leer → unir → escribir va en fila por archivo real: dos guardados seguidos se aplican uno tras otro (el segundo ve lo del primero).
+  const clave = await realpath(ruta).catch(() => path.resolve(ruta));
+  await enFilaModelos(clave, async () => {
+    const crudo = await leerCrudo(ruta);
+    if (crudo.error) throw new Error(crudo.error);
+    const texto = JSON.stringify(unir(crudo.obj, c), null, 2) + "\n";
+    if (texto === crudo.texto) return;
     await mkdir(path.dirname(ruta), { recursive: true });
     // Si es un enlace (dotfiles), se escribe el archivo al que apunta.
     const real = crudo.texto === null ? ruta : await realpath(ruta);
-    const tmp = `${real}.trama-${process.pid}.tmp`;
-    await writeFile(tmp, texto);
-    await rename(tmp, real);
-  }
+    const tmp = `${real}.trama-${process.pid}-${++tmps}.tmp`;
+    try {
+      await writeFile(tmp, texto);
+      await rename(tmp, real);
+    } catch (e) {
+      await rm(tmp, { force: true }).catch(() => {});
+      throw e;
+    }
+  });
   return leerModelos(correr, ruta);
+}
+
+let tmps = 0;
+const filas = new Map<string, Promise<unknown>>();
+/** Corre `fn` cuando terminaron las anteriores con la misma `clave` (la ruta real del archivo); un fallo no frena a las que siguen. */
+function enFilaModelos<T>(clave: string, fn: () => Promise<T>): Promise<T> {
+  const ant = filas.get(clave) ?? Promise.resolve();
+  const p = ant.catch(() => {}).then(fn);
+  const cola = p.catch(() => {});
+  filas.set(clave, cola);
+  void cola.then(() => {
+    if (filas.get(clave) === cola) filas.delete(clave);
+  });
+  return p;
 }
 
 // --- Ollama ----------------------------------------------------------------------

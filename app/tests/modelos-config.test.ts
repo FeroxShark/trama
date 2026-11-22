@@ -468,3 +468,18 @@ test("validarConfig acepta un modelo de ChatGPT (codex:) de líder y de worker, 
   for (const mal of ["codex:", "codex:a b"]) assert.throws(() => validarConfig({ lider: { modelo: mal } }), mal);
   assert.throws(() => validarConfig({ lider: { modelo: "codex:gpt-6.2-sol-high", effort: "high" } }), "codex lleva el esfuerzo en el id");
 });
+
+test("dos guardados a la vez se aplican en orden: ninguno falla con ENOENT, gana el último y no quedan temporales", async () => {
+  const ruta = nuevaRuta();
+  const base = { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
+  for (let i = 0; i < 5; i++) {
+    const r = await Promise.allSettled([
+      guardarModelos({ ...base, lider: { modelo: "claude-opus-5-5", effort: "low" } }, undefined, ruta),
+      guardarModelos({ ...base, lider: { modelo: "claude-opus-5-5", effort: "high" } }, undefined, ruta),
+      guardarModelos({ ...base, lider: { modelo: "claude-opus-5-5", effort: i % 2 ? "medium" : "xhigh" } }, undefined, ruta),
+    ]);
+    assert.deepEqual(r.map((x) => x.status), ["fulfilled", "fulfilled", "fulfilled"], JSON.stringify(r.map((x) => (x as PromiseRejectedResult).reason?.message)));
+    assert.equal(JSON.parse(readFileSync(ruta, "utf8")).lider.effort, i % 2 ? "medium" : "xhigh");
+    assert.deepEqual(readdirSync(path.dirname(ruta)), ["modelos.json"]);
+  }
+});
