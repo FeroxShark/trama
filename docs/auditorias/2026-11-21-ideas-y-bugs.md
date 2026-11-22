@@ -7,10 +7,10 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 ## Resumen
 
 - **Bugs: 158** (32 de severidad alta, 81 media, 45 baja).
-  - pendiente: 150
-  - arreglado: 7
-  - arreglado a medias: 1
-- **Ideas: 72**.
+  - pendiente: 135
+  - arreglado: 21
+  - arreglado a medias: 2
+- **Ideas: 102**.
 
 | Área | Bugs | Arreglados | Pendientes |
 |---|---|---|---|
@@ -20,7 +20,7 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 | Hooks y motor | 16 | 0 | 16 |
 | Núcleo y canales | 14 | 0 | 14 |
 | El CLI de `pa` | 15 | 0 | 15 |
-| Puentes a otros motores | 20 | 4 | 16 |
+| Puentes a otros motores | 20 | 19 | 1 |
 | Reparto y cupos | 15 | 0 | 15 |
 | Sistema: instalación, actualización y servicio | 16 | 0 | 16 |
 | Vistos trabajando esta noche | 16 | 4 | 12 |
@@ -480,82 +480,82 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Dónde: `app/electron/agy-puente.ts` líneas 370-378 (`correrAgy`) y `app/electron/agy-stream.ts` líneas 287-301 (`Traductor.fin`)
 - Arreglo: En `Traductor.fin(error)` (`app/electron/agy-stream.ts:287-301`), antes del `result`, volcar cualquier entrada pendiente en `this.texto` (emitir `content_block_stop`, `assistant` y `message_stop`) y anteponer `...this.cerrarAbiertas(error ?? "Interrumpido antes de que terminara este paso.")`. Cubrir en…
 
-**B096 · Un «Mandar ya» en `dsh`/`opencode` tras reiniciarse la sesión manda el mensaje sin prefacio ni historial** (`PUENTES-5`, severidad alta) · **PENDIENTE**
+**B096 · Un «Mandar ya» en `dsh`/`opencode` tras reiniciarse la sesión manda el mensaje sin prefacio ni historial** (`PUENTES-5`, severidad alta) · **ARREGLADO**
 - Qué pasa: Si un «Mandar ya» (`corte`) interrumpe un prompt de `dsh` u `opencode`, el proceso ACP muere (por el timeout `MS_CANCELAR` o por fallo del servidor al cancelar), y al relanzarlo `levantar()` no puede hacer `session/resume` y abre una sesión nueva, el mensaje directo se manda pelado, sin `PROMPT_DSH`/`PROMPT_OPENCODE`, sin los `CLAUDE.md`/`AGENTS.md`, sin el aviso de `pa` y sin el historial `hablado()`. Además…
 - Dónde: `app/electron/dsh-puente.ts` líneas 748-754 (`turno`)
 - Arreglo: En `dsh-puente.ts:751-752`, llamar `await asegurar()` siempre que `!cliente?.activo || !acpSid`, armar `const p = plegar(null, [])`, y si `faltaPrefacio` quedó en `true`, envolver `p.texto = conPrefacio(p.texto, hablado())` (o `previo`) y resetear `faltaPrefacio = false`. Agregar test en `app/tests/dsh-puente.test.ts`.
 
-**B097 · Errores de cuota de OpenCode quedan colgados 3 minutos o sin detectar si llegan partidos, tras pensar o en `error.data`** (`PUENTES-6`, severidad alta) · **PENDIENTE**
+**B097 · Errores de cuota de OpenCode quedan colgados 3 minutos o sin detectar si llegan partidos, tras pensar o en `error.data`** (`PUENTES-6`, severidad alta) · **ARREGLADO**
 - Qué pasa: Cuando OpenCode falla por límite gratis (`Free usage limit exceeded`) o `AI_RetryError`/`AI_APICallError` 429, el corte inmediato puede fallar y dejar al usuario esperando 180 s (`MS_SIN_EVENTOS`), o mostrar un error genérico sin marcar agotada la cuenta/modelo ni orientar al usuario.
 - Dónde: `app/electron/dsh-puente.ts` líneas 565-572, 625-638 (`levantar`, `textoDeError`)
 - Arreglo: Acumular el principio del texto del turno (sin cancelar la detección por chunks previos si aún no cerró herramienta/respuesta o acumulando los últimos N chars de `agent_message_chunk` iniciales cuando no hubo herramienta), evaluar `esErrorDeServidorOpencode(c.stderr)` sobre el buffer acumulado en `alStderr`, e…
 
-**B098 · Cualquier error previo al primer paso borra la conversación guardada de Gemini/ChatGPT y reintenta desde cero** (`PUENTES-7`, severidad alta) · **PENDIENTE**
+**B098 · Cualquier error previo al primer paso borra la conversación guardada de Gemini/ChatGPT y reintenta desde cero** (`PUENTES-7`, severidad alta) · **ARREGLADO**
 - Qué pasa: Si al retomar una conversación existente el primer turno falla antes de completar un paso (`v.pasos === 0`) por **cualquier** motivo —binario ausente (`ENOENT`), corte de red, sesión vencida/login caído, límite de cuota o modelo inválido— ambos puentes asumen que «no existía la conversación», tiran el ID real (`conversation_id` / `thread_id`), relanzan todo el proceso desde cero con un resumen de texto recortado a…
 - Dónde: `app/electron/agy-puente.ts` líneas 370-374, 499-503 (`correrAgy`, `turno`) y `app/electron/codex-puente.ts` líneas 274-278, 317-321 (`correrCodex`, `turno`)
 - Arreglo: No tratar `motivo !== null` (error de `spawn`) ni errores genéricos de red/auth/cuota como `v.sinConversacion`: inspeccionar `stderr` o el mensaje de `result`/`error` para disparar la recuperación con sesión nueva **solo** cuando el CLI indique que la conversación/hilo no existe o no se pudo cargar, propagando los…
 
-**B099 · `politicaEnWorkspace` aprueba rutas fuera de la carpeta si vienen en `toolCall.rawInput`, `tool_call_update` o como `filepath`/`filePath`** (`PUENTES-8`, severidad media) · **PENDIENTE**
+**B099 · `politicaEnWorkspace` aprueba rutas fuera de la carpeta si vienen en `toolCall.rawInput`, `tool_call_update` o como `filepath`/`filePath`** (`PUENTES-8`, severidad media) · **ARREGLADO**
 - Qué pasa: La política por defecto de `ClienteAcp` (`politicaEnWorkspace(raiz)`) deja pasar (`"permitir"`) pedidos de permiso que apuntan a archivos o directorios fuera de `raiz`, o que piden `danger-full-access`, en tres casos reales.
 - Dónde: `app/electron/acp.ts` líneas 104-116, 314, 330 (`politicaEnWorkspace`, `ClienteAcp.notificacion`, `ClienteAcp.pedidoDelAgente`)
 - Arreglo: En `acp.ts:314`, actualizar también `this.llamadas` ante `tool_call_update` que traiga `rawInput` (mezclando con el previo). En `acp.ts:330`, usar `this.llamadas.get(id) ?? (toolCall.rawInput && typeof toolCall.rawInput === "object" ? toolCall.rawInput : null)`. En `politicaEnWorkspace` (`113`), revisar también…
 
-**B100 · Al desencolar mensajes entre turnos, ninguno de los tres puentes emite `status: "requesting"`** (`PUENTES-9`, severidad media) · **PENDIENTE**
+**B100 · Al desencolar mensajes entre turnos, ninguno de los tres puentes emite `status: "requesting"`** (`PUENTES-9`, severidad media) · **ARREGLADO**
 - Qué pasa: Cuando un mensaje estaba esperando en la cola interna del puente (o quedó un «Mandar ya» sin entrar en `directos` al cerrarse el turno anterior), el puente termina el turno con `result`, `lider.ts` pone al líder como libre (`x.ocupado = false`), e inmediatamente el puente arranca el turno siguiente en `cerrarTurno()`, pero la interfaz y `lider.ts` creen que el líder está en reposo (`ocupado: false`) hasta que el…
 - Dónde: `app/electron/agy-puente.ts` líneas 539-549, `app/electron/dsh-puente.ts` líneas 788-797, `app/electron/codex-puente.ts` líneas 343-349 (`cerrarTurno`, junto con `app/electron/lider.ts` líneas 747-749, 780-784)
 - Arreglo: Emitir `{ type: "system", subtype: "status", status: "requesting", parent_tool_use_id: null, session_id: sid }` al desencolar un mensaje en `cerrarTurno()` (o al entrar a `turno()`) en `agy-puente.ts`, `dsh-puente.ts` y `codex-puente.ts`. Cubrir con test en `app/tests/lider-gemini.test.ts` / `dsh-puente.test.ts` /…
 
-**B101 · Al retomar en `dsh`/`opencode`, se mantiene el modelo viejo si `configOptions` omite `model` o `currentValue`** (`PUENTES-10`, severidad media) · **PENDIENTE**
+**B101 · Al retomar en `dsh`/`opencode`, se mantiene el modelo viejo si `configOptions` omite `model` o `currentValue`** (`PUENTES-10`, severidad media) · **ARREGLADO**
 - Qué pasa: Si el usuario cambia de modelo (o se relanza el puente con otro modelo sobre una sesión existente) y el agente ACP devuelve `configOptions: []` o una opción `model` sin `currentValue` (`undefined`) en `session/resume` o `session/new`, `dsh-puente` se saltea `session/set_config_option` y sigue ejecutando el modelo anterior en silencio, mientras la app etiqueta los mensajes con el modelo nuevo.
 - Dónde: `app/electron/dsh-puente.ts` líneas 598-600 (`levantar`)
 - Arreglo: Cuando `oc` está activo (donde el CLI se lanza siempre con `["acp"]` sin flag de modelo) o cuando `!nueva` (`session/resume`), si `actualOpt !== quiero`, intentar `c.configurar(acpSid, "model", quiero)` incluso si `actualOpt === undefined` (capturando sólo si el agente declara explícitamente no soportar la opción…
 
-**B102 · Chunks ACP sin `messageId` crean un globo separado por cada pedazo de texto o pensamiento** (`PUENTES-11`, severidad media) · **PENDIENTE**
+**B102 · Chunks ACP sin `messageId` crean un globo separado por cada pedazo de texto o pensamiento** (`PUENTES-11`, severidad media) · **ARREGLADO**
 - Qué pasa: Si un agente ACP emite `agent_message_chunk` o `agent_thought_chunk` sin campo `messageId` (que en ACP es opcional cuando un agente streamea token a token), cada chunk genera un mensaje `assistant` completo por separado y una burbuja nueva en el chat.
 - Dónde: `app/electron/dsh-puente.ts` líneas 280-289 (`Traductor.trozo`)
 - Arreglo: Si `u.messageId` viene vacío (`null`), reutilizar `this.buf.id` cuando ya haya un buffer abierto del mismo mensaje (en vez de incrementar `this.n` en cada chunk) y recién asignar `m${++this.n}` cuando `this.buf` sea `null`, cerrando al llegar un `messageId` distinto, una herramienta o el fin de turno. Agregar test en…
 
-**B103 · Desfase al parar (`PARAR_MS` 3 s vs `MS_CANCELAR` 10 s): `SIGINT` reinicia el corte en Linux y `taskkill` mata el puente en Windows** (`PUENTES-12`, severidad media) · **PENDIENTE**
+**B103 · Desfase al parar (`PARAR_MS` 3 s vs `MS_CANCELAR` 10 s): `SIGINT` reinicia el corte en Linux y `taskkill` mata el puente en Windows** (`PUENTES-12`, severidad media) · **ARREGLADO A MEDIAS**: hecho en Linux; en Windows el líder todavía mata el árbol a los 3 s.
 - Qué pasa: Al apretar «Parar» en un turno que tarda en cancelarse (> 3 s): - En Windows, `lider.ts` mata a los 3 s (`PARAR_MS = 3000`) el proceso entero del puente (`dsh-puente`, `agy-puente` o `codex-puente`) con `taskkill /T /F`, sin darle tiempo a `dsh-puente` (que espera hasta 10 s con `MS_CANCELAR = 10000` antes de matar a `dsh`/`opencode`), sin emitir `result` ni cerrar herramientas abiertas en el transcript y dejando…
 - Dónde: `app/electron/dsh-puente.ts` líneas 674-681, 809-811, `app/electron/agy-puente.ts` líneas 552-558, 614-616 y `app/electron/codex-puente.ts` líneas 351-357, 372-374 (frente a `app/electron/lider.ts` líneas 123,…
 - Arreglo: Alinear los tiempos (`PARAR_MS` en `lider.ts` por clase o mayor al timeout interno del puente cuando el subproceso existe, o bajar `MS_CANCELAR` por debajo de `PARAR_MS` para que el puente mate primero al hijo y cierre el turno con `result`), y en el handler de `SIGINT` de los tres puentes escalar directamente al…
 
-**B104 · `destrabar()` omite el lector de razonamiento (`pensamiento`) en los reintentos de Gemini** (`PUENTES-13`, severidad media) · **PENDIENTE**
+**B104 · `destrabar()` omite el lector de razonamiento (`pensamiento`) en los reintentos de Gemini** (`PUENTES-13`, severidad media) · **ARREGLADO**
 - Qué pasa: Cuando el vigilante detecta un bucle en Gemini y `destrabar()` lanza una vuelta nueva de `agy` con el aviso para destrabarlo, todos los bloques de razonamiento (`thinking` / `pensado`) de esa vuelta y de las siguientes del bucle dejan de aparecer tanto en la vista como en el transcript.
 - Dónde: `app/electron/agy-puente.ts` línea 589 (`destrabar`)
 - Arreglo: Agregar `pensamiento: razonamiento` en la llamada de la línea 589 de `app/electron/agy-puente.ts`. Cubrir con un test en `app/tests/agy-directo.test.ts`.
 
-**B105 · `resumen-traspaso.ts` ignora ramas descartadas por `parentUuid` y toma errores sintéticos de API como estado actual** (`PUENTES-14`, severidad media) · **PENDIENTE**
+**B105 · `resumen-traspaso.ts` ignora ramas descartadas por `parentUuid` y toma errores sintéticos de API como estado actual** (`PUENTES-14`, severidad media) · **ARREGLADO**
 - Qué pasa: Al usar «Seguir con otro modelo» sobre un transcript que tuvo rebobinados/ramas (con `parentUuid` apuntando a un ancestro anterior) o cuyo último turno terminó con un error sintético de API (por ejemplo `API Error: 529 Overloaded`): 1. El resumen incluye archivos editados, commits y decisiones de la rama vieja que la persona ya había descartado al volver atrás. 2. El texto del error sintético pisa `d.estado`…
 - Dónde: `app/electron/resumen-traspaso.ts` líneas 75-112, 120-134, 150 (`extraerDatos`, `secciones`)
 - Arreglo: Si las líneas tienen `uuid`/`parentUuid`, reconstruir la ruta desde la última entrada no sidechain hacia la raíz antes de extraer datos (dejando el recorrido lineal como respaldo cuando falten `uuid`); saltear registros con `isApiErrorMessage === true` o `message?.model === "<synthetic>"`; y mantener el orden…
 
-**B106 · En `codex-puente.ts`, mensajes con sólo imágenes quedan vacíos en el transcript, rompen `hablado()` y silencian fallos al guardar** (`PUENTES-15`, severidad media) · **PENDIENTE**
+**B106 · En `codex-puente.ts`, mensajes con sólo imágenes quedan vacíos en el transcript, rompen `hablado()` y silencian fallos al guardar** (`PUENTES-15`, severidad media) · **ARREGLADO**
 - Qué pasa: Cuando la persona envía un mensaje a ChatGPT compuesto sólo por imágenes (sin texto), o cuando falla la escritura de las imágenes en `DIR_IMAGENES`: 1. La línea 312 anota en el transcript `{ type: "user", message: { role: "user", content: m.texto } }` sin dejar constancia de las imágenes (a diferencia de `agy-puente.ts:261,487` y `dsh-puente.ts:729`). En un reinicio o recarga, el turno del usuario desaparece por…
 - Dónde: `app/electron/codex-puente.ts` líneas 128-134, 151, 201-215, 312 (`guardarLado`, `hablado`, `guardarImagenes`, `turno`)
 - Arreglo: Incluir la nota `[N imagen(es) adjunta(s)]` en el `anotar` de la línea 312 cuando `imagenes.length > 0` (y avisar en el prompt / error si `guardarImagenes` falla al escribir en disco, retornando también si `rutas.length < m.imagenes.length`), y hacer atómico `guardarLado` con `.tmp` + `renameSync` (con respaldo…
 
-**B107 · `describirError` oculta `error.data` y `stderr` en errores ACP que no tienen código `-32603`** (`PUENTES-16`, severidad baja) · **PENDIENTE**
+**B107 · `describirError` oculta `error.data` y `stderr` en errores ACP que no tienen código `-32603`** (`PUENTES-16`, severidad baja) · **ARREGLADO**
 - Qué pasa: Cuando un agente ACP (`dsh` u `opencode`) responde un error JSON-RPC con código distinto de `-32603` (por ejemplo `-32000 "Server error"` o cualquier código de proveedor cuyo texto útil viene en `error.data` o en `stderr`), `describirError` ignora por completo `e.data` y `stderr` y devuelve sólo `"session/prompt: Server error"`, privando a la persona de la causa real.
 - Dónde: `app/electron/acp.ts` líneas 61-78 (`describirError`)
 - Arreglo: Anexar `e.data` para cualquier `ErrorAcp` cuando no esté vacío y sea distinto de `base`, y anexar la cola de `stderr` cuando `e instanceof ErrorAcp` (o cuando un error genérico traiga `stderr` no reflejado en `base`). Cubrir en `app/tests/acp.test.ts`.
 
-**B108 · Cierre brusco en `dsh-puente.ts` (no usa `cliente.cerrar()`) y `taskkill` asíncrono incompleto al salir en Windows** (`PUENTES-17`, severidad baja) · **PENDIENTE**
+**B108 · Cierre brusco en `dsh-puente.ts` (no usa `cliente.cerrar()`) y `taskkill` asíncrono incompleto al salir en Windows** (`PUENTES-17`, severidad baja) · **PENDIENTE**: falta en Windows: el `taskkill` al salir es asíncrono.
 - Qué pasa: 1. `dsh-puente.ts` nunca llama al método `cliente.cerrar()` que existe en `acp.ts:227-239`: al cerrarse `stdin` en reposo (`860`), llama directamente a `terminar(0)` que dispara `cliente?.matar()` (`SIGKILL` / `taskkill /F`) inmediatamente en lugar de cerrar `stdin` de `dsh`/`opencode` y esperar su salida limpia (arriesgando dejar sesiones sin volcar a disco). 2. En Windows, `matarArbol()`…
 - Dónde: `app/electron/dsh-puente.ts` líneas 799-803, 813-817 (`terminar`, `exit`), `app/electron/agy-puente.ts` líneas 618-623 y `app/electron/codex-puente.ts` líneas 376-380
 - Arreglo: Volver asíncrono el cierre limpio en `dsh-puente.ts` (`await cliente?.cerrar()` cuando cierra `stdin` en reposo o en `SIGTERM`/`SIGINT` antes de `process.exit()`), y para el respaldo de `exit` en Windows evaluar `execFileSync("taskkill", ...)` acotado (o job object / `matar` previo a `process.exit`) en `procesos.ts`…
 
-**B109 · `comandosDeAgy()` bloquea el loop con `spawnSync` hasta 3 s y cachea `[]` de por vida tras un fallo único** (`PUENTES-18`, severidad baja) · **PENDIENTE**
+**B109 · `comandosDeAgy()` bloquea el loop con `spawnSync` hasta 3 s y cachea `[]` de por vida tras un fallo único** (`PUENTES-18`, severidad baja) · **ARREGLADO**
 - Qué pasa: Al responder el `initialize` inicial del puente, `comandosDeAgy()` corre `spawnSync` con timeout de 3000 ms (congelando el loop de stdin/stdout del puente mientras corre `agy plugin list --json`). Si por cualquier motivo temporal falla, sale con código distinto de 0 o vence el timeout una sola vez, guarda `comandosCache = []`. Como el chequeo siguiente es `if (comandosCache)` (`[]` es truthy en JavaScript), la…
 - Dónde: `app/electron/agy-puente.ts` líneas 633-646 (`comandosDeAgy`)
 - Arreglo: No asignar `comandosCache = []` en el bloque `catch` (devolver `[]` sin cachear el error, o cachear sólo cuando `r.status === 0` y no hubo error), y opcionalmente volverlo asíncrono con `execFile` en el manejador de `initialize`. Cubrir en `app/tests/agy-directo.test.ts`.
 
-**B110 · `contexto-local.ts` oculta `AGENTS.md` si `CLAUDE.md` se recorta después de mencionarlo y limita a 4000 tokens un proyecto fuera de `~`** (`PUENTES-19`, severidad baja) · **PENDIENTE**
+**B110 · `contexto-local.ts` oculta `AGENTS.md` si `CLAUDE.md` se recorta después de mencionarlo y limita a 4000 tokens un proyecto fuera de `~`** (`PUENTES-19`, severidad baja) · **ARREGLADO**
 - Qué pasa: 1. Cuando un `CLAUDE.md` excede el tope de tokens y `poner()` lo recorta, `agentsAparte` recibe el texto **sin recortar** (`claude = sinSecciones(await conImports(...), fuera)`). Si el contenido de `AGENTS.md` (o `@AGENTS.md`) venía después del punto de recorte, `!claude.includes(agents.trim())` da `false` y `AGENTS.md` no se agrega por separado aunque haya quedado mutilado. 2. Cuando `cwd` está fuera de `home`…
 - Dónde: `app/electron/contexto-local.ts` líneas 163-164, 175-186 (`armarContexto`)
 - Arreglo: Devolver desde `poner()` el texto efectivamente incluido (ya recortado) y pasárselo a `agentsAparte`, y sólo asignar `primero` como archivo de `~` cuando `path.dirname(textos[0][0]) === home` (dejando los demás en `proyecto`). Agregar test en `app/tests/contexto-local.test.ts`.
 
-**B111 · `ClienteAcp.iniciar()` deja el proceso vivo si falla `initialize` y `this.llamadas` retiene cada `rawInput` sin limpiarse** (`PUENTES-20`, severidad baja) · **PENDIENTE**
+**B111 · `ClienteAcp.iniciar()` deja el proceso vivo si falla `initialize` y `this.llamadas` retiene cada `rawInput` sin limpiarse** (`PUENTES-20`, severidad baja) · **ARREGLADO**
 - Qué pasa: 1. En `iniciar()`, `this.hijo = p; this.vivo = true;` quedan asignados antes de `await this.pedir("initialize", ...)`. Si `initialize` rechaza (error JSON-RPC) o vence el timeout de 60 s sin que el hijo cierre, `iniciar()` lanza pero deja al subproceso vivo en segundo plano y al objeto `ClienteAcp` inutilizable (`if (this.hijo) throw new Error("acp: el agente ya está lanzado")`). `dsh-puente.ts` lo mitiga llamando…
 - Dónde: `app/electron/acp.ts` líneas 124, 157-194, 314 (`ClienteAcp.iniciar`, `notificacion`)
 - Arreglo: Envolver `await this.pedir("initialize", ...)` en `try/catch` dentro de `iniciar()` llamando a `this.matar()` y limpiando `this.hijo = null; this.vivo = false;` si falla; y en `notificacion()`, borrar `this.llamadas.delete(u.toolCallId)` cuando llegue `tool_call_update` con estado terminal (`completed`/`failed`), o…
@@ -955,216 +955,368 @@ El contexto y los tokens tienen su propio documento: `docs/auditorias/2026-11-21
 - Por qué: `app/electron/corrector.ts` selecciona siempre español e inglés; `windows/src/corrector.js` replica esa regla.
 - Cómo: Guardar una lista configurable de diccionarios disponibles y aplicarla en ambas carcasas. Lo difícil es manejar idiomas no instalados y actualizar la sesión sin reiniciar.
 
+### Producto y flujo de trabajo
+
+**I031 · Bandeja «Te toca» de todos los proyectos** (medio, cambia lo que se ve)
+- Qué: Una sola lista con todo lo que espera a la persona, de todos los proyectos. Incluye preguntas del tablero, pruebas, ramas por revisar, mensajes programados que fallaron y cupos que volvieron. Va ordenada por urgencia y cada renglón se resuelve ahí mismo.
+- Por qué: `PanelTablero.tsx` sólo muestra el proyecto del chat abierto (prop `carpeta`). La bandeja de `espera-aviso.ts` sólo cuenta líderes («2 líderes te esperan»). Con varios proyectos hay que entrar chat por chat para saber qué falta.
+- Cómo: Una vista nueva que une `tablero-junto.ts` (que ya junta las máquinas), `pa --hilos` filtrado a `listo` y `decision`, y el estado de `programados.ts` (campo `error`). Lo difícil es el orden y no duplicar con el panel Tablero.
+
+**I032 · Reglas de autointegrar por proyecto** (medio, cambia lo que se ve)
+- Qué: Cada proyecto elige si integra solo, pregunta o nunca. Puede sumar un tope de tamaño del diff y una lista de rutas protegidas (migraciones, `package.json`, secretos) que siempre piden revisión.
+- Por qué: `autointegrar.ts` tiene un único interruptor global (`autoIntegrar` en preferencias). `seguro.ts` decide con reglas fijas (terminó bien, tiene commits, hay tests registrados). No distingue una rama de 3 líneas de una que toca 40 archivos.
+- Cómo: Sumar a `motivoNoSeguro` en `seguro.ts` un parámetro de política por proyecto, guardado en Ajustes (sección de Ramas). El diff se mide con `git diff --stat` en la cola de `enCola`. Lo difícil es la UI de excepciones sin abrumar.
+
+**I033 · El líder integra, descarta y frena workers por MCP** (medio, cambia lo que se ve)
+- Qué: El líder puede pedir integrar una rama, descartarla o parar un worker sin armar comandos de Bash. Trama le muestra a la persona un «¿Integrar la rama X?» con botón antes de ejecutar.
+- Por qué: `app/electron/cli/mcp-trama.ts` expone sólo cuatro herramientas (`lanzar_worker`, `estado_workers`, `buscar_hilos`, `mandar_mensaje`). Todo lo demás depende de que el modelo acierte los flags de `pa`.
+- Cómo: Agregar las herramientas en `mcp-trama.ts` y su registro (`mcp-trama-registro.ts`), llamando al mismo camino que usa `Ramas.tsx` (`AccionRama`). Va con confirmación en la ventana. Lo difícil es el permiso y que valga también en la carcasa de Windows (`windows/src/canales.json`).
+
+**I034 · Prioridad y orden de la cola de workers** (medio, cambia lo que se ve)
+- Qué: Los workers en cola se pueden subir, bajar o sacar de la cola desde la barra. También se puede marcar «urgente».
+- Por qué: `cola-pa.ts` lee de `$PA_STATE` los archivos `<id>.cola` (motivo «tope global: 5 workers vivos»). La persona ve la espera pero no puede cambiar el orden.
+- Cómo: Un archivo de prioridad por corrida que `pa` mire al soltar un puesto (`app/electron/cli/pa/`), más botones en la fila en cola. Lo difícil es el orden justo cuando también hay cupo por suscripción.
+
+**I035 · Revisar una rama con otro modelo antes de integrar** (medio, cambia lo que se ve)
+- Qué: En Ramas, un botón «Revisar con otro modelo» que lee el diff en sólo lectura y deja un veredicto corto en la fila. Otra opción es hacerlo obligatorio por proyecto antes de integrar solo.
+- Por qué: En `Ramas.tsx` el único segundo juicio es el «analista», un líder aparte con el brief de todas las ramas. El revisor de otro modelo (`revision-plan.ts`, `correrRevisor`) existe sólo para planes.
+- Cómo: Reusar `correrRevisor` con el diff de la rama como entrada y mostrar el resultado como un `Juicio` más (`src/datos/analista.ts`). Lo difícil es el tamaño del diff, que hay que recortar y avisar.
+
+**I036 · Mensajes programados que se repiten o esperan un evento** (medio, cambia lo que se ve)
+- Qué: Programar «todos los días 9:00» o «cuando termine el worker X». Hoy la hora sale una sola vez.
+- Por qué: `programados.ts` guarda un `cuando` fijo por mensaje, y `RAPIDOS` en `programados-hora.ts` sólo ofrece «en 15 min», «en 1 h», «en 3 h», «mañana 9:00». Un recordatorio diario hay que reprogramarlo a mano. I068 sólo agrega condiciones.
+- Cómo: Un campo `repetir` o `alTerminar` en `Programado` y su limpieza en `mensajeLimpio`. Se reprograma al disparar. Lo difícil es evitar bucles (tope de repeticiones y pausa si falla).
+
+**I037 · Un programado que falla avisa y reintenta una vez** (chico, cambia lo que se ve)
+- Qué: Si un mensaje programado no pudo salir, se reintenta una vez al rato. Si sigue fallando, avisa con notificación y no sólo con un error escondido.
+- Por qué: El encabezado de `programados.ts` dice que un mensaje que falló «NO se reintenta solo» y queda con su `error` hasta que se saque. Ese error sólo se ve abriendo el globito de `AvisoProgramados.tsx`.
+- Cómo: Un reintento con espera en `crearProgramados`, y un aviso por el camino de `espera-aviso.ts` cuando el reintento también falla. Lo difícil es distinguir un `claude` que no arranca de un fallo pasajero.
+
+**I038 · Avisos configurables: por tipo, silencio y sonido** (medio, cambia lo que se ve)
+- Qué: En Ajustes se elige qué avisa con notificación (pregunta, rama lista, falla, cupo), con qué sonido y en qué horario. Hay un modo «no molestar» con resumen al volver.
+- Por qué: `espera-aviso.ts` sólo maneja el número de la bandeja y una notificación de escritorio por líder que espera. `avisos-worker.ts` tiene cinco tipos (`fin`, `falla`, `cupo`, `colgado`, `tanda`) y sólo hay un modo global de tanda o por worker.
+- Cómo: Una tabla de reglas en preferencias que `espera.ts` y `avisos-worker.ts` consulten antes de anunciar. Lo difícil es respetarlo igual en Windows (carcasa) y en el celular.
+
+**I039 · Resumen «mientras no estabas» al abrir Trama** (chico, cambia lo que se ve)
+- Qué: Al abrir la app, una tarjeta resume lo que pasó durante la ausencia: workers que terminaron, ramas integradas solas, fallas, cupos que volvieron. Cada renglón lleva un link.
+- Por qué: `avisos-pendientes.ts` ya arma un resumen de lo que terminó mientras el líder no estaba, pero va dentro del chat de ese líder. La persona que vuelve a la mañana no tiene una vista general.
+- Cómo: Reusar `integradas` y `fallas` de `auto.json` (`autointegrar.ts`) y las entradas `entregado` de avisos-pendientes, filtradas desde la última vez que se abrió la ventana. Lo difícil es no repetirse con la bandeja de la idea 1.
+
+**I040 · Buscar dentro del contenido de los chats del Historial** (grande, cambia lo que se ve)
+- Qué: El buscador del Historial (Ctrl+H) encuentra también lo que se dijo adentro del chat. Es útil para «¿dónde decidimos lo del login?».
+- Por qué: `src/barra/Historial.tsx` filtra por título, carpeta y estado (`filtrarHistorial({q, filtro, nombre, carpeta})`). `historial.ts` indexa «sólo números y nombres» de los transcripts, nunca el texto.
+- Cómo: Un índice de texto local y opcional, apagado por defecto, en `$HILOS_STATE/historial/`. Se arma incremental como el actual (de a trozos). Lo difícil es el peso en disco y no guardar secretos que aparezcan en los chats.
+
+**I041 · Registro de debates y revisiones por proyecto** (medio, cambia lo que se ve)
+- Qué: Cada debate o revisión que concluye se guarda con «Qué se acordó», quién dijo qué y qué plan salió. Se puede consultar después por proyecto.
+- Por qué: `docs/modo-debate-diseno.md` guarda la conclusión en `revisiones-pendientes.json` sólo hasta que entra por la cola y la borra al entregarla. Después queda sólo como tarjeta en el chat de ese líder.
+- Cómo: Un `debates.jsonl` por proyecto escrito en el cierre de `debate-trabajo.ts` y una solapa en el Historial. Lo difícil es que no se confunda con la «memoria compartida» ya planeada: éste guarda hechos, no instrucciones.
+
+**I042 · Analista de Ramas automático y configurable** (chico, cambia lo que se ve)
+- Qué: El analista corre solo cuando se juntan N ramas por revisar y con el modelo que se elija en Ajustes. Hoy hay que lanzarlo.
+- Por qué: En `Ramas.tsx` el analista es un líder aparte (`rol: "analista"`, el prop `analista: Lider | null`) que recibe el brief de todas las ramas. Su modelo y su arranque no se configuran desde Ajustes.
+- Cómo: Una preferencia con umbral y modelo, y un disparo en `paneles.ts` cuando la lista de `pa --hilos` cruza el umbral. Lo difícil es no gastar cupo si ya hay un veredicto vigente (`analisisVigente` en `ramas-vista`).
+
+**I043 · Predecir choques entre ramas y sugerir orden de integración** (medio, cambia lo que se ve)
+- Qué: Ramas muestra qué ramas tocan los mismos archivos y propone un orden («integrá primero A, después B»). Así se evita el 80 de conflicto.
+- Por qué: `autointegrar.ts` sólo reacciona después: ante un rc 80 lanza un `--actualizar --async` y reintenta una vez. Dos ramas chocan recién al integrar la segunda.
+- Cómo: Cruzar los archivos de `git diff --name-only <base>..<rama>` de cada fila de `pa --hilos` y marcarlas en `Ramas.tsx`. Lo difícil es el costo con muchas ramas (cachear por commit).
+
+**I044 · Cuando un worker muere por cupo, ofrecer retomarlo en otro proveedor** (medio, cambia lo que se ve)
+- Qué: El aviso de corte por cupo trae un botón «Seguir con otro modelo» que relanza con la rama y el resumen del worker caído.
+- Por qué: `avisos-worker.ts` ya tiene el tipo `cupo` (con `proveedor` y `vuelve`), y la señal está documentada en `motor/docs/protocolo-cierre-cupo.md`. `Ramas.tsx` sólo permite retomar con un líder nuevo (`src/datos/retomar.ts`) y recién desde la rama.
+- Cómo: Un botón en la tarjeta del aviso que llame al mismo camino de `alRetomar`, con `reparto` eligiendo un proveedor con cupo. Lo difícil es respetar la regla de no rotar cuentas para esquivar límites: sólo cambia de modelo o proveedor, nunca de cuenta.
+
+**I045 · Carrera entre dos modelos para la misma tarea** (grande, cambia lo que se ve)
+- Qué: Lanzar el mismo brief a dos modelos y quedarse con el mejor resultado. La otra rama se descarta con un toque.
+- Por qué: `lanzar_worker` (`mcp-trama.ts:96`) lanza una corrida por pedido. Comparar modelos se hace a mano y sin ver las ramas lado a lado.
+- Cómo: Un `grupo` común en los dos workers y una vista de comparación en `Ramas.tsx` (tests, tamaño del diff, resumen). Lo difícil es el gasto doble de cupo, que tiene que ser opt-in con el costo a la vista.
+
+**I046 · Línea de tiempo del proyecto** (medio, cambia lo que se ve)
+- Qué: Una vista cronológica de lo que pasó hoy en el proyecto: workers lanzados, integraciones (con su modelo), reversiones, debates, fallas.
+- Por qué: La información está desperdigada: `auto.json` (integradas y fallas, tope 50), `eventos.jsonl` (`avisos-worker.ts`), `salud-eventos.ts` y los chats. Nada la junta en orden.
+- Cómo: Una lectura unificada de esas fuentes, ordenada por `ts`, en un panel acoplable. Lo difícil es el tope de 50 de `autointegrar.ts`, que obligaría a guardar más.
+
+**I047 · Tope de workers por proyecto y por suscripción** (chico, cambia lo que se ve)
+- Qué: Ajustes deja poner «máximo 2 workers a la vez en este proyecto» y «máximo 3 de Gemini». El resto espera en cola con el motivo escrito.
+- Por qué: `cola-pa.ts` muestra motivos como «tope global: 5 workers vivos» y «los 3 puestos ocupados»: el tope es uno global. Un proyecto grande puede ocupar todos los puestos.
+- Cómo: Más claves de tope en la configuración que lee `pa` al lanzar. Complementa I061, que mide por cupo. Lo difícil es explicar en la fila en cola cuál de los topes la frena.
+
+**I048 · Botón «Pausar todo»** (chico, cambia lo que se ve)
+- Qué: Un interruptor que frena nuevos lanzamientos y la cola sin matar lo que corre, para cuando la persona se va o se acaba el cupo.
+- Por qué: Hoy se frena de a uno (`frenado_en` en `FilaWorker`, `pa --parar`). Con diez workers en cola y un cupo por agotarse no hay forma de detener todo de un toque.
+- Cómo: Un archivo de pausa que `pa` revise antes de arrancar cada puesto de la cola, más el botón en el riel. Lo difícil es el aviso de que está pausado y la reanudación segura.
+
+**I049 · Revisar el brief antes de lanzar** (chico, cambia lo que se ve)
+- Qué: Antes de lanzar un worker, Trama avisa si al brief le falta algo (qué archivos, cuándo está listo, cómo verificar). También avisa si otro worker vivo trabaja sobre los mismos archivos.
+- Por qué: Los briefs buenos tienen esas secciones, pero nada las exige al lanzar: `lanzar_worker` sólo recibe el texto. El choque entre workers se descubre recién al integrar.
+- Cómo: Un chequeo liviano en la confirmación de `lanzar_worker` (y en `PasoLanzar.tsx`), configurable y apagable. Lo difícil es no ser molesto: sólo avisar, nunca bloquear.
+
+**I050 · Ramas viejas: aviso y limpieza sugerida** (chico, cambia lo que se ve)
+- Qué: Ramas sin tocar desde hace N días se marcan «vieja» y se ofrecen para limpiar en lote, como ya se hace con el tablero.
+- Por qué: Este repo tiene 9 ramas `pa/trama/*` sin integrar. `Ramas.tsx` las lista sin distinguir las de hoy de las de hace semanas. Hay una limpieza en lote para el tablero (`LimpiarTablero.tsx`, regla en `docs/reglas/tablero.md`) pero no para ramas.
+- Cómo: Un filtro de edad en `ramas-vista` y un diálogo copiado de `LimpiarTablero` (cierra a descartado, nunca borra de golpe, con deshacer). Lo difícil es no descartar trabajo valioso: sólo viene marcado lo sin commits o ya integrado en otra rama.
+
+**I051 · Convertir un pendiente del tablero en worker** (chico, cambia lo que se ve)
+- Qué: En el panel Tablero, un pendiente tiene «Lanzar como worker», que pre-arma el brief con el texto del item y la carpeta del proyecto.
+- Por qué: `PanelTablero.tsx` sólo deja contestar preguntas y cerrar items (`contestar`, `cerrar`). Un pendiente que es trabajo hay que copiarlo a mano al chat.
+- Cómo: Un botón que abra `PasoLanzar` con el texto cargado y deje la clave del item en el worker para cerrarlo al integrar. Lo difícil es el vínculo de vuelta: el item se cierra solo cuando la rama se integra.
+
+**I052 · Tildar todas las pruebas ofrece integrar o cerrar la rama** (chico, cambia lo que se ve)
+- Qué: Al tildar el último renglón de un PROBAR de un worker, la tarjeta pregunta «¿Integro la rama?» o «¿La cierro?».
+- Por qué: `docs/reglas/tablero.md` dice que tildar todos los renglones marca el item `hecho`, y el renglón de un worker lleva clave `pa:<id>:…`. Ahí termina: la rama sigue en Ramas esperando otra acción.
+- Cómo: En `tildarRenglon` (`tablero-renglones.ts`), al quedar todo tildado, ofrecer la acción de `AccionRama` de ese worker. Lo difícil es ubicar la rama correcta cuando un `--seguir` anotó con el id de la corrida original (límite ya documentado).
+
+**I053 · Responder desde la notificación** (medio, cambia lo que se ve)
+- Qué: La notificación de escritorio de una pregunta con opciones trae botones para contestar sin abrir la ventana. En el celular, lo mismo.
+- Por qué: `espera-aviso.ts` define `AvisoEspera` con `sid`, `titulo`, `cuerpo`: tocarla sólo abre el líder. Las preguntas de tablero con opciones ya se contestan con un toque en el panel.
+- Cómo: Acciones de notificación nativas (Electron las soporta en Linux y Windows con límites) y un canal que reuse `fuenteTablero.responder`. Lo difícil es la compatibilidad de acciones entre sistemas y el modo remoto.
+
+**I054 · Resumen de proyecto en la cabecera del chat** (chico, cambia lo que se ve)
+- Qué: Arriba del chat de un líder, una línea chica: «2 workers · 3 ramas por revisar · 1 pregunta». Un toque abre cada cosa.
+- Por qué: Para ver el estado del proyecto del chat hay que abrir por separado Ramas, el panel Tablero, la barra y los cupos. Cada pieza (`PanelTablero`, `Ramas`, riel) conoce sólo lo suyo.
+- Cómo: Un selector que junte `gruposDelProyecto` (`panel-tablero-logica.ts`), `ramas()` (`ramas-vista`) y la lista de workers por `jefe_id`. Lo difícil es mantenerlo barato y no llenar la cabecera.
+
+**I055 · Ofrecer cambiar de modelo cuando se acaba el cupo de un chat** (medio, cambia lo que se ve)
+- Qué: Con el modelo del chat en el tope de cupo, Trama ofrece «Seguir con X, que tiene lugar» (con relevo), además de ofrecer otra cuenta.
+- Por qué: `docs/reglas/lideres.md` dice que `OfertaCuenta` sólo ofrece pasar a otra cuenta del mismo proveedor (Claude) con ≥ 80 %. El «Seguir con otro modelo» existe (`SeguirCon`) pero la persona tiene que buscarlo.
+- Cómo: Extender `ofertaDeCambio` (`barra/cupos-riel-logica.ts`) con candidatos de otro proveedor con cupo, abriendo `SeguirCon`. Lo difícil es no empujar a proveedores que la persona no tiene: sólo los conectados.
+
+**I056 · Rastro de cada integración: quién, qué modelo y qué dijo** (chico, cambia lo que se ve)
+- Qué: El mensaje del merge y el detalle en Ramas llevan el modelo que hizo el trabajo, el RESULTADO y la verificación del worker. Así, meses después, se sabe por qué está ese cambio.
+- Por qué: `avisos-worker.ts` ya arma `resumen` con `compactarResultado` (RESULTADO, VERIFICACION, DECISION, SIGUE; ≤ 1500 caracteres), pero eso muere en el aviso. `auto.json` guarda sólo id, proyecto, tarea y hora.
+- Cómo: Guardar el resumen junto a la integración (`Integrada` en `autointegrar.ts`) y mostrarlo al desplegar la fila de Ramas. Sin nombres de modelos en el commit, por la regla del repo: queda en el registro de Trama, no en git.
+
+**I057 · Silenciar un líder o un proyecto con resumen al volver** (chico, cambia lo que se ve)
+- Qué: Un líder que corre una tanda larga se silencia: no manda avisos ni notificaciones. Al terminar deja un solo resumen.
+- Por qué: `ModoAvisoLider` es global («tanda» o «worker»). Una tanda nocturna con 20 workers sigue generando notificaciones y avisos. I067 agrupa por causa, pero no silencia por líder.
+- Cómo: Un indicador por líder en `lideres.json` que consulte `avisos-pendientes.ts` antes de `entregar`. Lo difícil es no silenciar lo crítico (cupo agotado, decisión que bloquea).
+
+**I058 · Seguir desde un chat del Historial con un resumen** (medio, cambia lo que se ve)
+- Qué: En el Historial, un chat cerrado tiene «Seguir en uno nuevo», que arranca un líder con el resumen de traspaso del anterior. Hoy sólo se puede abrir o borrar.
+- Por qué: `historial-chats.ts` sólo ofrece abrir o borrar (manda el transcript a la papelera). Para retomar un tema hay que reabrir un chat enorme con la caché fría. `resumen-traspaso.ts` ya existe para el relevo entre modelos.
+- Cómo: Reusar `resumen-traspaso.ts` desde la acción del Historial y abrir un líder nuevo con ese texto. Lo difícil es elegir el modelo del resumen sin gastar cupo de más.
+
+**I059 · Ver el árbol de ramas de un chat** (medio, cambia lo que se ve)
+- Qué: Cuando un chat se bifurca («Seguir con otro modelo» o ramas de conversación), la barra muestra de dónde salió cada uno y deja saltar entre ellos.
+- Por qué: `lider.ts` (~línea 1903) implementa la bifurcación con `--fork-session`, o con un relevo si cambia el motor. Pero la barra los muestra como chats sueltos, sin relación visible.
+- Cómo: Guardar el `origen` (sid del chat padre) en `Guardado` de `lideres.json` y dibujar el parentesco en `barra/arbol.ts`. Lo difícil es el relevo entre motores, que no tiene un sid padre único.
+
+**I060 · Recetas: flujos guardados con pasos** (grande, cambia lo que se ve)
+- Qué: La persona guarda un flujo repetido como «auditar un área → elegir hallazgos → arreglar → integrar». Lo lanza con un toque y cada paso pide confirmación donde la persona quiera.
+- Por qué: Ese flujo hoy «se arma a mano con briefs», según I065. Cada vez se reescribe el pedido y se pierde qué modelo y esfuerzo funcionaron.
+- Cómo: Un archivo de recetas por usuario o proyecto, con pasos de `lanzar_worker` y puntos de pausa, ejecutado desde el proceso principal y visible en el panel Tablero. Lo difícil es el diseño del paso «elegir» sin duplicar I065 (auditar de punta a punta), que es el caso más conocido de una receta.
+
 ### Técnica y robustez
 
-**I031 · Guardado resistente a bloqueos** (medio, no cambia lo que se ve)
+**I061 · Guardado resistente a bloqueos** (medio, no cambia lo que se ve)
 - Qué: Que guardar una cola, un líder o un ajuste soporte los bloqueos breves del antivirus.
 - Por qué: `app/electron/pa.ts:86` escribe y renombra sin reintentos; `app/electron/cli/base/archivo.ts` ya contempla EBUSY, EPERM y EACCES. La protección depende de qué función use cada módulo.
 - Cómo: Compartir la implementación resistente, conservando la serialización por archivo de `pa.ts`. Lo difícil es preservar los contratos de texto y los errores actuales.
 
-**I032 · Guardado durable ante apagones** (medio, no cambia lo que se ve)
+**I062 · Guardado durable ante apagones** (medio, no cambia lo que se ve)
 - Qué: Proteger mejor los mensajes pendientes y la configuración ante un corte de luz.
 - Por qué: Las escrituras atómicas de `app/electron/cli/base/archivo.ts` hacen archivo temporal y renombrado, pero no sincronizan explícitamente el contenido con el disco.
 - Cómo: Agregar escritura durable para datos críticos y agrupar cambios frecuentes. Lo difícil es resolver las garantías disponibles en cada sistema sin frenar cada tecla.
 
-**I033 · Recuperar la última copia válida** (medio, cambia lo que se ve)
+**I063 · Recuperar la última copia válida** (medio, cambia lo que se ve)
 - Qué: Recuperar colas y ajustes dañados desde una copia buena, con un aviso de qué se recuperó.
 - Por qué: `app/electron/cola-respaldo.ts` conserva el archivo ilegible, pero permite seguir con la cola vacía. `cli/base/archivo.ts` devuelve el valor por defecto ante JSON roto.
 - Cómo: Mantener generaciones validadas y ofrecer restauración desde Ajustes. Lo difícil es distinguir corrupción de una versión futura que todavía no se entiende.
 
-**I034 · Confirmar que Trama funciona** (medio, no cambia lo que se ve)
+**I064 · Confirmar que Trama funciona** (medio, no cambia lo que se ve)
 - Qué: Considerar buena una actualización cuando el chat y el motor estén operativos.
 - Por qué: `app/electron/main.ts:280` confirma el arranque al cargar la página. `windows/src/main.js` también acepta la primera página, incluso el asistente.
 - Cómo: Confirmar desde React después de leer el estado y completar una llamada al motor. Lo difícil es definir una prueba local que funcione sin internet ni proveedores conectados.
 
-**I035 · Confirmar el final del instalador** (medio, cambia lo que se ve)
+**I065 · Confirmar el final del instalador** (medio, cambia lo que se ve)
 - Qué: Evitar mostrar «instalada» cuando el instalador murió antes de terminar.
 - Por qué: `app/electron/actualizacion-trama.ts:492` puede concluir «hecho» porque había un PID y el log no contiene un aviso reconocido.
 - Cómo: Exigir un comprobante final con versión, identificador de instalación y resultado; verificar también los archivos instalados. Lo difícil es que el comprobante sobreviva al reinicio del motor y tenga equivalente en Windows.
 
-**I036 · Chats con cantidad acotada de elementos** (grande, no cambia lo que se ve)
+**I066 · Chats con cantidad acotada de elementos** (grande, no cambia lo que se ve)
 - Qué: Que recorrer miles de mensajes no acumule miles de elementos en pantalla.
 - Por qué: `app/src/hilo/Lider.tsx:2056` dibuja todos los elementos cargados con `items.map`. El paginado y la memoización existentes no ponen un límite al contenido acumulado al subir.
 - Cómo: Mantener montados los turnos cercanos a la vista y conservar espacios medidos. Lo difícil es preservar la posición con imágenes, mensajes de altura variable y enlaces a revisiones.
 
-**I037 · Guardar secretos sin pisarlos** (medio, no cambia lo que se ve)
+**I067 · Guardar secretos sin pisarlos** (medio, no cambia lo que se ve)
 - Qué: Que agregar una clave no borre otra ni pierda un cambio simultáneo.
 - Por qué: `app/electron/claves.ts` reconstruye el archivo con `NOMBRES_CLAVE` y claves MCP. `reporte-anonimo.ts` necesita además `TRAMA_REPORTES_CLAVE`, que no está en esa lista; las operaciones tampoco comparten un candado de lectura y escritura.
 - Cómo: Centralizar los nombres admitidos y actualizar bajo un mismo candado, con temporal único. Lo difícil es conservar todos los consumidores sin devolver valores secretos a la interfaz.
 
-**I038 · Conservar adjuntos todavía usados** (medio, cambia lo que se ve)
+**I068 · Conservar adjuntos todavía usados** (medio, cambia lo que se ve)
 - Qué: Que un archivo adjunto siga disponible mientras lo necesite un borrador o un mensaje pendiente.
 - Por qué: `app/electron/archivos.ts` limpia adjuntos por antigüedad de siete días. `borradores.ts` conserva sus rutas y descarta los que desaparecieron.
 - Cómo: Limpiar por referencias y aplicar la antigüedad sólo a archivos sin uso. Lo difícil es coordinar borradores, colas y mensajes mientras la limpieza está corriendo.
 
-**I039 · Reconocer cada envío al recuperarse** (grande, cambia lo que se ve)
+**I069 · Reconocer cada envío al recuperarse** (grande, cambia lo que se ve)
 - Qué: Resolver mejor si un mensaje llegó antes de un corte, incluso cuando se repite el mismo texto.
 - Por qué: `app/electron/nucleo.ts:405` verifica la entrega comparando texto y posición contra los últimos 60 mensajes. La cola ya recupera envíos, pero esa comprobación puede quedar sin certeza.
 - Cómo: Persistir un identificador de envío y asociarlo con el eco o UUID que permita cada motor. Lo difícil es adaptar proveedores que no devuelven identificadores propios.
 
-**I040 · Limpiar secretos antes del log** (medio, no cambia lo que se ve)
+**I070 · Limpiar secretos antes del log** (medio, no cambia lo que se ve)
 - Qué: Que las claves queden ocultas también en los registros locales.
 - Por qué: `app/electron/reporte.ts` limpia el log al exportarlo; `bitacora.ts` escribe el detalle recibido y `contencion.ts` incorpora errores de consola.
 - Cómo: Aplicar una limpieza común antes de escribir al archivo o a stderr, cubriendo también `windows/src/main.js`. Lo difícil es ocultar secretos sin quitar el contexto útil del error.
 
-**I041 · Volver a una instalación completa** (grande, no cambia lo que se ve)
+**I071 · Volver a una instalación completa** (grande, no cambia lo que se ve)
 - Qué: Que regresar a la versión anterior restaure también sus dependencias compatibles.
 - Por qué: `app/electron/version-anterior.ts` respalda `dist`, `dist-electron` y `package.json`, pero excluye `node_modules`. Una vuelta puede combinar código anterior con dependencias nuevas.
 - Cómo: Preparar instalaciones completas por versión y cambiar cuál está activa; comprobar el mismo contrato en el paquete nativo de Windows. Lo difícil es el espacio ocupado y los archivos abiertos.
 
-**I042 · Barrer procesos tras un crash en Windows** (grande, no cambia lo que se ve)
+**I072 · Barrer procesos tras un crash en Windows** (grande, no cambia lo que se ve)
 - Qué: Evitar que herramientas de líderes caídos sigan consumiendo recursos.
 - Por qué: `app/electron/huerfanos.ts` recupera y barre descendientes etiquetados en Linux, pero es una operación vacía en Windows. `procesos.ts` usa `taskkill` para el cierre solicitado.
 - Cómo: Dar a Windows una supervisión equivalente mediante Job Objects, manteniendo separados los workers que deben sobrevivir. Lo difícil es conservar esa independencia y no abrir consolas.
 
-**I043 · Identificar procesos sin confundirlos** (medio, no cambia lo que se ve)
+**I073 · Identificar procesos sin confundirlos** (medio, no cambia lo que se ve)
 - Qué: No tomar un proceso ajeno por un motor o worker anterior.
 - Por qué: `app/electron/local.ts` devuelve `"win"` como identidad de arranque en Windows. Eso no distingue dos procesos que usaron el mismo PID en momentos diferentes.
 - Cómo: Registrar la hora real de creación del proceso y compartir esa identidad con los archivos de dueño y corrida. Lo difícil es obtenerla de forma nativa y tolerar procesos que desaparecen durante la consulta.
 
-**I044 · Recuperarse de excepciones fatales** (medio, cambia lo que se ve)
+**I074 · Recuperarse de excepciones fatales** (medio, cambia lo que se ve)
 - Qué: Que una falla grave deje un diagnóstico y recupere el motor de forma controlada.
 - Por qué: `app/electron/contencion.ts` registra `uncaughtException` y mantiene el proceso andando. Después de una excepción no siempre se puede garantizar que el estado siga coherente.
 - Cómo: Separar errores recuperables de fallas fatales, guardar lo pendiente con un tope y reiniciar con protección contra bucles. Lo difícil es evitar envíos repetidos y preservar workers independientes.
 
-**I045 · Memoria limitada por peso** (medio, no cambia lo que se ve)
+**I075 · Memoria limitada por peso** (medio, no cambia lo que se ve)
 - Qué: Mantener un consumo de memoria previsible al alternar entre chats grandes.
 - Por qué: `app/electron/conv-cache.ts` limita la caché a ocho sesiones; `lider-arma.ts` conserva mensajes y mapas completos. Ocho sesiones pueden tener tamaños muy distintos.
 - Cómo: Agregar un presupuesto por bytes estimados, configurable, y desalojar sesiones según uso y peso. Lo difícil es contar estructuras compartidas y no provocar relecturas continuas.
 
-**I046 · Leer chats sin trabar el motor** (grande, no cambia lo que se ve)
+**I076 · Leer chats sin trabar el motor** (grande, no cambia lo que se ve)
 - Qué: Que abrir un transcript enorme no demore otros chats o pedidos de la ventana.
 - Por qué: `app/electron/conv-cache.ts` lee bloques de hasta 4 MB y llama a `avanzarConv`; `lider-arma.ts` analiza sus líneas con `JSON.parse` en el mismo proceso.
 - Cómo: Medir el bloqueo y mover el análisis pesado a un worker o repartirlo en tandas con cesión de ejecución. Lo difícil es conservar el orden ante compactaciones y reescrituras.
 
-**I047 · Páginas que no recorran todo el chat** (medio, no cambia lo que se ve)
+**I077 · Páginas que no recorran todo el chat** (medio, no cambia lo que se ve)
 - Qué: Cargar mensajes anteriores con un costo más parejo.
 - Por qué: `app/electron/lider-arma.ts:1289` filtra toda la conversación y busca los últimos mensajes relevantes para armar cada página.
 - Cómo: Mantener índices de mensajes visibles y datos finales, actualizados al incorporar líneas. Lo difícil es invalidarlos correctamente al volver atrás o cambiar de motor.
 
-**I048 · Índice de corridas para la barra** (grande, no cambia lo que se ve)
+**I078 · Índice de corridas para la barra** (grande, no cambia lo que se ve)
 - Qué: Actualizar la lista de workers sin revisar todo el historial en cada cambio.
 - Por qué: `app/electron/cli/pa/hilos.ts` recorre carpetas y extensiones, y obtiene hechos por corrida. `pa.ts` evita ejecuciones simultáneas, pero vuelve a pedir la lista completa.
 - Cómo: Cachear los metadatos de corridas terminadas y recalcular las cambiadas, con reconstrucción disponible. Lo difícil es detectar cambios hechos desde una terminal sin alterar el formato actual.
 
-**I049 · Reanudar según los recursos disponibles** (medio, cambia lo que se ve)
+**I079 · Reanudar según los recursos disponibles** (medio, cambia lo que se ve)
 - Qué: Que recuperar varios líderes no sature la computadora al abrir Trama.
 - Por qué: `app/electron/lider.ts:2542` escalona los líderes seleccionados con una espera fija de 150 ms; esa espera no considera memoria disponible ni procesos que todavía están arrancando.
 - Cómo: Limitar arranques simultáneos y priorizar el chat visible, las colas y los líderes con workers. Lo difícil es adaptar la recuperación sin dejar trabajo necesario esperando indefinidamente.
 
-**I050 · Acotar el canal de los candados** (chico, no cambia lo que se ve)
+**I080 · Acotar el canal de los candados** (chico, no cambia lo que se ve)
 - Qué: Evitar que una conexión incompleta consuma memoria indefinidamente.
 - Por qué: `app/electron/cli/base/lock.ts:87` acumula datos hasta encontrar un salto de línea. Ese receptor no establece un máximo de bytes ni un plazo para completar el mensaje.
 - Cómo: Limitar tamaño, conexiones y tiempo de espera en sockets y named pipes. Lo difícil es no cortar operaciones válidas del canal de control.
 
-**I051 · Acotar el historial de eventos por bytes** (medio, no cambia lo que se ve)
+**I081 · Acotar el historial de eventos por bytes** (medio, no cambia lo que se ve)
 - Qué: Mantener estable la memoria usada para reconectar ventanas y celulares.
 - Por qué: `app/electron/remoto.ts` limita la repetición a 5000 eventos. Ya limita el atraso de cada conexión, pero el historial compartido se cuenta por cantidad, aunque los eventos pesen distinto.
 - Cómo: Agregar un presupuesto por bytes y solicitar resincronización cuando el historial necesario se descarte. Lo difícil es conservar correctamente el orden y las épocas.
 
-**I052 · Registrar errores sin frenar la app** (medio, no cambia lo que se ve)
+**I082 · Registrar errores sin frenar la app** (medio, no cambia lo que se ve)
 - Qué: Evitar que una ráfaga de errores agregue pausas por escrituras al disco.
 - Por qué: `app/electron/bitacora.ts` crea carpetas, rota y agrega entradas con operaciones síncronas. `windows/src/main.js` también agrega su log de forma síncrona.
 - Cómo: Escribir mediante una cola acotada, con descarga final y una salida mínima para fallas fatales. Lo difícil es conservar errores importantes cuando el disco está lento o lleno.
 
-**I053 · Reportes con las fuentes necesarias** (medio, cambia lo que se ve)
+**I083 · Reportes con las fuentes necesarias** (medio, cambia lo que se ve)
 - Qué: Que un reporte incluya el contexto del instalador y de la carcasa cuando corresponda.
 - Por qué: `app/electron/reporte.ts` recoge sólo `trama.log` y `ventana.log`, sin sus rotaciones. Windows registra además en `carcasa.log`, según `windows/src/main.js`.
 - Cómo: Reunir fuentes según plataforma y tipo de problema, sumar eventos de salud y mostrar qué se adjunta. Lo difícil es unificar rutas y limpiar todo antes de exportarlo.
 
-**I054 · Reportes pendientes sin conexión** (medio, cambia lo que se ve)
+**I084 · Reportes pendientes sin conexión** (medio, cambia lo que se ve)
 - Qué: Guardar un reporte preparado y poder enviarlo cuando vuelva internet.
 - Por qué: `app/electron/reporte-anonimo.ts` devuelve un error ante una falla de red; el envío no tiene una bandeja persistente.
 - Cómo: Guardar localmente lo autorizado, permitir cancelar y usar un identificador para evitar duplicados al reintentar. Lo difícil es distinguir un envío perdido de una respuesta perdida.
 
-**I055 · Diagnóstico local de lentitud** (medio, cambia lo que se ve)
+**I085 · Diagnóstico local de lentitud** (medio, cambia lo que se ve)
 - Qué: Ver si una demora viene del arranque, la memoria, el disco o un bloqueo del motor.
 - Por qué: `app/electron/salud-eventos.ts` registra cuatro clases de eventos; `reinicio-marcas.ts` aporta tiempos del reinicio, pero no describe recursos ni bloqueos durante el uso.
 - Cómo: Ampliar Salud con mediciones locales acotadas, identificadores de operación y retención configurable. Lo difícil es medir con poco costo y sin guardar contenido de chats.
 
-**I056 · Probar la ventana nativa de Windows** (medio, no cambia lo que se ve)
+**I086 · Probar la ventana nativa de Windows** (medio, no cambia lo que se ve)
 - Qué: Detectar antes de publicar cuando el motor pasa las pruebas pero la interfaz no funciona en Windows.
 - Por qué: `.github/workflows/ci.yml` ejecuta la prueba de acciones mediante CDP en Linux; el trabajo de Windows corre tests y humo del motor, sin ese recorrido de la ventana.
 - Cómo: Agregar un recorrido nativo con proveedores falsos: abrir chat, escribir, adjuntar y reconectar. Lo difícil es aislar perfiles y comprobar que no aparecen consolas.
 
-**I057 · Frenar regresiones de rendimiento** (medio, no cambia lo que se ve)
+**I087 · Frenar regresiones de rendimiento** (medio, no cambia lo que se ve)
 - Qué: Detectar una versión que vuelve lentos los chats largos antes de distribuirla.
 - Por qué: `app/scripts/medir-larga.mjs` ya mide apertura, escritura y scroll, pero sólo imprime números. `.github/workflows/ci.yml` no lo ejecuta.
 - Cómo: Hacerlo portable, comparar conversación larga contra corta y guardar resultados en CI. Lo difícil es fijar márgenes útiles sin fallar por variaciones normales de las máquinas.
 
-**I058 · Probar cortes en momentos precisos** (grande, no cambia lo que se ve)
+**I088 · Probar cortes en momentos precisos** (grande, no cambia lo que se ve)
 - Qué: Comprobar que mensajes y estado sobreviven a una muerte real del proceso.
 - Por qué: `app/tests/lider-reinicio.test.ts` simula el reinicio con otra copia del módulo; `cola-sin-perder.test.ts` usa un disco en memoria. Son bases útiles, pero esos casos no ejercitan un corte real del proceso.
 - Cómo: Crear pruebas con procesos aislados y puntos de sincronización para cortar antes y después de guardar o confirmar un envío. Lo difícil es hacerlas deterministas en ambos sistemas.
 
-**I059 · Cubrir dependencias entre app y carcasa** (medio, no cambia lo que se ve)
+**I089 · Cubrir dependencias entre app y carcasa** (medio, no cambia lo que se ve)
 - Qué: Que el chequeo rápido incluya las pruebas de Windows afectadas por un cambio compartido.
 - Por qué: `app/scripts/check-changed.mjs:123` activa la suite de Windows si cambió `windows/` o corresponde una corrida completa. Un cambio compartido en `app/` no la activa por esa regla.
 - Cómo: Declarar dependencias de contratos, archivos generados y reglas duplicadas para seleccionar sus pruebas. Lo difícil es mantener esa relación completa sin convertir cada chequeo en toda la suite.
 
-**I060 · Retirar el respaldo congelado de producción** (grande, cambia lo que se ve)
+**I090 · Retirar el respaldo congelado de producción** (grande, cambia lo que se ve)
 - Qué: Que una instalación use siempre el motor vigente y explique claramente si falta.
 - Por qué: `motor/bin/pa` todavía cae al bash si falta el compilado o recibe código 70; `motor/bin/reparto` conserva el respaldo Python. `cli/base/lock.ts` usa candados distintos de los originales.
 - Cómo: Dejar los originales congelados para comparación, instalar lanzadores directos al TS y completar la cobertura antes de retirar la caída automática. Lo difícil es actualizar instalaciones existentes y conservar compatibilidad de estado.
 
 ### Salidas de esta noche
 
-**I061 · Tope de workers vivos según el cupo** (medio, cambia lo que se ve)
+**I091 · Tope de workers vivos según el cupo** (medio, cambia lo que se ve)
 - Qué: Trama calcula cuántos workers aguanta cada suscripción ahora y deja el resto en cola, en vez de arrancar todos y que mueran a mitad.
 - Por qué: veinte corridas pesadas contra una ventana con lugar para pocas terminaron todas sin commits. El cupo se mira al lanzar, no lo que ya corre contra esa ventana.
 - Cómo: medir el gasto típico por tipo × modelo × esfuerzo (ya está `pa --rinde`) y admitir workers mientras la suma proyectada entre en la ventana. Lo difícil es estimar bien una corrida que recién empieza.
 
-**I062 · Gastar primero lo que se renueva antes** (medio, no cambia lo que se ve)
+**I092 · Gastar primero lo que se renueva antes** (medio, no cambia lo que se ve)
 - Qué: al elegir motor para una tanda, preferir la suscripción cuya ventana vence antes y tiene cupo sin usar.
 - Por qué: cupo que se renueva sin haberse usado es plata perdida; hoy el reparto mira calidad y cupo libre, no cuándo vence.
 - Cómo: sumar al puntaje de `reparto` un término por «cupo libre × cercanía del reinicio», configurable en Ajustes y apagable.
 
-**I063 · Cuántas corridas quedan, no sólo el porcentaje** (chico, cambia lo que se ve)
+**I093 · Cuántas corridas quedan, no sólo el porcentaje** (chico, cambia lo que se ve)
 - Qué: el panel de cupos dice «quedan unas 6 corridas largas de este modelo» junto al porcentaje.
 - Por qué: 30 % libre no dice nada si no se sabe cuánto gasta una corrida; hay que haberlo medido a mano.
 - Cómo: con el historial de corridas por modelo, dividir el cupo libre por la mediana gastada. Decir «sin datos todavía» cuando no hay historial.
 
-**I064 · Corridas en serie sobre los mismos archivos** (medio, no cambia lo que se ve)
+**I094 · Corridas en serie sobre los mismos archivos** (medio, no cambia lo que se ve)
 - Qué: poder encadenar workers («este arranca cuando se integre aquel») para listas largas de arreglos en una misma área.
 - Por qué: dos workers sobre los mismos archivos chocan al integrar, y uno solo se queda sin turnos antes de terminar la lista.
 - Cómo: `pa --despues-de <id>` que espera a que el anterior esté integrado y parte del main nuevo. Lo difícil es qué hacer si el anterior falla.
 
-**I065 · «Auditar un área» de punta a punta** (grande, cambia lo que se ve)
+**I095 · «Auditar un área» de punta a punta** (grande, cambia lo que se ve)
 - Qué: un botón que lanza la auditoría de sólo lectura, muestra los hallazgos y deja elegir cuáles mandar a arreglar.
 - Por qué: hoy ese flujo se arma a mano con briefs, y los hallazgos quedan en texto suelto.
 - Cómo: guardar los hallazgos con formato fijo (id, severidad, dónde, arreglo) y generar el brief de arreglos con los elegidos. Reusa el revisor de planes para la segunda opinión.
 
-**I066 · Integrar con el chequeo incluido** (chico, no cambia lo que se ve)
+**I096 · Integrar con el chequeo incluido** (chico, no cambia lo que se ve)
 - Qué: `pa --integrar` corre el chequeo rápido en la rama antes de integrar y muestra el resumen del diff.
 - Por qué: revisar e integrar son hoy tres comandos por rama; con diez ramas se saltea alguno.
 - Cómo: una opción `--con-chequeo` que corre `check:changed` en el worktree y frena si no sale verde.
 
-**I067 · Avisos de workers agrupados por causa** (medio, cambia lo que se ve)
+**I097 · Avisos de workers agrupados por causa** (medio, cambia lo que se ve)
 - Qué: treinta avisos de workers caídos se muestran como «18 sin cupo en tal suscripción, 2 sin información», con un toque para ver cada uno.
 - Por qué: una tanda que muere por la misma causa llena el chat y la campana de avisos iguales.
 - Cómo: agrupar en la ventana por causa y por tanda; el aviso al líder llega resumido con los ids.
 
-**I068 · Mensajes programados con condición** (chico, cambia lo que se ve)
+**I098 · Mensajes programados con condición** (chico, cambia lo que se ve)
 - Qué: un mensaje programado puede decir «sólo si el chat está parado» o «sólo si volvió el cupo de tal suscripción».
 - Por qué: los respaldos por hora llegan igual cuando el líder está trabajando y le gastan un turno para decir «seguí».
 - Cómo: condiciones simples evaluadas por el proceso principal antes de encolar; si no se cumple, se saltea y queda anotado.
 
-**I069 · El aviso de privacidad dice qué línea lo disparó** (chico, cambia lo que se ve)
+**I099 · El aviso de privacidad dice qué línea lo disparó** (chico, cambia lo que se ve)
 - Qué: cuando un brief no puede salir a otro motor, el aviso muestra la línea y el motivo, y deja elegir entre corregir, mandarlo igual a Claude o no lanzar.
 - Por qué: hoy cambia de motor solo y el aviso se pierde en la salida de error; se gasta el cupo que se quería cuidar.
 - Cómo: `secretoEn` y `afueraEn` ya devuelven el motivo: falta llevarlo con la línea hasta el aviso y sumar el modo estricto.
 
-**I070 · Costo estimado antes de lanzar** (medio, cambia lo que se ve)
+**I100 · Costo estimado antes de lanzar** (medio, cambia lo que se ve)
 - Qué: antes de lanzar un worker, mostrar cuánto de la ventana va a gastar según corridas parecidas.
 - Por qué: se elige modelo y esfuerzo a ciegas; el costo se ve recién cuando se acabó el cupo.
 - Cómo: mediana por tipo × modelo × esfuerzo del historial, en porcentaje de ventana. En el selector de modelos y en la confirmación de `lanzar_worker`.
 
-**I071 · Usar el `pa` del repo mientras se desarrolla** (chico, no cambia lo que se ve)
+**I101 · Usar el `pa` del repo mientras se desarrolla** (chico, no cambia lo que se ve)
 - Qué: un interruptor de desarrollo para que los workers de este proyecto corran con el CLI compilado del repo y no con el instalado.
 - Por qué: un arreglo del propio `pa` no sirve para la tanda en curso hasta publicar una versión.
 - Cómo: una variable de entorno o una clave de Ajustes que apunte al `dist-electron` del repo, con un aviso visible mientras esté prendida.
 
-**I072 · Tablero de una tanda** (medio, cambia lo que se ve)
+**I102 · Tablero de una tanda** (medio, cambia lo que se ve)
 - Qué: una vista de la tanda nocturna: qué informes llegaron, qué arreglos corren, qué falta integrar y cuánto cupo queda por suscripción.
 - Por qué: hoy eso se arma con un script aparte y un archivo de texto.
 - Cómo: agrupar los workers por tanda (una etiqueta al lanzar) y dibujar la tabla en el panel del líder; reusa `pa --hilos`.
