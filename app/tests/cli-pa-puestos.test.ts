@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { prologo, Salida, type Env } from "../electron/cli/pa/entorno.ts";
@@ -91,6 +91,18 @@ test("puestos: el .running de un worker muerto del puesto que se toma se limpia"
   await a.soltarTodo();
 });
 
+test("puestos: un .running con el hijo vivo (murió su pa, sobrevive el worker) deja el puesto ocupado y no se borra (B078)", async () => {
+  const s = armar({ PA_PUESTOS: "1" });
+  mkdirSync(s.state, { recursive: true });
+  const run = path.join(s.state, "demo.running");
+  writeFileSync(run, `id=viejo\npid=${process.pid}\npa_pid=999999999\njefe=j\ntarea=sigue vivo\n`);
+  const a = new Admision(s.proy("t1"));
+  await sale(() => a.tomarPuesto(), 75);
+  assert.equal(existsSync(run), true, "el .running del worker vivo se conserva");
+  assert.equal(existsSync(path.join(s.state, "demo", "t1.puesto")), false, "no tomó el puesto");
+  assert.equal(await puestoLibre(s.proy("x"), "1"), true, "soltó el lock del puesto");
+});
+
 test("tope global: con PA_TOPE=1 y un worker vivo, el segundo sale 75 con el motivo y los vivos; al soltar entra", async () => {
   const s = armar({ PA_TOPE: "1" });
   const a = new Admision(s.proy("t1"));
@@ -103,6 +115,7 @@ test("tope global: con PA_TOPE=1 y un worker vivo, el segundo sale 75 con el mot
   await sale(() => b.tomarPuesto(), 75);
   assert.match(s.err(), /tope global: ya hay 1 worker\(s\) vivos entre todos los proyectos y el tope es 1 \(PA_TOPE\):\n    demo \(puesto 1\): id t1 · jefe j · algo\n/);
   await a.soltarTodo();
+  rmSync(path.join(s.state, "demo.running")); // el worker terminó y limpió su .running
   const c = new Admision(s.proy("t3"));
   await c.tomarPuesto();
   assert.equal(c.puesto, "1");

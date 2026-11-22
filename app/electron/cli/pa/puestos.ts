@@ -423,11 +423,17 @@ export class Admision {
         for (const k of cands) {
           tocar(lockDePuesto(x, k));
           const l = await tomar(lockDePuesto(x, k), { ...this.lockOpc(), alMensaje: this.o.alMensaje });
-          if (l) {
-            this.puestoLock = l;
-            this.puesto = k;
-            break;
+          if (!l) continue;
+          // Con el lock tomado pero un `.running` cuyo hijo sigue vivo: murió el `pa` que lo lanzó y sobrevive su worker. Ese puesto
+          // sigue ocupado (otro `pa` le cambiaría la rama y borraría el `.running` con el que se lo encuentra): se suelta y se sigue.
+          const run = path.join(x.pa.state, `${x.slug}${sufPuesto(k)}.running`);
+          if (existsSync(run) && runningVivo(run)) {
+            await l.liberar();
+            continue;
           }
+          this.puestoLock = l;
+          this.puesto = k;
+          break;
         }
         if (this.puestoLock) {
           await this.soltarTope();
