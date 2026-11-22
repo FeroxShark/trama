@@ -1,7 +1,7 @@
 // Quién está compactando su contexto ahora mismo. Claude Code no lo deja
 // escrito en ningún lado (la sesión dice `busy` y en el transcript sólo queda,
 // después, la raya de "se compactó"), así que lo dicen sus hooks:
-// `scripts/hook-compactando.sh` deja una marca vacía en `<estado>/compactando/<id>`
+// `motor/hooks/hook-compactando.mjs` (antes `scripts/hook-compactando.sh`) deja una marca vacía en `<estado>/compactando/<id>`
 // al empezar (PreCompact) y la saca al terminar (PostCompact). `<id>`: el del
 // run de `pa` en un worker, el session_id en un líder. Acá se mira esa carpeta
 // con inotify: sin polling.

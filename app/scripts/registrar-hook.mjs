@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Registra `scripts/hook-compactando.sh` (PreCompact y PostCompact) y `motor/hooks/nota-compactar.mjs` (los 4 eventos)
-// en `~/.claude/settings.json` para los líderes de terminal. Si `nota_compactar` es `false` en `modelos.json`, saca
+// Registra `motor/hooks/hook-compactando.mjs` (PreCompact y PostCompact; en Node, sin bash: el `scripts/hook-compactando.sh` de antes
+// pasa a él), `motor/hooks/resumen-modelos.mjs` (SessionStart `startup|compact`; el `resumen-modelos.sh` de antes pasa a él) y
+// `motor/hooks/nota-compactar.mjs` (los 4 eventos) en `~/.claude/settings.json` para los líderes de terminal. Si `nota_compactar` es `false` en `modelos.json`, saca
 // `nota-compactar.mjs` del settings. Idempotente, atómico y sin pisar otros hooks ni cambiar permisos del settings.
 // uso: node scripts/registrar-hook.mjs [settings.json]   (default: $CLAUDE_CONFIG_DIR o ~/.claude, settings.json)
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
@@ -9,9 +10,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const hook = path.join(raiz, "scripts", "hook-compactando.sh");
 const EVENTOS = ["PreCompact", "PostCompact"];
-const MARCA = /hook-compactando\.sh/;
+const MARCA = /hook-compactando\.(?:sh|mjs)/;
+const MARCA_RESUMEN = /resumen-modelos\.(?:sh|mjs)/;
+const hookDe = (nombre) => [path.resolve(raiz, "..", "motor", "hooks", nombre), path.join(raiz, "motor", "hooks", nombre)].find((p) => existsSync(p)) ?? null;
+const hook = hookDe("hook-compactando.mjs");
+const resumenHook = hookDe("resumen-modelos.mjs");
 
 const notaHookCandidatos = [
   path.resolve(raiz, "..", "motor", "hooks", "nota-compactar.mjs"),
@@ -27,7 +31,8 @@ const MARCA_NOTA = /nota-compactar\.mjs/;
 
 // Comillas simples si la ruta tiene algo que el shell de Claude Code podría partir (espacios, etc.).
 const shq = (s) => (/^[\w./@+-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
-const esNuestro = (h) => !!h && typeof h === "object" && typeof h.command === "string" && MARCA.test(h.command);
+const conMarca = (marca) => (h) => !!h && typeof h === "object" && typeof h.command === "string" && marca.test(h.command);
+const esNuestro = conMarca(MARCA);
 const esNuestroNota = (h) => !!h && typeof h === "object" && typeof h.command === "string" && MARCA_NOTA.test(h.command);
 
 function leerJson(ruta) {
@@ -153,6 +158,16 @@ function registrar(ajustes, command, env = process.env) {
       cambio = true;
     }
   }
+  if (resumenHook) {
+    const actual = ajustes.hooks.SessionStart;
+    if (actual !== undefined && !Array.isArray(actual)) throw new Error("hooks.SessionStart no es una lista");
+    // Sólo al arrancar y tras compactar (no al retomar ni al limpiar): un registro de antes sin matcher o en .sh pasa a este.
+    const r = registrarEvento(actual ?? [], `${shq(process.execPath)} ${shq(resumenHook)}`, { esMio: conMarca(MARCA_RESUMEN), matcher: "startup|compact", timeout: 10 });
+    if (r.cambio) {
+      ajustes.hooks.SessionStart = r.grupos;
+      cambio = true;
+    }
+  }
   const notaHook = notaHookCandidatos.find((p) => existsSync(p));
   if (notaHook) {
     const u = umbralesDesdeModelos(env);
@@ -184,7 +199,7 @@ function registrar(ajustes, command, env = process.env) {
 function main() {
   const destino =
     process.argv[2] ?? path.join(process.env.CLAUDE_CONFIG_DIR || path.join(homedir(), ".claude"), "settings.json");
-  if (!existsSync(hook)) fail(`no existe ${hook}`);
+  if (!hook) fail("no encuentro motor/hooks/hook-compactando.mjs");
 
   // Si el settings es un enlace (dotfiles), se escribe el archivo real: no se reemplaza el enlace.
   const real = existsSync(destino) ? realpathSync(destino) : destino;
@@ -204,7 +219,7 @@ function main() {
 
   let cambio;
   try {
-    cambio = registrar(ajustes, shq(hook));
+    cambio = registrar(ajustes, `${shq(process.execPath)} ${shq(hook)}`);
   } catch (e) {
     fail(`${destino}: ${e.message}; no lo toqué`);
   }

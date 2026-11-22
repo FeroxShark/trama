@@ -227,7 +227,7 @@ for b in pa tablero trama-estado trama-motor; do enlazar "$MOTOR/bin/$b" "$BIN";
 for b in proyecto-ruta workers reparto cuentas gate; do [[ -e "$MOTOR/bin/$b" ]] && enlazar "$MOTOR/bin/$b" "$BIN"; done
 # pantalla: el control de pantalla de los workers de frontend (#1869).
 [[ -e "$MOTOR/bin/pantalla" ]] && enlazar "$MOTOR/bin/pantalla" "$BIN"
-for h in latido.sh destructive-guard.sh statusline-espejo.sh resumen-modelos.sh cierre-cupo.mjs cierre-cupo-textos.mjs; do [[ -e "$MOTOR/hooks/$h" ]] && enlazar "$MOTOR/hooks/$h" "$HOOKS"; done
+for h in latido.sh destructive-guard.sh statusline-espejo.sh resumen-modelos.mjs hook-compactando.mjs cierre-cupo.mjs cierre-cupo-textos.mjs; do [[ -e "$MOTOR/hooks/$h" ]] && enlazar "$MOTOR/hooks/$h" "$HOOKS"; done
 enlazar "$MOTOR/skills/trama-orquestar" "$SKILLS"
 
 # Plugin de agy para los workers Gemini (misma receta que instalar.sh): carpeta real con symlinks adentro.
@@ -266,16 +266,20 @@ registrar_hooks() {
 }
 registrar_hooks
 
-# Resumen de modelos para el líder (SessionStart): aparte de registrar_hooks, que el port de app/electron/cli/hooks.ts replica 1 a 1.
+# Resumen de modelos para el líder (SessionStart, sólo `startup` y `compact`): en Node (`resumen-modelos.mjs`, sin jq ni `timeout` en el hook),
+# aparte de registrar_hooks, que el port de app/electron/cli/hooks.ts replica 1 a 1 (ahí `registrarCompactacionEnAjustes`). Un registro de antes
+# con el `resumen-modelos.sh` o sin matcher pasa a este.
 registrar_resumen() {
-  local resumen="$HOOKS/resumen-modelos.sh" nuevo destino
-  [[ -e "$resumen" ]] && command -v jq >/dev/null 2>&1 && [[ -s "$CFG" ]] && jq -e 'type == "object"' "$CFG" >/dev/null 2>&1 || return 0
+  local resumen="$HOOKS/resumen-modelos.mjs" nuevo destino
+  [[ -e "$resumen" ]] && command -v node >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 && [[ -s "$CFG" ]] && jq -e 'type == "object"' "$CFG" >/dev/null 2>&1 || return 0
   nuevo="$(jq --arg resumen "$resumen" '
-      if ([.hooks.SessionStart[]?.hooks[]?.command // empty] | any(test("resumen-modelos\\.sh"))) then .
-      else .hooks.SessionStart = ((.hooks.SessionStart // []) + [{hooks: [{type: "command", command: ("bash " + ($resumen | @sh)), timeout: 10}]}]) end' "$CFG")" || return 0
+      def mio: ((.command // "") | test("resumen-modelos\\.(sh|mjs)"));
+      if ([.hooks.SessionStart[]? | select(.matcher == "startup|compact") | .hooks[]? | select((.command // "") | test("resumen-modelos\\.mjs"))] | length) > 0 then .
+      else .hooks.SessionStart = ([(.hooks.SessionStart // [])[] | if (.hooks | type) == "array" then (.hooks |= map(select(mio | not))) | select((.hooks | length) > 0) else . end]
+        + [{matcher: "startup|compact", hooks: [{type: "command", command: ("node " + ($resumen | @sh)), timeout: 10}]}]) end' "$CFG")" || return 0
   [[ "$nuevo" == "$(jq . "$CFG")" ]] && return 0
   destino="$(readlink -f "$CFG" 2>/dev/null || echo "$CFG")"
-  printf '%s\n' "$nuevo" >"$destino.tmp.$$" && mv -f "$destino.tmp.$$" "$destino" && hecho "$CFG: resumen-modelos registrado (SessionStart del líder)"
+  printf '%s\n' "$nuevo" >"$destino.tmp.$$" && mv -f "$destino.tmp.$$" "$destino" && hecho "$CFG: resumen-modelos registrado (SessionStart del líder, al arrancar y tras compactar)"
 }
 registrar_resumen
 
