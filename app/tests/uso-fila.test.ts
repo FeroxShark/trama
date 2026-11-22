@@ -21,8 +21,10 @@ test("con porcentaje y sin hora de reinicio: el número va solo, nunca sin dato"
   for (const resets_at of [null, 1_792_026_600]) assert.notEqual(filaDe({ pct: 0, resets_at }).cuando, "sinDato");
 });
 
-test("el número va redondeado y entre 0 y 100", () => {
+test("el número va redondeado y entre 0 y 100, sin inflar 99.6 a 100 si no está agotado", () => {
   assert.equal(filaDe({ pct: 43.6, resets_at: null }).pct, 44);
+  assert.equal(filaDe({ pct: 99.6, resets_at: null }).pct, 99);
+  assert.equal(filaDe({ pct: 100, resets_at: 1 }).pct, 100);
   assert.equal(filaDe({ pct: 130, resets_at: 1 }).pct, 100);
   assert.equal(filaDe({ pct: -3, resets_at: null }).pct, 0);
 });

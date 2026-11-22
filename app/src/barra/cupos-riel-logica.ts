@@ -138,7 +138,10 @@ export function lineasCuentas(cuentas: readonly CuentaRiel[]): LineaRiel[] {
     .filter((c) => !c.enUso)
     .map((c) => {
       const pcts = [c.h5, c.sem].flatMap((v) => (v.pct === null ? [] : [v]));
-      const peor = pcts.reduce<VentanaRiel | null>((m, v) => (!m || (v.pct ?? 0) > (m.pct ?? 0) ? v : m), null);
+      const peor = pcts.reduce<VentanaRiel | null>(
+        (m, v) => (!m || (v.pct ?? 0) > (m.pct ?? 0) || ((v.pct ?? 0) === (m.pct ?? 0) && v.hasta > m.hasta) ? v : m),
+        null,
+      );
       const lleno = (peor?.pct ?? 0) >= 100;
       return {
         clave: c.id,

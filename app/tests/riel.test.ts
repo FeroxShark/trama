@@ -228,16 +228,18 @@ test("cuentasClaude: la que está en uso primero; sin preferida, la de siempre",
   assert.equal(cuentasClaude(uso, [otra], "Personal", lista)[0].nombre, "Trabajo");
 });
 
-test("lineasCuentas: las otras, con lo más lleno; lo agotado dice cuándo vuelve", () => {
+test("lineasCuentas: las otras, con lo más lleno; lo agotado dice cuándo vuelve (y si empatan en 100%, el reinicio más lejano)", () => {
   const base = { ts: AHORA, id: "x" };
   const ls = lineasCuentas([
     { ...base, id: "a", nombre: "Personal", enUso: true, h5: { pct: 1, hasta: 0 }, sem: { pct: 1, hasta: 0 } },
     { ...base, id: "b", nombre: "Trabajo", enUso: false, h5: { pct: 5, hasta: 0 }, sem: { pct: 40, hasta: 0 } },
     { ...base, id: "c", nombre: "Estudio", enUso: false, h5: { pct: 100, hasta: AHORA + 60 }, sem: { pct: 58, hasta: 0 } },
     { ...base, id: "d", nombre: "Nueva", enUso: false, h5: { pct: null, hasta: 0 }, sem: { pct: null, hasta: 0 } },
+    { ...base, id: "e", nombre: "Ambas", enUso: false, h5: { pct: 100, hasta: AHORA + 7200 }, sem: { pct: 100, hasta: AHORA + 4 * 86400 } },
   ]);
-  assert.deepEqual(ls.map((l) => [l.nombre, l.pct, l.estado]), [["Trabajo", 40, "ok"], ["Estudio", 100, "lleno"], ["Nueva", null, "sin"]]);
+  assert.deepEqual(ls.map((l) => [l.nombre, l.pct, l.estado]), [["Trabajo", 40, "ok"], ["Estudio", 100, "lleno"], ["Nueva", null, "sin"], ["Ambas", 100, "lleno"]]);
   assert.equal(ls[1].vuelve, AHORA + 60);
+  assert.equal(ls[3].vuelve, AHORA + 4 * 86400);
   assert.deepEqual(ls[0].cuenta, { proveedor: "claude", id: "b" });
 });
 

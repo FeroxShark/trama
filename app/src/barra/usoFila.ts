@@ -11,7 +11,7 @@ export type Fila =
 
 export function filaDe(v: Ventana | null | undefined): Fila {
   if (!v) return { cuando: "sinDato", pct: null, hasta: null };
-  const pct = Math.max(0, Math.min(100, Math.round(v.pct)));
+  const pct = v.pct <= 0 ? 0 : v.pct >= 100 ? 100 : Math.min(99, Math.round(v.pct));
   return typeof v.resets_at === "number" ? { cuando: "hora", pct, hasta: v.resets_at } : { cuando: "sinHora", pct, hasta: null };
 }
 
