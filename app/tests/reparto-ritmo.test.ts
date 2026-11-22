@@ -203,18 +203,20 @@ test("--plan: gastar-hoy / ahorrar-hoy pisan el ritmo, ver lo muestra, y todo ve
   assert.match(g.out, /Ritmo Claude semanal: 2,5× -> 0,2×/);
   assert.equal(JSON.parse(reparto(["--plan", "ver", "--json"], f, m).out).plan.hoy, "gastar");
   assert.ok(esClaude(tipo("lectura", f, m, cargado).modelo));
-  // Un día suma, otro vence: ausente mañana y el 29; pasado mañana el de hoy ya no está y ausente sigue.
+  // Un día suma y el de hoy vence; una ausencia pasada se sigue contando 7 días (puede caer en la semana vigente) y recién ahí se olvida.
   assert.equal(reparto(["--plan", "ausente", "manana,2026-10-29"], f, m).rc, 0);
   const archivo = JSON.parse(readFileSync(path.join(estado, "plan.json"), "utf8"));
   assert.deepEqual(archivo.ausente, ["2026-10-27", "2026-10-29"]);
   const dia2 = JSON.parse(reparto(["--plan", "ver", "--json"], f, m, { REPARTO_AHORA: "2026-10-28T09:00:00Z" }).out);
   assert.equal(dia2.plan.hoy, null);
-  assert.deepEqual(dia2.plan.ausente, ["2026-10-29"]);
+  assert.deepEqual(dia2.plan.ausente, ["2026-10-27", "2026-10-29"], "la de ayer sigue contando");
   const dia4 = JSON.parse(reparto(["--plan", "ver", "--json"], f, m, { REPARTO_AHORA: "2026-10-30T09:00:00Z" }).out);
-  assert.deepEqual([dia4.plan.ausente, dia4.plan.hoy], [[], null]);
+  assert.deepEqual([dia4.plan.ausente, dia4.plan.hoy], [["2026-10-27", "2026-10-29"], null]);
+  const dia11 = JSON.parse(reparto(["--plan", "ver", "--json"], f, m, { REPARTO_AHORA: "2026-11-06T09:00:00Z" }).out);
+  assert.deepEqual([dia11.plan.ausente, dia11.plan.hoy], [[], null]);
   // Una orden nueva poda lo vencido del archivo; borrar lo deja sin archivo.
-  assert.equal(reparto(["--plan", "ausente", "2026-11-02"], f, m, { REPARTO_AHORA: "2026-10-30T09:00:00Z" }).rc, 0);
-  assert.deepEqual(JSON.parse(readFileSync(path.join(estado, "plan.json"), "utf8")).ausente, ["2026-11-02"]);
+  assert.equal(reparto(["--plan", "ausente", "2026-11-09"], f, m, { REPARTO_AHORA: "2026-11-06T09:00:00Z" }).rc, 0);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(estado, "plan.json"), "utf8")).ausente, ["2026-11-09"]);
   assert.equal(reparto(["--plan", "borrar"], f, m).rc, 0);
   assert.equal(existsSync(path.join(estado, "plan.json")), false);
 });
