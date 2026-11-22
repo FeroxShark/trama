@@ -42,14 +42,42 @@ const ejecutable = (f) => {
   }
 };
 
+export const esWinRuta = (env, home, plat) =>
+  plat ? plat === "win32" : (env?.TRAMA_OPENCODE_PLAT || process.platform) === "win32" || /^[A-Za-z]:[\\/]/.test(home || "") || /^[A-Za-z]:[\\/]/.test(env?.LOCALAPPDATA || "") || /^[A-Za-z]:[\\/]/.test(env?.USERPROFILE || "");
+
+const ES_CMD = /\.(cmd|bat)$/i;
+
+function argParaCmd(a) {
+  if (/["%\r\n]/.test(a)) throw new Error(`argumento no apto para cmd.exe: ${JSON.stringify(String(a).slice(0, 40))}`);
+  return a === "" || /[\s&|<>^()!,;=]/.test(a) ? `"${a}"` : a;
+}
+
+/** `cmd args` listo para `spawn`/`spawnSync`: en Windows un `.cmd`/`.bat` va por `cmd.exe /d /s /c` con argumentos verbatim. */
+export function paraLanzar(cmd, args, env = process.env, plat = env.TRAMA_OPENCODE_PLAT || process.platform) {
+  if (plat !== "win32" || !ES_CMD.test(cmd)) return { file: cmd, args, verbatim: false };
+  const linea = [cmd, ...args].map(argParaCmd).join(" ");
+  return { file: env.ComSpec || env.COMSPEC || "cmd.exe", args: ["/d", "/s", "/c", `"${linea}"`], verbatim: true };
+}
+
 /** El binario `opencode`: `HILOS_OPENCODE`, el PATH, `~/.opencode/bin`, `~/.local/bin` y el prefijo global de npm. Sin nada: `opencode` pelado. */
-export function resolverOpencode(env = process.env, home = os.homedir(), esEjecutable = ejecutable) {
+export function resolverOpencode(env = process.env, home = os.homedir(), esEjecutable = ejecutable, plat) {
   if (env.HILOS_OPENCODE) return env.HILOS_OPENCODE;
-  const dirs = (env.PATH ?? "").split(path.delimiter).filter(Boolean);
-  dirs.push(path.join(home, ".opencode", "bin"), path.join(home, ".local", "bin"));
-  if (env.npm_config_prefix) dirs.push(path.join(env.npm_config_prefix, "bin"));
-  dirs.push(path.join(home, ".npm-global", "bin"), "/usr/local/bin", path.dirname(process.execPath));
-  for (const d of dirs) if (esEjecutable(path.join(d, "opencode"))) return path.join(d, "opencode");
+  const win = esWinRuta(env, home, plat);
+  const c = win ? path.win32 : path;
+  const delim = win ? ";" : path.delimiter;
+  const clavePath = win ? Object.keys(env).find((k) => k.toLowerCase() === "path") ?? "PATH" : "PATH";
+  const dirs = (env[clavePath] ?? "").split(delim).filter(Boolean);
+  dirs.push(c.join(home, ".opencode", "bin"), c.join(home, ".local", "bin"));
+  if (win) {
+    if (env.npm_config_prefix) dirs.push(env.npm_config_prefix);
+    if (env.APPDATA) dirs.push(c.join(env.APPDATA, "npm"));
+    dirs.push(c.join(home, "AppData", "Roaming", "npm"), c.dirname(process.execPath));
+  } else {
+    if (env.npm_config_prefix) dirs.push(c.join(env.npm_config_prefix, "bin"));
+    dirs.push(c.join(home, ".npm-global", "bin"), "/usr/local/bin", c.dirname(process.execPath));
+  }
+  const nombres = win ? ["opencode.cmd", "opencode.exe", "opencode"] : ["opencode"];
+  for (const d of dirs) for (const n of nombres) if (esEjecutable(c.join(d, n))) return c.join(d, n);
   return "opencode";
 }
 

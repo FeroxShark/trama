@@ -5,7 +5,7 @@ import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 // @ts-expect-error: módulo .mjs sin tipos (el runner de pa no tiene TypeScript)
 import { aResultado } from "../../motor/opencode/correr.mjs";
@@ -202,4 +202,50 @@ test("opencode 2.x: sólo se pasan los flags que su `run --help` nombra (sin --d
   await correr("http://127.0.0.1:1", ["--modelo", MODELO_FALSO, "--effort", "high"], "hola", { HILOS_OPENCODE: falso });
   const l = readFileSync(log, "utf8").trim();
   assert.equal(l, "run --format json -m falso/fake-model");
+});
+
+test("Windows: adapta el shim .cmd en una ruta con espacios con paraLanzar (run --help y run --format json)", { timeout: 60_000 }, async () => {
+  const winCmd = "C:\\Users\\Ana Perez\\AppData\\Roaming\\npm\\opencode.cmd";
+  const l = cfg.paraLanzar(winCmd, ["run", "--format", "json", "-m", "opencode/big-pickle"], { ComSpec: "C:\\Windows\\System32\\cmd.exe" }, "win32");
+  assert.equal(l.file, "C:\\Windows\\System32\\cmd.exe");
+  assert.equal(l.verbatim, true);
+  assert.deepEqual(l.args, ["/d", "/s", "/c", `""${winCmd}" run --format json -m opencode/big-pickle"`]);
+
+  // Ejecución real del runner con un shim .cmd en una carpeta con espacios y un ComSpec falso que interpreta `/d /s /c "<linea>"`.
+  const dirEsp = path.join(tmp, "Carpeta Con Espacios");
+  mkdirSync(dirEsp, { recursive: true });
+  const shimCmd = path.join(dirEsp, "opencode.cmd");
+  writeFileSync(
+    shimCmd,
+    [
+      "#!/bin/sh",
+      'if [ "$2" = "--help" ]; then echo "  --format f"; echo "  --variant v"; exit 0; fi',
+      "cat >/dev/null",
+      'echo \'{"type":"step_start","sessionID":"ses_cmd","part":{}}\'',
+      'echo \'{"type":"text","sessionID":"ses_cmd","part":{"text":"RESULTADO: desde cmd con espacios"}}\'',
+      'echo \'{"type":"step_finish","sessionID":"ses_cmd","part":{"reason":"stop","cost":0,"tokens":{"input":5,"output":3,"reasoning":0,"cache":{"read":0,"write":0}}}}\'',
+    ].join("\n") + "\n",
+    { mode: 0o755 },
+  );
+  const comspecFalso = path.join(tmp, "cmd-falso.sh");
+  writeFileSync(
+    comspecFalso,
+    [
+      "#!/bin/sh",
+      '# Recibe: /d /s /c "\"/ruta con espacios/opencode.cmd\" run ..."',
+      'linea="$4"',
+      'linea="${linea#\\"}"',
+      'linea="${linea%\\"}"',
+      'eval "exec $linea"',
+    ].join("\n") + "\n",
+    { mode: 0o755 },
+  );
+  const r = await correr("http://127.0.0.1:1", ["--modelo", MODELO_FALSO, "--effort", "high"], "probar cmd", {
+    HILOS_OPENCODE: shimCmd,
+    TRAMA_OPENCODE_PLAT: "win32",
+    ComSpec: comspecFalso,
+  });
+  assert.equal(r.codigo, 0, r.stderr);
+  assert.equal(r.json.is_error, false);
+  assert.equal(r.json.result, "RESULTADO: desde cmd con espacios");
 });

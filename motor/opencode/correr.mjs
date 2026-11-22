@@ -31,7 +31,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
-import { conModeloChico, conPermisoFuera, esErrorCuota, esGratis, esModeloGo, esNvidia, mensajeCuotaGo, mensajeCuotaOpencode, parsearModelo, planOpencode, resolverOpencode } from "./config.mjs";
+import { conModeloChico, conPermisoFuera, esErrorCuota, esGratis, esModeloGo, esNvidia, mensajeCuotaGo, mensajeCuotaOpencode, paraLanzar, parsearModelo, planOpencode, resolverOpencode } from "./config.mjs";
 
 /** ¿Es una cuenta agregada de OpenCode (la que pone `cuentas env`: TRAMA_OPENCODE_CUENTA con un id válido que no es la de siempre)? */
 export const cuentaAgregada = (env = process.env) => /^[a-z0-9][a-z0-9-]{0,39}$/.test(env.TRAMA_OPENCODE_CUENTA ?? "") && env.TRAMA_OPENCODE_CUENTA !== "opencode";
@@ -180,7 +180,8 @@ async function main() {
   // El esfuerzo (--effort) es el `--variant` de opencode; vacío o con pinta rara: no se pasa (el modelo usa el suyo).
   // Cada versión de opencode trae otros flags en `run` (2.x no tiene --dir): sólo se pasan los que su --help nombra.
   // El directorio ya va por cwd y PWD; --dir es redundante donde existe.
-  const ayuda = spawnSync(bin, ["run", "--help"], { encoding: "utf8", timeout: 10_000, windowsHide: true });
+  const lAyuda = paraLanzar(bin, ["run", "--help"], process.env);
+  const ayuda = spawnSync(lAyuda.file, lAyuda.args, { encoding: "utf8", timeout: 10_000, windowsHide: true, ...(lAyuda.verbatim ? { windowsVerbatimArguments: true } : {}) });
   const textoAyuda = `${ayuda.stdout ?? ""}${ayuda.stderr ?? ""}`;
   const tiene = (f) => !textoAyuda.trim() || new RegExp(`(^|\\s)${f}(\\s|=|,|$)`, "m").test(textoAyuda);
   const variante = /^[A-Za-z][A-Za-z0-9_-]{0,23}$/.test(a.effort ?? "") && tiene("--variant") ? ["--variant", a.effort] : [];
@@ -189,7 +190,8 @@ async function main() {
   // proceso (el `permission.external_directory` de conPermisoFuera); con él, un worker escribía fuera de su carpeta. Sin ese flag (opencode 1.x,
   // sin servicio) no hace falta.
   const aparte = tiene("--standalone") ? ["--standalone"] : [];
-  const hijo = spawn(bin, ["run", "--format", "json", ...aparte, ...pensar, "-m", prov.valor, ...variante], { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+  const lRun = paraLanzar(bin, ["run", "--format", "json", ...aparte, ...pensar, "-m", prov.valor, ...variante], env);
+  const hijo = spawn(lRun.file, lRun.args, { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, ...(lRun.verbatim ? { windowsVerbatimArguments: true } : {}) });
   const eventos = [];
   let resto = "";
   let stderr = "";
