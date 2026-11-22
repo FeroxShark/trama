@@ -6,7 +6,7 @@ import { mkdtempSync, readFileSync, existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { crearCola, type Encolado } from "../electron/cola.ts";
-import { crearTrabajos, type Pendiente } from "../electron/revision-trabajo.ts";
+import { crearModificador, crearTrabajos, type Pendiente } from "../electron/revision-trabajo.ts";
 import { LectorAgy, LectorClaude, LectorCodex } from "../electron/revision-flujo.ts";
 import { codexListo, correrRevisor, falloDeRevisor, type RevisionEstado } from "../electron/revision-plan.ts";
 import { esperarHasta } from "./esperar.ts";
@@ -381,4 +381,35 @@ test("una revisión no arranca si el líder ya tiene un debate vivo (B023)", asy
   debate = false;
   assert.equal(tr.iniciar(pedido, () => d).fase, "corriendo");
   await esperarHasta(async () => (await tr.estado(SID))?.fase === "hecha");
+});
+
+test("una revisión nueva descarta la guardada sin entregar de un plan viejo, y no se reintenta mientras corre (B024)", async () => {
+  const { tr, disco } = trabajos();
+  const { d } = deps(RESPUESTA);
+  tr.iniciar(pedido, () => ({ ...d, entregar: async () => Promise.reject(new Error("se cayó la cola")) }));
+  await esperarHasta(async () => (await tr.estado(SID))?.fase === "fallo");
+  const vieja = disco()[0]!.id;
+  let suelta!: () => void;
+  const espera = new Promise<void>((r) => (suelta = r));
+  tr.iniciar({ ...pedido, planId: "p2" }, () => ({ ...deps(RESPUESTA).d, correr: async () => (await espera, RESPUESTA) }));
+  await assert.rejects(tr.reintentar(SID, async () => {}), /revisionYaCorre/);
+  await esperarHasta(() => !disco().some((p) => p.id === vieja));
+  suelta();
+  await esperarHasta(async () => (await tr.estado(SID))?.fase === "hecha");
+  assert.deepEqual(disco(), []);
+});
+
+test("el archivo de pendientes se cambia de a una modificación: dos a la vez no se pisan (B025)", async () => {
+  let disco: Pendiente[] = [];
+  const mod = crearModificador(
+    async () => {
+      const copia = [...disco];
+      await new Promise<void>((r) => setImmediate(r)); // lectura lenta: sin cola, la otra lee lo mismo y pisa
+      return copia;
+    },
+    async (l) => void (disco = l),
+  );
+  const p = (id: string): Pendiente => ({ id, sid: id, planId: "x", modelo: "m", nombre: "M", mensaje: "t", inicio: 0 });
+  await Promise.all([mod((l) => [...l, p("a")]), mod((l) => [...l, p("b")]), mod((l) => l.filter((x) => x.id !== "a"))]);
+  assert.deepEqual(disco.map((x) => x.id), ["b"]);
 });

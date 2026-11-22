@@ -9,6 +9,17 @@ import { entregarGuardada, PASOS_MAX, revisarPlan, type Avance, type DepsRevisio
 /** Una revisión que ya salió y todavía no entró en la cola del líder: vive en disco. */
 export type Pendiente = { id: string; sid: string; planId: string; modelo: string; nombre: string; mensaje: string; inicio: number };
 
+/** Cambia la lista de pendientes de a una modificación por vez (leer, cambiar, escribir): dos a la vez se pisarían y se perdería una guardada. */
+export type Modificar = (cambio: (lista: Pendiente[]) => Pendiente[]) => Promise<void>;
+export function crearModificador(leer: () => Promise<Pendiente[]>, escribir: (lista: Pendiente[]) => Promise<void>): Modificar {
+  let cola: Promise<unknown> = Promise.resolve();
+  return (cambio) => {
+    const hecho = cola.then(async () => escribir(cambio(await leer().catch(() => []))));
+    cola = hecho.catch(() => {});
+    return hecho;
+  };
+}
+
 export type DepsTrabajos = {
   ahora: () => number;
   /** Cada cambio de estado (la ventana lo ve como el evento `revision` del líder). */
@@ -19,6 +30,8 @@ export type DepsTrabajos = {
   juntarMs?: number;
   /** ¿Ese líder ya tiene otro trabajo de segunda opinión corriendo (un debate)? Si sí, no se arranca una revisión. */
   ocupado?: (sid: string) => boolean;
+  /** El modificador compartido con quien más escribe ese archivo (el debate); sin él, uno propio sobre `leer` y `escribir`. */
+  modificar?: Modificar;
 };
 
 /** El texto de un error ya traducible por la ventana (clave de i18n codificada); lo demás se dice general. */
@@ -32,6 +45,7 @@ export function crearTrabajos(d: DepsTrabajos) {
   const estados = new Map<string, RevisionEstado>();
   const cortes = new Map<string, AbortController>();
   const juntar = d.juntarMs ?? 200;
+  const modificar = d.modificar ?? crearModificador(d.leer, d.escribir);
   let pendiente: ReturnType<typeof setTimeout> | null = null;
 
   const poner = (e: RevisionEstado, ya = true) => {
@@ -74,6 +88,8 @@ export function crearTrabajos(d: DepsTrabajos) {
       const previo = estados.get(x.sid);
       if (previo && (previo.fase === "corriendo" || previo.fase === "entregando")) throw errorT("main.revisionYaCorre");
       if (d.ocupado?.(x.sid)) throw errorT("main.revisionYaCorre");
+      // Una guardada sin entregar de un plan anterior no sobrevive a una revisión nueva (si no, «Reintentar» le entregaría al líder la vieja).
+      void modificar((l) => l.filter((p) => p.sid !== x.sid)).catch(() => {});
       const id = randomUUID();
       const inicio = d.ahora();
       const base: RevisionEstado = { id, sid: x.sid, planId: x.planId, modelo: x.modelo, nombre: x.nombre, fase: "corriendo", inicio, fin: null, pasos: [], texto: "", error: null, reintentable: false };
@@ -97,16 +113,14 @@ export function crearTrabajos(d: DepsTrabajos) {
           ...deps,
           guardar: async (mensaje, r: RevisionVista) => {
             await deps.guardar?.(mensaje, r);
-            const lista = (await d.leer().catch(() => [])).filter((p) => p.id !== id);
-            await d.escribir([...lista, { id, sid: x.sid, planId: x.planId, modelo: x.modelo, nombre: x.nombre, mensaje, inicio }]);
+            await modificar((l) => [...l.filter((p) => p.id !== id), { id, sid: x.sid, planId: x.planId, modelo: x.modelo, nombre: x.nombre, mensaje, inicio }]);
           },
           alEntregar: (r) => {
             deps.alEntregar?.(r);
             if (mio()) cambiar(x.sid, { fase: "entregando", texto: "" });
           },
           quitar: async () => {
-            const lista = await d.leer().catch(() => []);
-            await d.escribir(lista.filter((p) => p.id !== id));
+            await modificar((l) => l.filter((p) => p.id !== id));
           },
         },
         o,
@@ -136,13 +150,14 @@ export function crearTrabajos(d: DepsTrabajos) {
     /** Reintenta entregar una revisión guardada que no entró en la cola. */
     async reintentar(sid: string, entregar: (texto: string) => Promise<unknown>): Promise<RevisionEstado> {
       const e = await trabajos.estado(sid);
+      if (e && (e.fase === "corriendo" || e.fase === "entregando")) throw errorT("main.revisionYaCorre");
       const p = (await pendientesDe(sid)).at(-1);
       if (!e || !p) throw errorT("main.revisionNadaQueEntregar");
       poner({ ...e, fase: "entregando", error: null, reintentable: false, fin: null });
       try {
         await entregarGuardada(p.mensaje, {
           entregar,
-          quitar: async () => d.escribir((await d.leer().catch(() => [])).filter((x) => x.id !== p.id)),
+          quitar: () => modificar((l) => l.filter((x) => x.id !== p.id)),
         });
         cambiar(sid, { fase: "hecha", fin: d.ahora() });
       } catch (err) {

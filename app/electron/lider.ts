@@ -62,7 +62,7 @@ import {
 } from "./lider-arma.js";
 import * as puntos from "./puntos.ts";
 import { archivosDelPlan, codexListo, correrRevisor, effortApagado, revisoresPermitidos, type OpcionesCorrida, type RevisionEstado } from "./revision-plan.ts";
-import { crearTrabajos, type Pendiente } from "./revision-trabajo.ts";
+import { crearModificador, crearTrabajos, type Pendiente } from "./revision-trabajo.ts";
 import { type EventoDebate, type Participante } from "./debate.ts";
 import { crearDebates } from "./debate-trabajo.ts";
 import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
@@ -2282,11 +2282,15 @@ const leerRevisiones = async (): Promise<Pendiente[]> => {
   const j = await readFile(ARCHIVO_REVISIONES, "utf8").then((t) => JSON.parse(t) as { pendientes?: unknown }, () => null);
   return Array.isArray(j?.pendientes) ? (j.pendientes as Pendiente[]).filter((p) => p && typeof p.sid === "string" && typeof p.mensaje === "string") : [];
 };
+const escribirRevisiones = (lista: Pendiente[]) => escribirAtomico(ARCHIVO_REVISIONES, JSON.stringify({ version: 1, pendientes: lista }));
+/** Toda modificación de ese archivo pasa por acá (la revisión y el debate lo comparten): de a una, sin pisarse. */
+const modificarRevisiones = crearModificador(leerRevisiones, escribirRevisiones);
 const revisiones = crearTrabajos({
   ahora: Date.now,
   emitir: (e) => alEv(e.sid, { tipo: "revision", estado: e }),
   leer: leerRevisiones,
-  escribir: (lista) => escribirAtomico(ARCHIVO_REVISIONES, JSON.stringify({ version: 1, pendientes: lista })),
+  escribir: escribirRevisiones,
+  modificar: modificarRevisiones,
   // La guarda inversa de la del debate (`preparar`): con un debate vivo en ese líder no corre una revisión simple.
   ocupado: (sid) => debates.viva(sid),
 });
@@ -2360,7 +2364,6 @@ export function debatesDe(correr: typeof correrRevisor = correrRevisor) {
       const nombres = new Map(participantes.map((p) => [p.modelo, String(p.nombre ?? "").slice(0, 60) || p.modelo]));
       const idPendiente = randomUUID();
       const inicio = Date.now();
-      const sin = async () => (await leerRevisiones()).filter((p) => p.id !== idPendiente);
       return {
         plan: String((q.ev as { plan?: string | null }).plan ?? ""),
         deps: {
@@ -2375,11 +2378,11 @@ export function debatesDe(correr: typeof correrRevisor = correrRevisor) {
             if (procs.get(x.sid)?.pedidos.has(x.id)) responderPermiso(x.sid, x.id, { ok: false, mensaje });
           },
           // La conclusión se guarda en disco hasta que entra por la cola del líder (como la revisión simple: un fallo de entrega no la pierde).
-          guardar: async (mensaje) =>
-            escribirAtomico(ARCHIVO_REVISIONES, JSON.stringify({ version: 1, pendientes: [...(await sin()), { id: idPendiente, sid: x.sid, planId: x.id, modelo: participantes[0]!.modelo, nombre: [...nombres.values()].join(", "), mensaje, inicio }] })),
+          guardar: (mensaje) =>
+            modificarRevisiones((l) => [...l.filter((p) => p.id !== idPendiente), { id: idPendiente, sid: x.sid, planId: x.id, modelo: participantes[0]!.modelo, nombre: [...nombres.values()].join(", "), mensaje, inicio }]),
           entregar: async (texto) => {
             await entregaRevision(x.sid, texto);
-            await escribirAtomico(ARCHIVO_REVISIONES, JSON.stringify({ version: 1, pendientes: await sin() })).catch(() => {});
+            await modificarRevisiones((l) => l.filter((p) => p.id !== idPendiente)).catch(() => {});
           },
         },
       };
