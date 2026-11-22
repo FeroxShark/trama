@@ -57,6 +57,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "cupos", nombre: "ajustes.cierreUmbral", que: "ajustes.cierreUmbralQue", sin: "umbral threshold porcentaje percent cierre ordenado shutdown cupo bajo" },
   { cat: "cupos", nombre: "ajustes.cierreRetomar", que: "ajustes.cierreRetomarQue", sin: "retomar resume solo own volver back cupo quota cierre ordenado" },
   { cat: "cupos", nombre: "ajustes.cuposSinCupo", que: "ajustes.cuposSinCupoQue", sin: "sin cupo out of quota agotado usar otro use another esperar wait fallar fail reemplazo fallback proveedor provider" },
+  { cat: "cupos", nombre: "ajustes.cuposTopeVivos", que: "ajustes.cuposTopeVivosQue", sin: "tope vivos workers a la vez simultaneos concurrent parallel cola queue limite limit suscripcion subscription cupo quota grupo group lanzamientos launches" },
 
   { cat: "locales", nombre: "ajustes.mdlLocales", que: "ajustes.mdlOllamaQue", sin: "ollama local llama gpu offline detectar detect" },
   { cat: "locales", nombre: "ajustes.mdlInstalados", que: "ajustes.mdlInstaladosQue", sin: "ollama instalados installed modelos locales agregar add usar" },
