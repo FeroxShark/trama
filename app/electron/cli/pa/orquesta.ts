@@ -23,7 +23,8 @@ import { avisarFalta, jefeId, jefeNombre, type Env, type Pa } from "./entorno.ts
 import { carpetaProyectos, claudeFalla, claudeRc, correrClaude, escapar, limiteDe, lanzarClaude, type Corrida, type Ganchos, type OpcionesLanzar } from "./lanzar.ts";
 import { TIPOS_VALIDOS } from "./modelos.ts";
 import { topeDeTurnos } from "./opciones.ts";
-import { Admision, avisarParalelo, otrosWriters, runningVivo } from "./puestos.ts";
+import { grupoDeModelo } from "../reparto.ts";
+import { Admision, avisarParalelo, grupoDeTope, otrosWriters, runningVivo } from "./puestos.ts";
 import { esperarCupo, relanzarPorCupo, relanzarPorFallback } from "./cupo.ts";
 import { ganchosDe } from "./ganchos.ts";
 import { cacheDeSesion } from "./hilos.ts";
@@ -375,6 +376,12 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
     aca: l.aca,
     tsRetomada,
     async: Boolean(env.PA_ASYNC),
+    // tope de workers vivos por grupo de cupo (`tope_vivos`): el modelo y la cuenta se leen cada vez, porque la espera de cupo los cambia
+    cupo: {
+      topes: modelos.topeVivos(),
+      grupoDe: (m, c) => grupoDeTope(m, c, grupoDeModelo),
+      actual: () => ({ modelo: l.modelo, cuenta: l.cuentaUsada }),
+    },
     alMensaje: (m) => {
       if (m.orden === ORDEN_PARAR.orden) parar.abort();
     },
@@ -567,8 +574,17 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
         if (salida !== undefined && !esNvidia(m)) await repartoProceso(pa).opencodeLimite?.(salida);
         await repartoProceso(pa).enfriar?.(m, horasEnfriar(m, env));
       },
-      relanzarPorCupo: relanzarPorCupo(pa, l),
-      relanzarPorFallback: relanzarPorFallback(pa, l),
+      // un relanzamiento por cupo o por fallback cambia el modelo (y quizá la cuenta): el lugar del tope pasa al grupo nuevo
+      relanzarPorCupo: async (lz, intento) => {
+        const r = await relanzarPorCupo(pa, l)(lz, intento);
+        if (r) await adm.cambiarGrupo(lz.c.modelo, lz.c.cuenta);
+        return r;
+      },
+      relanzarPorFallback: async (lz) => {
+        const r = await relanzarPorFallback(pa, l)(lz);
+        if (r) await adm.cambiarGrupo(lz.c.modelo, lz.c.cuenta);
+        return r;
+      },
       ...o.ganchos,
       soltar: async () => {
         await adm.soltarTodo();
