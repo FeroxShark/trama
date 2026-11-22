@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 process.env.TRAMA_DUENO = "Ana";
-const { aplicarCortes, armarRelevo, hastaMensaje, unirConvs, TOPE_RELEVO } = await import("../electron/relevo-motor.ts");
+const { aplicarCortes, armarRelevo, hastaMensaje, resumenDelModelo, sumarAlRelevo, unirConvs, TOPE_RELEVO } = await import("../electron/relevo-motor.ts");
 const { convNueva } = await import("../electron/lider-arma.ts");
 
 const m = (rol: "user" | "assistant", texto: string, ts: string | null, extra: object = {}) =>
@@ -89,4 +89,25 @@ test("armarRelevo: los mensajes seguidos del modelo (una herramienta cada uno) v
   assert.ok(!r.texto.includes("ls dir11"), "las que pasan el tope no se listan una por una");
   assert.match(r.texto, /\[corrió: ls dir6\]\n\[… y 5 herramientas más\]\nlisto, quedó arreglado/);
   assert.equal(r.incluidos, todos.length, "se cuentan mensajes, no bloques");
+});
+
+test("resumenDelModelo: lo del modelo cuenta; un relevo armado por Trama o un archivo vacío, no", () => {
+  assert.equal(resumenDelModelo("  Qué se hizo: X\nPróximo paso: Y \n"), "Qué se hizo: X\nPróximo paso: Y");
+  assert.equal(resumenDelModelo(armarRelevo([m("user", "hola", null)], { de: "a", a: "b" }).texto), null);
+  assert.equal(resumenDelModelo("  \n"), null);
+  assert.equal(resumenDelModelo(null), null);
+});
+
+test("sumarAlRelevo: con resumen y nota los trae bajo su título; sin ninguno deja el relevo igual; con tope recorta lo más viejo", () => {
+  const base = armarRelevo([m("user", "hola", null)], { de: "a", a: "b" }).texto;
+  assert.equal(sumarAlRelevo(base, {}), base);
+  assert.equal(sumarAlRelevo(base, { resumen: " ", nota: null }), base);
+  const t = sumarAlRelevo(base, { resumen: "RESUMEN-CUPO", nota: "NOTA-COMPACTAR" });
+  assert.ok(t.startsWith(base));
+  assert.match(t, /## Resumen que dejó el modelo al cerrar por cupo\nRESUMEN-CUPO/);
+  assert.match(t, /## Nota del modelo antes de compactar\nNOTA-COMPACTAR/);
+  assert.ok(t.indexOf("RESUMEN-CUPO") < t.indexOf("NOTA-COMPACTAR"));
+  assert.equal(sumarAlRelevo("", { nota: "sola" }), "## Nota del modelo antes de compactar\nsola");
+  const largo = sumarAlRelevo(base, { nota: "a".repeat(100) + "FINAL", tope: 20 });
+  assert.ok(largo.includes("FINAL") && largo.includes("[recortado]") && !largo.includes("a".repeat(30)));
 });

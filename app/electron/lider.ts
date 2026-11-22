@@ -67,7 +67,7 @@ import { cupoLibreDeModelo } from "./debate-cupo.ts";
 import { crearModificador, crearTrabajos, type Pendiente } from "./revision-trabajo.ts";
 import { type EventoDebate, type Participante } from "./debate.ts";
 import { crearDebates } from "./debate-trabajo.ts";
-import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
+import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, resumenDelModelo, sumarAlRelevo, unirConvs, type Familia } from "./relevo-motor.ts";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { barrerEtiqueta, nuevaEtiqueta, VARIABLE } from "./huerfanos.js";
 import { arranqueDe } from "./local.js";
@@ -83,7 +83,7 @@ import { hijoEnGrupo, interrumpir, matarArbol, plazoParar } from "./procesos.ts"
 import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, notaCompactarGuardado, notaCompactarPctGuardado, notaCompactarTareaPctGuardado, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
 import { baseNota, umbralesNota } from "./modelos-tipos.ts";
 import { VENTANA_GEMINI } from "./agy-stream.ts";
-import { cargarTextosNota, debeAutoCompactar, extraerNotaDeTexto, guardarNotaSiCambia, idiomaDeEstado, mtimeNota, textosNotaCargados, usoDeLineaStream, type UmbralesNota } from "./nota-compactar-main.ts";
+import { cargarTextosNota, debeAutoCompactar, extraerNotaDeTexto, guardarNotaSiCambia, idiomaDeEstado, leerNotaGuardada, mtimeNota, textosNotaCargados, usoDeLineaStream, type UmbralesNota } from "./nota-compactar-main.ts";
 import { ventanaDe } from "./contexto-previa.ts";
 import { leerUmbralYa } from "./contexto.ts";
 import { parsearModelo } from "./dsh.ts";
@@ -1639,9 +1639,19 @@ async function cambiarDeMotor(g: Guardado, modelo: string): Promise<string | und
   const ahora = familiaDeModelo(modelo);
   const hubo = await transcriptFamilia(g.sid, antes, g.cwd);
   const archivo = archivoRelevo(g.sid);
+  // Antes de borrar el relevo viejo: si lo dejó el modelo (el resumen del cierre por cupo) y no Trama, viaja al relevo nuevo.
+  const resumen = resumenDelModelo(await readFile(archivo, "utf8").catch(() => null));
+  const nota = leerNotaGuardada(ESTADO, g.sid);
   await rm(archivo, { force: true });
   // Una rama con relevo (`heredado`) todavía sin transcript propio también tiene qué relevar: lo heredado.
-  if (!hubo && !g.heredado) return;
+  if (!hubo && !g.heredado) {
+    const solo = sumarAlRelevo("", { resumen, nota });
+    if (solo) {
+      await mkdir(path.dirname(archivo), { recursive: true });
+      await writeFile(archivo, solo + "\n", { mode: 0o600 });
+    }
+    return;
+  }
   const todo = conVista(g) ? await convUnida(g) : await convDe(`${g.sid}#${antes}`, hubo);
   // Lo que el motor nuevo ya tiene en su propia sesión: sólo se le cuenta lo posterior.
   const propio = await transcriptFamilia(g.sid, ahora, g.cwd);
@@ -1663,9 +1673,10 @@ async function cambiarDeMotor(g: Guardado, modelo: string): Promise<string | und
     }
   }
   const relevo = armarRelevo(todo.todos, { de: g.modelo, a: modelo, ...(desde !== undefined ? { desde } : {}) });
-  if (relevo.texto) {
+  const texto = sumarAlRelevo(relevo.texto, { resumen, nota });
+  if (texto) {
     await mkdir(path.dirname(archivo), { recursive: true });
-    await writeFile(archivo, relevo.texto + "\n", { mode: 0o600 });
+    await writeFile(archivo, texto + "\n", { mode: 0o600 });
   }
   // Un puente sólo abre su sesión de agy / dsh con el prefacio si no hay una anotada: la anterior se aparta (su transcript queda).
   if (ahora !== "claude" && propio) await rename(lado(g.sid, ahora), `${lado(g.sid, ahora)}.previa`).catch(() => {});

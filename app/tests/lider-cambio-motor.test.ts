@@ -201,6 +201,40 @@ test("Gemini → Claude sin sesión previa de Claude: --session-id, el relevo en
   assert.ok(!log().at(-1)!.args.includes("--append-system-prompt-file"));
 });
 
+test("cambiar de motor conserva el resumen del cierre por cupo y la nota antes de compactar; sin ellos el relevo queda como siempre", { timeout: 60_000 }, async () => {
+  const estado = process.env.HILOS_STATE!;
+  const turnos = [
+    { rol: "user" as const, texto: "Quiero armar el informe" },
+    { rol: "assistant" as const, texto: "Empiezo por los datos" },
+  ];
+  // Con resumen del cierre por cupo (lo escribió el modelo en relevos/<sid>.md) y una nota guardada.
+  const sid = await lider.nuevo({ modelo: "claude-opus-5-5", effort: "high", texto: "con extras" });
+  await hasta(() => de(sid, "fin").length === 1);
+  escribirTranscriptClaude(sid, turnos);
+  mkdirSync(path.join(estado, "relevos"), { recursive: true });
+  writeFileSync(path.join(estado, "relevos", `${sid}.md`), "Qué se hizo: RESUMEN-DEL-CIERRE\nPróximo paso: seguir\n");
+  mkdirSync(path.join(estado, "notas"), { recursive: true });
+  writeFileSync(path.join(estado, "notas", `${sid}.md`), "NOTA-ANTES-DE-COMPACTAR: la clave es X");
+  await lider.mandar({ sid, texto: "seguí vos", modelo: "gemini-4-argon", effort: "high" });
+  await hasta(() => de(sid, "fin").length === 2);
+  const l = llamadasAgy().at(-1)!;
+  assert.match(l.prompt, /Historial de esta conversación/);
+  assert.match(l.prompt, /Ana: Quiero armar el informe/);
+  assert.match(l.prompt, /## Resumen que dejó el modelo al cerrar por cupo\nQué se hizo: RESUMEN-DEL-CIERRE/);
+  assert.match(l.prompt, /## Nota del modelo antes de compactar\nNOTA-ANTES-DE-COMPACTAR: la clave es X/);
+
+  // Sin resumen ni nota: sólo el relevo de siempre.
+  const sid2 = await lider.nuevo({ modelo: "claude-opus-5-5", effort: "high", texto: "sin extras" });
+  await hasta(() => de(sid2, "fin").length === 1);
+  escribirTranscriptClaude(sid2, turnos);
+  await lider.mandar({ sid: sid2, texto: "seguí vos", modelo: "gemini-4-argon", effort: "high" });
+  await hasta(() => de(sid2, "fin").length === 1 + 1);
+  const l2 = llamadasAgy().at(-1)!;
+  assert.match(l2.prompt, /Ana: Quiero armar el informe/);
+  assert.ok(!l2.prompt.includes("Resumen que dejó el modelo"));
+  assert.ok(!l2.prompt.includes("Nota del modelo antes de compactar"));
+});
+
 test("el relevo se recorta al tope: entra lo más reciente y se avisa cuántos mensajes se omitieron", { timeout: 60_000 }, async () => {
   const sid = await lider.nuevo({ modelo: "claude-opus-5-5", effort: "high", texto: "largo" });
   await hasta(() => de(sid, "fin").length === 1);

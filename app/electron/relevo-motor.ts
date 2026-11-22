@@ -252,3 +252,33 @@ export function armarRelevo(todos: Crudo[], x: { de: string; a: string; tope?: n
   ].join("\n");
   return { texto: `${nota}\n\n${entran.join("\n\n")}`, omitidos, incluidos };
 }
+
+/** El título con el que empieza todo relevo que arma Trama: lo que no lo trae lo dejó el modelo (el resumen del cierre por cupo). */
+const MARCA_RELEVO = "# Historial de esta conversación";
+
+/**
+ * Lo que el modelo dejó escrito en `relevos/<sid>.md` (el resumen del cierre por cupo), si es de él: un relevo armado por Trama
+ * empieza con `MARCA_RELEVO` y se vuelve a armar desde el transcript, así que no cuenta. `null` si no hay nada o es de Trama.
+ */
+export function resumenDelModelo(previo: string | null | undefined): string | null {
+  const t = (previo ?? "").trim();
+  return t && !t.startsWith(MARCA_RELEVO) ? t : null;
+}
+
+/** Recorta un texto al tope del relevo (se queda con el final, que es lo más reciente). */
+const aTope = (t: string, tope: number) => (t.length > tope ? `[recortado] …${t.slice(t.length - tope)}` : t);
+
+/**
+ * Suma al relevo lo que el modelo dejó escrito para el que sigue: su resumen del cierre por cupo y su nota antes de compactar,
+ * cada uno con su título y con el mismo tope que el relevo. Sin ninguno de los dos devuelve `texto` tal cual.
+ */
+export function sumarAlRelevo(texto: string, x: { resumen?: string | null; nota?: string | null; tope?: number }): string {
+  const tope = x.tope ?? TOPE_RELEVO;
+  const partes: string[] = [];
+  if (texto) partes.push(texto);
+  const resumen = x.resumen?.trim();
+  const nota = x.nota?.trim();
+  if (resumen) partes.push(`## Resumen que dejó el modelo al cerrar por cupo\n${aTope(resumen, tope)}`);
+  if (nota) partes.push(`## Nota del modelo antes de compactar\n${aTope(nota, tope)}`);
+  return partes.join("\n\n");
+}

@@ -87,6 +87,22 @@ export function extraerNotaDeTexto(texto: string): string | null {
 export const rutaNota = (estadoDir: string, sid: string): string => path.join(estadoDir, "notas", `${sid}.md`);
 export const rutaNotaDevuelta = (estadoDir: string, sid: string): string => path.join(estadoDir, "notas", `${sid}.devuelta.md`);
 
+/** La nota más nueva de la sesión (`<sid>.md` o la ya devuelta `<sid>.devuelta.md`), entera; `null` si no hay ninguna con texto. */
+export function leerNotaGuardada(estadoDir: string, sid: string): string | null {
+  if (!SESION_NOTA_OK.test(sid)) return null;
+  let mejor: { ms: number; texto: string } | null = null;
+  for (const ruta of [rutaNota(estadoDir, sid), rutaNotaDevuelta(estadoDir, sid)]) {
+    try {
+      const texto = readFileSync(ruta, "utf8");
+      const ms = statSync(ruta).mtimeMs;
+      if (texto.trim() && (!mejor || ms > mejor.ms)) mejor = { ms, texto };
+    } catch {
+      /* no está */
+    }
+  }
+  return mejor?.texto.trim() ?? null;
+}
+
 /** `mtimeMs` de `<estado>/notas/<sid>.md` si existe y no está vacío; si no, `null`. */
 export function mtimeNota(estadoDir: string, sid: string): number | null {
   if (!SESION_NOTA_OK.test(sid)) return null;
