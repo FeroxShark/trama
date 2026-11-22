@@ -278,15 +278,33 @@ Orden por ahorro. Los paquetes no comparten archivos.
 
 Nota: P2 y P5 tocan `lanzar.ts`: ir en serie, no en paralelo. Los CTX-29 a CTX-36 y los de P8 y P9 sin segundo lector esperan a ser verificados antes de arreglarse.
 
+## Segunda lectura (2026-11-22)
+
+Lectores de sólo lectura (Haiku, `pa --leer`), uno por bloque. Veredictos del código, sin ejecutar.
+
+Cuentas y ventanas (CTX-37 a 47): 8 confirmados, 2 refutados, 1 dudoso.
+- REFUTADO CTX-37: `contexto-previa.ts:61` da 1M a Haiku 5.5 y los umbrales de `lanzar.ts:292` y `lider.ts:625/731` usan esa función; el 200k de `contexto-logica.ts:51` sólo muestra. Cita del test corregida: `tests/nota-compactar-hook.test.ts:529`.
+- DUDOSO CTX-38: `codex-stream.ts:209` guarda `input_tokens` como contexto; si es acumulado lo define Codex. Cierre: `codex exec --json` en un turno con varias herramientas, comparando `turn.completed.input_tokens` con cada pedido.
+- REFUTADO CTX-39: el arranque no es siempre 0 (`codex-stream.ts:99` toma `contextoPrevio`).
+- CONFIRMADO CTX-40 (`contexto-desglose.ts:429`), CTX-41 (`cache.ts:76`, `lider.ts:840`), CTX-42 (`hilos.ts:227-236`, `:448-450`), CTX-44 (`nota-compactar.mjs:563`, 85 fijo), CTX-45 (`contexto-panel.ts:92-93`, `windows/src/canales.json:181`), CTX-46 (`contexto-sesion.ts:8` usa 3,5; `contexto-local.ts:17` usa 3), CTX-47 (`cache-pregunta.ts:18`, `:60`).
+- CTX-43 quedó CONFIRMADO con «sin verificar»: los umbrales 85/95 del panel y el origen de `autoCompact` en worker.
+- Hallazgo nuevo: `app/tests/contexto.test.ts:33` fija Haiku en 200k; unificar la ventana obliga a cambiarlo.
+
+Windows contra Linux (CTX-48 a 60): 9 confirmados, 2 refutados, 2 dudosos. Nada de esto se midió en Windows: todo sale de leer el código.
+- REFUTADO CTX-49 (`orquesta.ts:436` ya pasa `{plat}`) y CTX-53 (`config.mjs:124` y `:79` ya usan rutas y `opencode.cmd` de Windows).
+- CONFIRMADO: CTX-48 (`terminal-agentes.ts:7`, matchers `Bash` en `lanzar.ts:322` y `hooks.ts:133`, `destructive-guard.mjs:83`), CTX-50 (`hooks.ts:217-218` no registra `nota-compactar`, `resumen-modelos` ni `hook-compactando`; sí en Linux: `app/scripts/registrar-hook.mjs:156-180`), CTX-51 (`hooks.ts:82-83`, `:159`, `contexto-local.ts:72`), CTX-52 (`cierre-cupo.mjs:39,41`, `entorno.ts:312`), CTX-54 (`llamada.ts:177`, `otros-motores.ts:97,174`), CTX-55 (`lanzar.ts:312`, `cli.ts:228`, `privacidad.ts:54`), CTX-57 (`hooks.ts:232` con `renameSync` en `archivo.ts:72`), CTX-58 (`chequeo.ts:244,262`), CTX-59 (`lecciones.ts` sin normalizar `\r`).
+- DUDOSO CTX-56 (`hilos.ts:445,451` no leídos; `lanzar.ts:225-227` ya respeta `CLAUDE_CONFIG_DIR`). Cierre: `pa --hilos` en Windows con `C:\` contra `c:\`.
+- DUDOSO CTX-60 (`ramas.ts:400` no leído). Cierre: `pa --integrar --tests` en Windows con un registry que tenga `npm test && ls`.
+- Hallazgo nuevo CTX-61: `app/electron/cli/tablero.ts:369` lee `perfil.json` de `~/.config`, igual que `entorno.ts:312` (mismo error que CTX-52).
+- Varias citas tenían líneas viejas (CTX-48, 49, 52, 53, 55); las de arriba son las actuales.
+
 ## Qué falta auditar
 
-- Un segundo lector para CTX-37 a CTX-47 (cuentas y ventanas) y CTX-51 a CTX-60 (Windows contra Linux): hoy sólo los vio su autor.
-- Correr en Windows lo de CTX-48 a CTX-60: todo sale de leer el código, sin medición en esa plataforma.
-- Los hallazgos sin verificar del primer tramo (CTX-29, CTX-30, CTX-32, CTX-34, CTX-35, CTX-36).
-- Los 11 casos de caché perdido con pausa menor a 5 min y sin cambio de modelo.
-- El `prompt_snapshot` (144 x 6 530 tokens): sin identificar.
-- Si Claude Code fusiona varios `--settings` (CTX-21).
-- El efecto real en caché de `argsCierre` sin `--exclude-dynamic` (CTX-13).
+- Medir en Windows (sin máquina aquí): CTX-48 a 60 quedan con veredicto de código; las pruebas de DUDOSO y de «sin verificar» se listan arriba.
+- Medir en ejecución: CTX-38 (`codex exec --json`), CTX-41 (efecto de la caché 1h), CTX-43 (umbrales del panel).
+- Cerrar sin leer: CTX-43 (`autoCompact` del worker), CTX-46 (prefacios de otros motores), CTX-52 (escritor del mapa), CTX-56 (`hilos.ts:445,451`), CTX-60 (`ramas.ts:400`), CTX-59 (`CHARS_POR_TOKEN`).
+- Sin resolver: el `prompt_snapshot` (144 × 6 530 tokens) y los 11 casos de caché perdido con pausa menor a 5 min sin cambio de modelo.
+- Paquetes P1, P2, P3, P4, P6, P8 y P9: pendientes de decisión de Ferox (cambian lo que ve la persona) y de correr en Windows (P9).
 
 ## Lo refutado
 
