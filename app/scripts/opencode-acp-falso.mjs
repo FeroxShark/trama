@@ -60,8 +60,9 @@ createInterface({ input: process.stdin }).on("line", (l) => {
         return;
       }
       if (modo === "stderr-partido") {
-        process.stderr.write("ERROR AI_APICall");
-        setTimeout(() => process.stderr.write(`${ERROR.slice("AI_APICall".length)}\n`), 50);
+        const corte = ERROR.indexOf("Free usa") + "Free usa".length; // parte la frase: ninguna mitad sola es el error
+        process.stderr.write(`ERROR ${ERROR.slice(0, corte)}`);
+        setTimeout(() => process.stderr.write(`${ERROR.slice(corte)}\n`), 50);
         return;
       }
       if (modo === "error-data") return enviar({ id: m.id, error: { code: -32000, message: "Provider error", data: ERROR } });

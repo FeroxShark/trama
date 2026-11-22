@@ -84,3 +84,17 @@ test("PUENTES-5: un «Mandar ya» que obliga a relanzar opencode con la sesión 
   assert.match(segundo, /PREFACIO-DE-PRUEBA/, "sin el prefacio");
   assert.match(segundo, /Ana: primero/, "sin lo hablado");
 });
+
+// PUENTES-6: el error de «uso gratis agotado» tiene que cortar el turno ya (no a los 180 s sin eventos) venga como venga.
+for (const modo of ["pensando", "partido", "stderr-partido", "error-data"]) {
+  test(`PUENTES-6: el error de cuota de opencode (${modo}) termina el turno con el aviso de sin cupo y marca agotado`, { timeout: 60_000 }, async () => {
+    const p = new Puente(modo, { TRAMA_OPENCODE_SIN_EVENTOS_MS: "600000" });
+    p.mandar("hola");
+    await hasta(() => p.resultados.length === 1, 20_000, `el turno quedó colgado; stderr: ${p.stderr.slice(-400)}`);
+    const r = p.resultados[0];
+    assert.equal(r.is_error, true);
+    assert.match(String(r.result ?? r.error ?? JSON.stringify(r)), /i18n:main\.opencodeSinCupo/);
+    const agotado = path.join(tmp, `reparto-${n}`, "agotado.json");
+    assert.ok(existsSync(agotado) && JSON.parse(readFileSync(agotado, "utf8"))["opencode-free"]?.hasta, "el uso gratis quedó marcado agotado");
+  });
+}

@@ -499,6 +499,11 @@ let vigilante: NodeJS.Timeout | null = null;
 const esErrorDeServidorOpencode = (t: string): boolean => esLimiteGratisOpencode(t) || /AI_RetryError|AI_APICallError.*(?:429|quota|limit)/i.test(t);
 
 /** opencode (1.19) no cierra el `session/prompt` cuando el servidor le contesta el límite gratis: se anota la causa y se lo mata para que el turno termine con el aviso. */
+/** Lo dicho por el agente desde el principio del turno hasta su primera herramienta (`null`: ya hubo una); para reconocer el error del servidor. */
+let inicioDicho: string | null = null;
+/** El stderr de opencode desde que empezó el turno. */
+let stderrDelTurno = "";
+
 function cortarPorErrorDelServidor(c: ClienteAcp, t: string) {
   if (causaCorte) return;
   causaCorte = t;
@@ -563,12 +568,17 @@ async function levantar(): Promise<void> {
       ultimaActividad = Date.now();
       // opencode a veces cuenta el error del servidor como si fuera lo que dijo el modelo: si es lo PRIMERO del turno, es el error.
       const dicho = u.sessionUpdate === "agent_message_chunk" && typeof u.content?.text === "string" ? u.content.text : "";
-      if (oc && dicho && !actual.hablo && esErrorDeServidorOpencode(dicho)) return cortarPorErrorDelServidor(c, dicho);
+      // El error puede venir después de un pensamiento o partido en varios chunks: se junta lo dicho hasta la primera herramienta (con tope).
+      if (u.sessionUpdate === "tool_call") inicioDicho = null;
+      else if (dicho && inicioDicho !== null && inicioDicho.length < 1500) inicioDicho += dicho;
+      if (oc && dicho && inicioDicho !== null && esErrorDeServidorOpencode(inicioDicho)) return cortarPorErrorDelServidor(c, inicioDicho);
       for (const o of actual.actualizacion(u)) salida(o);
     },
     alStderr: (t) => {
       process.stderr.write(`${MOTOR}: ${t}`);
-      if (oc && ocupado && !causaCorte && esErrorDeServidorOpencode(t)) cortarPorErrorDelServidor(c, t);
+      // La línea puede llegar partida entre dos `data`: se mira lo acumulado del turno, no sólo el último pedazo.
+      stderrDelTurno = (stderrDelTurno + t).slice(-2000);
+      if (oc && ocupado && !causaCorte && esErrorDeServidorOpencode(stderrDelTurno)) cortarPorErrorDelServidor(c, stderrDelTurno);
     },
   });
   cliente = c;
@@ -620,7 +630,9 @@ async function levantar(): Promise<void> {
  */
 function textoDeError(e: unknown): string {
   const secretos = [process.env.OPENCODE_API_KEY, process.env.DEEPSEEK_API_KEY, ...secretosMcp()];
-  const err = [cliente?.stderr || stderrPerdido, causaCorte && causaCorte !== "sin-eventos" ? causaCorte : ""].filter(Boolean).join("\n");
+  // El detalle de un error JSON-RPC (`error.data`) también puede traer la cuota: cuenta como parte del error.
+  const datos = e instanceof ErrorAcp && e.data != null ? (typeof e.data === "string" ? e.data : JSON.stringify(e.data)) : "";
+  const err = [cliente?.stderr || stderrPerdido, causaCorte && causaCorte !== "sin-eventos" ? causaCorte : "", datos].filter(Boolean).join("\n");
   // OpenCode Go: el cupo es por modelo. Un 429 marca agotado SOLO este modelo (~5 h); los demás de Go y el límite de los gratis no se tocan.
   if (oc && esModeloGo(oc.valor) && esCuotaOc(`${String((e as Error)?.message ?? e)}\n${err}`)) {
     marcarModeloGoAgotado(modelo, undefined, process.env, Date.now(), cuentaAgregadaDe(process.env));
@@ -727,6 +739,8 @@ async function turno(m: Mensaje) {
   const t0 = Date.now();
   const previo = hablado(); // antes de anotar este mensaje (por si hay que empezar una sesión nueva)
   anotar({ type: "user", message: { role: "user", content: m.imagenes.length ? `${m.texto}\n[${m.imagenes.length} imagen(es) adjunta(s)]`.trim() : m.texto } });
+  inicioDicho = "";
+  stderrDelTurno = "";
   let tr = (actual = new Traductor());
   tr.usado = leerLado().contexto ?? 0;
   let error: string | null = null;
