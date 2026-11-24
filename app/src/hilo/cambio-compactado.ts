@@ -81,7 +81,8 @@ export type SenalCompactado = {
  * Un `motivo` vacío en `fallo` lo completa la vista con el mensaje traducido según `finEstado`.
  */
 export function evaluarProgreso(estado: EstadoCambioCompactado, s: SenalCompactado): EventoCambioCompactado | null {
-  if (estado.fase !== "compactando") return null;
+  // Mientras se manda el `/compact`, un cierre es el del proceso viejo que el main relanza con el otro modelo, no la compactación.
+  if (estado.fase !== "compactando" || estado.enviando) return null;
   if (s.fines > s.finesBase) {
     if (s.finEstado === "error") return { tipo: "fallo", motivo: s.errorTexto ?? "" };
     if (s.finEstado === "parado") return { tipo: "fallo", motivo: "" };

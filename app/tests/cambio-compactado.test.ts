@@ -208,3 +208,14 @@ test("useCompactar vive en compactar.ts y las claves i18n nuevas existen en es y
     assert.ok(k in en && en[k].trim(), `en:${k}`);
   }
 });
+
+test("el cierre del proceso que el main relanza mientras se manda /compact no es la compactación (2026-11-24)", () => {
+  // Compactar con Haiku desde Fable: el main relanza el proceso (otro tope y otro asesor) y la salida del viejo suma un cierre.
+  let estado = siguienteCambio(REPOSO, { tipo: "iniciar", destino: { modelo: "claude-fable-5-2", effort: "high" } });
+  const salio = { compactandoAhora: false, fines: 1, finesBase: 0, compactos: 0, compactosBase: 0, finEstado: "listo" as const, errorTexto: null };
+  assert.equal(evaluarProgreso(estado, salio), null);
+  // Entró el /compact: la base cuenta desde acá y sigue esperando que empiece.
+  estado = siguienteCambio(estado, { tipo: "enviado" });
+  assert.equal(evaluarProgreso(estado, { ...salio, finesBase: 1 }), null);
+  assert.equal(debeEsperarInicio(estado), true);
+});

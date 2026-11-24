@@ -58,7 +58,7 @@ import { OfertaCuenta } from "./OfertaCuenta";
 import { TarjetaCierre } from "./TarjetaCierre";
 import { useCierre } from "./cierre-vivo";
 import { cuentasClaude, ofertaDeCambio } from "../barra/cupos-riel-logica";
-import { opcionesEnTurno, pendienteDe, seguirServidor } from "./pendiente";
+import { elegidoAca, llegaServidor, opcionesEnTurno, pendienteDe, type Seguimiento, type Seleccion } from "./pendiente";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import { DialogoCache } from "./DialogoCache";
 import { opcionCompactarCache } from "./cache-compactar";
@@ -468,27 +468,31 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     () => modeloServidor ? (effortDe(l?.effort, modeloServidor) ?? effortPara(modeloServidor, effortsLeidos() ?? {})) : undefined,
     [modeloServidor, l?.effort],
   );
-  const vistoModelo = useRef(modeloServidor);
+  // Lo elegido acá que el servidor todavía no confirmó no lo mueve un eco tardío (pendiente.ts, `llegaServidor`); y lo que la caja tomó del
+  // servidor no se le devuelve (`elegidaAca`): las dos cosas juntas hacían ir y volver el selector sin fin.
+  const seguimiento = useRef<Seguimiento>({ visto: modeloServidor && effortServidor !== undefined ? { modelo: modeloServidor, effort: effortServidor } : null, propio: null });
+  const elegidaAca = useRef(false);
+  const marcarElegida = (sel: Seleccion) => {
+    seguimiento.current = elegidoAca(seguimiento.current, sel);
+    // Lo mismo que ya muestra no cambia la caja: no queda nada por mandar.
+    if (sel.modelo !== modelo || sel.effort !== effort) elegidaAca.current = true;
+  };
   useEffect(() => {
-    const anterior = vistoModelo.current;
-    if (!modeloServidor) return;
-    vistoModelo.current = modeloServidor;
+    if (!modeloServidor || effortServidor === undefined) return;
+    const anterior = seguimiento.current.visto;
+    const r = llegaServidor({ modelo, effort }, seguimiento.current, { modelo: modeloServidor, effort: effortServidor });
+    seguimiento.current = r.s;
+    if (anterior?.modelo === modeloServidor && anterior.effort === effortServidor) return;
     // Mientras compacta desde caché, esa operación restaura el modelo elegido aunque llegue tarde el eco del modelo que compactó.
-    if (modeloServidor === anterior || compactoCacheActivo) return;
-    setModelo((m) => seguirServidor(m, anterior, modeloServidor));
+    if (!compactoCacheActivo) {
+      if (r.caja.modelo !== modelo) setModelo(r.caja.modelo);
+      if (r.caja.effort !== effort) setEffort(r.caja.effort);
+    }
     if (!compactoCache && cambioCompacto.fase === "hecho" && modeloServidor === cambioCompacto.destino.modelo) {
       dispatchCambio({ tipo: "reiniciar" });
     }
-  }, [modeloServidor, cambioCompacto, compactoCache, compactoCacheActivo]);
-  const vistoEffort = useRef({ modelo: modeloServidor, effort: effortServidor });
-  useEffect(() => {
-    const anterior = vistoEffort.current;
-    if (!modeloServidor || effortServidor === undefined) return;
-    vistoEffort.current = { modelo: modeloServidor, effort: effortServidor };
-    // Lo elegido para otro modelo ya lleva su propio esfuerzo, incluso al llegar la confirmación del servidor.
-    if (compactoCacheActivo || modelo !== anterior.modelo || effortServidor === anterior.effort) return;
-    setEffort((e) => seguirServidor(e, anterior.effort, effortServidor));
-  }, [modeloServidor, effortServidor, compactoCacheActivo, modelo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modeloServidor, effortServidor, cambioCompacto, compactoCache, compactoCacheActivo]);
   // Con un turno en curso los selectores siguen abiertos: lo elegido del mismo motor lo toma el turno ya (desde su próximo pedido a la
   // API, `cambiarEnTurno`); lo que no se puede en vivo va con el próximo mensaje. Mientras difiere de lo que usa el turno, se marca en el selector.
   const turnoModelo = modeloDe(l?.modelo);
@@ -502,7 +506,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     const k = `${sid}|${modelo}|${effort}`;
     const antes = selVista.current;
     selVista.current = k;
-    if (antes === null || antes === k || !l || (!encolados.length && !app)) return;
+    // Sólo lo elegido acá: lo que la caja tomó del servidor no se le devuelve (un eco tardío la haría ir y volver sin fin).
+    const aca = elegidaAca.current;
+    elegidaAca.current = false;
+    if (antes === null || antes === k || !aca || !l || (!encolados.length && !app)) return;
     cola.elegir(l.id, modelo, effort);
   }, [sid, modelo, effort, encolados.length, app]);
   // El modo de un líder nuevo se elige antes de que exista (y el de uno de la terminal, antes de
@@ -1071,10 +1078,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     };
     setCompactoCache({ crudo: q.crudo, modoNuevoYa: q.modoNuevoYa, compactarCon, destino, restaurado: false });
     dispatchCambio({ tipo: "iniciar", destino });
-    aplicarModelo(compactarCon, effortCompactar || undefined);
+    aplicarModelo(compactarCon, effortCompactar || undefined, false);
     const idDestino = l.id;
     fuente.liderMandar(idDestino, { texto: "/compact", modelo: compactarCon, effort: effortCompactar }).then(
-      () => sidActual.current === idDestino && dispatchCambio({ tipo: "enviado" }),
+      () => sidActual.current === idDestino && enviadoCompactar(idDestino),
       (e) => sidActual.current === idDestino && dispatchCambio({ tipo: "fallo", motivo: mensaje(e) }),
     );
   };
@@ -1367,11 +1374,15 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     dispatchCambio({ tipo: "reiniciar" });
     aplicarModelo(m);
   };
-  const aplicarModelo = (m: string, ef?: string) => {
+  /** `mandar: false`: la selección va en el mismo mensaje (el `/compact` de compactar), no aparte por la cola. */
+  const aplicarModelo = (m: string, ef?: string, mandar = true) => {
     tocado.current = true;
-    setModelo(m);
     // Cada modelo tiene sus niveles: si el esfuerzo de ahora no existe en el nuevo, pasa al que le toca a ese modelo.
-    setEffort((antes) => (ef && effortsDe(m).includes(ef) ? ef : reajustarEffort(m, antes, effortsLeidos() ?? {})));
+    const e = ef && effortsDe(m).includes(ef) ? ef : reajustarEffort(m, effort, effortsLeidos() ?? {});
+    marcarElegida({ modelo: m, effort: e });
+    if (!mandar) elegidaAca.current = false;
+    setModelo(m);
+    setEffort(e);
   };
   const compactarYCambiar = () => {
     if (!l || !app || !soportaCompactar(l.modelo) || cambioCompacto.fase === "compactando") return;
@@ -1384,12 +1395,21 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     };
     dispatchCambio({ tipo: "iniciar", destino });
     // Vuelve la selección al modelo vigente para mandar `/compact` con lo que corre ahora.
-    aplicarModelo(vigente, effortDe(l.effort, vigente) ?? undefined);
+    aplicarModelo(vigente, effortDe(l.effort, vigente) ?? undefined, false);
     const idDestino = l.id;
     fuente.liderMandar(idDestino, { texto: "/compact", modelo: vigente, effort: effortVigente }).then(
-      () => sidActual.current === idDestino && dispatchCambio({ tipo: "enviado" }),
+      () => sidActual.current === idDestino && enviadoCompactar(idDestino),
       (e) => sidActual.current === idDestino && dispatchCambio({ tipo: "fallo", motivo: mensaje(e) }),
     );
+  };
+  /**
+   * El `/compact` ya entró. Lo que cerró mientras se mandaba no es la compactación: con otro modelo, el main relanza el proceso
+   * (`desfasado`) y la salida del viejo suma un cierre (`salio`). La base pasa a contar desde acá (`enCurso` ya lo tiene: el evento
+   * llega antes que la respuesta de `liderMandar`).
+   */
+  const enviadoCompactar = (id: string) => {
+    compactoBase.current = { ...compactoBase.current, fines: enCurso(id).fines };
+    dispatchCambio({ tipo: "enviado" });
   };
   useEffect(() => {
     if (!debeEsperarInicio(cambioCompacto)) return;
@@ -1461,6 +1481,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   };
   const elegirEffort = (x: string) => {
     tocado.current = true;
+    marcarElegida({ modelo, effort: x });
     setEffort(x);
     recordarEffort(modelo, x);
   };
