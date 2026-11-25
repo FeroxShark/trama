@@ -1,6 +1,6 @@
 # Trama en la laptop: local y la PC desde la misma app
 
-Instalada el 2026-11-15 en `ferox-laptop-cachy` (CachyOS + Hyprland, Tailscale 100.77.225.62). Una sola app en la laptop muestra las
+Instalada el 2026-11-15 en `mi-laptop` (CachyOS + Hyprland, Tailscale 100.64.0.20). Una sola app en la laptop muestra las
 dos máquinas: sus filas (las de la laptop y las de la PC) en la misma barra, y el selector de máquina del chat nuevo
 (`maquina.elegir`, `src/hilo/Lider.tsx`) deja elegir dónde arranca cada chat. No hay una segunda app: es el mecanismo de
 `maquinas.json` (`electron/maquinas*.ts`, contrato en `electron/maquinas-contrato.ts`) más el acceso por la tailnet de `app/docs/remoto.md`.
@@ -32,17 +32,17 @@ En la **laptop**, `~/.local/state/hilos/maquinas.json` (el motor lo lee al arran
 
 ```json
 { "version": 1, "esta": "laptop", "nombre": "Laptop", "color": "#d9a441",
-  "maquinas": [ { "id": "pc", "nombre": "PC", "url": "http://100.120.178.61:8791" } ] }
+  "maquinas": [ { "id": "pc", "nombre": "PC", "url": "http://100.64.0.10:8791" } ] }
 ```
 
-En la **PC**, `~/.local/state/hilos/remoto.json` lleva `ferox-laptop-cachy` en `dispositivos` (el motor de la PC lo relee solo,
+En la **PC**, `~/.local/state/hilos/remoto.json` lleva `mi-laptop` en `dispositivos` (el motor de la PC lo relee solo,
 sin reiniciar; la identidad la da `tailscale whois`: mismo usuario, sin etiquetas). Las dos tienen que hablar el mismo contrato
 (`huella` igual; si no, la PC se ve en sólo lectura): comprobado igual en ambas (`8e8413e1a5f1`).
 
 Comprobación por red desde la laptop (`maquina:saludo` por el `/rpc` de la PC, con un cliente hexadecimal de 8–64 caracteres):
 
 ```bash
-curl -s -X POST http://100.120.178.61:8791/rpc -H 'Origin: http://100.120.178.61:8791' -H 'Content-Type: application/json' \
+curl -s -X POST http://100.64.0.10:8791/rpc -H 'Origin: http://100.64.0.10:8791' -H 'Content-Type: application/json' \
   -H 'x-trama-cliente: aaaaaaaaaaaaaaaaaaaaaaaa' -d '{"canal":"maquina:saludo","args":[]}'
 ```
 
