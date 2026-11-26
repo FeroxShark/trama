@@ -1,5 +1,17 @@
 # Changes
 
+## 0.3.30
+
+- Workers: if a worker replies again after finishing (woken by a background task), its verified result and its turn and duration count are no longer lost.
+- Workers: a «nothing» DECISION followed by a sentence that only says there is nothing («No changes…») no longer reaches the board as a question for you.
+- Workers: the contract tells them which deletions the guard lets through, so they don't waste turns retrying.
+- `pa --limpiar` also closes runs left hanging or that died in the queue more than a day ago. A `pa --async` with a usage error no longer shows as «died in queue».
+- `pa` warns when a run ends and leaves processes running (with the exact `kill`), and `pa --estado` lists them as «QUEDÓ VIVO». It never kills anything on its own. Linux only.
+- `pa` warns if you ask by hand for the most expensive model for frontend or multi-part code, where it performs poorly.
+- Model picker: failed runs count in the history, and a free model with a bad history in reads or mechanical tasks is no longer chosen.
+- `tablero ficha` is short (one line per item and tests grouped), so it fits whole at session start.
+- Chat: the model selector no longer flips back and forth endlessly when compacting with a cheap model and continuing with another.
+
 ## 0.3.29
 
 - Context panel > Preview: «Review with AI». A cheap model reads what the project loads on every message (CLAUDE.md, AGENTS.md, GEMINI.md and memory) and flags what is repeated, contradictory, outdated or long, with the before and after and how many tokens it saves per message. Nothing changes until you press «Apply» (one, a file's, or all), and a copy is saved before writing. If the file changed since the review, that finding is not applied.
