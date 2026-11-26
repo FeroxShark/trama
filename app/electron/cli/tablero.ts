@@ -1314,8 +1314,8 @@ export class Tablero {
       if (!its.length) continue;
       if (corta) L.push(`${titulo} (${its.length}): ` + recorte(its.map((it) => `#${it.id} ${strPy(it.titulo)}`).join("; "), 200));
       else {
-        L.push(`${titulo}:`);
-        for (const it of its) L.push(`  ${it.id}  ${strPy(it.titulo)}` + (verdad(it.prueba) ? ` · probar: ${strPy(it.prueba)}` : "") + `  (${edad(it.creado)})`);
+        L.push(`${titulo} (${its.length}):`);
+        L.push(...lineasColumnaFicha(titulo, d.proyecto, its));
       }
     }
     if (d.corridas.length) {
@@ -1458,6 +1458,44 @@ function marcaViejo(sg: Item): string {
   const v = sg.viejo;
   if (!v) return "";
   return v > 0 ? `puede estar viejo: ${v} commits después` : "puede estar viejo: el HEAD de entonces ya no está";
+}
+
+// La ficha entra entera en el arranque de una sesión (un hook): una línea por item, con tope por columna. Igual que en motor/bin/tablero.
+const FICHA_LINEA = 160; // largo máximo de la línea de un item
+const FICHA_POR_COLUMNA = 6; // items sueltos por columna; el resto se cuenta
+const FICHA_IDS_PROBAR = 12; // ids que nombra la línea de los «Probar …»
+
+/** Una línea: id, título, edad y, si entra, el principio de `probar:`. Nunca pasa de FICHA_LINEA. */
+function lineaItemFicha(it: Item): string {
+  let linea = `  ${strPy(it.id)}  ${recorte(it.titulo, 100)}  (${edad(it.creado)})`;
+  const sep = " · probar: ";
+  const resto = FICHA_LINEA - Array.from(linea).length - Array.from(sep).length;
+  const prueba = recorte(it.prueba, Math.max(resto, 1));
+  if (prueba && resto >= 12) linea += sep + prueba;
+  const c = Array.from(linea);
+  return c.length <= FICHA_LINEA ? linea : c.slice(0, FICHA_LINEA - 1).join("").replace(/\s+$/, "") + "…";
+}
+
+const esProbar = (it: Item): boolean => strPy(it.titulo ?? "").startsWith("Probar ");
+
+/** Los más nuevos primero: hasta FICHA_POR_COLUMNA sueltos, el resto contado, y los «Probar …» juntos en una línea. */
+function lineasColumnaFicha(columna: string, proyecto: string, its: Item[]): string[] {
+  const clave = (it: Item): [string, number] => [verdad(it.creado) ? String(it.creado) : "", verdad(it.id) ? Number(it.id) : 0];
+  const nuevos = [...its].sort((a, b) => {
+    const [ca, ia] = clave(a);
+    const [cb, ib] = clave(b);
+    return ca < cb ? 1 : ca > cb ? -1 : ib - ia;
+  });
+  const pruebas = nuevos.filter(esProbar);
+  const sueltos = nuevos.filter((it) => !esProbar(it));
+  const L = sueltos.slice(0, FICHA_POR_COLUMNA).map(lineaItemFicha);
+  if (sueltos.length > FICHA_POR_COLUMNA) L.push(`  … y ${sueltos.length - FICHA_POR_COLUMNA} más (tablero listar --proyecto ${proyecto} --columna ${columna})`);
+  if (pruebas.length) {
+    const ids = pruebas.slice(0, FICHA_IDS_PROBAR).map((it) => strPy(it.id)).join(" ");
+    const mas = pruebas.length > FICHA_IDS_PROBAR ? ` … +${pruebas.length - FICHA_IDS_PROBAR}` : "";
+    L.push("  " + recorte(`Probar (${pruebas.length}): ${ids}${mas} · el más nuevo: «${recorte(pruebas[0]!.titulo, 50)}»`, FICHA_LINEA - 2));
+  }
+  return L;
 }
 
 function lineaBarrendero(inf: Item): string | null {

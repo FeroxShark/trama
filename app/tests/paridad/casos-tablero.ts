@@ -251,6 +251,14 @@ const casosDeTablero: Caso[] = [
 
   // --- vistas
   tb("ficha: proyecto con ramas, corridas, esperas y sigue", [p(["ficha", "demo"], 0), p(["ficha", "demo", "--corta"], 0), p(["ficha", "demo", "--json"], 0)], conRamasYCorridas),
+  tb("ficha: tope por columna, los Probar juntos y una línea por item", [p(["ficha", "demo"], 0), p(["ficha", "demo", "--corta"], 0), p(["ficha", "demo", "--json"], 0)], (c) => {
+    registro(c, [{ name: "demo", path: c.proyecto, estado: "activo" }]);
+    const dia = (n: number) => `2024-01-${String(n).padStart(2, "0")}T12:00:00+00:00`;
+    const sueltos = Array.from({ length: 8 }, (_, i) => item(i + 1, { columna: "espera-dueno", titulo: `decidir ${i + 1}`, prueba: i % 2 ? "" : `1. [ ] paso uno de ${i + 1}\n2. [ ] paso dos, bien largo ${"y largo ".repeat(25)}`, creado: dia(i + 1) }));
+    const probares = Array.from({ length: 15 }, (_, i) => item(20 + i, { columna: "espera-dueno", titulo: `Probar v0.1.${i} (Linux)`, prueba: "mirar algo", creado: dia(i + 1) }));
+    const enCurso = Array.from({ length: 7 }, (_, i) => item(50 + i, { columna: "en-curso", titulo: `en marcha ${i} ${"largo ".repeat(30)}`, creado: dia(i + 1) }));
+    items(c, ...sueltos, ...probares, ...enCurso);
+  }),
   tb("ficha: área, desconocido y proyecto sin repo", [p(["ficha", "casa"], 0), p(["ficha", "fantasma"], 0), p(["ficha", "sinrepo"], 0), p(["ficha", "sinrepo", "--json"], 0)], (c) => registro(c, [{ name: "sinrepo", path: path.join(c.aux, "sinrepo"), estado: "pausa" }])),
   tb("proyectos: días sin tocar, áreas y retirados", [p(["proyectos"], 0), p(["proyectos", "--json"], 0), p(["proyectos", "--retirados"], 0)], (c) => {
     gitFijo(c, "commit", "-q", "--amend", "--allow-empty", "--reset-author", `--date=${FECHA_GIT}`, "-m", "init");

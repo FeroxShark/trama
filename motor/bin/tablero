@@ -1332,6 +1332,38 @@ def _marca_viejo(sg):
     return f"puede estar viejo: {v} commits después" if v > 0 else "puede estar viejo: el HEAD de entonces ya no está"
 
 
+# La ficha entra entera en el arranque de una sesión (un hook): una línea por item, con tope por columna.
+FICHA_LINEA = 160  # largo máximo de la línea de un item
+FICHA_POR_COLUMNA = 6  # items sueltos por columna; el resto se cuenta
+FICHA_IDS_PROBAR = 12  # ids que nombra la línea de los «Probar …»
+
+
+def _linea_item_ficha(it):
+    """Una línea: id, título, edad y, si entra, el principio de `probar:`. Nunca pasa de FICHA_LINEA."""
+    linea = f"  {it['id']}  {recorte(it.get('titulo'), 100)}  ({edad(it.get('creado'))})"
+    sep = " · probar: "
+    resto = FICHA_LINEA - len(linea) - len(sep)
+    prueba = recorte(it.get("prueba"), max(resto, 1))
+    if prueba and resto >= 12:
+        linea += sep + prueba
+    return linea if len(linea) <= FICHA_LINEA else linea[: FICHA_LINEA - 1].rstrip() + "…"
+
+
+def _lineas_columna_ficha(columna, proyecto, its):
+    """Los más nuevos primero: hasta FICHA_POR_COLUMNA sueltos, el resto contado, y los «Probar …» juntos en una línea."""
+    nuevos = sorted(its, key=lambda it: (it.get("creado") or "", it.get("id") or 0), reverse=True)
+    pruebas = [it for it in nuevos if str(it.get("titulo") or "").startswith("Probar ")]
+    sueltos = [it for it in nuevos if not str(it.get("titulo") or "").startswith("Probar ")]
+    L = [_linea_item_ficha(it) for it in sueltos[:FICHA_POR_COLUMNA]]
+    if len(sueltos) > FICHA_POR_COLUMNA:
+        L.append(f"  … y {len(sueltos) - FICHA_POR_COLUMNA} más (tablero listar --proyecto {proyecto} --columna {columna})")
+    if pruebas:
+        ids = " ".join(str(it["id"]) for it in pruebas[:FICHA_IDS_PROBAR])
+        mas = f" … +{len(pruebas) - FICHA_IDS_PROBAR}" if len(pruebas) > FICHA_IDS_PROBAR else ""
+        L.append("  " + recorte(f"Probar ({len(pruebas)}): {ids}{mas} · el más nuevo: «{recorte(pruebas[0].get('titulo'), 50)}»", FICHA_LINEA - 2))
+    return L
+
+
 def cmd_ficha(a):
     d = datos_ficha(Registro(), a.proyecto)
     if a.json:
@@ -1359,9 +1391,8 @@ def cmd_ficha(a):
         if corta:
             L.append(f"{titulo} ({len(its)}): " + recorte("; ".join(f"#{it['id']} {it.get('titulo')}" for it in its), 200))
         else:
-            L.append(f"{titulo}:")
-            for it in its:
-                L.append(f"  {it['id']}  {it.get('titulo')}" + (f" · probar: {it['prueba']}" if it.get("prueba") else "") + f"  ({edad(it.get('creado'))})")
+            L.append(f"{titulo} ({len(its)}):")
+            L += _lineas_columna_ficha(titulo, d["proyecto"], its)
     if d["corridas"]:
         if corta:
             L.append("corridas: " + "; ".join(f"{r['fecha'][5:]} {recorte(r['resultado'], 30)} «{recorte(r['tarea'], 40)}»" for r in d["corridas"]))

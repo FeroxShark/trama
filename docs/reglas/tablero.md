@@ -40,3 +40,12 @@ bash congelado sigue con `agregar`. «Te dejé esto en el tablero» y el panel v
 (`renglonesDelWorker`): la carta es el renglón (su texto, número = posición) y trae `renglon: {n, hecho}`; tildado dice «Ya lo probaste» (`estado: "probado"`), y `DejadoTablero.tsx` le pone una casilla que tilda con
 el mismo canal `tablero:tildar`. Un item viejo (clave en el item) sigue igual. En `Tablero.tsx` la tarjeta de columna (alto fijo) cuenta el avance («1 de 3 probados») y el detalle muestra la lista de casillas
 (`app/src/paneles/RenglonesLista.tsx`, compartida con `PruebaRenglones` de `TableroNuevo.tsx`); un item sin renglones, como antes (el texto con «copiar»).
+
+## La ficha entra en el arranque de una sesión
+
+- **`tablero ficha <proyecto>` (texto normal) tiene que quedar corta:** un hook la inyecta al empezar cada sesión dentro de un proyecto y el arnés corta lo que pasa de ~2 KB. Cada item de `espera-dueno` y
+`en-curso` ocupa UNA línea de a lo sumo 160 caracteres (id, título, edad y, si entra, el principio de `probar:` sin saltos de línea); por columna salen 6, los más nuevos primero (`creado`, luego `id`), y el resto
+se cuenta («… y N más (tablero listar --proyecto <p> --columna <c>)»). Los items cuyo título empieza con «Probar » no cuentan para el tope: van juntos en una línea («Probar (N): ids de los 12 más nuevos … +M · el
+más nuevo: «título»»). La de `trama` con 30 items pesa ~1,9 KB. `--json` y `--corta` no cambian. Está en `motor/bin/tablero` (`_lineas_columna_ficha`) y en `app/electron/cli/tablero.ts` (`lineasColumnaFicha`),
+con el mismo resultado: el `tablero` del PATH es el lanzador de Python, que por defecto corre el TS compilado (`TRAMA_TABLERO=py` fuerza el Python), y la paridad los compara. Lo cubren `tests/tablero-ficha.test.ts`
+y el caso «ficha: tope por columna…» de `tests/paridad/casos-tablero.ts`.
