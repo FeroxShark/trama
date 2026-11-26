@@ -4,12 +4,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Estado, Hilo, Lider } from "../src/datos/contrato.ts";
 import type { Subagente } from "../electron/subagentes.ts";
+import type { EncargoOrquestador } from "../electron/orquestador-texto.ts";
 import {
   armarGrafo,
   cadenaRelacionada,
   calcularEncuadre,
   curvaPuertos,
   estadoDeLider,
+  estadoDeOrquestador,
   estadoDeSubagente,
   estadoDeWorker,
   type ParamsGrafo,
@@ -199,4 +201,84 @@ test("curvaPuertos ancla exactamente en borde derecho de origen e izquierdo de d
   );
   assert.ok(cam.z >= 0.35 && cam.z <= 1.04);
   assert.ok(Number.isFinite(cam.x) && Number.isFinite(cam.y));
+});
+
+const encargo = (id: string, extra: Partial<EncargoOrquestador> = {}): EncargoOrquestador => ({
+  id,
+  lider_sid: "sid-1",
+  proyecto: "trama",
+  modelo: "claude-sonnet-5-5",
+  effort: "high",
+  preset_contexto: "equilibrado",
+  objetivo: `Objetivo ${id}`,
+  restricciones: [],
+  verificacion: "",
+  estado: "ejecutando",
+  workers: [],
+  creado: 1700000000,
+  actualizado: 1700000000,
+  ...extra,
+});
+
+const grafoCon = (orquestadores: EncargoOrquestador[], workers: Hilo[] = []) =>
+  armarGrafo({
+    lider: lider(),
+    workers,
+    estadoWorker: (h) => h.estado as Estado,
+    subagentes: [],
+    orquestadores,
+    tituloWorker: (h) => h.tarea,
+    tiempoWorker: () => "12 s",
+    modeloCorto: (m) => m ?? "",
+    textos: TEXTOS,
+  });
+
+test("estadoDeOrquestador cubre los cinco estados del encargo", () => {
+  assert.equal(estadoDeOrquestador(encargo("a", { estado: "revisando" })), "orq");
+  assert.equal(estadoDeOrquestador(encargo("b", { estado: "consulta" })), "decision");
+  assert.equal(estadoDeOrquestador(encargo("c", { estado: "ejecutando" })), "orq");
+  assert.equal(estadoDeOrquestador(encargo("d", { estado: "listo" })), "ok");
+  assert.equal(estadoDeOrquestador(encargo("e", { estado: "error" })), "error");
+});
+
+test("un orquestador en consulta pide decisión con la flecha de vuelta hacia el líder", () => {
+  const o = encargo("o1", {
+    estado: "consulta",
+    propuesta: { resumen: "Hay dos caminos", opciones: [], recomendacion: "" },
+  });
+  const g = grafoCon([o]);
+  const n = g.nodos.find((x) => x.id === "orq:o1")!;
+  assert.equal(n.tipo, "orquestador");
+  assert.equal(n.estado, "decision");
+  assert.equal(n.subtitulo, "Hay dos caminos");
+  assert.equal(n.encargo, o);
+  const a = g.aristas.find((x) => x.a === "orq:o1")!;
+  assert.equal(a.de, "lider:sid-1");
+  assert.equal(a.inversa, true);
+  assert.equal(a.etiquetaClave, "consulta");
+  assert.equal(a.particula, true);
+  assert.equal(g.resumen.decision, 1);
+});
+
+test("los workers de un orquestador cuelgan de su nodo y las cadenas pasan a la columna siguiente", () => {
+  const g = grafoCon(
+    [encargo("o1", { workers: ["w1", "w2"] })],
+    // w3 es más nuevo y w4 sigue a w3: el orden de llegada no tiene que cambiar las columnas.
+    [hilo("w1"), hilo("w2"), hilo("w3", { sigue_de: "w1", inicio: 1700000100 }), hilo("w4", { sigue_de: "w3", inicio: 1700000200 })],
+  );
+  const nodo = (id: string) => g.nodos.find((x) => x.id === id)!;
+  const orq = nodo("orq:o1");
+  for (const id of ["w:w1", "w:w2"]) {
+    assert.ok(nodo(id).x > orq.x);
+    assert.equal(g.aristas.find((a) => a.a === id)?.de, "orq:o1");
+  }
+  assert.equal(nodo("w:w1").y, orq.y);
+  assert.ok(nodo("w:w3").x > nodo("w:w1").x);
+  assert.equal(nodo("w:w4").x, nodo("w:w3").x);
+  assert.notEqual(nodo("w:w4").y, nodo("w:w3").y);
+  assert.equal(g.resumen.corriendo, 5);
+
+  const rel = cadenaRelacionada(g.aristas, "w:w3")!;
+  assert.ok(["lider:sid-1", "orq:o1", "w:w1", "w:w3"].every((id) => rel.has(id)));
+  assert.ok(!rel.has("w:w2"));
 });
