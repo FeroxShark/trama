@@ -33,6 +33,7 @@ import { destrabarModelo, modeloAgy, notaCompactarGuardado } from "./modelos-con
 import { carpetaHooksNota } from "./cierre-cupo-texto.ts";
 import { cargarTextosNota, consumirNotaParaDevolver, idiomaDeEstado, textosNotaCargados } from "./nota-compactar-main.ts";
 import { ESTADO } from "./estado.ts";
+import { recordatorioLiderPostCompact } from "./terminal-agentes.ts";
 import { hijoEnGrupo, matarArbol, matarArbolAlSalir } from "./procesos.ts";
 import { SESIONES } from "./sesiones.ts";
 
@@ -501,18 +502,20 @@ async function turno(m: Mensaje) {
   let textoAgy = texto;
   if (!compactar && lado.pendienteNota) {
     if (lado.conversation_id) guardarLado(lado.conversation_id, lado.contexto, false);
+    // Tras `/compact`, las reglas de Trama vuelven en el primer turno, con o sin nota: el modelo no las pierde al compactar.
+    let enc = "";
     if (notaCompactarGuardado()) {
       const hooks = carpetaHooksNota();
       if (hooks && !textosNotaCargados()) await cargarTextosNota(hooks).catch(() => {});
       const dev = consumirNotaParaDevolver(ESTADO, sid);
       if (dev) {
         const tMod = textosNotaCargados();
-        const enc = tMod
+        enc = tMod
           ? tMod.textoDevolucionNota({ idioma: idiomaDeEstado(ESTADO), nota: dev.nota, minutos: dev.minutos, archivo: dev.archivo })
           : dev.nota;
-        textoAgy = `${enc}\n\n${texto}`;
       }
     }
+    textoAgy = [enc, recordatorioLiderPostCompact(process.platform, { avances: true }), texto].filter(Boolean).join("\n\n");
   }
   const tr = new Traductor({ sid, modelo, compactar, contextoPrevio: lado.contexto, pensamiento: razonamiento });
   tr.conversacion = lado.conversation_id;
