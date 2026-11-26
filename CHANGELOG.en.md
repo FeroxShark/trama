@@ -1,5 +1,14 @@
 # Changes
 
+## 0.3.31
+
+- Live flow map: alongside a leader's chat you can now open an interactive canvas with zoom, pan, minimap, draggable cards, and port-anchored animated arrows (including reverse amber flow when a worker asks for a decision). The right panel adds **Inspector** and **Context** tabs above Board and Quota, and the left chat header shows context tokens and cache at a glance.
+- Context limit for Gemini: «Context before compacting» adds its own row for Gemini and applies the configured cap both in the context ring and panel and when requesting the pre-compaction note and queueing `/compact` automatically.
+- File tools in Gemini: `read_file`, `edit_file`, `write_file`, and `invoke_subagent` calls now display the file path being read or edited (and its diff) both live and in saved steps.
+- Gemini cache badge: active Gemini leaders now show the informative cache chip (`⚡ ?`) in the sidebar and chat, matching Codex leaders.
+- Chat and motor/effort switches: switching away from a chat and back preserves a pending model or effort choice for the next turn, and switching motors without compacting shows running activity immediately.
+- Quota pause and Codex: the quota-pause card checks whether the limit still applies to the current model and account (and lets you continue with another provider); Trama's MCP server is now registered in Codex, image attachments work when resuming Codex sessions, and the leader prompt includes a brief cache and quota saving note.
+
 ## 0.3.30
 
 - Workers: if a worker replies again after finishing (woken by a background task), its verified result and its turn and duration count are no longer lost.
