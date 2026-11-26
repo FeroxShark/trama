@@ -13,11 +13,23 @@ import { hayAgy, hayClaude } from "./capacidades.ts";
 import type { ModeloClaudeCuenta } from "./claude-catalogo.ts";
 import { leerDestrabos, type CuentaDestrabos } from "./destrabar-registro.ts";
 import { errorT, textoT } from "./errores.ts";
-import { topeAutocompact, topeDeEntorno, type TopeConf, type TopeEntorno } from "./autocompact-tope.ts";
+import {
+  esPresetContextoOrq,
+  PRESETS_CONTEXTO_ORQ,
+  topeAutocompact,
+  topeDeEntorno,
+  topeOrquestadorDePreset,
+  topeWorkerDePreset,
+  type PresetContextoOrq,
+  type TopeConf,
+  type TopeEntorno,
+} from "./autocompact-tope.ts";
 import { CIERRE_DEFECTO, type AjustesCierre } from "./valida-ajustes.ts";
 import { asesorDe, envDeSettings, motivoAdvisor, type AdvisorConfig, type FamiliaAdvisor, type MotivoAdvisor } from "./advisor.ts";
 import { entornoLider } from "./lider-arma.ts";
-import { destrabarActivo, leerConfig, memoriaCompartidaDe, NOTA_PCT_DEFECTO, NOTA_TAREA_PCT_DEFECTO, unir, urlOllama, validarConfig, TIPOS, type ConfigModelos, type Eleccion, type MotorMemoria, type Tipo } from "./modelos-tipos.ts";
+import { destrabarActivo, leerConfig, memoriaCompartidaDe, NOTA_PCT_DEFECTO, NOTA_TAREA_PCT_DEFECTO, unir, urlOllama, validarConfig, TIPOS, type ConfigModelos, type ConfigOrquestacion, type Eleccion, type MotorMemoria, type Tipo } from "./modelos-tipos.ts";
+
+export { esPresetContextoOrq, PRESETS_CONTEXTO_ORQ, topeOrquestadorDePreset, topeWorkerDePreset, type ConfigOrquestacion, type PresetContextoOrq };
 
 /** Dónde está el archivo (se mira cada vez: los tests lo cambian por el entorno). */
 export const rutaModelos = () =>
@@ -440,6 +452,42 @@ export const asesorDeLider = (modelo: string, entorno: Record<string, string | u
   return a && !advisorDisponible(entorno, home) ? a : null;
 };
 
+/** Config parseada del archivo guardado; `null` si no existe o no se entiende. */
+function configGuardada(): ConfigModelos | null {
+  try {
+    const { obj } = analizar(readFileSync(rutaModelos(), "utf8"), "");
+    return obj ? leerConfig(obj) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** El `autocompact_orquestador` del archivo guardado (`null` si no hay archivo, no se entiende o no dice nada). */
+export const autocompactOrquestadorGuardado = (): TopeConf | null => configGuardada()?.autocompact_orquestador ?? null;
+
+/** El `advisor_orquestador` del archivo guardado (`null`: sin archivo, roto o sin la clave: sin asesor). */
+export const advisorOrquestadorGuardado = (): AdvisorConfig | null => configGuardada()?.advisor_orquestador ?? null;
+
+/** El asesor (`--advisor`) con que arranca un orquestador de Claude con ese modelo: lo elegido en Ajustes si el advisor anda; si no, `null`. */
+export const asesorDeOrquestador = (modelo: string, entorno: Record<string, string | undefined>, home: string): FamiliaAdvisor | null => {
+  const a = asesorDe(modelo, advisorOrquestadorGuardado());
+  return a && !advisorDisponible(entorno, home) ? a : null;
+};
+
+/** ¿Mostrar avances en vivo (`avances_vivo` de `modelos.json`)? Por defecto `true`; `false` sólo si se apagó. */
+export const avancesVivoGuardado = (): boolean => configGuardada()?.avances_vivo !== false;
+
+/** Configuración de `orquestacion` del archivo guardado, con defaults para lo que falte. */
+export function orquestacionGuardada(): ConfigOrquestacion {
+  const o = configGuardada()?.orquestacion;
+  return {
+    activo: o?.activo === true,
+    ...(o?.modelo ? { modelo: o.modelo } : {}),
+    revision_previa: o?.revision_previa ?? true,
+    preset_contexto: o?.preset_contexto ?? "equilibrado",
+  };
+}
+
 /** `PA_AUTOCOMPACT` del entorno de la app (el del líder no lo hereda: `entornoLider` saca todo `PA_*`; acá se lee antes). */
 export const topeEntorno = (env: NodeJS.ProcessEnv = process.env): TopeEntorno => topeDeEntorno(env.PA_AUTOCOMPACT);
 
@@ -448,6 +496,20 @@ export const topeEntorno = (env: NodeJS.ProcessEnv = process.env): TopeEntorno =
  * `null` = nativo, `PA_AUTOCOMPACT` pisa), con `autocompact_lider` si existe. `null`: no se pasa `--autocompact` y compacta Claude Code a su manera.
  */
 export const topeDeLider = (modelo: string, env: NodeJS.ProcessEnv = process.env): number | null => topeAutocompact(modelo, autocompactLiderGuardado(), topeEntorno(env));
+
+/**
+ * El tope de «Contexto antes de compactar» del orquestador: `PA_AUTOCOMPACT` pisa todo; si no, `autocompact_orquestador` si existe;
+ * si `orquestacion.preset_contexto` no es `"manual"`, usa el preset; si no, cae al `autocompact` general.
+ */
+export function topeDeOrquestador(modelo: string, env: NodeJS.ProcessEnv = process.env): number | null {
+  const e = topeEntorno(env);
+  if (e !== null) return e === "nativo" ? null : e;
+  const c = configGuardada();
+  if (c?.autocompact_orquestador) return topeAutocompact(modelo, c.autocompact_orquestador, null);
+  const preset = c?.orquestacion?.preset_contexto ?? "equilibrado";
+  if (preset !== "manual") return topeOrquestadorDePreset(preset);
+  return topeAutocompact(modelo, c?.autocompact ?? null, null);
+}
 
 /** El local de Ollama que ese id nombra, del archivo; `null` si no está (un modelo `ollama:*` que no figura en `locales` no se lanza). */
 export const localOllama = (id: string, cfg: ModelosConfig | null = modelosConfig()): LocalOllama | null => cfg?.locales.find((l) => l.id === id) ?? null;

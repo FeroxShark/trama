@@ -2,7 +2,7 @@
 // arranca Trama use el tope de su familia igual que un worker. Puro y sin imports de Node: lo usan el main (el `--autocompact` del
 // líder y el límite del panel de contexto) y la interfaz (el anillo del líder). Lo prueba tests/lider-autocompact.test.ts.
 //   - `PA_AUTOCOMPACT` pisa todo (`nativo` = sin tope; un número = ese).
-//   - Si no: la entrada de `por_modelo` con el id del modelo, o con su familia (fable, opus, sonnet, haiku); `null` = nativo.
+//   - Si no: la entrada de `por_modelo` con el id del modelo, o con su familia (fable, opus, sonnet, haiku, gemini, codex); `null` = nativo.
 //   - Si no hay entrada: `defecto` si es un número; Haiku 300 000; el resto, nativo (`null`).
 import { AUTOCOMPACT_HAIKU, AUTOCOMPACT_MAX, AUTOCOMPACT_MIN } from "./modelos-tipos.ts";
 
@@ -11,7 +11,32 @@ export type TopeConf = { defecto: number | null; por_modelo: Record<string, numb
 /** `PA_AUTOCOMPACT` ya leído: `null` = no pisa nada, `"nativo"` = fuerza sin tope. */
 export type TopeEntorno = number | "nativo" | null;
 
-const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "gemini"] as const;
+const FAMILIAS_CLAUDE = ["fable", "opus", "sonnet", "haiku"] as const;
+
+/** Presets rápidos de contexto para el orquestador (y los workers cuando no está en `manual`). */
+export const PRESETS_CONTEXTO_ORQ = ["ahorro", "equilibrado", "profundo", "manual"] as const;
+export type PresetContextoOrq = (typeof PRESETS_CONTEXTO_ORQ)[number];
+export const esPresetContextoOrq = (x: unknown): x is PresetContextoOrq =>
+  typeof x === "string" && (PRESETS_CONTEXTO_ORQ as readonly string[]).includes(x);
+
+/** Tope en tokens del orquestador según preset (`manual` = sin preset, se resuelve por config manual). */
+export function topeOrquestadorDePreset(p: PresetContextoOrq): number | null {
+  if (p === "ahorro") return 200_000;
+  if (p === "equilibrado") return 300_000;
+  if (p === "profundo") return 500_000;
+  return null;
+}
+
+/** Tope en tokens de un worker según el preset del orquestador y el tipo de tarea (`manual` = sin preset). */
+export function topeWorkerDePreset(p: PresetContextoOrq, tipo?: string | null): number | null {
+  if (p === "manual") return null;
+  const t = (tipo ?? "").toLowerCase().replace("diseño", "diseno");
+  const chico = t === "mecanico" || t === "lectura";
+  const grande = t === "codigo-multi" || t === "diseno" || t === "debug";
+  if (p === "ahorro") return chico ? 150_000 : 200_000;
+  if (p === "equilibrado") return chico ? 200_000 : grande ? 400_000 : 300_000;
+  return chico ? 300_000 : 500_000;
+}
 
 /** `PA_AUTOCOMPACT` como lo lee `pa` (tokens de 100 000 a 1 000 000, o `nativo`); lo que no sirve se ignora. */
 export function topeDeEntorno(v: string | undefined): TopeEntorno {
@@ -25,7 +50,12 @@ export function topeDeEntorno(v: string | undefined): TopeEntorno {
 export function topeAutocompact(modelo: string, conf: TopeConf | null | undefined, env: TopeEntorno = null): number | null {
   if (env !== null) return env === "nativo" ? null : env;
   const m = modelo.toLowerCase();
-  const fam = FAMILIAS.find((f) => m.includes(f)) ?? null;
+  const fam =
+    m.startsWith("codex:") || /^gpt-/i.test(m)
+      ? "codex"
+      : m.startsWith("gemini-") || m.startsWith("agy:")
+        ? "gemini"
+        : (FAMILIAS_CLAUDE.find((f) => m.includes(f)) ?? null);
   const por: Record<string, number | null> = {};
   for (const [k, v] of Object.entries(conf?.por_modelo ?? {})) por[k.toLowerCase()] = v;
   const k = [m, fam].find((x) => x !== null && x in por);

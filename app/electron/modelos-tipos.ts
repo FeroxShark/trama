@@ -6,6 +6,7 @@ import { EFFORTS_CALIDAD, type EffortCalidad } from "./efforts-calidad.ts";
 import { esUnidadesAA, migrarValor, UNIDADES_AA, viejaAAa } from "./calidad-migracion.ts";
 import { errorT } from "./errores.ts";
 import { esFamiliaAdvisor, parValido, type AdvisorConfig, type FamiliaAdvisor } from "./advisor.ts";
+import { esPresetContextoOrq, type PresetContextoOrq } from "./autocompact-tope.ts";
 import { umbralCierreValido, UMBRAL_CIERRE_MAX, UMBRAL_CIERRE_MIN, validarCierre, type AjustesCierre } from "./valida-ajustes.ts";
 
 export const TIPOS = ["default", "codigo-acotado", "codigo-multi", "frontend", "debug", "diseno", "lectura", "mecanico"] as const;
@@ -142,8 +143,8 @@ export const URL_OLLAMA = "http://localhost:11434";
 /** Más locales que esto no es una lista que alguien arme a mano. */
 export const LOCALES_MAX = 50;
 
-/** Familias con tope de compactación propio en `autocompact.por_modelo` (las que `pa` y los líderes resuelven por nombre). */
-export const AUTOCOMPACT_FAMILIAS = ["haiku", "sonnet", "opus", "gemini"] as const;
+/** Familias con tope de compactación propio en `autocompact.por_modelo` (las que `pa`, líderes y orquestador resuelven por nombre). */
+export const AUTOCOMPACT_FAMILIAS = ["haiku", "sonnet", "opus", "gemini", "codex"] as const;
 /** Rango que acepta `pa` (y `--autocompact` de Claude Code): tokens. */
 export const AUTOCOMPACT_MIN = 100_000;
 export const AUTOCOMPACT_MAX = 1_000_000;
@@ -156,6 +157,8 @@ export type AutocompactConfig = { defecto: TopeCompactar; por_modelo: Record<str
 
 /** Un modelo y, si es de Claude, su esfuerzo. */
 export type Eleccion = { modelo: string; effort?: string };
+/** Modo líder conversacional + orquestador potente con revisión previa (`orquestacion` de modelos.json). */
+export type ConfigOrquestacion = { activo: boolean; modelo?: Eleccion; revision_previa?: boolean; preset_contexto?: PresetContextoOrq };
 /** Un modelo servido por Ollama: `id` es `ollama:<modelo>` y es lo que se elige en los selectores. */
 export type Local = { id: string; nombre: string; url: string; modelo: string };
 /** Los motores de líder que no son Claude y reciben (o no) la memoria del dueño: la clave de cada uno en `memoria_compartida`. */
@@ -196,6 +199,10 @@ export type ConfigModelos = {
    */
   autocompact_lider?: AutocompactConfig;
   /**
+   * Lo mismo para el orquestador. Presente (aunque vacía) pisa el preset de contexto del orquestador; ausente usa el preset (o `autocompact` en `manual`).
+   */
+  autocompact_orquestador?: AutocompactConfig;
+  /**
    * Hook «nota-compactar» (motor/hooks/nota-compactar.mjs): pide al modelo una nota al llegar al 85 % del tope de compactación y se la
    * devuelve tras compactar. Booleana; sin la clave vale `true` (prendida). Apagada (`false`), no se registra en líderes ni en workers.
    */
@@ -206,8 +213,14 @@ export type ConfigModelos = {
   tope_vivos?: TopeVivosConfig;
   /** Porcentaje del tope (0 = apagado, o 30..90 entero, default 60) desde el cual se sugiere la nota al terminar una tarea. */
   nota_compactar_tarea_pct?: number;
-  /** Advisor de Claude Code: por familia del modelo principal, la del asesor (`--advisor`). Sin entradas la clave no se escribe (ver advisor.ts). */
+  /** Advisor de Claude Code para líderes: por familia del modelo principal, la del asesor (`--advisor`). Sin entradas la clave no se escribe (ver advisor.ts). */
   advisor?: AdvisorConfig;
+  /** Advisor de Claude Code independiente para el orquestador (sin herencia hacia workers). Sin entradas la clave no se escribe. */
+  advisor_orquestador?: AdvisorConfig;
+  /** Mostrar avances en vivo en la interfaz (default `true`; sólo se escribe `false` si se apaga). */
+  avances_vivo?: boolean;
+  /** Modo líder conversacional + orquestador potente con revisión previa (apagado por defecto). */
+  orquestacion?: ConfigOrquestacion;
   /**
    * Cierre ordenado cuando se acaba el cupo (electron/cierre-cupo.ts): sólo lo que el dueño tocó. Sin la clave (o sin un campo) vale
    * `CIERRE_DEFECTO` (prendido, umbral 5 %, sin retomar solo). `umbral`: % que tiene que quedar, entero de 2 a 20.
@@ -373,6 +386,7 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
     if (a.defecto !== null || Object.keys(a.por_modelo).length) c.autocompact = a;
   }
   if (esObj(j.autocompact_lider)) c.autocompact_lider = leerTope(j.autocompact_lider);
+  if (esObj(j.autocompact_orquestador)) c.autocompact_orquestador = leerTope(j.autocompact_orquestador);
   if (typeof j.nota_compactar === "boolean") c.nota_compactar = j.nota_compactar;
   if (notaPctValido(j.nota_compactar_pct)) c.nota_compactar_pct = j.nota_compactar_pct;
   if (topeVivosValido(j.tope_vivos)) c.tope_vivos = typeof j.tope_vivos === "number" ? j.tope_vivos : { ...j.tope_vivos };
@@ -386,6 +400,21 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
     const ad: AdvisorConfig = {};
     for (const [k, v] of Object.entries(j.advisor)) if (esFamiliaAdvisor(k) && parValido(k, v)) ad[k] = v as FamiliaAdvisor;
     if (Object.keys(ad).length) c.advisor = ad;
+  }
+  if (esObj(j.advisor_orquestador)) {
+    const ad: AdvisorConfig = {};
+    for (const [k, v] of Object.entries(j.advisor_orquestador)) if (esFamiliaAdvisor(k) && parValido(k, v)) ad[k] = v as FamiliaAdvisor;
+    if (Object.keys(ad).length) c.advisor_orquestador = ad;
+  }
+  if (typeof j.avances_vivo === "boolean") c.avances_vivo = j.avances_vivo;
+  if (esObj(j.orquestacion)) {
+    const o = j.orquestacion;
+    const orq: ConfigOrquestacion = { activo: o.activo === true };
+    const m = eleccionDe(o.modelo);
+    if (m) orq.modelo = m;
+    if (typeof o.revision_previa === "boolean") orq.revision_previa = o.revision_previa;
+    if (esPresetContextoOrq(o.preset_contexto)) orq.preset_contexto = o.preset_contexto;
+    c.orquestacion = orq;
   }
   if (esObj(j.cierre)) {
     const ci: Partial<AjustesCierre> = {};
@@ -432,7 +461,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "nota_compactar", "nota_compactar_pct", "nota_compactar_tarea_pct", "tope_vivos", "advisor", "cierre", "memoria_compartida", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h", "planes"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "autocompact_lider", "autocompact_orquestador", "nota_compactar", "nota_compactar_pct", "nota_compactar_tarea_pct", "tope_vivos", "advisor", "advisor_orquestador", "avances_vivo", "orquestacion", "cierre", "memoria_compartida", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h", "planes"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -504,6 +533,7 @@ export function validarConfig(x: unknown): ConfigModelos {
   }
   // Presente aunque vacía: los líderes tienen su propio tope (vacía = lo de fábrica).
   if (x.autocompact_lider !== undefined && x.autocompact_lider !== null) c.autocompact_lider = validarTope(x.autocompact_lider);
+  if (x.autocompact_orquestador !== undefined && x.autocompact_orquestador !== null) c.autocompact_orquestador = validarTope(x.autocompact_orquestador);
   if (x.nota_compactar !== undefined && x.nota_compactar !== null) {
     if (typeof x.nota_compactar !== "boolean") throw errorT("main.modelosForma");
     c.nota_compactar = x.nota_compactar;
@@ -528,6 +558,37 @@ export function validarConfig(x: unknown): ConfigModelos {
       ad[k as FamiliaAdvisor] = v as FamiliaAdvisor;
     }
     if (Object.keys(ad).length) c.advisor = ad;
+  }
+  if (x.advisor_orquestador !== undefined && x.advisor_orquestador !== null) {
+    if (!esObj(x.advisor_orquestador)) throw errorT("main.modelosForma");
+    const ad: AdvisorConfig = {};
+    for (const [k, v] of Object.entries(x.advisor_orquestador)) {
+      if (!parValido(k, v)) throw errorT("main.modelosAdvisor", { v: `${k.slice(0, 20)} → ${String(v).slice(0, 20)}` });
+      ad[k as FamiliaAdvisor] = v as FamiliaAdvisor;
+    }
+    if (Object.keys(ad).length) c.advisor_orquestador = ad;
+  }
+  if (x.avances_vivo !== undefined && x.avances_vivo !== null) {
+    if (typeof x.avances_vivo !== "boolean") throw errorT("main.modelosForma");
+    c.avances_vivo = x.avances_vivo;
+  }
+  if (x.orquestacion !== undefined && x.orquestacion !== null) {
+    if (!esObj(x.orquestacion)) throw errorT("main.modelosForma");
+    const o = x.orquestacion;
+    const raroo = Object.keys(o).find((k) => !["activo", "modelo", "revision_previa", "preset_contexto"].includes(k));
+    if (raroo !== undefined) throw errorT("main.modelosCampo", { campo: `orquestacion.${raroo.slice(0, 30)}` });
+    if (o.activo !== undefined && typeof o.activo !== "boolean") throw errorT("main.modelosForma");
+    const orq: ConfigOrquestacion = { activo: o.activo === true };
+    if (o.modelo !== undefined && o.modelo !== null) orq.modelo = validarEleccion(o.modelo, "orquestacion", c.locales);
+    if (o.revision_previa !== undefined && o.revision_previa !== null) {
+      if (typeof o.revision_previa !== "boolean") throw errorT("main.modelosForma");
+      orq.revision_previa = o.revision_previa;
+    }
+    if (o.preset_contexto !== undefined && o.preset_contexto !== null) {
+      if (!esPresetContextoOrq(o.preset_contexto)) throw errorT("main.modelosForma");
+      orq.preset_contexto = o.preset_contexto;
+    }
+    c.orquestacion = orq;
   }
   if (x.memoria_compartida !== undefined && x.memoria_compartida !== null) {
     if (!esObj(x.memoria_compartida)) throw errorT("main.modelosForma");
@@ -698,6 +759,9 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   // `autocompact_lider` es de Trama: presente (aunque vacía) = los líderes tienen su propio tope; ausente = usan el de los workers.
   if (c.autocompact_lider) base.autocompact_lider = { defecto: c.autocompact_lider.defecto, por_modelo: { ...c.autocompact_lider.por_modelo } };
   else delete base.autocompact_lider;
+  // `autocompact_orquestador` es de Trama: presente (aunque vacía) = el orquestador tiene su propio tope; ausente = manda el preset.
+  if (c.autocompact_orquestador) base.autocompact_orquestador = { defecto: c.autocompact_orquestador.defecto, por_modelo: { ...c.autocompact_orquestador.por_modelo } };
+  else delete base.autocompact_orquestador;
   // `nota_compactar` es booleana (default true): `false` se escribe; `true` vuelve al default y sale; `undefined` deja lo que hubiera.
   if (c.nota_compactar === false) base.nota_compactar = false;
   else if (c.nota_compactar === true) delete base.nota_compactar;
@@ -711,6 +775,28 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   // `advisor` lo leen Trama (líderes) y `pa` (workers): sin entradas la clave sale (sin asesor).
   if (c.advisor && Object.keys(c.advisor).length) base.advisor = { ...c.advisor };
   else delete base.advisor;
+  // `advisor_orquestador` es independiente para el orquestador: sin entradas la clave sale.
+  if (c.advisor_orquestador && Object.keys(c.advisor_orquestador).length) base.advisor_orquestador = { ...c.advisor_orquestador };
+  else delete base.advisor_orquestador;
+  // `avances_vivo` es booleana (default true): `false` se escribe; `true` borra la clave; `undefined` deja lo que hubiera.
+  if (c.avances_vivo === false) base.avances_vivo = false;
+  else if (c.avances_vivo === true) delete base.avances_vivo;
+  // `orquestacion`: se escribe si está activo o tiene config no-default; si no, la clave sale.
+  if (c.orquestacion) {
+    const o = c.orquestacion;
+    const tiene = o.activo || !!o.modelo || o.revision_previa === false || (!!o.preset_contexto && o.preset_contexto !== "equilibrado");
+    if (tiene) {
+      const wOrq: Record<string, unknown> = { activo: o.activo };
+      if (o.modelo) wOrq.modelo = sobre(esObj(base.orquestacion) ? base.orquestacion.modelo : undefined, { ...o.modelo }, ["effort"]);
+      if (o.revision_previa === false) wOrq.revision_previa = false;
+      if (o.preset_contexto && o.preset_contexto !== "equilibrado") wOrq.preset_contexto = o.preset_contexto;
+      base.orquestacion = wOrq;
+    } else {
+      delete base.orquestacion;
+    }
+  } else {
+    delete base.orquestacion;
+  }
   // `memoria_compartida` la lee Trama: sólo lo apagado se escribe (`true` es el default); sin nada, la clave sale.
   const apagados = Object.entries(c.memoria_compartida ?? {}).filter(([, v]) => v === false);
   if (apagados.length) base.memoria_compartida = Object.fromEntries(apagados);
