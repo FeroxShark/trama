@@ -100,8 +100,8 @@ function filasDe(texto: string, desde: string): ((nombre: string) => string)[] {
 }
 
 const esNum = (x: string) => /^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$/.test(x);
-/** `dato` y `ok` de la fila que `v` lee (una lectura cuenta por su columna `bien`: ver dato-medicion.ts). */
-const datoDe = (v: (nombre: string) => string) => datoDeFila({ leer: v("leer") === "1", integrada: v("integrada"), retrabajo: v("retrabajo"), bien: v("bien") });
+/** `dato` y `ok` de la fila que `v` lee (una lectura cuenta por `bien` o, sin él, por `is_error`; una escritura sin integración que falló también: ver dato-medicion.ts). */
+const datoDe = (v: (nombre: string) => string) => datoDeFila({ leer: v("leer") === "1", integrada: v("integrada"), retrabajo: v("retrabajo"), bien: v("bien"), is_error: v("is_error") });
 
 export function celdasPor(texto: string, desde: string, por: string): Celda[] {
   const g = new Map<string, { t: string; m: string; e: string; cu: string; n: number; dato: number; ok: number; pis: number; tur: number[]; usd: number; nu: number; nc: number; comp: number }>();
@@ -378,7 +378,7 @@ function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: stri
   pa.io.out(
     "últimos " +
       dias +
-      " días · ok% = integrada sin retrabajo, sobre las que ya tienen dato (pa --bien-auto)" +
+      " días · ok% = integrada sin retrabajo (en lecturas: terminó sin error, o `bien`), sobre las que ya tienen dato (pa --bien-auto)" +
       (conPisado ? " · pis% = pisadas por otra corrida en paralelo" : "") +
       " · turnos = mediana · US$ = costo medio · US$/éxito = costo por cada corrida integrada sin retrabajo · comp% = compactaron\n",
   );

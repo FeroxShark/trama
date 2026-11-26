@@ -40,6 +40,8 @@ export interface Fila {
   retrabajo: string;
   /** La columna `bien` (`pa --bien`): es el dato de una corrida de lectura. */
   bien: string;
+  /** La columna `is_error` ("true", "false" o ""): una corrida que falló cuenta como no ok; en lecturas sin `bien`, terminar sin error cuenta como ok. */
+  is_error: string;
   /** El costo en US$ (null si la corrida no lo anotó). */
   costo: number | null;
 }
@@ -67,6 +69,7 @@ export function leerMedicion(texto: string): Fila[] {
       integrada: v("integrada").trim(),
       retrabajo: v("retrabajo").trim(),
       bien: v("bien").trim(),
+      is_error: v("is_error").trim(),
       costo: numero(v("costo_usd")),
     });
   }

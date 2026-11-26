@@ -2577,8 +2577,8 @@ function rindeDeModelos(now: Date): Map<string, [number, number]> {
       }
       const v = (n: string) => (n in cols! && cols![n]! < c.length ? c[cols![n]!]! : "");
       if (c.length < 5 || !/^[0-9]{4}-/.test(c[0]!) || c[0]!.slice(0, 10) < desde) continue;
-      // una lectura (`leer=1`) cuenta por su columna `bien`; el python congelado la ignora (divergencia a propósito)
-      const d = datoDeFila({ leer: v("leer") === "1", integrada: v("integrada"), retrabajo: v("retrabajo"), bien: v("bien") });
+      // una lectura (`leer=1`) cuenta por `bien` o, sin él, por `is_error`; una escritura sin integración que falló cuenta como no ok; el python congelado la ignora (divergencia a propósito)
+      const d = datoDeFila({ leer: v("leer") === "1", integrada: v("integrada"), retrabajo: v("retrabajo"), bien: v("bien"), is_error: v("is_error") });
       if (!d.dato) continue;
       // un solo nombre por modelo (sin el effort: la regla de historial es por modelo); el python congelado agrupa crudo
       const k = `${v("tipo")}\t${canonico(v("modelo"), v("effort")).modelo}`;
@@ -2683,12 +2683,23 @@ function aplicarCostoCandidato(cand: Obj, costo: CostoCandidato | null): void {
   if (costo.porExito !== null) Object.defineProperty(cand, "_costo_exito", { value: costo.porExito, enumerable: false, writable: true, configurable: true });
 }
 
-/** Lo que no gasta cupo (local, dsh/OpenCode) sin historial propio en ESE tipo sólo entra en TIPOS_GRATIS_SIN_DATOS (vuelve si no queda nada más). Lo comparten `ahorro` y `agresivo`. */
+/**
+ * Lo que no gasta cupo (local, dsh/OpenCode) sin historial propio en ESE tipo sólo entra en TIPOS_GRATIS_SIN_DATOS (vuelve si no queda nada más).
+ * Lo comparten `ahorro` y `agresivo`. En esos tipos entra SIN datos, pero no con datos malos: con 5 corridas o más y menos de 50 % ok se
+ * descarta igual (medido el 2026-11-25: un gratis que fallaba 11 de 14 lecturas se seguía eligiendo). Sólo el TS: el python congelado no lo hace.
+ */
 function exigirHistorialSinCupo(c: Obj, tipo: string, rinde: Map<string, [number, number]>, perfil: string): void {
   if (c.proveedor !== "local" && c.proveedor !== "dsh") return;
   const [d, ok] = rinde.get(`${tipo}\t${canonico(c.modelo, c.effort).modelo}`) ?? [0, 0];
   c.historial = { n: d, ok_pct: d ? pyRound(100 * ok / d, 0) : null };
-  if (c.descartado_por || TIPOS_GRATIS_SIN_DATOS.includes(tipo)) return;
+  if (c.descartado_por) return;
+  if (TIPOS_GRATIS_SIN_DATOS.includes(tipo)) {
+    if (d < RINDE_MIN_N || 100 * ok >= RINDE_MIN_OK * d) return;
+    c.descartado_por = `mal historial en ${tipo}: ${c.nombre} no gasta cupo pero de ${d} corridas con dato sólo ${c.historial.ok_pct} % salió bien, y el perfil ${perfil} pide ${RINDE_MIN_OK} % o más (pa --rinde)`;
+    c.duro = c.duro_historial = true;
+    oculto(c, "_mal_historial", true);
+    return;
+  }
   if (d < RINDE_MIN_N || 100 * ok < RINDE_MIN_OK * d) {
     c.descartado_por = `sin historial en ${tipo}: ${c.nombre} no gasta cupo pero tiene ${d} corridas con dato (${d ? `${c.historial.ok_pct} % ok` : "sin dato"}), y para tareas que escriben el perfil ${perfil} pide ${RINDE_MIN_N} o más con ${RINDE_MIN_OK} % o más sin retrabajo (pa --rinde)`;
     c.duro = c.duro_historial = true;
@@ -3279,7 +3290,7 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
   }
   let motivo = motivoDe(gana, pool, tipo, minimo, minimoFam, todoLleno, now, cands);
   if (gana.nota_effort) motivo += ` Effort ${gana.effort || gana.modelo.split("-").pop()}: ${gana.nota_effort} (calidad ${fn(gana.calidad)}).`;
-  if (relajado && gana.relajado && gana.duro_historial) motivo += ` No queda ningún otro modelo que sirva: entra ${gana.nombre} aunque no tiene historial en ${tipo} (perfil ${cfg.perfil}).`;
+  if (relajado && gana.relajado && gana.duro_historial) motivo += ` No queda ningún otro modelo que sirva: entra ${gana.nombre} aunque ${gana._mal_historial ? "tiene mal" : "no tiene"} historial en ${tipo} (perfil ${cfg.perfil}).`;
   else if (relajado && gana.relajado) motivo += ` Ningún modelo llega a la calidad ${fn(minimo)} que pide ${tipo}: uso el mejor que hay (calidad ${fn(gana.calidad)}, ajustable con "calidad" en modelos.json).`;
   if (primeroGratis) motivo += ` Con chequeo, ${tipo} ofrece primero los gratis de OpenCode (cupo entero, no gastan Claude ni agy).`;
   if (PERFILES[cfg.perfil]!.costo_primero && !todoLleno && !gana.duro_historial) {

@@ -47,7 +47,8 @@ const pcli = (nombre: string, args: Caso["args"], rc: number, extra: Partial<Cas
 
 /** `pa --rinde` del TS une los nombres al leer (electron/cli/pa/modelo-canonico.ts) y el bash congelado agrupa crudo. */
 const DIVERGE_CANONICO =
-  "pa --rinde del TS agrupa con un solo nombre por modelo (alias corto → id completo, effort del nombre de agy/codex/dsh a la columna, settings/-/vacío juntos, sin @opencode) y el bash congelado agrupa crudo";
+  "pa --rinde del TS agrupa con un solo nombre por modelo (alias corto → id completo, effort del nombre de agy/codex/dsh a la columna, settings/-/vacío juntos, sin @opencode) y el bash congelado agrupa crudo; " +
+  "además la leyenda del TS dice que en lecturas ok% es «terminó sin error, o `bien`», y cuenta is_error (una escritura sin integración que falló, una lectura sin `bien`) que el bash congelado no mira";
 
 /** Corridas con FRENÓ para `pa --rinde`: parecidos (la mitad de las palabras), iguales, sin texto, otro proyecto y una de hace 40 días. */
 const datosFrenos = (c: Contexto) =>
@@ -263,7 +264,7 @@ export const casosMedicion: Caso[] = [
   pcli("rinde --dias sin valor", ["--rinde", "--dias"], 2),
   pcli("rinde --por que no existe", ["--rinde", "--por", "modelo"], 2),
   pcli("rinde con una opción desconocida", ["--rinde", "--tabla"], 2),
-  pcli("rinde con el medicion.tsv de antes (header corto)", ["--rinde"], 0, { preparar: (c) => estado(c, "medicion.tsv", `${HEADER_VIEJO}\n${iso(hace(1))}\ta\tproy\t${M}\thigh\t0\t0\t0\t5\t60\t100\t0.2\t\n`) }),
+  pcli("rinde con el medicion.tsv de antes (header corto)", ["--rinde"], 0, { preparar: (c) => estado(c, "medicion.tsv", `${HEADER_VIEJO}\n${iso(hace(1))}\ta\tproy\t${M}\thigh\t0\t0\t0\t5\t60\t100\t0.2\t\n`), divergenciaSalida: DIVERGE_CANONICO }),
 
   // --- --bien-auto ---
   pcli("bien-auto sin medicion.tsv", ["--bien-auto"], 1),
