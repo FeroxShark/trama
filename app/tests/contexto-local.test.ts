@@ -7,7 +7,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { argvLider } from "../electron/lider-arma.ts";
-import { armarContexto, carpetasDe, hooksDeArranque, memoriaDe, prefacioGemini, PROMPT_GEMINI, recortar, sinSecciones, skillOrquestar, textoDeHook, tokensDe, topeParaCtx } from "../electron/contexto-local.ts";
+import { armarContexto, carpetasDe, hooksDeArranque, memoriaDe, prefacioDsh, prefacioGemini, PROMPT_DSH, PROMPT_GEMINI, recortar, sinSecciones, skillOrquestar, textoDeHook, tokensDe, topeParaCtx } from "../electron/contexto-local.ts";
+import { LINEA_AVANCES, LINEA_ORQUESTADOR, lineaCache, lineaChat } from "../electron/terminal-agentes.ts";
 import { tokensAprox } from "../electron/contexto-sesion.ts";
 process.env.TRAMA_DUENO = "Ana"; // los títulos del contexto nombran al dueño: aquí es siempre el mismo
 
@@ -225,7 +226,11 @@ test("armarContexto: `compartir` decide la memoria y los hooks, no el perfil", a
 });
 
 test("prefacioGemini: sin archivos queda el de las instrucciones solo", async () => {
-  assert.equal(await prefacioGemini({ home: "/no/existe", deps: { leer: async () => null, hook: async () => "" } }), PROMPT_GEMINI);
+  // Sin archivos: las instrucciones fijas más las reglas de Trama (chat, caché, avances), nada más.
+  const solo = await prefacioGemini({ home: "/no/existe", plat: "linux", deps: { leer: async () => null, hook: async () => "" } });
+  assert.ok(solo.startsWith(PROMPT_GEMINI));
+  assert.match(solo, /Avances en vivo: /);
+  assert.match(solo, /Cupo y caché: /);
 });
 
 test("prefacioGemini: trae la guía de delegar sin skill, y la ruta de pa sólo si se la pasan absoluta", async () => {
@@ -264,7 +269,9 @@ test("prefacioDsh: lo de Gemini con quién corre y sus herramientas cambiadas; s
   assert.match(PROMPT_DSH, /corrés dentro de DeepSeek Harness \(`dsh`\), no como Claude/);
   assert.doesNotMatch(PROMPT_DSH, /Gemini|agy|view_file/);
   assert.match(PROMPT_DSH, /pa <proyecto> --tipo/, "sigue explicando cómo delegar con pa");
-  assert.equal(await prefacioDsh({ home: "/no/existe", deps: { leer: async () => null, hook: async () => "" } }), PROMPT_DSH);
+  const soloDsh = await prefacioDsh({ home: "/no/existe", plat: "linux", deps: { leer: async () => null, hook: async () => "" } });
+  assert.ok(soloDsh.startsWith(PROMPT_DSH), "el prompt de dsh va primero; después, las reglas de Trama");
+  assert.match(soloDsh, /Avances en vivo: /);
   const con = await prefacioDsh({ home: "/no/existe", pa: "/opt/bin/pa", deps: { leer: async () => null, hook: async () => "" } });
   assert.ok(con.includes("`/opt/bin/pa`"));
 });
@@ -308,4 +315,28 @@ test("memoria compartida: una línea con pinta de clave, mail o teléfono no se 
   assert.match(p, /\[Trato\]\(trato\.md\)/);
   assert.doesNotMatch(p, /persona@ejemplo\.com/);
   assert.doesNotMatch(p, /sk-abcdefghijklmnop/);
+});
+
+test("prefacio de líder no-Claude: avances por defecto, orquestador sólo si se pide, sin asumir que está en ~", async () => {
+  const deps = { leer: async () => null, hook: async () => "" };
+  const por = await prefacioGemini({ home: "/no/existe", plat: "linux", deps });
+  assert.ok(por.includes(LINEA_AVANCES), "avances por defecto");
+  assert.ok(!por.includes(LINEA_ORQUESTADOR), "sin orquestador por defecto");
+  const sin = await prefacioGemini({ home: "/no/existe", plat: "linux", avances: false, deps });
+  assert.ok(!sin.includes(LINEA_AVANCES));
+  const orq = await prefacioGemini({ home: "/no/existe", plat: "linux", orquestador: true, deps });
+  assert.ok(orq.includes(LINEA_ORQUESTADOR) && orq.includes("encargar_orquestador"));
+  for (const p of [por, orq]) {
+    assert.ok(p.includes(lineaChat("linux")) && p.includes(lineaCache("linux")), "chat y caché, como Claude");
+  }
+  const dsh = await prefacioDsh({ home: "/no/existe", plat: "win32", orquestador: true, motor: "dsh", deps });
+  assert.ok(dsh.includes(lineaChat("win32")) && dsh.includes(LINEA_ORQUESTADOR));
+});
+
+test("PROMPT_GEMINI y PROMPT_DSH: el líder se dice de Trama aunque su sesión esté en un proyecto, no en ~", () => {
+  assert.doesNotMatch(PROMPT_GEMINI, /home de la persona/);
+  assert.match(PROMPT_GEMINI, /aunque tu sesión esté abierta dentro de un proyecto/);
+  assert.match(PROMPT_GEMINI, /lanzar_worker/);
+  assert.match(PROMPT_DSH, /Sos un líder de Trama \(una app/, "la primera línea de dsh sigue igual");
+  assert.doesNotMatch(PROMPT_DSH, /home de la persona/);
 });

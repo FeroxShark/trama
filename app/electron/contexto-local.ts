@@ -11,6 +11,7 @@ import { shellDe } from "./procesos.ts";
 import { resolverImports } from "./instrucciones-md.ts";
 import { CHARS_POR_TOKEN, tokensAprox } from "./contexto-sesion.ts";
 import { secretoEn } from "./cli/pa/motores/privacidad.ts";
+import { LINEA_AVANCES, LINEA_ORQUESTADOR, lineaCache, lineaChat } from "./terminal-agentes.ts";
 
 /** Los encabezados que no le tocan a un local: él no delega (no hay `pa`) ni elige workers. */
 export const ENCABEZADOS_FUERA = /^(jefe|modelos)\b/i;
@@ -216,7 +217,7 @@ export async function armarContexto(x: {
  */
 export const PROMPT_GEMINI = [
   "Sos un líder de Trama (una app para manejar workers de `pa` y chatear con sus líderes) y corrés como Gemini dentro de `agy`, no como Claude.",
-  "Estás en el home de la persona: sos el jefe que delega el trabajo de cada proyecto a workers con `pa`, que tenés en el PATH de tu herramienta de comandos (`pa --help` explica cómo se usa).",
+  "Sos un líder de Trama (aunque tu sesión esté abierta dentro de un proyecto): coordinás y delegás el trabajo de código, pruebas o interfaz a workers con `pa` o la herramienta MCP lanzar_worker (que los corre en worktrees propios). `pa` está en el PATH de tu herramienta de comandos (`pa --help` explica cómo se usa).",
   "Cómo delegar, en corto (esto vale aunque no tengas ningún skill):",
   "- `pa <proyecto> --tipo <tipo> \"<tarea>\"` lanza un worker adentro del proyecto y espera su resultado (RESULTADO / ARCHIVOS / DECISION). Tipos: mecanico, lectura, codigo-acotado, codigo-multi, frontend, diseno, debug. Sin `-m`, `pa` elige el modelo según el tipo.",
   "- Varias tareas a la vez, o una larga: `pa <proyecto> --async --tipo <tipo> \"<tarea>\"` imprime el id; después `pa --esperar <proyecto> --id <id>` (o `pa --esperar-todos`) trae el resultado.",
@@ -249,7 +250,7 @@ export async function skillOrquestar(home: string, env?: Record<string, string |
  */
 export const PROMPT_DSH = PROMPT_GEMINI.split("\n")
   .map((l) =>
-    l.startsWith("Sos un líder de Trama")
+    l.startsWith("Sos un líder de Trama (una app")
       ? "Sos un líder de Trama (una app para manejar workers de `pa` y chatear con sus líderes) y corrés dentro de DeepSeek Harness (`dsh`), no como Claude."
       : l.startsWith("Tus herramientas son")
         ? "Tus herramientas son las de dsh (bash, read, write, edit, glob, grep y la web). Contestá en el idioma en que te escriben, claro y al grano, y contá qué hiciste."
@@ -257,7 +258,18 @@ export const PROMPT_DSH = PROMPT_GEMINI.split("\n")
   )
   .join("\n");
 
-type EntradaPrefacio = { home: string; cwd?: string; pa?: string; env?: Record<string, string | undefined>; deps?: Partial<DepsContexto>; compartir?: boolean };
+/** `avances` (por defecto sí) y `orquestador` (por defecto no) son las reglas opcionales de Trama; `plat` por defecto la del proceso. */
+type EntradaPrefacio = {
+  home: string;
+  cwd?: string;
+  pa?: string;
+  env?: Record<string, string | undefined>;
+  deps?: Partial<DepsContexto>;
+  compartir?: boolean;
+  avances?: boolean;
+  orquestador?: boolean;
+  plat?: string;
+};
 
 /** El nombre de la parte con las instrucciones fijas de Trama (el prompt del motor): va primero en el desglose del panel. */
 export const PARTE_INSTRUCCIONES = "Instrucciones de Trama para este motor";
@@ -268,9 +280,17 @@ async function armarPrefacio(prompt: string, x: EntradaPrefacio): Promise<{ text
   const skill = await skillOrquestar(x.home, x.env);
   const base = skill === SKILL_GENERICA ? prompt : prompt.replaceAll(SKILL_GENERICA, skill);
   const conPa = x.pa && path.isAbsolute(x.pa) ? `${base}\nSi un comando dice "pa: command not found", \`pa\` está en \`${x.pa}\`: llamalo con esa ruta.` : base;
+  // Las reglas de Trama para todo líder que no es Claude: formato del chat, cuidado de caché, avances (por defecto) y modo orquestador (si está).
+  const plat = x.plat ?? process.platform;
+  // La guía de `lineaCache` es de la skill genérica: si la persona tiene la suya, se nombra esa (como en el resto del prompt).
+  const reglas = [lineaChat(plat), lineaCache(plat), x.avances !== false ? LINEA_AVANCES : "", x.orquestador === true ? LINEA_ORQUESTADOR : ""]
+    .filter(Boolean)
+    .join(" ")
+    .replaceAll(SKILL_GENERICA, skill);
+  const instrucciones = `${conPa}\n\n${reglas}`;
   return {
-    texto: c?.texto ? `${conPa}\n\n${c.texto}` : conPa,
-    partes: [{ titulo: PARTE_INSTRUCCIONES, tokens: tokensAprox(conPa), recortado: false, cortados: 0 }, ...(c?.partes ?? [])],
+    texto: c?.texto ? `${instrucciones}\n\n${c.texto}` : instrucciones,
+    partes: [{ titulo: PARTE_INSTRUCCIONES, tokens: tokensAprox(instrucciones), recortado: false, cortados: 0 }, ...(c?.partes ?? [])],
   };
 }
 
