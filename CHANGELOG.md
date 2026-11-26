@@ -1,5 +1,14 @@
 # Cambios
 
+## 0.3.31
+
+- Mapa de flujo en vivo: en el chat de un líder ahora podés ver al costado un lienzo interactivo con zoom, paneo, minimapa, tarjetas arrastrables y flechas animadas ancladas a puertos (con flecha de vuelta en ámbar cuando un worker pide decisión). El panel derecho suma pestañas **Inspector** y **Contexto** arriba de Tablero y Cupo, y la cabecera izquierda del chat muestra tokens y caché de un vistazo.
+- Límite de contexto en Gemini: «Contexto antes de compactar» suma fila propia para Gemini y aplica el tope configurado tanto en el anillo y panel de contexto como al pedir la nota previa y encolar `/compact` automáticamente.
+- Herramientas de archivo en Gemini: las llamadas `read_file`, `edit_file`, `write_file` e `invoke_subagent` ahora muestran el archivo leído o editado (y su diff) en vivo y en los pasos guardados.
+- Indicador de caché en Gemini: los líderes activos de Gemini muestran el chip informativo de caché (`⚡ ?`) en la barra y en el chat, igual que los de Codex.
+- Chat y cambio de motor/esfuerzo: al cambiar de conversación y volver se conserva el modelo o esfuerzo elegido para el próximo turno, y al cambiar de motor sin compactar la actividad en curso se muestra de inmediato.
+- Cierre por cupo y Codex: la tarjeta de cierre comprueba si el tope sigue rigiendo para el modelo y la cuenta actuales (y deja seguir con otro proveedor); se registró el MCP de Trama en Codex, se corrigió el envío de imágenes al retomar sesiones de Codex, y el prompt del líder suma una guía breve de ahorro de caché y cupo.
+
 ## 0.3.30
 
 - Workers: si un worker vuelve a contestar después de terminar (lo despierta una tarea de fondo), ya no se pierde su resultado verificado ni la cuenta de turnos y duración.
