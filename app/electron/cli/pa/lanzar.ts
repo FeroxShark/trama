@@ -21,7 +21,11 @@ import { comandoCierreCupo, comandoHook, comandoNotaCompactar, comillasShell, EV
 import { CIERRE_TAREA, CIERRE_TURNOS, SIN_JEFE, conJefe } from "./contrato.ts";
 import { contratoActualizar } from "./auditar.ts";
 import { caminoDe, configTrama, type Plataforma } from "../../rutas.ts";
-import { sumarFragmento } from "../../apagados.ts";
+import { leerApagadosTrama, sumarFragmento } from "../../apagados.ts";
+import { archivoPresets, leerPresets } from "../../presets.ts";
+import { apagadasPorPreset, type PresetSkills, presetsFabrica, resolverPreset } from "../../presets-tipos.ts";
+import { envDeSettings, familiaAdvisor, motivoAdvisor, parValido } from "../../advisor.ts";
+import { skillsClaude } from "./skills-motores.ts";
 import { leerUmbralYa } from "../../contexto.ts";
 import { ventanaDe } from "../../contexto-previa.ts";
 import { terminalAgentesGuardada } from "../../preferencias.ts";
@@ -91,6 +95,10 @@ export interface Corrida {
   /** `PA_ORIGEN` validado (default `jefe`). */
   lanzo: string;
   tipo?: string;
+  /** `--preset` (o el heredado del `.hilo`): qué skills carga; sin él, el del tipo si hay `presets.json`. */
+  preset?: string;
+  /** `--advisor` pedido (sólo workers de Claude; nunca se hereda de modelos.json). */
+  advisor?: string;
   fase?: string;
   tareaId?: string;
   /** La rúbrica normalizada (`RUB_NORM`). */
@@ -252,6 +260,15 @@ export function guardEnSettings(configClaude: string): boolean {
   }
 }
 
+// ---------------------------------------------------------------- preset de skills
+
+/** El preset de la corrida: el pedido, o el del tipo si hay `presets.json`. null: ni uno ni otro (o el pedido no existe). */
+export function presetDe(pa: Pa, o: { preset?: string; tipo?: string; leer?: boolean }): { nombre: string; preset: PresetSkills } | null {
+  const dir = configTrama(pa.env, pa.home, pa.plat);
+  if (!o.preset && !existsSync(archivoPresets(dir))) return null;
+  return resolverPreset(leerPresets(dir), { preset: o.preset, tipo: o.tipo?.toLowerCase().replace("diseño", "diseno"), leer: o.leer });
+}
+
 /** El JSON de `--settings` del worker: latido, guardia, cierre por cupo, nota-compactar, el plugin caveman apagado y el deny del espejo. */
 export function settingsWorker(
   pa: Pa,
@@ -267,6 +284,8 @@ export function settingsWorker(
     local?: boolean;
     umbralNota?: number | null;
     umbralTareaNota?: number | null;
+    preset?: string;
+    tipo?: string;
   },
 ): string {
   const variante = o.variante ?? (pa.plat === "win32" ? "mjs" : "sh");
@@ -346,6 +365,13 @@ export function settingsWorker(
     if (existsSync(f)) sumarFragmento(s, JSON.parse(readFileSync(f, "utf8")));
   } catch {
     /* como si no hubiera */
+  }
+  // El preset de ESTE worker: apaga skills encima del apagado global, sin tocar `apagados-claude.json`.
+  const preset = presetDe(pa, o)?.preset;
+  if (preset && preset.modo !== "todo") {
+    const globales = leerApagadosTrama(configTrama(pa.env, pa.home, pa.plat)).skills;
+    const apagadas = apagadasPorPreset(skillsClaude(o.configClaude ?? configClaudeDe(pa)).skills, preset, globales);
+    if (apagadas.length) s.skillOverrides = { ...(s.skillOverrides as object | undefined), ...Object.fromEntries(apagadas.map((n) => [n, "off"])) };
   }
   return JSON.stringify(s);
 }
@@ -527,8 +553,27 @@ export const HERRAMIENTAS_LEER = "Read,Grep,Glob,Bash,ToolSearch,ListAgents,Send
  */
 export const herramientasLeer = (plat: Plataforma): string => (plat === "win32" ? HERRAMIENTAS_LEER.replace(",Bash,", ",Bash,PowerShell,") : HERRAMIENTAS_LEER);
 
-/** ¿Este worker usa las skills (frontend y diseño las cargan con la herramienta Skill)? Entonces no se le apagan los comandos. */
-export const usaSkills = (c: Pick<Corrida, "tipo">): boolean => c.tipo === "frontend" || c.tipo === "diseno";
+/**
+ * ¿Este worker usa las skills? Entonces no se le apagan los comandos. Con preset pedido: sí, salvo uno que no carga ninguna
+ * (`solo` vacío, como `minimo`). Sin preset pedido: frontend y diseño, que las cargan con la herramienta Skill.
+ */
+export function usaSkills(c: Pick<Corrida, "tipo" | "preset">, pa?: Pa): boolean {
+  if (!c.preset) return c.tipo === "frontend" || c.tipo === "diseno";
+  const p = (pa ? leerPresets(configTrama(pa.env, pa.home, pa.plat)) : presetsFabrica()).presets[c.preset];
+  return !(p?.modo === "solo" && !p.skills.length);
+}
+
+/** El `--advisor` de la corrida: sólo el pedido, para un Claude de verdad, con un par que `claude` acepta y sin nada que lo apague. */
+export function advisorDe(pa: Pa, c: Pick<Corrida, "advisor" | "motor" | "local" | "modelo" | "cuentaEnv">): string {
+  if (!c.advisor || (c.motor ?? "claude") !== "claude" || c.local || !parValido(familiaAdvisor(c.modelo), c.advisor)) return "";
+  let settings = "";
+  try {
+    settings = readFileSync(path.join(configClaudeDe(pa, c), "settings.json"), "utf8");
+  } catch {
+    /* sin settings.json: sólo el entorno */
+  }
+  return motivoAdvisor({ ...pa.env, ...envDeSettings(settings) }) ? "" : c.advisor;
+}
 
 /**
  * Herramientas de claude que un worker escritor no usa: se apagan con `--disallowedTools` porque cada definición pesa en el
@@ -570,12 +615,14 @@ export function argsClaude(pa: Pa, c: Corrida, o: { contrato: string; settings: 
   if (c.esfuerzo) a.push("--effort", c.esfuerzo);
   a.push("--output-format", "json", "--append-system-prompt", o.contrato, "--permission-mode", "bypassPermissions");
   if (c.autocompact) a.push("--autocompact", c.autocompact);
+  const advisor = advisorDe(pa, c);
+  if (advisor) a.push("--advisor", advisor);
   a.push("--settings", o.settings, "--name", o.nombre);
   if (sinMcp(c)) a.push(...mcpApagado);
   if (c.leer) a.push("--tools", herramientasLeer(pa.plat));
   // Sin subagentes (el abanico de Haikus ya no aplica) y sin las skills y comandos: sólo el worker de diseño los carga.
   if (!c.leer) a.push("--disallowedTools", HERRAMIENTAS_APAGADAS);
-  if (!usaSkills(c)) a.push("--disable-slash-commands");
+  if (!usaSkills(c, pa)) a.push("--disable-slash-commands");
   // Las secciones de la máquina (cwd, entorno, estado de git) salen del system prompt al primer mensaje: el prefijo que se
   // cachea es el mismo en todas las corridas y el caché se reutiliza.
   a.push("--exclude-dynamic-system-prompt-sections");
@@ -587,15 +634,17 @@ export function argsClaude(pa: Pa, c: Corrida, o: { contrato: string; settings: 
 }
 
 /** El argv del auto-cierre de una corrida que se quedó sin turnos: un resume corto con CIERRE_TAREA. */
-export function argsCierre(_pa: Pa, c: Corrida, o: { contrato: string; settings: string; nombre: string; sid: string }): string[] {
+export function argsCierre(pa: Pa, c: Corrida, o: { contrato: string; settings: string; nombre: string; sid: string }): string[] {
   const a = ["-p", CIERRE_TAREA, "--model", c.local?.modelo ?? c.modelo];
   if (c.esfuerzo) a.push("--effort", c.esfuerzo);
   a.push("--output-format", "json", "--append-system-prompt", o.contrato, "--permission-mode", "bypassPermissions");
   if (c.autocompact) a.push("--autocompact", c.autocompact);
+  const advisor = advisorDe(pa, c);
+  if (advisor) a.push("--advisor", advisor);
   a.push("--settings", o.settings, "--name", o.nombre, "--resume", o.sid, "--max-turns", String(CIERRE_TURNOS));
   if (sinMcp(c)) a.push(...mcpApagado);
   if (!c.leer) a.push("--disallowedTools", HERRAMIENTAS_APAGADAS);
-  if (!usaSkills(c)) a.push("--disable-slash-commands");
+  if (!usaSkills(c, pa)) a.push("--disable-slash-commands");
   a.push("--exclude-dynamic-system-prompt-sections");
   if (c.maxBudget) a.push("--max-budget-usd", c.maxBudget);
   return a;
@@ -630,6 +679,8 @@ export function armarLanzamiento(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): La
     modelo: c.modelo,
     autocompact: c.autocompact,
     local: Boolean(c.local) || c.motor === "ollama",
+    preset: c.preset,
+    tipo: c.tipo,
   });
   const contrato = contratoClaude(pa, c);
   const nombre = nombreWorker(c);
@@ -765,6 +816,7 @@ export function escribirHilo(l: Lanzamiento): void {
     // El tope de compactación de esta corrida: el anillo y el panel de contexto leen lo mismo que Claude Code (CTX-43).
     ["autocompact", c.autocompact],
   ];
+  if (c.preset) campos.push(["preset", c.preset]);
   try {
     writeFileSync(f, campos.map(([k, v]) => `${k}=${v}\n`).join(""));
   } catch {

@@ -20,7 +20,7 @@ import { armarActualizar } from "./auditar.ts";
 import { armarSeguirCon, secretoDelResumen } from "./seguir-con.ts";
 import { esArchivo, idCorrida, leerCampo, leerTexto, listar } from "./corridas.ts";
 import { avisarFalta, jefeId, jefeNombre, type Env, type Pa } from "./entorno.ts";
-import { carpetaProyectos, claudeFalla, claudeRc, correrClaude, escapar, limiteDe, lanzarClaude, type Corrida, type Ganchos, type OpcionesLanzar } from "./lanzar.ts";
+import { advisorDe, presetDe, carpetaProyectos, claudeFalla, claudeRc, correrClaude, escapar, limiteDe, lanzarClaude, type Corrida, type Ganchos, type OpcionesLanzar } from "./lanzar.ts";
 import { TIPOS_VALIDOS } from "./modelos.ts";
 import { topeDeTurnos } from "./opciones.ts";
 import { grupoDeModelo } from "../reparto.ts";
@@ -345,6 +345,9 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
         cuenta: l.cuenta,
         espejo: l.espejo,
         effortPedido: l.esfuerzoPedido,
+        preset: l.preset,
+        advisor: l.advisor,
+        autocompactPedido: l.autocompactPedido,
       }),
       pedido: { tarea: l.tarea, modelo: l.modelo, effort: l.esfuerzo, cuenta: l.cuenta },
       repartoTipo: l.repartoTipoRelanzable,
@@ -492,6 +495,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
     let tareaId = l.tareaId;
     let subtarea = l.subtarea;
     let rubrica = l.rub?.norm ?? "";
+    let preset = l.preset;
     const hRet = path.join(dir, `${tsRetomada}.hilo`);
     if (tsRetomada && esArch(hRet)) {
       if (!tipo) {
@@ -499,6 +503,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
         if (!new RegExp(`^(${TIPOS_VALIDOS})$`).test(tipo)) tipo = "";
       }
       fase ||= leerCampo(hRet, "fase");
+      preset ||= leerCampo(hRet, "preset");
       tareaId ||= leerCampo(hRet, "tarea_id");
       subtarea ||= leerCampo(hRet, "subtarea");
       if (!l.rubrica && !rubrica) rubrica = leerCampo(hRet, "rubrica");
@@ -540,6 +545,8 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       tareaJefe,
       lanzo,
       tipo,
+      preset: preset || undefined,
+      advisor: l.advisor || undefined,
       fase,
       tareaId,
       rubrica,
@@ -553,7 +560,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       maxBudget: l.maxBudget,
       espejo: l.espejo || undefined,
       actualizar,
-      autocompact: conClaude ? modelos.autocompactDe(l.modelo, pa.autocompact) : "",
+      autocompact: l.autocompactPedido ? (l.autocompactPedido === "nativo" ? "" : l.autocompactPedido) : conClaude ? modelos.autocompactDe(l.modelo, pa.autocompact) : "",
       ficha,
       modeloFlojo: !leer && Boolean(l.flojo),
       paralelos,
@@ -567,6 +574,10 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       ocEffort: l.ocEffort,
       locales: motor === "dsh" ? localesDe(modelos) : undefined,
     };
+    // un relanzamiento por cupo recalcula el tope desde `pa.autocompact`: el pedido tiene que seguir mandando
+    if (l.autocompactPedido) pa.autocompact = l.autocompactPedido === "nativo" ? "nativo" : Number(l.autocompactPedido);
+    if (preset && !presetDe(pa, { preset })) io.err(`pa: el preset '${preset}' no existe en presets.json: va sin preset (sólo el apagado global).\n`);
+    if (c.advisor && conClaude && !advisorDe(pa, c)) io.err(`pa: --advisor ${c.advisor} no se pasa: el par con '${c.modelo}' no vale o algo del entorno lo apaga.\n`);
     const paRun: Pa = t.cargoTargetDir ? { ...pa, env: { ...env, CARGO_TARGET_DIR: t.cargoTargetDir } as Env } : pa;
     const g: Ganchos = ganchosDe(pa, l, {
       enfriar: async (m, salida) => {
