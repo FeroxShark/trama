@@ -90,14 +90,19 @@ if (/herramienta/i.test(texto)) {
   salir({ type: "item.completed", item: { ...item, aggregated_output: "hola\n", exit_code: 0, status: "completed" } });
   await dormir(ms);
 }
-const dicho = [`eco: ${texto}`, `(turno ${turno})`, `[${valor("-m")} ${valor("--sandbox")}]`].join(" ");
+const conNota = process.env.TRAMA_FALSO_AUTO_NOTA === "1" && /\[\[nota-compactar\]\]/.test(texto);
+const extraNota = conNota ? "\n\n[[nota-compactar]]Nota falsa de Codex[[/nota-compactar]]" : "";
+const dicho = [`eco: ${texto}`, `(turno ${turno})`, `[${valor("-m")} ${valor("--sandbox")}]`, extraNota].filter(Boolean).join(" ");
 salir({ type: "item.completed", item: { id: `item_${n++}`, type: "agent_message", text: dicho } });
 if (process.env.TRAMA_FALSO_ROLLOUT === "1") {
   const raiz = process.env.CODEX_HOME || path.join(process.env.HOME ?? "", ".codex");
   const carpeta = path.join(raiz, "sessions", "2026", "11", "22");
   mkdirSync(carpeta, { recursive: true });
   const archivo = path.join(carpeta, `rollout-2026-11-22T10-00-00-${id}.jsonl`);
-  const pedidos = [0, 1, 2].map((k) => 100_000 + turno * 1000 - (2 - k) * 5000);
+  const postCompact = /Recordatorio de Trama|Nota que te escribiste antes de compactar/.test(prompt);
+  const tokEnv = !postCompact && process.env.TRAMA_FALSO_CODEX_TOKENS ? Number(process.env.TRAMA_FALSO_CODEX_TOKENS) : NaN;
+  const ultimoTok = Number.isFinite(tokEnv) && tokEnv > 0 ? tokEnv : postCompact ? 12_000 : 100_000 + turno * 1000;
+  const pedidos = [0, 1, 2].map((k) => Math.max(1000, ultimoTok - (2 - k) * 5000));
   for (const entrada of pedidos) {
     const info = { total_token_usage: { input_tokens: 0 }, last_token_usage: { input_tokens: entrada, cached_input_tokens: entrada - 500, output_tokens: 30, reasoning_output_tokens: 5 }, model_context_window: 475000 };
     appendFileSync(archivo, JSON.stringify({ timestamp: "2026-11-22T10:00:00Z", type: "event_msg", payload: { type: "token_count", info } }) + "\n");

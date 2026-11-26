@@ -79,8 +79,9 @@ import { anotarTramaEnAgy, anotarTramaEnClaude, anotarTramaEnCodex, archivoMcpCl
 import { paraAcp, resueltos } from "./mcp-config.ts";
 import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { partirCodex } from "./codex-stream.ts";
+import { ventanaCodex } from "./cli/codex-modelos.ts";
 import { hijoEnGrupo, interrumpir, matarArbol, plazoParar } from "./procesos.ts";
-import { claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, memoriaCompartidaGuardada, notaCompactarGuardado, notaCompactarPctGuardado, notaCompactarTareaPctGuardado, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
+import { avancesVivoGuardado, claseDeModelo, effortsPermitidosGuardado, excluirGuardado, familiaDeModelo, idAgy, localDeModelo, localOllama, memoriaCompartidaGuardada, notaCompactarGuardado, notaCompactarPctGuardado, notaCompactarTareaPctGuardado, orquestacionGuardada, partirGemini, topeDeLider, asesorDeLider, type Clase } from "./modelos-config.js";
 import { baseNota, umbralesNota } from "./modelos-tipos.ts";
 import { VENTANA_GEMINI } from "./agy-stream.ts";
 import { cargarTextosNota, debeAutoCompactar, extraerNotaDeTexto, guardarNotaSiCambia, idiomaDeEstado, leerNotaGuardada, mtimeNota, textosNotaCargados, usoDeLineaStream, type UmbralesNota } from "./nota-compactar-main.ts";
@@ -561,12 +562,15 @@ async function extraDe(modelo: string, cwd: string | undefined): Promise<Extra> 
     if (!o) throw errorT("main.ollamaNoEsta", { v: modelo });
     return { ollama: { url: o.url, modelo: o.modelo } };
   }
-  if (clase === "gemini") return { prefacio: await prefacioGemini({ home: HOME, cwd, compartir: memoriaCompartidaGuardada("gemini"), pa: resolverPa(process.env, HOME), env: process.env }).catch((e) => (silencio("contexto-gemini")(e), "")) };
+  const avances = avancesVivoGuardado();
+  const orquestador = orquestacionGuardada().activo;
+  const plat = plataformaActual();
+  if (clase === "gemini") return { prefacio: await prefacioGemini({ home: HOME, cwd, compartir: memoriaCompartidaGuardada("gemini"), pa: resolverPa(process.env, HOME), env: process.env, avances, orquestador, plat }).catch((e) => (silencio("contexto-gemini")(e), "")) };
   if (clase === "dsh") {
     // Un `dsh:` mal armado no se lanza (dsh-puente lo rechazaría igual, pero acá el error llega a la UI). dsh tampoco lee CLAUDE.md: mismo prefacio que Gemini.
     const d = parsearModelo(modelo);
     if (!d) throw errorT("main.dshModelo", { v: modelo.slice(0, 80) });
-    const prefacio = await prefacioDsh({ home: HOME, cwd, compartir: memoriaCompartidaGuardada("dsh"), pa: resolverPa(process.env, HOME), env: process.env, motor: "dsh", modelo: `${d.proveedor}/${d.modelo}` }).catch((e) => (silencio("contexto-dsh")(e), ""));
+    const prefacio = await prefacioDsh({ home: HOME, cwd, compartir: memoriaCompartidaGuardada("dsh"), pa: resolverPa(process.env, HOME), env: process.env, motor: "dsh", modelo: `${d.proveedor}/${d.modelo}`, avances, orquestador, plat }).catch((e) => (silencio("contexto-dsh")(e), ""));
     // Un Ollama en otra máquina: la URL del local de `modelos.json` que sirve ese modelo (sin él, dsh usa el de siempre, 127.0.0.1).
     const url = d.proveedor === "ollama" ? localDeModelo(d.modelo)?.url : undefined;
     return { prefacio, ...(url ? { dshUrl: `${url.replace(/\/+$/, "")}/v1` } : {}) };
@@ -574,10 +578,10 @@ async function extraDe(modelo: string, cwd: string | undefined): Promise<Extra> 
   if (clase === "opencode") {
     // Mismo puente que dsh (dsh-puente.ts, con `opencode acp` por detrás); opencode tampoco lee CLAUDE.md de Trama: el prefacio va por el entorno.
     if (!parsearOpencode(modelo)) throw errorT("main.opencodeModelo", { v: modelo.slice(0, 80) });
-    return { prefacio: await prefacioDsh({ home: HOME, cwd, compartir: memoriaCompartidaGuardada("opencode"), pa: resolverPa(process.env, HOME), env: process.env, motor: "opencode", modelo: modelo.replace(/^opencode:/, "") }).catch((e) => (silencio("contexto-opencode")(e), "")) };
+    return { prefacio: await prefacioDsh({ home: HOME, cwd, compartir: memoriaCompartidaGuardada("opencode"), pa: resolverPa(process.env, HOME), env: process.env, motor: "opencode", modelo: modelo.replace(/^opencode:/, ""), avances, orquestador, plat }).catch((e) => (silencio("contexto-opencode")(e), "")) };
   }
   // ChatGPT (codex-puente.ts): codex lee AGENTS.md pero no los CLAUDE.md de la persona: el mismo prefacio que dsh, con lo de codex.
-  if (clase === "codex") return { prefacio: await prefacioDsh({ home: HOME, cwd, compartir: memoriaCompartidaGuardada("codex"), pa: resolverPa(process.env, HOME), env: process.env, motor: "codex", modelo }).catch((e) => (silencio("contexto-codex")(e), "")) };
+  if (clase === "codex") return { prefacio: await prefacioDsh({ home: HOME, cwd, compartir: memoriaCompartidaGuardada("codex"), pa: resolverPa(process.env, HOME), env: process.env, motor: "codex", modelo, avances, orquestador, plat }).catch((e) => (silencio("contexto-codex")(e), "")) };
   return {};
 }
 
@@ -625,9 +629,9 @@ export function planAutoNotaCompactar(sid: string): { texto: string; modelo: str
   if (!notaCompactarGuardado()) return null;
   const x = procs.get(sid);
   if (!x || x.local) return null;
-  if (x.clase !== "claude" && x.clase !== "gemini") return null;
-  const ventana = x.clase === "gemini" ? VENTANA_GEMINI : ventanaDe(x.modelo);
-  const topeActual = x.clase === "gemini" ? (topeDeLider(x.modelo) ?? x.topeNota ?? x.tope ?? null) : (x.topeNota ?? x.tope ?? null);
+  if (x.clase !== "claude" && x.clase !== "gemini" && x.clase !== "codex") return null;
+  const ventana = x.clase === "gemini" ? VENTANA_GEMINI : x.clase === "codex" ? ventanaCodex(x.modelo) : ventanaDe(x.modelo);
+  const topeActual = x.clase === "gemini" || x.clase === "codex" ? (topeDeLider(x.modelo) ?? x.topeNota ?? x.tope ?? null) : (x.topeNota ?? x.tope ?? null);
   const umbrales: UmbralesNota = umbralesNota({
     tope: topeActual,
     ventana,
@@ -643,7 +647,7 @@ export function planAutoNotaCompactar(sid: string): { texto: string; modelo: str
     return { texto: "/compact", modelo: x.modelo, effort: x.effort };
   }
   if (
-    x.clase === "gemini" &&
+    (x.clase === "gemini" || x.clase === "codex") &&
     !x.geminiNotaPedidaCiclo &&
     !yaEncolado &&
     uso !== null &&
@@ -670,8 +674,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   const clase = claseDeModelo(g.modelo);
   // Ultracode y Fast son de Claude Code con un modelo de Anthropic (no de uno local, de Ollama ni de otro motor).
   const oficial = clase === "claude" && !local && !extra.ollama && esClaudeOficial(g.modelo);
-  // «Contexto antes de compactar» de su familia (modelos.json, `PA_AUTOCOMPACT` pisa): en Claude va por argv (`--autocompact`), en Gemini lo controla Trama al pedir nota y encolar `/compact`.
-  const tope = (clase === "claude" || clase === "gemini") && !local && !extra.ollama ? topeDeLider(g.modelo) : null;
+  // «Contexto antes de compactar» de su familia (modelos.json, `PA_AUTOCOMPACT` pisa): en Claude va por argv (`--autocompact`), en Gemini y Codex lo controla Trama al pedir nota y encolar `/compact`.
+  const tope = (clase === "claude" || clase === "gemini" || clase === "codex") && !local && !extra.ollama ? topeDeLider(g.modelo) : null;
   // Advisor: el asesor que se eligió en Ajustes para su familia (sólo si anda en esta máquina; ver advisor.ts).
   const asesor = clase === "claude" && !local && !extra.ollama ? asesorDeLider(g.modelo, entornoLider(process.env, HOME), HOME) : null;
   // La terminal de los agentes (Windows): PowerShell por defecto; en Linux no cambia nada (terminal-agentes.ts).
@@ -688,7 +692,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   if (cuenta) for (const a of asegurarCuenta(cuenta.id)) rastro(g.sid, "sin-motivo", a);
   // La nota se pide antes de la compactación que de verdad va a pasar: sin tope de Trama manda el `autoCompactWindow` del settings de
   // Claude Code (si no, el umbral salía de la ventana entera y Claude Code compactaba antes de que se pidiera).
-  const topeNota = tope ?? ((clase === "claude" || clase === "gemini") && !local && !extra.ollama ? leerUmbralYa(cuenta?.dir ?? process.env.CLAUDE_CONFIG_DIR ?? path.join(HOME, ".claude")) : null);
+  const topeNota = tope ?? ((clase === "claude" || clase === "gemini" || clase === "codex") && !local && !extra.ollama ? leerUmbralYa(cuenta?.dir ?? process.env.CLAUDE_CONFIG_DIR ?? path.join(HOME, ".claude")) : null);
   const opciones = { ...base, ...(cuenta ? { env: entornoCuenta(base.env, cuenta.dir) } : {}), stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: hijoEnGrupo(), windowsHide: true };
   // Si la conversación venía de otro motor, lo hablado va aparte de los mensajes (prompt de sistema o prefacio): no ensucia el transcript.
   // (También el de una rama hecha con relevo o una vuelta atrás en un motor sin `--resume-session-at`: el archivo sólo existe si hace falta.)
@@ -751,6 +755,12 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   } catch (e) {
     silencio("apagados-lanzar")(e);
   }
+  const chat = lineaChat(plat);
+  const prefacioPuente = extra.prefacio ? (extra.prefacio.includes(chat) ? extra.prefacio : `${chat}\n\n${extra.prefacio}`) : chat;
+  const lineaSistema =
+    !local && !extra.ollama
+      ? lineaSistemaLider(plat, terminal, { delegar: true, avances: avancesVivoGuardado(), orquestador: orquestacionGuardada().activo })
+      : lineaSistemaLider(plat, terminal);
   const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : clase === "opencode" ? "opencode" : clase === "codex" ? "codex" : path.basename(CLAUDE).replace(/\.(exe|cmd|bat)$/i, "");
   const p =
     clase === "codex"
@@ -758,7 +768,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           process.execPath,
           [PUENTE_CODEX, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--effort", g.effort, "--cwd", base.cwd, "--modo", g.modo ?? MODO_DEFAULT],
           // Como el de Gemini: el Electron del motor como Node pelado. codex usa su login de ChatGPT (el puente saca OPENAI_API_KEY); el prefacio va por el entorno.
-          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_CODEX_PREFACIO: [lineaChat(plataformaActual()), extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_CODEX_RELEVO: relevo } : {}) } },
+          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_CODEX_PREFACIO: prefacioPuente, ...(relevo ? { TRAMA_CODEX_RELEVO: relevo } : {}) } },
         )
       : clase === "opencode"
       ? spawn(
@@ -780,9 +790,9 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           process.execPath,
           [PUENTE_AGY, "--sid", g.sid, "--nombre", g.nombre, "--modelo", idAgy(g.modelo, g.effort), "--cwd", base.cwd],
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
-          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: [lineaChat(plataformaActual()), extra.prefacio].filter(Boolean).join("\n\n"), ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
+          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: prefacioPuente, ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, cierreCupo, autocompact: tope, advisor: asesor, fast: g.fast, lineaSistema: lineaSistemaLider(plat, terminal) }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
+      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, cierreCupo, autocompact: tope, advisor: asesor, fast: g.fast, lineaSistema }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
   const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, tope, topeNota, asesor, ...(cuenta ? { cuenta: cuenta.id } : {}), ...(g.ultracode && oficial ? { ultracode: true } : {}), ...(g.fast && oficial ? { fast: true } : {}), ...(clase === "claude" && !local && !extra.ollama && argvFast(g.modelo, g.fast).length ? { fastArgv: true } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null, usoContexto: null, compactadoMs: 0, autoCompactEncolado: false, geminiNotaPedidaCiclo: false };
   procs.set(g.sid, x);
   // Ultracode va tras el arranque, por el mismo canal que el cambio en vivo (el argv no lo lleva): si Claude Code no lo acepta, queda apagado.
@@ -823,7 +833,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           x.autoCompactEncolado = false;
           x.geminiNotaPedidaCiclo = false;
         }
-        if (e.tipo === "mensaje" && e.texto && (clase === "claude" || clase === "gemini") && !local && !extra.ollama && notaCompactarGuardado()) {
+        if (e.tipo === "mensaje" && e.texto && (clase === "claude" || clase === "gemini" || clase === "codex") && !local && !extra.ollama && notaCompactarGuardado()) {
           const nota = extraerNotaDeTexto(e.texto);
           if (nota) {
             try {
@@ -1233,7 +1243,7 @@ export async function cambiarExtras(sid: string, x: unknown): Promise<{ ok: bool
 
 /** ¿El tope, el asesor o el Fast del proceso (van en su argv) no son los que corresponden? Pasa tras cambiar de familia a mitad de un turno, o al apagar Fast. */
 function desfasado(x: Pick<Proc, "modelo" | "tope" | "asesor" | "fast" | "fastArgv"> & { clase?: Clase }): boolean {
-  const topeCambia = x.clase === "gemini" ? false : (x.tope ?? null) !== topeDeLider(x.modelo);
+  const topeCambia = x.clase === "gemini" || x.clase === "codex" ? false : (x.tope ?? null) !== topeDeLider(x.modelo);
   return topeCambia || (x.asesor ?? null) !== asesorDeLider(x.modelo, entornoLider(process.env, HOME), HOME) || fastDesfasado(x);
 }
 
@@ -1608,7 +1618,17 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
   }
   // Punto de control (#1787): cómo está la carpeta antes de que el turno la toque. Nunca frena el mensaje (sin git, `null`).
   await puntos.antes(ESTADO, g.sid, g.cwd);
-  p ??= lanzar(g, await haySesionClaude(g), local, extraCruce ?? (await extraDe(modelo, g.cwd)));
+  if (!p) {
+    const claseDestino = claseDeModelo(modelo);
+    let extraLanzar = extraCruce;
+    if (!extraLanzar || (claseDestino !== "claude" && claseDestino !== "ollama" && !extraLanzar.prefacio)) {
+      const baseExtra = await extraDe(modelo, g.cwd);
+      extraLanzar = extraLanzar
+        ? { ...baseExtra, ...extraLanzar, ...(extraLanzar.prefacio || baseExtra.prefacio ? { prefacio: extraLanzar.prefacio || baseExtra.prefacio } : {}) }
+        : baseExtra;
+    }
+    p = lanzar(g, await haySesionClaude(g), local, extraLanzar);
+  }
   p.ocupado = true;
   p.directos.length = 0;
   // Recién traído de una terminal: se cortaron sus esperas, y sus workers siguen sin quien los recoja.
@@ -1986,7 +2006,8 @@ export async function ramificar(x: { sid: string; uuid: string; modelo: string; 
   };
   ls.push(g);
   await guardar();
-  lanzar(g, false);
+  const extra = await extraDe(modelo, cwd);
+  lanzar(g, false, undefined, extra);
   alEv(g.sid, { tipo: "estado", ocupado: false, vivo: true });
   alCambio();
   return g.sid;

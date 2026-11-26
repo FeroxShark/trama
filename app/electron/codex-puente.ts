@@ -23,13 +23,17 @@ import path from "node:path";
 import os from "node:os";
 import { aliasMasNuevosCodex, leerCodexModelos } from "./cli/codex-modelos.ts";
 import { entornoCodexLider, paraLanzar, resolverCodex } from "./binario.ts";
+import { carpetaHooksNota } from "./cierre-cupo-texto.ts";
 import { contextoDeThread } from "./codex-rollout.ts";
 import { argsCodex, partirCodex, sandboxDe, Traductor } from "./codex-stream.ts";
 import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
 import { deDueno, dueno } from "./dueno.ts";
 import { ESTADO } from "./estado.ts";
+import { avancesVivoGuardado, notaCompactarGuardado, orquestacionGuardada } from "./modelos-config.ts";
+import { cargarTextosNota, consumirNotaParaDevolver, idiomaDeEstado, textosNotaCargados } from "./nota-compactar-main.ts";
 import { hijoEnGrupo, matarArbol, matarArbolAlSalir } from "./procesos.ts";
 import { SESIONES } from "./sesiones.ts";
+import { recordatorioLiderPostCompact } from "./terminal-agentes.ts";
 
 const CODEX = resolverCodex(process.env, os.homedir());
 /** Cuánto de lo hablado se repite si hay que empezar una conversación nueva (caracteres). */
@@ -121,22 +125,37 @@ function anotar(o: Record<string, unknown>) {
   }
 }
 
-function leerLado(): { thread_id: string | null; contexto: number | null; ventana: number | null } {
+function leerLado(): { thread_id: string | null; contexto: number | null; ventana: number | null; pendienteNota: boolean } {
   try {
     const o = JSON.parse(readFileSync(LADO, "utf8"));
     return {
       thread_id: typeof o?.thread_id === "string" ? o.thread_id : null,
       contexto: typeof o?.contexto === "number" ? o.contexto : null,
       ventana: typeof o?.ventana === "number" ? o.ventana : null,
+      pendienteNota: o?.pendiente_nota === true,
     };
   } catch {
-    return { thread_id: null, contexto: null, ventana: null };
+    return { thread_id: null, contexto: null, ventana: null, pendienteNota: false };
   }
 }
 
-function guardarLado(id: string, contexto: number | null = leerLado().contexto, ventana: number | null = leerLado().ventana) {
+function guardarLado(
+  id: string | null,
+  contexto: number | null = leerLado().contexto,
+  ventana: number | null = leerLado().ventana,
+  pendienteNota: boolean = leerLado().pendienteNota,
+) {
   try {
-    const texto = JSON.stringify({ version: 1, sid, thread_id: id, modelo, ...(contexto ? { contexto } : {}), ...(ventana ? { ventana } : {}) }) + "\n";
+    const texto =
+      JSON.stringify({
+        version: 1,
+        sid,
+        ...(id ? { thread_id: id } : {}),
+        modelo,
+        ...(contexto ? { contexto } : {}),
+        ...(ventana ? { ventana } : {}),
+        ...(pendienteNota ? { pendiente_nota: true } : {}),
+      }) + "\n";
     // Entero o nada: el main lo lee mientras el puente lo escribe, y un archivo a medias se leería como «sin conversación».
     const tmp = `${LADO}.${process.pid}.tmp`;
     try {
@@ -316,12 +335,41 @@ function correrCodex(prompt: string, thread: string | null, imagenes: string[], 
 /** Sale al stream y, lo que es de la conversación, al transcript. */
 function escribir(o: Record<string, any>) {
   salir(o);
-  if (o.type === "assistant" || (o.type === "user" && Array.isArray(o.message?.content) && o.message.content[0]?.type === "tool_result")) anotar({ type: o.type, message: o.message });
+  if (o.type === "system" && o.subtype === "compact_boundary")
+    anotar({ type: "system", subtype: "compact_boundary", compactMetadata: { trigger: o.compact_metadata?.trigger, preTokens: o.compact_metadata?.pre_tokens } });
+  else if (o.type === "assistant" || (o.type === "user" && Array.isArray(o.message?.content) && o.message.content[0]?.type === "tool_result"))
+    anotar({ type: o.type, message: o.message });
 }
 
-/** Lo que se le manda a codex en una conversación nueva: el prefacio, lo hablado si se perdió la anterior y el mensaje. */
-function conPrefacio(t: string, repetir: string) {
+/** Recordatorio de las reglas de Trama que se re-inyecta tras compactar o abrir una sesión nueva de respaldo. */
+function recordatorioPostCompact(): string {
+  return recordatorioLiderPostCompact(process.platform, {
+    avances: avancesVivoGuardado(),
+    orquestador: orquestacionGuardada().activo,
+  });
+}
+
+/** Consume la nota previa a compactar (`<estado>/notas/<sid>.md` → `.devuelta.md`) si corresponde. */
+async function consumirEncabezadoNota(): Promise<string> {
+  if (!notaCompactarGuardado()) return "";
+  const hooks = carpetaHooksNota();
+  if (hooks && !textosNotaCargados()) await cargarTextosNota(hooks).catch(() => {});
+  const dev = consumirNotaParaDevolver(ESTADO, sid);
+  if (!dev) return "";
+  const tMod = textosNotaCargados();
+  return tMod
+    ? tMod.textoDevolucionNota({ idioma: idiomaDeEstado(ESTADO), nota: dev.nota, minutos: dev.minutos, archivo: dev.archivo })
+    : dev.nota;
+}
+
+/** Lo que se le manda a codex en una conversación nueva: el prefacio, recordatorio/nota si corresponde, lo hablado si se perdió la anterior y el mensaje. */
+function conPrefacio(t: string, repetir: string, opts?: { recordatorio?: boolean; nota?: string }) {
   const partes = [prefacio];
+  if (opts?.recordatorio) {
+    const rec = recordatorioPostCompact();
+    if (!prefacio.includes(rec)) partes.push(rec);
+  }
+  if (opts?.nota) partes.push(opts.nota);
   if (repetir) partes.push(`Lo que ya hablaron antes de que se perdiera tu conversación interna (los resultados de los comandos no se conservan):\n\n${repetir}`);
   partes.push(`Mensaje ${deDueno()}:\n${t}`);
   return partes.filter(Boolean).join("\n\n---\n\n");
@@ -340,17 +388,53 @@ async function turno(m: Mensaje) {
   anotar({ type: "user", message: { role: "user", content: m.imagenes.length ? `${m.texto}\n[${m.imagenes.length} imagen(es) adjunta(s)]`.trim() : m.texto } });
   // Si alguna imagen no se pudo guardar, codex lo sabe (si no, contestaría como si no hubiera venido nada).
   const textoCodex = imagenes.length < m.imagenes.length ? `${m.texto}\n[${dueno()} adjuntó ${m.imagenes.length} imagen(es), pero no se pudieron guardar para que las veas; pedile que las describa.]`.trim() : m.texto;
+  // `/compact`: reinicia la sesión limpia de codex y marca `pendiente_nota` para re-inyectar la nota y el recordatorio de Trama en el próximo turno.
+  const compactar = /^\/compact(?:\s|$)/i.test(textoCodex.trim());
+  if (compactar) {
+    const restoCompact = textoCodex.trim().replace(/^\/compact\s*/i, "");
+    salir({ type: "system", subtype: "status", status: "compacting", parent_tool_use_id: null, session_id: sid });
+    escribir({
+      type: "system",
+      subtype: "compact_boundary",
+      compact_metadata: { trigger: "manual", pre_tokens: lado.contexto ?? null },
+      parent_tool_use_id: null,
+      session_id: sid,
+    });
+    if (!restoCompact) {
+      guardarLado(null, null, lado.ventana, true);
+      for (const o of new Traductor({ sid, modelo, contextoPrevio: null, ventanaPrevia: lado.ventana }).fin(null)) escribir(o);
+      return cerrarTurno();
+    }
+    guardarLado(null, null, lado.ventana, false);
+    const enc = await consumirEncabezadoNota();
+    const tr = new Traductor({ sid, modelo, contextoPrevio: null, ventanaPrevia: lado.ventana });
+    await correrCodex(conPrefacio(restoCompact, "", { recordatorio: true, nota: enc }), null, imagenes, tr);
+    if (tr.conversacion) guardarLado(tr.conversacion, tr.contexto || null, tr.rollout?.ventana ?? lado.ventana, false);
+    return cerrarTurno();
+  }
+  let encNota = "";
+  let postCompact = false;
+  if (lado.pendienteNota) {
+    postCompact = true;
+    guardarLado(lado.thread_id, lado.contexto, lado.ventana, false);
+    encNota = await consumirEncabezadoNota();
+  }
+  const promptInicial = lado.thread_id
+    ? postCompact
+      ? [encNota, recordatorioPostCompact(), textoCodex].filter(Boolean).join("\n\n")
+      : textoCodex
+    : conPrefacio(textoCodex, postCompact ? "" : previo, postCompact ? { recordatorio: true, nota: encNota } : undefined);
   const tr = new Traductor({ sid, modelo, contextoPrevio: lado.contexto, ventanaPrevia: lado.ventana });
   tr.conversacion = lado.thread_id;
-  const v = await correrCodex(lado.thread_id ? textoCodex : conPrefacio(textoCodex, previo), lado.thread_id, imagenes, tr);
+  const v = await correrCodex(promptInicial, lado.thread_id, imagenes, tr);
   let ultimo = tr;
   if (v.sinConversacion && !interrumpido) {
-    // codex no encontró la conversación: una nueva con lo hablado.
+    // codex no encontró la conversación: una nueva de respaldo con lo hablado y el recordatorio de Trama.
     ultimo = new Traductor({ sid, modelo, contextoPrevio: lado.contexto, ventanaPrevia: lado.ventana });
-    await correrCodex(conPrefacio(textoCodex, previo), null, imagenes, ultimo);
+    await correrCodex(conPrefacio(textoCodex, previo, { recordatorio: true, nota: encNota || undefined }), null, imagenes, ultimo);
   }
   // Sin rollout el contexto quedó desconocido (0): no se guarda el del turno anterior como si siguiera valiendo.
-  if (ultimo.conversacion) guardarLado(ultimo.conversacion, ultimo.contexto || null, ultimo.rollout?.ventana ?? lado.ventana);
+  if (ultimo.conversacion) guardarLado(ultimo.conversacion, ultimo.contexto || null, ultimo.rollout?.ventana ?? lado.ventana, false);
   cerrarTurno();
 }
 

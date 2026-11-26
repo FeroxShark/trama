@@ -279,3 +279,94 @@ test("flujo Gemini (solo Gemini, agy-falso): al pasar umbral fuerte pide nota, e
     }
   }
 });
+
+test("flujo Codex (solo Codex, codex-falso): con tope codex 300k pide nota al pasar 85%, encola /compact y al retomar devuelve nota y recordatorio", { timeout: 25_000, skip: soloPosix("codex falso por shebang") }, async () => {
+  const dir = nuevoDir();
+  const prev = {
+    HILOS_STATE: process.env.HILOS_STATE,
+    HILOS_SESIONES: process.env.HILOS_SESIONES,
+    CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
+    CODEX_HOME: process.env.CODEX_HOME,
+    HILOS_CODEX: process.env.HILOS_CODEX,
+    TRAMA_FALSO_LOG: process.env.TRAMA_FALSO_LOG,
+    TRAMA_FALSO_MS: process.env.TRAMA_FALSO_MS,
+    TRAMA_FALSO_ROLLOUT: process.env.TRAMA_FALSO_ROLLOUT,
+    TRAMA_FALSO_CODEX_TOKENS: process.env.TRAMA_FALSO_CODEX_TOKENS,
+    TRAMA_FALSO_AUTO_NOTA: process.env.TRAMA_FALSO_AUTO_NOTA,
+    TRAMA_MODELOS: process.env.TRAMA_MODELOS,
+  };
+  const estadoDir = estadoLider;
+  const logF = path.join(dir, "codex.log");
+  const modelosF = path.join(dir, "modelos.json");
+  process.env.HILOS_STATE = estadoDir;
+  process.env.HILOS_SESIONES = path.join(dir, "sesiones");
+  process.env.CLAUDE_CONFIG_DIR = path.join(dir, "claude");
+  process.env.CODEX_HOME = path.join(dir, "codex-home");
+  process.env.HILOS_CODEX = path.join(import.meta.dirname, "..", "scripts", "codex-falso.mjs");
+  process.env.TRAMA_FALSO_LOG = logF;
+  process.env.TRAMA_FALSO_MS = "5";
+  process.env.TRAMA_FALSO_ROLLOUT = "1";
+  process.env.TRAMA_FALSO_CODEX_TOKENS = "260000";
+  process.env.TRAMA_FALSO_AUTO_NOTA = "1";
+  process.env.TRAMA_MODELOS = modelosF;
+  writeFileSync(
+    modelosF,
+    JSON.stringify({ version: 1, autocompact: { defecto: null, por_modelo: { codex: 300_000 } } }),
+  );
+  mkdirSync(estadoDir, { recursive: true });
+  writeFileSync(path.join(estadoDir, "preferencias.json"), JSON.stringify({ idioma: "es" }));
+
+  const lider = await import("../electron/lider.ts");
+  const { crearCola } = await import("../electron/cola.ts");
+  let compactoVisto = false;
+  const cola = crearCola({
+    disponible: (s) => lider.disponible(s),
+    traer: (s, x, c) => lider.traer(s, x, c),
+    mandar: async (s, x) => { await lider.mandar({ sid: s, ...x }); },
+    total: () => Promise.resolve(0),
+    textoError: (x) => ("motivo" in x ? x.motivo : String(x.error)),
+    guardar: async () => {},
+    avisar: () => {},
+    agrupar: 5,
+    gracia: 20,
+  });
+  lider.alEvento((sid, e) => {
+    if (e.tipo === "aviso" && e.aviso.clase === "compacto") compactoVisto = true;
+    if (e.tipo === "fin") {
+      cola.finTurno(sid);
+      if (!e.error) {
+        const auto = lider.planAutoNotaCompactar(sid);
+        if (auto) cola.encolarPrimero(sid, { ...lider.paraCola({ sid, ...auto }).item, aviso: true, solo: true });
+      }
+    }
+    if (e.tipo === "estado" && !e.ocupado) void cola.libre(sid);
+  });
+
+  try {
+    const sid = await lider.nuevo({ modelo: "codex:gpt-6.2-sol-high", effort: "high", texto: "primer trabajo codex" });
+    await esperarHasta(() => compactoVisto, { tope: 12_000 });
+    await esperarHasta(async () => (await lider.disponible(sid)) === "app", { tope: 8_000 });
+    assert.equal(existsSync(path.join(estadoDir, "notas", `${sid}.md`)), true, "debe guardar la nota de Codex antes de /compact");
+
+    await lider.mandar({ sid, modelo: "codex:gpt-6.2-sol-high", effort: "high", texto: "después del compact codex" });
+    await esperarHasta(
+      () => existsSync(path.join(estadoDir, "notas", `${sid}.devuelta.md`)) && existsSync(logF) && readFileSync(logF, "utf8").includes("después del compact codex"),
+      { tope: 8_000 },
+    );
+    await esperarHasta(async () => (await lider.disponible(sid)) === "app", { tope: 8_000 });
+    const logs = readFileSync(logF, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { args: string[]; prompt: string });
+    const conNota = logs.find((l) => l.prompt.includes("después del compact codex"));
+    assert.ok(conNota);
+    assert.ok(!conNota.args.includes("resume"), "tras /compact arranca una sesión limpia de Codex");
+    assert.match(conNota.prompt, /Nota que te escribiste antes de compactar/);
+    assert.match(conNota.prompt, /Nota falsa de Codex/);
+    assert.match(conNota.prompt, /Recordatorio de Trama/);
+    assert.equal(existsSync(path.join(estadoDir, "notas", `${sid}.md`)), false, "se renombra a .devuelta.md");
+  } finally {
+    await lider.cerrarTodos(true);
+    for (const [k, v] of Object.entries(prev)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
