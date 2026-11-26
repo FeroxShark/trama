@@ -11,6 +11,7 @@ export const FLAGS_CON_VALOR = [
   "--max-turns", "--id", "--integrar", "--descartar", "--actualizar", "--nota", "--max-budget-usd", "-m", "--model", "--effort", "--tipo", "--titulo", "--indivisible",
   "--fase", "--tarea", "--subtarea", "--rubrica", "--cuenta", "--brief-archivo", "--leccion", "--auditar", "--decisiones", "--espejo",
   "--test-inline", "--seguir-con", "--retoma-de", "--objetivo", "--verificar", "--intentos", "--tope-cupo", "--avisar-a",
+  "--preset", "--advisor", "--autocompact",
 ];
 export const EFFORTS_VALIDOS = /^(low|medium|high|xhigh|max)$/;
 
@@ -48,6 +49,12 @@ export interface Opciones {
   actualizar: string;
   /** --seguir-con <modelo> --id <id>: la misma conversación en otro modelo (el modelo pedido; el id va en `runId`). */
   seguirCon: string;
+  /** `--preset <nombre>` (sólo TS): qué skills carga el worker (`presets.json`); "" = según el tipo. */
+  preset: string;
+  /** `--advisor <familia>` (sólo TS): el asesor de un worker de Claude; nunca se hereda de modelos.json. */
+  advisor: string;
+  /** `--autocompact <tokens|nativo>` (sólo TS): pisa el tope de contexto de la corrida; "" = el de siempre. */
+  autocompactPedido: string;
   /** Interno (lo pasa el padre de --async): la corrida de la que sale el puesto y la rama, sin armar el resumen de nuevo. */
   retomaDe: string;
   force: boolean;
@@ -141,6 +148,9 @@ export function opcionesIniciales(proyecto: string, env: Env, plan: "pro" | "max
     ramas: false,
     actualizar: "",
     seguirCon: "",
+    preset: "",
+    advisor: "",
+    autocompactPedido: "",
     retomaDe: "",
     force: false,
     tarea: "",
@@ -378,6 +388,24 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
         dos();
         break;
       case "--retoma-de": o.retomaDe = valor; dos(); break;
+      case "--preset":
+        if (!/^[A-Za-z0-9_-]{1,40}$/.test(valor)) error(`pa: --preset quiere un nombre (letras, números, _ o -, hasta 40), no '${valor}'.`);
+        o.preset = valor;
+        dos();
+        break;
+      case "--advisor": {
+        const f = valor.toLowerCase();
+        if (!/^(haiku|sonnet|opus|fable)$/.test(f)) error(`pa: --advisor '${valor}' no va. Válidos: haiku, sonnet, opus, fable.`);
+        o.advisor = f;
+        dos();
+        break;
+      }
+      case "--autocompact":
+        if (valor !== "nativo" && !(/^[0-9]+$/.test(valor) && Number(valor) >= 100000 && Number(valor) <= 1000000))
+          error(`pa: --autocompact quiere "nativo" o un entero de 100000 a 1000000, no '${valor}'.`);
+        o.autocompactPedido = valor;
+        dos();
+        break;
       case "--objetivo": o.objetivo = valor; dos(); break;
       case "--verificar": o.verificar = valor; dos(); break;
       case "--intentos":

@@ -333,7 +333,7 @@ export class Modelos {
   autocompactDe(modelo: string, env: number | "nativo" | null): string {
     if (env !== null) return env === "nativo" ? "" : String(env);
     const m = modelo.toLowerCase();
-    const f = ["fable", "opus", "sonnet", "haiku"].find((x) => m.includes(x)) ?? null;
+    const f = m.startsWith("codex:") ? "codex" : m.startsWith("gemini-") || m.startsWith("agy:") ? "gemini" : (["fable", "opus", "sonnet", "haiku"].find((x) => m.includes(x)) ?? null);
     const c = this.conf();
     const a = c && esObjeto(c.autocompact) ? c.autocompact : {};
     const por: Record<string, Json> = {};

@@ -562,6 +562,10 @@ export interface OpcionesHijo {
   espejo?: string;
   /** El --effort que pidió el jefe (no el que salió de modelos.json). */
   effortPedido?: string;
+  /** `--preset`, `--advisor` y `--autocompact` pedidos (sólo TS). */
+  preset?: string;
+  advisor?: string;
+  autocompactPedido?: string;
 }
 
 /** `hijo_args`: en el mismo orden que el bash. */
@@ -589,6 +593,9 @@ export function argsHijo(o: OpcionesHijo): string[] {
   if (o.cuenta) a.push("--cuenta", o.cuenta);
   if (o.espejo) a.push("--espejo", o.espejo);
   if (o.effortPedido) a.push("--effort", o.effortPedido);
+  if (o.preset) a.push("--preset", o.preset);
+  if (o.advisor) a.push("--advisor", o.advisor);
+  if (o.autocompactPedido) a.push("--autocompact", o.autocompactPedido);
   a.push("--", o.tarea);
   return a;
 }
