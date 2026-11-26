@@ -48,6 +48,47 @@ const GUIA_WINDOWS = "`~\\.claude\\skills\\trama-orquestar\\ordenar-proyecto.md`
 /** `LINEA_CACHE` con la ruta de la guía de la plataforma (en Windows, `~\.claude\skills`). */
 export const lineaCache = (plat: string): string => LINEA_CACHE.replace("RUTA_GUIA", plat === "win32" ? GUIA_WINDOWS : GUIA_POSIX);
 
-/** El agregado al prompt de sistema de un líder de Claude: lo del chat, cómo ahorrar cupo y, en Windows con PowerShell, la línea de la terminal. */
-export const lineaSistemaLider = (plat: string, terminal: TerminalAgentes): string =>
-  [lineaChat(plat), lineaCache(plat), lineaTerminalAgentes(plat, terminal)].filter(Boolean).join(" ");
+/** Delegar: el líder no edita código de proyectos directo; lo hacen workers de `pa` en ramas disjuntas. Una sola línea (ver `LINEA_CHAT`). */
+export const LINEA_DELEGAR =
+  "Sos líder de Trama: aunque esta sesión esté abierta en la carpeta de un proyecto, delegá los cambios de código, pruebas o interfaz a workers de pa (con la herramienta MCP lanzar_worker o pa <proyecto> --async --tipo <tipo>) sobre archivos disjuntos e integrá sus ramas al terminar; reservá tus ediciones directas sólo para respuestas rápidas o ajustes triviales de 1 archivo.";
+
+/** Avances en vivo: el líder cuenta cada hallazgo o worker lanzado apenas ocurre (la Fase 2 de la ventana; configurable). Una sola línea. */
+export const LINEA_AVANCES =
+  "Avances en vivo: en tareas de varios pasos o al lanzar workers, escribí 1 línea corta con cada hallazgo concreto o worker lanzado apenas ocurra, sin repetirlo al cierre.";
+
+/** Modo orquestador: las tareas no triviales van por `encargar_orquestador`, no por workers directos. Una sola línea. */
+export const LINEA_ORQUESTADOR =
+  "Modo orquestador activo: para tareas no triviales de un proyecto, prepará un encargo acotado (objetivo, restricciones textuales y verificación) y delegalo con encargar_orquestador en vez de abrir workers directo; si vuelve en estado consulta con observaciones u opciones, trasladáselo a la persona y retomá el mismo id con su decisión.";
+
+/**
+ * El recordatorio de las reglas de Trama que se re-inyecta tras `/compact` (Gemini, ChatGPT): delegar con `pa`, formato del chat y,
+ * si corresponden, avances y modo orquestador. Un bloque de una sola línea, sin `%` (en Windows puede pasar por cmd.exe).
+ */
+export const recordatorioLiderPostCompact = (plat: string, opts?: { avances?: boolean; orquestador?: boolean }): string =>
+  [
+    "Recordatorio de Trama (seguí valiendo tras compactar):",
+    LINEA_DELEGAR,
+    lineaChat(plat),
+    opts?.avances ? LINEA_AVANCES : null,
+    opts?.orquestador ? LINEA_ORQUESTADOR : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+/**
+ * El agregado al prompt de sistema de un líder de Claude: lo del chat, cómo ahorrar cupo y, en Windows con PowerShell, la línea de la terminal.
+ * Con `extra` (sólo en líderes que lo piden) suma delegar con `pa`, avances y/o modo orquestador. Sin `extra`, lo de siempre, idéntico.
+ */
+export const lineaSistemaLider = (plat: string, terminal: TerminalAgentes, extra?: { avances?: boolean; delegar?: boolean; orquestador?: boolean }): string => {
+  if (extra === undefined) return [lineaChat(plat), lineaCache(plat), lineaTerminalAgentes(plat, terminal)].filter(Boolean).join(" ");
+  return [
+    lineaChat(plat),
+    lineaCache(plat),
+    extra.delegar ? LINEA_DELEGAR : null,
+    extra.avances ? LINEA_AVANCES : null,
+    extra.orquestador ? LINEA_ORQUESTADOR : null,
+    lineaTerminalAgentes(plat, terminal),
+  ]
+    .filter(Boolean)
+    .join(" ");
+};
