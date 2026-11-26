@@ -358,6 +358,10 @@ type Main = {
     leerApagados(): Promise<unknown>;
     /** Apaga o prende una skill, un servidor MCP, una herramienta o un archivo de memoria para todo Trama. Sólo desde la PC. */
     fijarApagado(tipo: "skills" | "mcp" | "herramientas" | "memoria", nombre: string, apagado: boolean): Promise<unknown>;
+    /** Presets de skills por tipo de worker (`presets.json`, electron/presets.ts). */
+    presets(): Promise<unknown>;
+    /** Guarda la configuración de presets de skills; rechaza con el motivo sin escribir. Sólo desde la PC. */
+    guardarPresets(x: unknown): Promise<unknown>;
     /** Los catálogos de plugins de Claude Code (los oficiales de Anthropic y los que se agregaron) con lo que traen. */
     catalogosPlugins(): Promise<unknown>;
     /** `claude plugin marketplace add <usuario/repo>` con la cuenta elegida (vacío: la de siempre); devuelve los catálogos. Sólo desde la PC. */
@@ -548,6 +552,8 @@ type Main = {
   compactando: { leer(): Promise<unknown>; alCambiar(fn: (c: unknown) => void): Soltar };
   /** Los subagentes de cada sesión con proceso (electron/subagentes.ts): sesión → lista, sin validar; y el informe entero de uno. */
   subagentes: { leer(): Promise<unknown>; informe(sid: string, id: string): Promise<string | null>; alCambiar(fn: (x: unknown) => void): Soltar };
+  /** El orquestador de fondo (electron/orquestador.ts): encargos recientes, lanzar o retomar uno y cambios en vivo. */
+  orquestador: { listar(liderSid?: string): Promise<unknown>; encargar(x: unknown): Promise<unknown>; alCambiar(fn: (lista: unknown) => void): Soltar };
   pintado(): void;
   /** Cerrar del todo (Ctrl+Q, la bandeja) con lo elegido en el diálogo. Con líderes respondiendo y sin `forzar` no hace nada: devuelve cuántos son. Por la tailnet no existe. */
   salir(x: { modo: "seguir" | "parar"; forzar: boolean }): Promise<number>;

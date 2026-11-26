@@ -59,7 +59,9 @@ import { crearCierreCupo } from "./cierre-cupo-disco.ts";
 import { CONFIRMAR_VOLVIO_S } from "./cierre-cupo.ts";
 import { crearCierreChats, type Deps as DepsCierreChats } from "./cierre-chats.ts";
 import { avisarLideres, carpetaHooksCierre } from "./cierre-cupo-texto.ts";
-import { autocompactLiderGuardado, cierreGuardado, claseDeModelo, efectivoDePa, excluirGuardado, guardarModelos, leerModelos, modelosConfig, sondearOllama, topeEntorno, vistaModelos } from "./modelos-config.ts";
+import { asesorDeOrquestador, autocompactLiderGuardado, cierreGuardado, claseDeModelo, efectivoDePa, excluirGuardado, guardarModelos, leerModelos, modelosConfig, orquestacionGuardada, sondearOllama, topeDeOrquestador, topeEntorno, vistaModelos } from "./modelos-config.ts";
+import { estadoPresets, guardarPresets } from "./presets.ts";
+import { correrModeloOrquestador, crearOrquestador, MODELO_ORQ_DEFECTO, type PedidoOrquestador } from "./orquestador.ts";
 import { accesos } from "./celular-accesos.js";
 import { guardarConfig, leerEditable } from "./remoto-config.js";
 import { sesionesVistas, vive } from "./sesiones.js";
@@ -156,7 +158,7 @@ const manejadores = new Map<string, Manejador>();
  * Actualizar Trama (`trama:*`) sí se puede por la tailnet: baja el release del tag de GitHub y corre el instalador del checkout,
  * igual que desde la PC (el dueño lo pidió para actualizar la máquina de otro sin estar sentado ahí).
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "planDia:fijar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "proyectos:papelera", "historialChats:borrar", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "agy:actualizar", "opencode:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "contexto:auditar", "contexto:aplicarHallazgo", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "planDia:fijar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "proyectos:papelera", "historialChats:borrar", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "agy:actualizar", "opencode:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "presets:guardar", "orquestador:encargar", "contexto:capturarBase", "contexto:auditar", "contexto:aplicarHallazgo", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -674,6 +676,11 @@ const subagentes = crearSubagentes({
   transcript: (sid) => lider.transcriptDe(sid),
   alCambiar: (todos) => enviar("subagentes:cambio", todos),
 });
+// El orquestador de fondo (orquestador.ts): revisión previa y delegación de workers en segundo plano.
+const orquestador = crearOrquestador({
+  correrModelo: (p) => correrModeloOrquestador({ ...p, autocompact: p.autocompact ?? topeDeOrquestador(p.modelo) }),
+});
+let soltarOrquestador: (() => void) | null = null;
 const vivosDe = (s: { lideres: { lideres: { id: string; vivo: boolean }[] } }) => s.lideres.lideres.filter((l) => l.vivo).map((l) => l.id);
 
 /**
@@ -990,6 +997,12 @@ export function armarNucleo() {
     if (maquinas) alSalir(() => maquinas?.cerrar());
   }
   alSalir(() => subagentes.cerrar());
+  soltarOrquestador?.();
+  soltarOrquestador = orquestador.alCambiar((lista) => enviar("orquestador:cambio", lista));
+  alSalir(() => {
+    soltarOrquestador?.();
+    soltarOrquestador = null;
+  });
   // Los que tenían proceso cuando trama se cortó sin cerrarlos (la PC, la app) quedan dormidos, no muertos; después, los dormidos vuelven a tener
   // proceso (reinicio, salida o corte), sin que nadie escriba. En ese orden: lo cortado también vuelve.
   void lider
@@ -1377,6 +1390,8 @@ export function armarNucleo() {
   manejar("skills:catalogo", (_e, x: unknown) => catalogoContexto(x, historial));
   manejar("apagados:leer", () => leerApagadosPanel());
   manejar("apagados:fijar", (_e, tipo: unknown, nombre: unknown, apagado: unknown) => fijarApagadoPanel(tipo, nombre, apagado));
+  manejar("presets:leer", () => estadoPresets());
+  manejar("presets:guardar", (_e, x: unknown) => guardarPresets(x));
   // Catálogos de plugins (Ajustes > Conectores): leer los catálogos y agregar, instalar o quitar con el `claude plugin …` de la cuenta elegida.
   const depsPlugins = (): DepsPlugins => ({ env: process.env, home: os.homedir() });
   manejar("plugins:catalogos", () => estadoCatalogos(depsPlugins()));
@@ -1840,6 +1855,42 @@ export function armarNucleo() {
   // Los subagentes de cada sesión con proceso y el informe entero de uno terminado: de esta máquina sola.
   manejar("subagentes:leer", () => subagentes.leer());
   manejar("subagentes:informe", (_e, sid: unknown, id: unknown) => subagentes.informe(sid, id));
+
+  // El orquestador de fondo: listar encargos recientes y encargar o retomar uno con los defaults de modelos.json.
+  manejar("orquestador:listar", (_e, liderSid?: unknown) =>
+    orquestador.listar(typeof liderSid === "string" && liderSid ? liderSid : undefined),
+  );
+  manejar("orquestador:encargar", async (_e, x: unknown) => {
+    if (!x || typeof x !== "object" || Array.isArray(x)) throw new Error("Pedido de orquestador inválido");
+    const raw = x as Partial<PedidoOrquestador>;
+    const cfg = orquestacionGuardada();
+    const existente = typeof raw.id === "string" && raw.id.trim() ? orquestador.obtener(raw.id.trim()) : null;
+    const modelo = (typeof raw.modelo === "string" && raw.modelo.trim()) || existente?.modelo || cfg.modelo?.modelo || MODELO_ORQ_DEFECTO;
+    const effort = (typeof raw.effort === "string" && raw.effort.trim()) || existente?.effort || cfg.modelo?.effort || undefined;
+    const revision_previa = typeof raw.revision_previa === "boolean" ? raw.revision_previa : cfg.revision_previa;
+    const preset_contexto = raw.preset_contexto !== undefined ? raw.preset_contexto : cfg.preset_contexto;
+    const advisor =
+      raw.advisor !== undefined
+        ? raw.advisor
+        : claseDeModelo(modelo) === "claude"
+          ? asesorDeOrquestador(modelo, entornoLider(process.env, os.homedir()), os.homedir())
+          : null;
+    const pedido: PedidoOrquestador = {
+      proyecto: typeof raw.proyecto === "string" ? raw.proyecto : "",
+      objetivo: typeof raw.objetivo === "string" ? raw.objetivo : "",
+      ...(Array.isArray(raw.restricciones) ? { restricciones: raw.restricciones.filter((r): r is string => typeof r === "string") } : {}),
+      ...(typeof raw.verificacion === "string" ? { verificacion: raw.verificacion } : {}),
+      ...(typeof raw.id === "string" ? { id: raw.id } : {}),
+      ...(typeof raw.decision === "string" ? { decision: raw.decision } : {}),
+      ...(raw.lider_sid === null || typeof raw.lider_sid === "string" ? { lider_sid: raw.lider_sid } : {}),
+      modelo,
+      ...(effort ? { effort } : {}),
+      revision_previa,
+      preset_contexto,
+      advisor,
+    };
+    return orquestador.encargar(pedido);
+  });
 
   if (maquinas) juntarMaquinas(maquinas);
 }

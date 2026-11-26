@@ -262,6 +262,8 @@ contextBridge.exposeInMainWorld("hilos", {
     catalogoSkills: (x: { q?: string; sid?: string } = {}): Promise<unknown> => invocar("skills:catalogo", x),
     leerApagados: (): Promise<unknown> => invocar("apagados:leer"),
     fijarApagado: (tipo: string, nombre: string, apagado: boolean): Promise<unknown> => invocar("apagados:fijar", tipo, nombre, apagado),
+    presets: (): Promise<unknown> => invocar("presets:leer"),
+    guardarPresets: (x: unknown): Promise<unknown> => invocar("presets:guardar", x),
     catalogosPlugins: (): Promise<unknown> => invocar("plugins:catalogos"),
     agregarCatalogoPlugins: (repo: string, cuenta?: string): Promise<unknown> => invocar("plugins:agregarCatalogo", repo, cuenta),
     instalarPlugin: (plugin: string, catalogo: string, cuenta?: string): Promise<unknown> => invocar("plugins:instalar", plugin, catalogo, cuenta),
@@ -417,6 +419,12 @@ contextBridge.exposeInMainWorld("hilos", {
     leer: (): Promise<unknown> => invocar("subagentes:leer"),
     informe: (sid: string, id: string): Promise<string | null> => invocar("subagentes:informe", sid, id),
     alCambiar: oir("subagentes:cambio"),
+  },
+  /** El orquestador de fondo (electron/orquestador.ts): encargos recientes, lanzar o retomar uno y cambios en vivo. */
+  orquestador: {
+    listar: (liderSid?: string): Promise<unknown> => invocar("orquestador:listar", liderSid),
+    encargar: (x: unknown): Promise<unknown> => invocar("orquestador:encargar", x),
+    alCambiar: oir("orquestador:cambio"),
   },
   /** Para la captura offscreen: avisa que los datos ya están pintados. */
   pintado: (): void => ipcRenderer.send("captura:pintado" satisfies CanalEnvio),

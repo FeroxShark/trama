@@ -461,6 +461,41 @@ test("saludo: versión, protocolo y huella; sin maquinas.json esta máquina es �
   }
 });
 
+test("presets y orquestador: leer y listar andan; guardar y encargar se bloquean desde la tailnet", async () => {
+  assert.ok(nucleo.SOLO_PC_TAILNET.has("presets:guardar"));
+  assert.ok(nucleo.SOLO_PC_TAILNET.has("orquestador:encargar"));
+
+  const estado = (await nucleo.llamarLocal("presets:leer", [], "prueba")) as {
+    version: number;
+    existe: boolean;
+    config: { presets: Record<string, { modo: string; skills: string[] }>; por_tipo: Record<string, string> };
+  };
+  assert.equal(estado.version, 1);
+  assert.ok("codigo" in estado.config.presets);
+
+  // Desde la tailnet no se pueden mutar presets ni encargar al orquestador.
+  await assert.rejects(nucleo.llamarRemoto("presets:guardar", [estado.config], "cel", "192.0.2.2"), /main\.soloPc/);
+  await assert.rejects(
+    nucleo.llamarRemoto("orquestador:encargar", [{ proyecto: "trama", objetivo: "algo" }], "cel", "192.0.2.2"),
+    /main\.soloPc/,
+  );
+
+  // Desde la PC / local sí guarda presets y el orquestador lista encargos.
+  const guardado = (await nucleo.llamarLocal(
+    "presets:guardar",
+    [{ ...estado.config, por_tipo: { ...estado.config.por_tipo, debug: "minimo" } }],
+    "prueba",
+  )) as typeof estado;
+  assert.equal(guardado.existe, true);
+  assert.equal(guardado.config.por_tipo.debug, "minimo");
+
+  const lista = (await nucleo.llamarLocal("orquestador:listar", [], "prueba")) as unknown[];
+  assert.ok(Array.isArray(lista));
+  const filtrada = (await nucleo.llamarLocal("orquestador:listar", ["sid-inexistente"], "prueba")) as unknown[];
+  assert.deepEqual(filtrada, []);
+  await assert.rejects(nucleo.llamarLocal("orquestador:encargar", [null], "prueba"), /inválido/i);
+});
+
 test("dictado:transcribir: por el RPC (con los bytes en base64 de la tailnet) pasa por el handy falso y no deja el archivo", async () => {
   const handy = path.join(import.meta.dirname, "..", "scripts", "handy-falso.sh");
   const { codificarWav } = await import("../src/hilo/dictado.ts");

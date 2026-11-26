@@ -3,6 +3,7 @@
 import type { CierreVisto } from "../../electron/cierre-chats";
 import type { Compactando } from "../../electron/compactando";
 import type { Subagente, Subagentes } from "../../electron/subagentes";
+import type { EncargoOrquestador } from "../../electron/orquestador-texto";
 import { archivoVistoDe, tipoDeArchivo, type ArchivoVisto } from "../../electron/archivo-ruta";
 import { salidaDe, type SalidaTarea } from "../hilo/fondo-logica";
 import { imagenDe, type Imagen } from "../../electron/imagenes";
@@ -41,7 +42,7 @@ export const reporteValido = (x: unknown): ReporteArmado => {
   return { ok: false, error: typeof o?.error === "string" && o.error ? o.error : "main.reporteFallo" };
 };
 
-export type { EstadoPlanDia, ModoPlanDia };
+export type { EncargoOrquestador, EstadoPlanDia, ModoPlanDia };
 
 export interface Fuente {
   /** La última lista buena de una corrida anterior, para pintar algo mientras `pa` contesta. */
@@ -353,6 +354,9 @@ export interface Fuente {
   subagentes(): Promise<Subagentes>;
   alCambiarSubagentes(fn: (s: Subagentes) => void): () => void;
   subagenteInforme(sid: string, id: string): Promise<string | null>;
+  /** Los encargos recientes del orquestador de fondo (electron/orquestador.ts), opcionalmente filtrados por líder. */
+  orquestadores(liderSid?: string): Promise<EncargoOrquestador[]>;
+  alCambiarOrquestadores(fn: (lista: EncargoOrquestador[]) => void): () => void;
   /** Cerrar del todo (Ctrl+Q, la bandeja) con lo elegido en el diálogo: sale, o devuelve cuántos líderes están respondiendo (para confirmar). */
   salir(x: { modo: "seguir" | "parar"; forzar: boolean }): Promise<number>;
   /** La bandeja del sistema pide Cerrar del todo: la vista abre su diálogo. Sin bandeja (navegador, fixtures) no llega nada. */
@@ -1733,6 +1737,12 @@ const fija: Fuente = {
     const u = subagentesFijos()[sid]?.find((x) => x.id === id);
     return u?.resultado ? `${u.resultado}\n\nEl informe entero sigue acá: cada canal con el archivo donde se registra y el test que le falta.` : null;
   },
+  async orquestadores() {
+    return [];
+  },
+  alCambiarOrquestadores() {
+    return () => {};
+  },
   async compactando() {
     return compactandoFijo;
   },
@@ -2522,6 +2532,15 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   subagenteInforme(sid, id) {
     return m.subagentes.informe(sid, id).catch(() => null);
+  },
+  async orquestadores(liderSid) {
+    const r = await m.orquestador.listar(liderSid).catch(() => []);
+    return Array.isArray(r) ? (r as EncargoOrquestador[]) : [];
+  },
+  alCambiarOrquestadores(fn) {
+    return m.orquestador.alCambiar((lista) => {
+      if (Array.isArray(lista)) fn(lista as EncargoOrquestador[]);
+    });
   },
   async compactando() {
     return compactandoDe(await m.compactando.leer().catch(() => null));

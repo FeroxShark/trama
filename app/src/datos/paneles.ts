@@ -18,6 +18,8 @@ import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
 import type { EstadoModelos, Sondeo } from "../../electron/modelos-config";
 import type { ConfigModelos } from "../../electron/modelos-tipos";
+import { presetsFabrica, type ConfigPresets } from "../../electron/presets-tipos";
+import type { EstadoPresets } from "../../electron/presets";
 import type { Bajada } from "../../electron/ollama-bajar";
 import type { EntornoOllama } from "../../electron/ollama-entorno";
 import type { EstadoDsh, Prueba } from "../../electron/dsh-ajustes";
@@ -42,7 +44,8 @@ export type AgentsMd = DatosAgentsMd & { proyecto: string; ruta: string | null }
 /** Un worker de rama para auditar: `pa <proy> --auditar <id> -m <modelo> --async` (sólo Claude). */
 export type PedidoAuditar = { id: string; proyecto: string; modelo: string };
 export type { CatalogoDescubrir, Previa, ResultadoInstalar, Catalogo, Conector, EntradaMcp, EstadoCatalogos, EstadoMcp, Inventario, PluginCatalogo, VistaServidorMcp };
-export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoNim, PruebaNim, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo, VistaPlanGo };
+export type { Arranque, Bajada, ConfigModelos, ConfigPresets, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoNim, PruebaNim, EstadoModelos, EstadoOpencodeUi, EstadoPresets, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo, VistaPlanGo };
+export { presetsFabrica };
 
 /** Los proveedores de DeepSeek Harness que se pueden probar desde Ajustes. */
 export type ProveedorDshUi = "opencode" | "deepseek" | "ollama";
@@ -164,6 +167,10 @@ export interface FuentePaneles {
   efectivoModelos(): Promise<EstadoModelos["efectivo"]>;
   /** Guarda esa config (y las filas de `~/CLAUDE.md` que salen de ella); rechaza con el motivo sin haber escrito nada. */
   guardarModelos(config: ConfigModelos): Promise<EstadoModelos>;
+  /** Presets de skills por tipo de worker (`~/.config/trama/presets.json`). */
+  presets(): Promise<EstadoPresets>;
+  /** Guarda los presets de skills; rechaza con el motivo sin haber escrito nada. */
+  guardarPresets(config: ConfigPresets): Promise<EstadoPresets>;
   /** Qué modelos tiene instalados el Ollama de esa dirección, o por qué no contesta. */
   sondearOllama(url: string): Promise<Sondeo>;
   /** Empieza a bajar un modelo de Ollama por su nombre (`ollama pull`); el progreso llega por `alBajar`. Rechaza con el motivo. */
@@ -298,6 +305,8 @@ function cae(que: keyof typeof FALLAS_PANEL): boolean {
 
 /** La config de modelos de los fixtures: se arma al primer pedido y vive mientras la página. */
 let modelosFijos: EstadoModelos | undefined;
+/** Los presets de skills de los fixtures: arrancan con fábrica y se actualizan al guardar. */
+let presetsFijos: EstadoPresets | undefined;
 /** DeepSeek Harness de los fixtures (instalado o no, con qué keys): vive mientras la página. */
 let dshFijo: EstadoDsh | undefined;
 let mcpFijo: VistaServidorMcp[] = ESTADO_MCP_FIJOS(MODO.variante);
@@ -376,6 +385,15 @@ const fija: FuentePaneles = {
     }
     modelosFijos = { ...(modelosFijos ?? MODELOS_FIJOS(false)), existe: true, config: structuredClone(config) };
     return { ...structuredClone(modelosFijos), efectivo: null };
+  },
+  async presets() {
+    presetsFijos ??= { version: 1, ruta: "presets.json", existe: false, config: presetsFabrica() };
+    return structuredClone(presetsFijos);
+  },
+  async guardarPresets(config) {
+    await espera(150);
+    presetsFijos = { version: 1, ruta: "presets.json", existe: true, config: structuredClone(config) };
+    return structuredClone(presetsFijos);
   },
   async sondearOllama(url) {
     await espera(250);
@@ -864,6 +882,12 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async guardarModelos(config) {
     return (await m.paneles.guardarModelos(config).catch(fallar)) as EstadoModelos;
+  },
+  async presets() {
+    return (await m.paneles.presets().catch(fallar)) as EstadoPresets;
+  },
+  async guardarPresets(config) {
+    return (await m.paneles.guardarPresets(config).catch(fallar)) as EstadoPresets;
   },
   async sondearOllama(url) {
     return (await m.paneles.sondearOllama(url).catch(fallar)) as Sondeo;
