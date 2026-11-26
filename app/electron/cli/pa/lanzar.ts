@@ -41,9 +41,12 @@ import {
   sigueDe,
   statsResultado,
   textoResultado,
+  transcriptDe,
   verificadoDe,
   type Solapamiento,
 } from "./resultado-lanzar.ts";
+import { corregirDespertar, esDespertar } from "./despertar.ts";
+import { VAR_CORRIDA, avisoQuedaron, quedaronAlTerminar } from "./procesos-corrida.ts";
 import { deltaSucios, limpiarBuild } from "./sucios.ts";
 import { commitearCambiosDelWorker } from "./worktrees.ts";
 import { contratoBase, entornoOllama } from "./motores/llamada.ts";
@@ -166,6 +169,8 @@ export interface OpcionesLanzar {
   hooks?: { variante?: VarianteHook; node?: string };
   /** La espera antes del reintento por 529 (default 60 s, como el bash). */
   espera529Ms?: number;
+  /** Cuánto se espera a que salga lo que el worker dejó vivo antes de avisarlo (por defecto 2000). */
+  graciaProcesosMs?: number;
   /** El ejecutable de claude (default: `claude` del PATH de `pa.env`). */
   claude?: string;
   /** Cómo se corre al worker (default `correrClaude`): agy, codex y dsh/opencode lo reemplazan (otros-motores.ts). Devuelve el código. */
@@ -828,6 +833,8 @@ export function guardarSesion(l: Lanzamiento, sid: string): void {
 export function entornoClaude(l: Lanzamiento): Env {
   // La terminal de los agentes (Ajustes > General, Windows): PowerShell por defecto; en Linux no suma nada (terminal-agentes.ts).
   const e: Env = { ...l.pa.env, ...envTerminalAgentes(l.pa.plat, terminalAgentesGuardada()), ...l.envClaude, PA_WORKER: "1", GIT_EDITOR: "true", GIT_SEQUENCE_EDITOR: "true" };
+  // la etiqueta de la corrida: lo que el worker deje vivo se encuentra por ella (procesos-corrida.ts)
+  if (l.c.ts) e[VAR_CORRIDA] = l.c.ts;
   // un local: las ANTHROPIC_* del servidor van SÓLO en este proceso (regla de facturación)
   if (l.c.local) Object.assign(e, entornoOllama({}, l.c.local.url, l.c.local.modelo));
   for (const k of l.c.cuentaEnv?.quitar ?? []) delete e[k];
@@ -1023,6 +1030,14 @@ export async function lanzarClaude(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): 
     };
     const rc = o.ejecutar ? await o.ejecutar(l, { alArrancar }) : await correrClaude(l, { claude: o.claude, alArrancar });
     l.hijo = null;
+    // Una tarea de fondo que termina después de la respuesta final deja en el `.json` sólo ese último mini-turno: se corrige
+    // con el transcript antes de que nadie lo lea (despertar.ts). Nunca rompe a pa.
+    try {
+      const j = leerSalida(l.out);
+      if (esDespertar(j)) corregirDespertar(l.out, transcriptDe(j, carpetaProyectos(pa)) || l.transcript, l.inicio * 1000 - 5000);
+    } catch {
+      /* el .json queda como estaba */
+    }
     return rc;
   };
 
@@ -1044,6 +1059,12 @@ export async function lanzarClaude(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): 
     }
     o.senal?.removeEventListener("abort", matar);
     await guardarCambios();
+    // Lo que el worker dejó corriendo (un servidor de prueba, un script de espera) se avisa; no se baja. Nunca rompe a pa.
+    try {
+      io.err(avisoQuedaron(c.ts, await quedaronAlTerminar(c.ts, { plat: pa.plat, graciaMs: o.graciaProcesosMs })));
+    } catch {
+      /* sin aviso */
+    }
     await alSalir(l, rc, g);
     return rc;
   };

@@ -8,6 +8,7 @@ import { llamadaAgy } from "../../../agy-llamada.ts";
 import { delimitadorDe, homeDe, plataformaActual, type Plataforma } from "../../../rutas.ts";
 import { CONTRATO, CONTRATO_AGY, CONTRATO_CODEX, SIN_JEFE } from "../contrato.ts";
 import type { Env, Io } from "../entorno.ts";
+import { VAR_CORRIDA } from "../procesos-corrida.ts";
 import { codexShims, dshBin, dshClave, dshCorrer, localDe, opencodeBin, opencodeCorrer, type Local } from "./chequeo.ts";
 import { dshModeloDe, dshProveedor, esNvidia, esOpencode, type Motor } from "./modelos.ts";
 import { claudeMdDueno, memoriaDueno, promptOtroMotor } from "./prompt.ts";
@@ -100,6 +101,8 @@ export interface Llamada {
 }
 
 const BASE_WORKER: Env = { PA_WORKER: "1", GIT_EDITOR: "true", GIT_SEQUENCE_EDITOR: "true" };
+/** Lo de todo worker más la etiqueta de la corrida: lo que deje vivo se encuentra por ella (procesos-corrida.ts). */
+const baseDe = (ts: string): Env => (ts ? { ...BASE_WORKER, [VAR_CORRIDA]: ts } : BASE_WORKER);
 
 function gitComunReal(rutaTrabajo: string): string {
   const r = spawnSync("git", ["-C", rutaTrabajo, "rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8", windowsHide: true });
@@ -163,7 +166,7 @@ export function armarLlamada(d: DatosLlamada): Llamada {
       args,
       stdin,
       cwd: d.rutaTrabajo,
-      env: conCuenta({ ...d.env, ...exporta, ...BASE_WORKER }, d.cuenta),
+      env: conCuenta({ ...d.env, ...exporta, ...baseDe(d.ts) }, d.cuenta),
       exporta,
       stdout: transcript,
       stderr,
@@ -210,7 +213,7 @@ export function armarLlamada(d: DatosLlamada): Llamada {
       args,
       stdin: p,
       cwd: d.rutaTrabajo,
-      env: conCuenta(conShims({ ...d.env, ...BASE_WORKER }, plat), d.cuenta),
+      env: conCuenta(conShims({ ...d.env, ...baseDe(d.ts) }, plat), d.cuenta),
       exporta: {},
       stdout: transcript,
       stderr,
@@ -236,7 +239,7 @@ export function armarLlamada(d: DatosLlamada): Llamada {
   }
   const tarea = path.join(d.dir, `${d.ts}.dsh-tarea`);
   args.push("--tarea-archivo", tarea);
-  let env = conShims({ ...d.env, ...exporta, ...BASE_WORKER }, plat);
+  let env = conShims({ ...d.env, ...exporta, ...baseDe(d.ts) }, plat);
   if (oc) {
     // opencode usa el login de la persona (su HOME/XDG): ninguna key de pa viaja. Una cuenta agregada va sólo en este proceso.
     env = conCuenta({ ...env, HILOS_OPENCODE: opencodeBin(d.env, plat) }, d.cuenta);

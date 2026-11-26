@@ -209,6 +209,17 @@ function runningObsoletoDeId(pa: Pa, slug: string, id: string): string {
   return "";
 }
 
+/**
+ * Cierra el rastro de un `.running` cuyo proceso ya no existe (o es de otro programa): `fin=` en el `.hilo` de la corrida (con la hora de ahora, para que su
+ * fila diga `murió` y no `trabajando` para siempre) y fuera el `.running` con sus `.heartbeat*`. No señala a nadie: quien llama ya comprobó (con
+ * `runningVivo`/`pidDeRunning`) que no hay proceso. Lo usan `pa --parar <id>` y `pa --limpiar`.
+ */
+export async function cerrarRunningMuerto(dir: string, running: string, id: string): Promise<void> {
+  await anotarFin(dir, id);
+  const base = running.replace(/\.running$/, "");
+  for (const f of [running, `${base}.heartbeat`, `${base}.heartbeat.turnos`]) rmSync(f, { force: true });
+}
+
 /** `pa --parar <id>`: baja esa corrida, esté corriendo o en cola (el pa hijo de --async que espera puesto). */
 export async function cmdParar(pa: Pa, id: string | undefined, o: OpcionesMatar = {}): Promise<number> {
   if (!id) {
@@ -239,9 +250,7 @@ export async function cmdParar(pa: Pa, id: string | undefined, o: OpcionesMatar 
   // se cierra con la hora de ahora para que la fila diga `murió` y no `trabajando` para siempre. No se señala a nadie.
   const viejo = runningObsoletoDeId(pa, p.slug, id);
   if (viejo) {
-    await anotarFin(p.dir, id);
-    const base = viejo.replace(/\.running$/, "");
-    for (const f of [viejo, `${base}.heartbeat`, `${base}.heartbeat.turnos`]) rmSync(f, { force: true });
+    await cerrarRunningMuerto(p.dir, viejo, id);
     await evento(pa, "parar", id, p.slug);
     pa.io.out(`pa: la corrida ${id} de '${p.slug}' ya no tenía ningún proceso (murió sin avisar); cerré su rastro.\n`);
     return 0;

@@ -16,8 +16,8 @@ export function nuevaEtiqueta(motorPid: number, motorArranque: string | null, az
   return `${motorPid}:${motorArranque ?? "x"}:${azar}`;
 }
 
-/** Los `environ` de los procesos del sistema, uno por pid (los que no se pueden leer se saltean). */
-function entornos(procDir: string): Array<{ pid: number; vars: string[] }> {
+/** Los `environ` de los procesos del sistema, uno por pid (los que no se pueden leer se saltean). También lo usa `pa` (cli/pa/procesos-corrida.ts). */
+export function entornos(procDir: string): Array<{ pid: number; vars: string[] }> {
   let dirs: string[];
   try {
     dirs = readdirSync(procDir);

@@ -337,6 +337,7 @@ const ID_R_VIEJA2 = "20260102-101010-5002";
 const ID_R_SIN_INTEGRAR = "20260103-101010-5003";
 const ID_R_VACIA = "20260104-101010-5004";
 const ID_R_RECIENTE = idDe(1, "101010", 5005);
+const DIVERGE_RESTOS = "el TS suma `huerfanos` y `muertas` al JSON de --limpiar (los restos de corridas muertas que cierra desde 2026-11-25); el bash congelado no.";
 const lim = (nombre: string, args: string[], extra: Partial<Caso> = {}): Caso => ({ herramienta: "pa-cli", nombre: `globales: limpiar ${nombre}`, args, rc: 0, ...extra });
 
 export const casosGlobales: Caso[] = [
@@ -559,6 +560,7 @@ export const casosGlobales: Caso[] = [
     pasos: [{ args: ["--limpiar", "--si"], rc: 0 }, { args: ["--limpiar", "--ver"], rc: 0 }],
   }),
   lim("json", ["--limpiar", "--ver", "--json"], {
+    divergenciaSalida: DIVERGE_RESTOS,
     preparar: (c) => (puestoReal(c, `${SLUG}@2`, 30), build(c, `${SLUG}@3`, "target", true, 3000), ramaReal(c, ID_R_VIEJA, { integrada: true })),
   }),
   lim("ramas integradas, ver", ["--limpiar", "--ver"], {
@@ -578,6 +580,7 @@ export const casosGlobales: Caso[] = [
       ramaReal(c, ID_R_RECIENTE, { integrada: true });
     },
     pasos: [{ args: ["--limpiar", "--si"], rc: 0 }, { args: ["--limpiar", "--ver", "--json"], rc: 0 }],
+    divergenciaSalida: DIVERGE_RESTOS,
   }),
   lim("una rama checkouteada no se borra", ["--limpiar", "--si"], {
     preparar: (c) => {

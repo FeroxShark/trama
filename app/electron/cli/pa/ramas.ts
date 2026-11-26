@@ -19,6 +19,7 @@ import { tomar, type Lock } from "../base/lock.ts";
 import { registroProyectos } from "../../rutas.ts";
 import { resolverProyecto } from "../proyecto-ruta.ts";
 import { pidCorridaVivo } from "./corridas.ts";
+import { decisionEsNada } from "./decision-nada.ts";
 import { avisarFalta, prologo, Salida, salir, v, type Env, type Io, type Pa } from "./entorno.ts";
 import {
   adoptarHuerfanas,
@@ -192,11 +193,8 @@ export function yaResuelta(pa: Pa, id: string): boolean {
 
 // ---------------------------------------------------------------- tablero y empuje (nunca rompen ni demoran)
 
-/** `decision_es_nada`. */
-export function decisionEsNada(s: string): boolean {
-  const d = s.replace(/\*/g, "").trim().replace(/\.$/, "");
-  return d.toLowerCase() === "nada";
-}
+/** `decision_es_nada` (decision-nada.ts). */
+export { decisionEsNada };
 
 /** `tablero_mudo`: corre bin/tablero con tope, sin stdin ni stderr; con un PA_STATE de mentira y sin TABLERO_DIR no se llama. */
 export async function tableroMudo(pa: Pa, topeS: number, args: string[]): Promise<boolean> {

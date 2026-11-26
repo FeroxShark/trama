@@ -11,6 +11,7 @@ import { git } from "../base/git.ts";
 import { resolverProyecto } from "../proyecto-ruta.ts";
 import { carpetasDeProyecto, corridaEnCola, esArchivo, leerCampo, listar, nombreRegistry, runningVivo } from "./corridas.ts";
 import type { Pa } from "./entorno.ts";
+import { decisionEsNada } from "./decision-nada.ts";
 import { carpetaProyectosClaude } from "./worktrees.ts";
 
 export type J = Record<string, unknown>;
@@ -90,7 +91,7 @@ export function hayFalta(texto: string): boolean {
 }
 
 /** `decision_es_nada`. */
-export const decisionEsNada = (s: string) => trimJq(s.replace(/\*/g, "")).replace(/\.$/, "").replace(/[A-Z]/g, (c) => c.toLowerCase()) === "nada";
+export { decisionEsNada };
 
 // ---------------------------------------------------------------- archivos clave=valor y transcripts
 

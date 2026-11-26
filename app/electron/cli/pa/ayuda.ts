@@ -141,7 +141,7 @@ export const AYUDA: readonly string[] = [
   "                         si no hay ninguno, bloquear hasta que el worker termine",
   "  pa --nota \"<texto>\"                  nota del jefe para el traspaso (también combinable: pa <p> --nota '…' '<tarea>')",
   "  pa --limpiar [--ver|--si] [--dias N] [--json]",
-  "                         worktrees y ramas viejos y ya integrados, y build viejo (>7 días); sin --si sólo muestra",
+  "                         worktrees y ramas viejos y ya integrados, build viejo (>7 días) y, de más de 1 día, .running sin proceso y corridas muertas en cola (se cierran, el .log queda); sin --si sólo muestra",
   "  pa --traspaso                       armar el traspaso del jefe desde el estado (para retomar a mano)",
   "  pa --bien <id> si|no|parcial         anotar si esa corrida salió bien (columna `bien` de medicion.tsv)",
   "  pa --bien-auto                       completar solo `bien`, `integrada` y `retrabajo` desde integradas.tsv",

@@ -6,14 +6,19 @@
 //  · los dirs de build (dirsDeBuild) de los demás puestos libres sin ningún archivo tocado en N días (el mtime del dir solo no dice nada);
 //  · las ramas `pa/<slug>/<id>` de una corrida con el id de hace N días o más que ya están enteras en el tree principal (`branch -d`,
 //    nunca -D) y no están checkouteadas en ningún worktree. Una rama con commits sin integrar no se toca jamás.
+// Y dos clases de restos de corridas, de más de 1 día (fijo, no depende de --dias): un `.running` sin proceso vivo y una corrida `--async` que murió
+// en cola o antes de arrancar (lo que `pa --estado` lista como HUÉRFANO y MURIÓ EN COLA). Se cierran como `pa --parar` / `pa --archivar`; no se borra ningún `.log`.
 // Sin --si es sólo ver (--ver es lo mismo, explícito). --json deja el plan (o lo hecho) en una línea para la app.
 import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 import { borrarSinSeguir, esLink } from "../base/enlaces.ts";
 import { git } from "../base/git.ts";
 import { tomar } from "../base/lock.ts";
-import { esCarpeta, leerCampo, listar, runningVivo } from "./corridas.ts";
+import { corridasSinPuesto } from "./async.ts";
+import { anotarFin, esArchivo, esCarpeta, hiloPoner, leerCampo, listar, masViejoQue, runningVivo } from "./corridas.ts";
 import { v, type Pa } from "./entorno.ts";
+import { cerrarRunningMuerto } from "./matar.ts";
+import { isoSegundos } from "./ramas.ts";
 import { dirsDeBuild, raizWorktrees, rutaPorcelain, sufPuesto, tomarGit, wtDePuesto, type Proyecto } from "./worktrees.ts";
 
 const esDirReal = (p: string) => {
@@ -111,6 +116,13 @@ function puestos(pa: Pa): { nombre: string; ruta: string }[] {
 type Build = { puesto: string; dir: string; bytes: number };
 type WtViejo = { puesto: string; dias: number; bytes: number };
 type RamaVieja = { proyecto: string; rama: string; dias: number; commits: number };
+/** Un `.running` sin proceso vivo de hace más de `MIN_RASTRO` minutos. */
+type RunningHuerfano = { proyecto: string; id: string; archivo: string; dias: number };
+/** Una corrida `--async` que murió en cola (o, si era `--leer`, antes de arrancar) hace más de `MIN_RASTRO` minutos. */
+type CorridaMuerta = { proyecto: string; id: string; leer: boolean; dias: number };
+
+/** Un resto de corrida se cierra con más de un día (1440 min). */
+const MIN_RASTRO = 1440;
 
 const proy = (pa: Pa, slug: string): Proyecto => ({ pa, proyecto: "", ruta: "", slug, dir: "", ts: "" });
 const gi = (pa: Pa, cwd: string, args: string[]) => git(args, { cwd, env: pa.env });
@@ -201,6 +213,8 @@ export async function cmdLimpiar(pa: Pa, args: string[]): Promise<number> {
   const builds: Build[] = [];
   const worktrees: WtViejo[] = [];
   const ramas: RamaVieja[] = [];
+  const huerfanos: RunningHuerfano[] = [];
+  const muertas: CorridaMuerta[] = [];
   for (const w of puestos(pa)) {
     // el candado no lo ve el flock del bash: un `.running` vivo de ese puesto también lo marca en uso
     const lg = runningVivo(path.join(pa.state, `${w.nombre}.running`)) ? null : await tomar(path.join(pa.lockdir, w.nombre), { plat: pa.plat, env: pa.env });
@@ -289,14 +303,50 @@ export async function cmdLimpiar(pa: Pa, args: string[]): Promise<number> {
       dec(`  rama ${rama}  ${commits > 0 ? "ya integrada" : "sin commits"}, de hace ${d} días\n`);
     }
   }
+  // los restos de corridas muertas: lo que `pa --estado` muestra como HUÉRFANO y MURIÓ EN COLA y nadie cerró
+  const diasDe = (mtimeMs: number) => Math.floor((ahoraS * 1000 - mtimeMs) / 86_400_000);
+  const mtimeDe = (f: string) => {
+    try {
+      return statSync(f).mtimeMs;
+    } catch {
+      return 0;
+    }
+  };
+  for (const n of listar(pa.state, (x) => x.endsWith(".running"))) {
+    const f = path.join(pa.state, n);
+    if (!esArchivo(f) || runningVivo(f)) continue; // el pid se valida sólo con runningVivo (nunca kill0 a secas); no se señala a nadie
+    const base = f.replace(/\.running$/, "");
+    const toques = [f, `${base}.heartbeat`, `${base}.heartbeat.turnos`].filter(existsSync);
+    if (!toques.every((t) => masViejoQue(t, MIN_RASTRO))) continue;
+    const doc = leerCampo(f, "proyecto");
+    const slug = /^[A-Za-z0-9._-]+$/.test(doc) ? doc : n.replace(/(@.*|\.leer-.*)?\.running$/, "");
+    const idDoc = leerCampo(f, "id");
+    const id = /^[A-Za-z0-9._-]+$/.test(idDoc) ? idDoc : "";
+    huerfanos.push({ proyecto: slug, id, archivo: n, dias: diasDe(Math.max(...toques.map(mtimeDe))) });
+    dec(`  huérfano ${slug}${id ? ` (id ${id})` : ""}: .running sin proceso, de hace ${huerfanos[huerfanos.length - 1]!.dias} días\n`);
+    if (aplicar) await cerrarRunningMuerto(path.join(pa.state, slug), f, id);
+  }
+  for (const c of corridasSinPuesto(pa.state)) {
+    if (c.estado !== "murio" || !masViejoQue(c.pid, MIN_RASTRO)) continue;
+    const dias = diasDe(mtimeDe(c.pid));
+    muertas.push({ proyecto: c.slug, id: c.id, leer: c.leer, dias });
+    dec(`  corrida ${c.slug}/${c.id}: ${c.leer ? "murió antes de arrancar" : "murió en cola"}, de hace ${dias} días\n`);
+    if (aplicar) {
+      // como `pa --archivar` (archivado= en su .hilo, que `pa --estado` ya no lista); el .log y el resto se quedan
+      await anotarFin(c.dir, c.id);
+      await hiloPoner(c.dir, c.id, "archivado", isoSegundos());
+    }
+  }
   const gb = (total / 1073741824).toFixed(2);
   if (json) {
-    io.out(`${JSON.stringify({ dias, aplicado: aplicar, enUso, builds, worktrees, ramas, bytes: total })}\n`);
+    io.out(`${JSON.stringify({ dias, aplicado: aplicar, enUso, builds, worktrees, ramas, bytes: total, huerfanos, muertas })}\n`);
     return 0;
   }
   const cuenta = `${worktrees.length} worktree(s) y ${ramas.length} rama(s)`;
-  if (!builds.length && !worktrees.length && !ramas.length) io.out(`pa --limpiar: nada con más de ${diasTxt} días: ni build, ni worktrees, ni ramas ya integradas.\n`);
-  else if (aplicar) io.out(`pa --limpiar: liberados ${gb} GB; quitados ${cuenta}.\n`);
-  else io.out(`pa --limpiar: se liberarían ${gb} GB; se quitarían ${cuenta} (dry-run; con --si se borra).\n`);
+  const restos = huerfanos.length + muertas.length;
+  const deRestos = `${huerfanos.length} .running sin proceso y ${muertas.length} corrida(s) muerta(s)`;
+  if (!builds.length && !worktrees.length && !ramas.length && !restos) io.out(`pa --limpiar: nada con más de ${diasTxt} días: ni build, ni worktrees, ni ramas ya integradas.\n`);
+  else if (aplicar) io.out(`pa --limpiar: liberados ${gb} GB; quitados ${cuenta}${restos ? `; cerrados ${deRestos}` : ""}.\n`);
+  else io.out(`pa --limpiar: se liberarían ${gb} GB; se quitarían ${cuenta}${restos ? `; se cerrarían ${deRestos}` : ""} (dry-run; con --si se borra).\n`);
   return 0;
 }

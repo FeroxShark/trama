@@ -93,11 +93,8 @@ export const hallazgoDe = (texto: string, todo = false) => campoDe("HALLAZGO", t
 /** `freno_de`: el FRENÓ del resultado en una línea, sin tabs (la columna `freno` de medicion.tsv). */
 export const frenoDe = (texto: string) => campoDe("FREN(O|Ó)", texto).replace(/\t/g, " ");
 
-/** `decision_es_nada`: «nada» estricto (sin asteriscos ni espacios, a lo sumo un punto final). */
-export function decisionEsNada(d: string): boolean {
-  const x = d.replace(/\*/g, "").replace(/^\s+|\s+$/g, "").replace(/\.$/, "");
-  return x.toLowerCase() === "nada";
-}
+/** `decision_es_nada`: «nada», o «nada.» seguido sólo de oraciones que niegan (decision-nada.ts; el bash congelado sólo acepta «nada»). */
+export { decisionEsNada } from "./decision-nada.ts";
 
 /** `verificacion_de`: el texto de la sección VERIFICACION (sin distinguir mayúsculas). */
 export function verificacionDe(texto: string): string {

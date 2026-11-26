@@ -28,6 +28,7 @@ import {
   listar,
   masViejoQue,
   pidCorridaVivo,
+  proyectoDeId,
   ramAlcanza,
   rutaDeProyecto,
   runningVivo,
@@ -38,6 +39,7 @@ import {
 } from "./corridas.ts";
 import { Salida, jefeId, jefeNombre, prologo, salir, type Env, type Io, type Pa } from "./entorno.ts";
 import { cmdParar, matarProyecto } from "./matar.ts";
+import { listaDe, procesosPorCorrida } from "./procesos-corrida.ts";
 import { claudeFalla, mostrarResultado } from "./resultado.ts";
 
 /** Interno entre `--esperar-todos` y su `--esperar --id`: el resultado ya lo entregó otra espera. Nunca sale de pa. */
@@ -59,11 +61,50 @@ function murioHaceMucho(pid: string): boolean {
   }
 }
 
+/** Una corrida `--async` que todavía no tomó puesto (sin `.puesto` ni `.corrida`) y no terminó, tal como la ve `pa --estado`. */
+export interface SinPuesto {
+  slug: string;
+  /** `$STATE/<slug>`. */
+  dir: string;
+  id: string;
+  /** `$STATE/<slug>/<id>.pid`. */
+  pid: string;
+  leer: boolean;
+  /** `cola`: espera un lugar y su proceso vive; `murio`: el proceso ya no existe y nunca tomó puesto. */
+  estado: "cola" | "murio";
+}
+
+/**
+ * Las corridas async sin puesto de todos los proyectos: sin `.puesto` (se escribe apenas toman el lock) siguen esperando; con el pid muerto y sin
+ * `.listo`, murieron en cola (el 82 de `--esperar --id`). Una `--leer` no toma puesto: espera lugar del tope (`.cola`), está arrancando (su
+ * `.running` ya sale como CORRIENDO) o murió antes de arrancar. Las archivadas (`archivado=` en su `.hilo`, como las deja `pa --limpiar`)
+ * ya no están. Lo usan `pa --estado` (las muestra) y `pa --limpiar` (cierra las muertas): una sola definición de «muerta en cola».
+ */
+export function corridasSinPuesto(state: string): SinPuesto[] {
+  const r: SinPuesto[] = [];
+  for (const slug of carpetasDeProyecto(state)) {
+    const d = path.join(state, slug);
+    for (const n of listar(d, (x) => x.endsWith(".pid"))) {
+      const ts = n.slice(0, -4);
+      const x = (e: string) => path.join(d, `${ts}.${e}`);
+      if (existsSync(x("puesto")) || existsSync(x("corrida"))) continue;
+      if (existsSync(x("listo")) || existsSync(x("entregado"))) continue;
+      if (leerCampo(x("hilo"), "archivado")) continue;
+      const enCola = pidCorridaVivo(path.join(d, n)) !== null;
+      const leer = existsSync(x("leer"));
+      if (leer && enCola && (existsSync(path.join(state, `${slug}.leer-${ts}.running`)) || !existsSync(x("cola")))) continue;
+      r.push({ slug, dir: d, id: ts, pid: path.join(d, n), leer, estado: enCola ? "cola" : "murio" });
+    }
+  }
+  return r;
+}
+
 /** `pa --estado`. */
 export async function cmdEstado(pa: Pa): Promise<void> {
   const { state, io } = pa;
   let hubo = false;
   let viejas = 0;
+  const corriendo = new Set<string>();
   for (const n of listar(state, (x) => x.endsWith(".running"))) {
     const f = path.join(state, n);
     if (!esArchivo(f)) continue;
@@ -71,6 +112,7 @@ export async function cmdEstado(pa: Pa): Promise<void> {
     const slug = leerCampo(f, "proyecto");
     const leer = leerCampo(f, "leer") === "1";
     if (runningVivo(f)) {
+      corriendo.add(leerCampo(f, "id"));
       // el .heartbeat va al lado del .running (uno por writer, uno por cada --leer)
       const hb = f.replace(/\.running$/, ".heartbeat");
       let l = `CORRIENDO  ${pad(slug, 20)} hace ${transcurrido(leerCampo(f, "inicio"))}`;
@@ -85,44 +127,31 @@ export async function cmdEstado(pa: Pa): Promise<void> {
       io.out(`HUÉRFANO   ${pad(slug, 20)} (el claude murió; se limpia solo en el próximo pa${leer ? " --leer" : ""}, o: rm ${f})\n`);
     }
   }
-  // Corridas --async ENCOLADAS: sin `.running` todavía, pero con su pid en `$ts.pid` desde que arrancan. Sin `.puesto` (se
-  // escribe apenas toman el lock) siguen esperando; con el pid muerto y sin `.listo`, murieron en cola (el 82 de `--esperar --id`).
-  for (const slug of carpetasDeProyecto(state)) {
-    const d = path.join(state, slug);
-    for (const n of listar(d, (x) => x.endsWith(".pid"))) {
-      const ts = n.slice(0, -4);
-      const x = (e: string) => path.join(d, `${ts}.${e}`);
-      if (existsSync(x("puesto")) || existsSync(x("corrida"))) continue;
-      if (existsSync(x("listo")) || existsSync(x("entregado"))) continue;
-      const enCola = pidCorridaVivo(path.join(d, n)) !== null;
-      if (existsSync(x("leer"))) {
-        // --leer no toma puesto: espera lugar del tope (`.cola`), está arrancando (ya sale como CORRIENDO) o murió antes de arrancar
-        if (enCola) {
-          if (existsSync(path.join(state, `${slug}.leer-${ts}.running`))) continue;
-          if (!existsSync(x("cola"))) continue;
-          hubo = true;
-          io.out(`EN COLA    ${pad(slug, 20)} (--leer id: ${ts}, ${leerTexto(x("cola"))})\n`);
-          continue;
-        }
-        if (murioHaceMucho(path.join(d, n))) {
-          viejas++;
-          continue;
-        }
-        hubo = true;
-        io.out(`MURIÓ      ${pad(slug, 20)} (--leer id: ${ts}, murió antes de arrancar; mirá ${x("log")})\n`);
-        continue;
-      }
-      if (!enCola && murioHaceMucho(path.join(d, n))) {
-        viejas++;
-        continue;
-      }
+  // Corridas --async ENCOLADAS (y las que murieron en cola o antes de arrancar): ver `corridasSinPuesto`.
+  for (const c of corridasSinPuesto(state)) {
+    const x = (e: string) => path.join(c.dir, `${c.id}.${e}`);
+    if (c.estado === "cola") {
       hubo = true;
-      if (enCola) io.out(`EN COLA    ${pad(slug, 20)} (id: ${ts}, ${existsSync(x("cola")) ? leerTexto(x("cola")) : "esperando un puesto libre"})\n`);
-      else io.out(`MURIÓ EN COLA ${pad(slug, 17)} (id: ${ts}, nunca tomó puesto; mirá ${x("log")})\n`);
+      if (c.leer) io.out(`EN COLA    ${pad(c.slug, 20)} (--leer id: ${c.id}, ${leerTexto(x("cola"))})\n`);
+      else io.out(`EN COLA    ${pad(c.slug, 20)} (id: ${c.id}, ${existsSync(x("cola")) ? leerTexto(x("cola")) : "esperando un puesto libre"})\n`);
+      continue;
     }
+    if (murioHaceMucho(c.pid)) {
+      viejas++;
+      continue;
+    }
+    hubo = true;
+    if (c.leer) io.out(`MURIÓ      ${pad(c.slug, 20)} (--leer id: ${c.id}, murió antes de arrancar; mirá ${x("log")})\n`);
+    else io.out(`MURIÓ EN COLA ${pad(c.slug, 17)} (id: ${c.id}, nunca tomó puesto; mirá ${x("log")})\n`);
   }
   if (!hubo) io.out("no hay workers corriendo.\n");
   if (viejas > 0) io.out(`MURIÓ EN COLA hace más de 7 días: ${viejas} (no se listan).\n`);
+  // Lo que dejó corriendo una corrida de este estado que ya terminó (procesos-corrida.ts, sólo Linux): se avisa, no se baja.
+  for (const [id, q] of procesosPorCorrida({ plat: pa.plat })) {
+    const slug = corriendo.has(id) ? "" : proyectoDeId(state, id);
+    if (!slug) continue;
+    io.out(`QUEDÓ VIVO ${pad(slug, 20)} (id: ${id}, la corrida terminó y dejó ${q.length === 1 ? "1 proceso" : `${q.length} procesos`}: ${listaDe(q)}; si sobran: kill ${q.map((x) => x.pid).join(" ")})\n`);
+  }
 
   // RAM: lo que decide si entra otro worker; sin lugares tomados entra siempre
   const vivos = (await lugaresTomados(pa)) + workersSueltos(state);

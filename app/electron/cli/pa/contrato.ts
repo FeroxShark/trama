@@ -7,6 +7,14 @@
 export const FRASE_COMPACTA = "Si tu contexto se compacta, cerrá el pedazo que estás haciendo, hacé commit y terminá con SIGUE: lo que falta.";
 
 /**
+ * Sólo-TS (el bash está congelado): lo que la guardia de borrado (motor/hooks/destructive-guard) frena y lo que deja pasar. Medido
+ * el 2026-11-25: 244 de 1282 corridas perdieron turnos contra un hook, 85 por un `rm` de temporales. Va antes de FRASE_COMPACTA;
+ * tests/cli-pa.test.ts y la paridad la sacan para comparar. Una sola línea.
+ */
+export const FRASE_GUARDIA =
+  "Borrar: un hook frena siempre `rm -rf`/`rm -fr` (también si sólo aparece en un texto o un heredoc del comando) y todo `rm` con `-r` o `-f` que tenga una ruta absoluta o `~` en la misma línea, incluido /tmp. Lo que pasa: `rm <archivo>` sin opciones, o `rm -r <ruta relativa a tu worktree>` en un comando aparte. Si no, dejá el temporal: no gastes turnos reintentando.";
+
+/**
  * Sólo-TS (el bash está congelado): dos líneas opcionales del bloque final, justo después de FRENÓ. tests/cli-pa.test.ts y la
  * paridad las sacan para comparar. `FALTA` deja la corrida en `falta-info` (cli/pa/hilos.ts); las dos van al aviso del líder.
  */
@@ -82,6 +90,7 @@ const CONTRATO_L = [
   "commitear. Agregá los archivos que tocaste, uno por uno. (Hay un hook que lo bloquea igual.)",
   "No compiles release ni instales nada (`tauri build`, `cargo <sub> --release`, `cargo install`): lo",
   "hace el jefe después de integrar (un hook lo bloquea). Probá con cargo test/check o build debug.",
+  FRASE_GUARDIA,
   FRASE_COMPACTA,
 ];
 const CIERRE_TAREA_PRIMERA = "Te quedaste sin turnos. NO sigas con la tarea: cerrá.";

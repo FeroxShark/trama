@@ -6,9 +6,9 @@
 // Lo que hacen las etapas 6-10 (lanzar, puestos y worktrees, async/esperar/parar/matar, hilos/ramas/integrar/lecciones/auditar,
 // otros motores) entra por `Deps`: cada subcomando es una función con su firma. Uno que todavía no está portado explica eso por
 // stderr y sale 70, sin hacer nada a medias.
-import { appendFileSync, copyFileSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { plataformaActual, type Plataforma } from "../../rutas.ts";
+import { estadoPa, homeDe, plataformaActual, type Plataforma } from "../../rutas.ts";
 import { esEjecutable } from "../base/buscar.ts";
 import { resolverClaude } from "../../binario.ts";
 import { haySesionClaude } from "../../credenciales-claude.ts";
@@ -196,6 +196,20 @@ export const perfilDeReparto = (pa: Pa): string => new Modelos(pa.env, { out: ()
 export const avisoPerfilAhorro = (perfil: string): string =>
   `pa: aviso: perfil ${perfil}: reparto elige el modelo más barato que alcance, a veces uno chico. El brief tiene que llevar pasos numerados, los archivos, "Listo cuando" y el comando de chequeo; si el worker falla el chequeo, subí un escalón una sola vez (skill trama-orquestar).\n`;
 
+/** Los tipos donde `reparto` descarta a Opus como candidato (`TIPOS_SIN_OPUS` en `cli/reparto.ts`): con `-m` entra igual. */
+export const TIPOS_OPUS_CARO = ["frontend", "codigo-multi"];
+
+/**
+ * El aviso de una sola línea cuando se pide Opus a mano (`-m claude-opus-…`, `agy:claude-opus-…` o el alias `opus`) en `frontend` o `codigo-multi`
+ * (medido en 30 días con `pa --rinde`: 17 a 30 % integrada sin retrabajo y US$ 21 a 47 por corrida buena). No bloquea ni cambia el modelo.
+ * Vacío si no aplica: otro modelo o tipo, o la corrida retoma otra (`--seguir`, `--seguir-con`, `--actualizar`), donde el modelo ya venía dado.
+ */
+export function avisoOpusAMano(modelo: string, tipo: string, o: { seguir?: boolean; seguirCon?: string; actualizar?: string } = {}): string {
+  if (o.seguir || o.seguirCon || o.actualizar) return "";
+  if (!TIPOS_OPUS_CARO.includes(tipo) || !/^(agy:)?(claude-)?opus(-|$)/i.test(modelo)) return "";
+  return `pa: aviso: pediste ${modelo} con --tipo ${tipo}: lo medido en 30 días es 17 a 30 % integrada sin retrabajo y US$ 21 a 47 por corrida buena (reparto lo descarta acá). No lo cambio ni te freno: partí la tarea o dejá que elija reparto (sin -m).\n`;
+}
+
 /** `ruta="$(proyecto-ruta "$proyecto")"` con `set -e`: la ruta, o el error de proyecto-ruta y `exit` con su código. */
 function rutaOSalir(pa: Pa, proyecto: string): string {
   let out = "";
@@ -293,11 +307,36 @@ const SIN_ARGS = new Set(["--estado", "--traspaso"]);
 
 /** `pa …` entero. Devuelve el código de salida (nunca llama a `process.exit`). */
 export async function main(argv: string[], env: Env, io: Io, deps: Deps = {}): Promise<number> {
+  const asyncId = env.PA_ASYNC && env.PA_TS ? env.PA_TS : "";
+  let rc: number;
   try {
-    return await correrPa(argv, env, io, deps);
+    rc = await correrPa(argv, env, io, deps);
   } catch (e) {
-    if (e instanceof Salida) return e.codigo;
-    throw e;
+    if (!(e instanceof Salida)) throw e;
+    rc = e.codigo;
+  }
+  // El hijo de `--async` que se va con un error de uso (2) antes de tomar puesto no deja una corrida «muerta en cola» en `pa --estado`.
+  if (rc === 2 && asyncId && argv[0] && !argv[0].startsWith("-")) cerrarRastroRechazado(argv[0], asyncId, env, deps.plat ?? plataformaActual());
+  return rc;
+}
+
+/**
+ * El pedido de un `--async` lo rechazó el hijo (error de uso, rc 2) sin llegar a tomar puesto: `lanzarAsync` ya dejó `.jefe`, `.pid` (y `.leer`)
+ * antes del fork, y sin ellos `pa --estado` la lista para siempre como «MURIÓ EN COLA … nunca tomó puesto». Se borran; el `.log` se queda con lo que
+ * dijo el hijo (si el padre sigue esperando, lo lee y lo muestra; si ya volvió, queda ahí). Con `.puesto`, `.corrida`, `.listo`, `.entregado`
+ * o `.hilo` la corrida ya existía y su cierre es otro: no se toca. Nunca tira.
+ */
+export function cerrarRastroRechazado(proyecto: string, id: string, env: Env, plat: Plataforma = plataformaActual()): void {
+  try {
+    if (!/^[A-Za-z0-9._-]+$/.test(id)) return;
+    const r = resolverProyecto(proyecto, env);
+    if (!r.ok) return;
+    const dir = path.join(estadoPa(env, homeDe(env, plat), plat), slugDe(r.ruta));
+    const x = (e: string) => path.join(dir, `${id}.${e}`);
+    if (["puesto", "corrida", "listo", "entregado", "hilo"].some((e) => existsSync(x(e)))) return;
+    for (const e of ["pid", "jefe", "leer", "cola"]) rmSync(x(e), { force: true });
+  } catch {
+    /* sin rastro que cerrar */
   }
 }
 
@@ -504,6 +543,8 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
     }
     const perfil = perfilDeReparto(pa);
     if (!l.seguir && !l.retomaDe && (perfil === "ahorro" || perfil === "agresivo")) io.err(avisoPerfilAhorro(perfil));
+    const opus = avisoOpusAMano(l.modeloPedido, l.tipo ?? "", { seguir: l.seguir, seguirCon: l.seguirCon, actualizar: l.actualizar });
+    if (opus && !l.retomaDe) io.err(opus);
     if (calidad !== null)
       io.err(
         `pa: aviso: '${l.modelo}' tiene inteligencia ${calidad} (< ${env.PA_CALIDAD_BAJA || "46"}, reparto --tabla): dale pasos numerados, comandos explícitos, un solo archivo o área, y partí lo grande en varias tareas. El worker recibe además la consigna de trabajar en pasos chicos y verificar tras cada cambio.\n`,
