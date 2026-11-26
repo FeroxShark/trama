@@ -103,6 +103,7 @@ test("Claude → Gemini: el mismo líder sigue con una sesión nueva de agy que 
   await lider.mandar({ sid, texto: "seguí vos", modelo: "gemini-4-argon", effort: "high" });
   await hasta(() => de(sid, "fin").length === 2);
   assert.equal(de(sid, "fin")[1].error, null);
+  assert.equal(de(sid, "salio").length, 0, "reemplazar el proceso ocioso al cambiar de motor no emite un `salio` que borre la tarjeta de actividad");
 
   const l = llamadasAgy().at(-1)!;
   assert.match(l.prompt, /líder de Trama/, "el rol de líder de Gemini se conserva");

@@ -154,6 +154,16 @@ export function leerColaTranscript(ruta, maxBytes = TAIL_BYTES) {
 const num = (x) => (typeof x === "number" && Number.isFinite(x) && x >= 0 ? x : 0);
 
 /**
+ * El `usage` que dice cuánto ocupa el contexto. Un mensaje con varias llamadas (el advisor: llamada, asesor, llamada) trae arriba la
+ * SUMA de todas (dos llamadas de 140k = 280k); la ocupación es la de la última `iterations[]` de tipo `message`. Sin `iterations`, la de arriba.
+ */
+export function ocupacionDeUsage(u) {
+  if (!u || typeof u !== "object") return null;
+  const its = Array.isArray(u.iterations) ? u.iterations.filter((i) => i && typeof i === "object" && i.type === "message") : [];
+  return its.length ? its[its.length - 1] : u;
+}
+
+/**
  * Tokens de contexto del último mensaje del asistente (sin subagentes ni sintéticos):
  * `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`.
  * Si después de él hay un `compact_boundary`, el uso quedó viejo y devuelve `{ tokens: null, compactada: true }`.
@@ -170,8 +180,8 @@ export function ultimoUsoDeLineas(lineas) {
     if (o.type === "system" && o.subtype === "compact_boundary") return { tokens: null, compactada: true };
     if (o.type !== "assistant") continue;
     if (o.isApiErrorMessage === true || o.message?.model === "<synthetic>") continue;
-    const u = o.message?.usage;
-    if (!u || typeof u !== "object") continue;
+    const u = ocupacionDeUsage(o.message?.usage);
+    if (!u) continue;
     const tiene = ["input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"].some(
       (k) => typeof u[k] === "number" && Number.isFinite(u[k]) && u[k] >= 0,
     );

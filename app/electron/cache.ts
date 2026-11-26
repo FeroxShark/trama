@@ -20,7 +20,20 @@ export type MotorCache = "claude" | "gemini" | "dsh" | "opencode" | "ollama" | "
 
 export function motorDeCache(modelo: string | null | undefined): MotorCache {
   const m = modelo ?? "";
-  return m.startsWith("codex:") ? "codex" : m.startsWith("dsh:") ? "dsh" : m.startsWith("opencode:") ? "opencode" : m.startsWith("ollama:") ? "ollama" : /^(?:gemini-|agy:)/.test(m) ? "gemini" : "claude";
+  return m.startsWith("codex:") ? "codex" : m.startsWith("dsh:") ? "dsh" : m.startsWith("opencode:") ? "opencode" : m.startsWith("ollama:") ? "ollama" : /^(?:gemini(?:-|$)|agy:)/.test(m) ? "gemini" : "claude";
+}
+
+/** Motores con caché automático/implícito sin vencimiento informado en el stream: muestran `⚡ ?` sin marcarse fríos por reloj. */
+export const CACHE_SIN_TTL = {
+  codex: { attr: "data-codex", tip: "cache.codexTip" },
+  gemini: { attr: "data-gemini", tip: "cache.geminiTip" },
+} as const;
+
+export type CacheSinTtl = { motor: keyof typeof CACHE_SIN_TTL; attr: (typeof CACHE_SIN_TTL)[keyof typeof CACHE_SIN_TTL]["attr"]; tip: (typeof CACHE_SIN_TTL)[keyof typeof CACHE_SIN_TTL]["tip"] };
+
+export function cacheSinTtlDe(modelo: string | null | undefined): CacheSinTtl | null {
+  const m = motorDeCache(modelo);
+  return m === "codex" || m === "gemini" ? { motor: m, ...CACHE_SIN_TTL[m] } : null;
 }
 
 /** ¿Tiene sentido mostrar "le quedan N min de caché" (y "Uncached") para este modelo? Sin modelo (se desconoce) se asume Claude. */

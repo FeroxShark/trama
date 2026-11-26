@@ -22,7 +22,7 @@ import { createInterface } from "node:readline";
 import path from "node:path";
 import os from "node:os";
 import { aliasMasNuevosCodex, leerCodexModelos } from "./cli/codex-modelos.ts";
-import { entornoAgy, paraLanzar, resolverCodex } from "./binario.ts";
+import { entornoCodexLider, paraLanzar, resolverCodex } from "./binario.ts";
 import { contextoDeThread } from "./codex-rollout.ts";
 import { argsCodex, partirCodex, sandboxDe, Traductor } from "./codex-stream.ts";
 import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
@@ -32,9 +32,6 @@ import { hijoEnGrupo, matarArbol, matarArbolAlSalir } from "./procesos.ts";
 import { SESIONES } from "./sesiones.ts";
 
 const CODEX = resolverCodex(process.env, os.homedir());
-/** Sin las claves de la API de OpenAI (se usa el login de ChatGPT) ni CLAUDE_CONFIG_DIR; con `~/.local/bin` y el `pa` en el PATH. */
-const SIN = new Set(["CLAUDE_CONFIG_DIR", "OPENAI_API_KEY", "CODEX_API_KEY"]);
-const ENTORNO = entornoAgy(Object.fromEntries(Object.entries(process.env).filter(([k]) => !SIN.has(k))), os.homedir());
 /** Cuánto de lo hablado se repite si hay que empezar una conversación nueva (caracteres). */
 const TOPE_REPETIR = 12000;
 
@@ -45,6 +42,7 @@ function arg(nombre: string): string | null {
 
 const sid = arg("sid") ?? "";
 const nombre = arg("nombre") ?? "";
+const ENTORNO = entornoCodexLider(process.env, os.homedir(), { sid, nombre });
 function modeloCodexPorDefecto(): string {
   const modelos = leerCodexModelos();
   return aliasMasNuevosCodex(modelos).sol?.id ?? modelos[0]!.id;

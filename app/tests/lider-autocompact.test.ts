@@ -44,10 +44,13 @@ test("el panel muestra el tope como límite en vez de 1 M (nunca más que la ven
   assert.equal((conTope({ fuente: "claude", ventana: 200000, ventanaEstimada: false } as never, 500000) as { ventana: number }).ventana, 200000);
 });
 
-test("el anillo del líder usa el tope de su modelo; sin tope, el autoCompactWindow o la ventana", () => {
+test("el anillo del líder usa el tope de su modelo (Claude y Gemini); sin tope, el autoCompactWindow o la ventana", () => {
   const tope = { conf, env: null };
   assert.equal(umbralDeLider("claude-opus-5-5", tope, 200000, 1000000), 300000);
   assert.equal(umbralDeLider("claude-sonnet-5-5", tope, 200000, 1000000), 200000);
   assert.equal(umbralDeLider("claude-sonnet-5-5", tope, null, 1000000), 1000000);
   assert.equal(umbralDeLider("gemini-4-argon", tope, null, 1000000), 1000000);
+  const topeGem = { conf: { defecto: null, por_modelo: { gemini: 300000 } }, env: null };
+  assert.equal(topeAutocompact("gemini-4-neon-xhigh", topeGem.conf), 300000);
+  assert.equal(umbralDeLider("gemini-4-neon-xhigh", topeGem, null, 1000000), 300000);
 });

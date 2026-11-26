@@ -25,7 +25,7 @@ import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer
 import { fuente, type EnvioLider, type ResultadoExtras } from "../datos/fuente";
 import { fuentePaneles } from "../datos/paneles";
 import { ChipSubagentes } from "../barra/Fila";
-import { Reloj } from "../barra/piezas";
+import { CacheSinTtl, Reloj } from "../barra/piezas";
 import { LogoCab } from "../barra/Logo";
 import { estiloProyecto } from "../barra/Riel";
 import { Leyendo } from "./Leyendo";
@@ -34,7 +34,7 @@ import { Programar } from "./Programar";
 import { MODO } from "../modo";
 import { esTactil } from "../angosto";
 import { pintorCache } from "../tiempo";
-import { cacheAplica } from "../../electron/cache";
+import { cacheAplica, cacheSinTtlDe } from "../../electron/cache";
 import { BORRADOR_LIDER, cursorDe, escucharBorrador, guardarCursor, leerBorrador, ponerBorrador } from "./borradores";
 import { effortPara } from "./elegir";
 import { Esfuerzo } from "./Esfuerzo";
@@ -55,10 +55,10 @@ import { proyectosDe, useProyectos, type ProyectoNombre } from "../datos/proyect
 import { CuentaLider, cuentasDeClaude, nombreCuentaClaude, useCuentasClaude } from "./CuentaLider";
 import { filasDeCupos } from "../datos/cuentas";
 import { OfertaCuenta } from "./OfertaCuenta";
-import { TarjetaCierre } from "./TarjetaCierre";
+import { cierreRigeAlLider, TarjetaCierre } from "./TarjetaCierre";
 import { useCierre } from "./cierre-vivo";
 import { cuentasClaude, ofertaDeCambio } from "../barra/cupos-riel-logica";
-import { elegidoAca, llegaServidor, opcionesEnTurno, pendienteDe, type Seguimiento, type Seleccion } from "./pendiente";
+import { elegidoAca, estadoInicialCaja, llegaServidor, opcionesEnTurno, pendienteDe, sincronizarCajaGuardada, type Seguimiento, type Seleccion } from "./pendiente";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import { DialogoCache } from "./DialogoCache";
 import { opcionCompactarCache } from "./cache-compactar";
@@ -396,7 +396,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const cupos = useMemo(() => estadosCupoModelos(MODELOS.map((m) => m.id), uso, Date.now() / 1000), [uso, tablaModelos]);
   const cuposColumnas = useMemo(() => estadosCupoProveedores(uso, Date.now() / 1000), [uso]);
   const [senalModelo, setSenalModelo] = useState(0);
-  // «Seguir con otro modelo» (#1791): el selector que abre el aviso de límite o de sin cupo. Captura `lider-avisos` con `HILOS_VARIANTE=seguir-con`: ya abierto.
+  // «Seguir con otro modelo» (#1791): el selector que abren los avisos y la tarjeta de cierre. Captura `lider-avisos` con `HILOS_VARIANTE=seguir-con`: ya abierto.
   const [seguirCon, setSeguirCon] = useState(MODO.captura === "lider-avisos" && MODO.variante === "seguir-con");
   const abrirSeguir = useCallback(() => setSeguirCon(true), []);
   useEffect(() => {
@@ -405,6 +405,12 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     return () => window.removeEventListener(EVENTO_CAMBIAR_MODELO, abrir);
   }, []);
   const elegir = useRef<HTMLInputElement>(null);
+  const modeloIniBase = modeloDe(l?.modelo);
+  const servidorIni: Seleccion | null = modeloIniBase
+    ? { modelo: modeloIniBase, effort: effortDe(l?.effort, modeloIniBase) ?? effortPara(modeloIniBase, effortsLeidos() ?? {}) }
+    : null;
+  const iniCaja = useRef<ReturnType<typeof estadoInicialCaja> | null>(null);
+  if (iniCaja.current === null) iniCaja.current = estadoInicialCaja(l?.id ?? null, servidorIni);
   // Captura `aviso`: otro modelo elegido con el caché vivo.
   const [modelo, setModelo] = useState(() =>
     // Captura `modelo` con `HILOS_VARIANTE=sin-cupo`: Argon elegido, sin cupo, para ver la marca del chip.
@@ -421,13 +427,15 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         ? (MODELOS.find((m) => esAgy(m.id))?.id ?? MODELO_DEFAULT)
         : MODO.captura === "local-esfuerzo" || MODO.captura === "local-ctx"
           ? (MODELOS.find((m) => esLocal(m.id))?.id ?? MODELO_DEFAULT)
-          : (modeloDe(l?.modelo) ?? MODELO_DEFAULT),
+          : (iniCaja.current?.caja?.modelo ?? MODELO_DEFAULT),
   );
   const [effort, setEffort] = useState(() =>
     // Captura `lider-trabajando` con `HILOS_VARIANTE=pendiente`: otro esfuerzo elegido con el turno en curso.
     MODO.captura === "lider-trabajando" && MODO.variante === "pendiente" && l
       ? (effortsDe(modelo).find((e) => e !== effortDe(l.effort, modelo)) ?? "low")
-      : (effortDe(l?.effort, modelo) ?? effortPara(modelo, effortsLeidos() ?? {})),
+      : MODO.captura
+        ? (effortDe(l?.effort, modelo) ?? effortPara(modelo, effortsLeidos() ?? {}))
+        : (iniCaja.current?.caja?.effort ?? effortPara(modelo, effortsLeidos() ?? {})),
   );
   // Ultracode y Fast (sólo modelos oficiales de Anthropic): los que dice el líder y, en uno nuevo, los que se dejan prendidos antes del primer mensaje.
   const [ultracode, setUltracode] = useState(!!l?.ultracode || (MODO.captura === "esfuerzo" && MODO.variante !== undefined));
@@ -470,10 +478,11 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   );
   // Lo elegido acá que el servidor todavía no confirmó no lo mueve un eco tardío (pendiente.ts, `llegaServidor`); y lo que la caja tomó del
   // servidor no se le devuelve (`elegidaAca`): las dos cosas juntas hacían ir y volver el selector sin fin.
-  const seguimiento = useRef<Seguimiento>({ visto: modeloServidor && effortServidor !== undefined ? { modelo: modeloServidor, effort: effortServidor } : null, propio: null });
+  const seguimiento = useRef<Seguimiento>(iniCaja.current.s);
   const elegidaAca = useRef(false);
   const marcarElegida = (sel: Seleccion) => {
     seguimiento.current = elegidoAca(seguimiento.current, sel);
+    sincronizarCajaGuardada(l?.id ?? null, sel, seguimiento.current);
     // Lo mismo que ya muestra no cambia la caja: no queda nada por mandar.
     if (sel.modelo !== modelo || sel.effort !== effort) elegidaAca.current = true;
   };
@@ -482,6 +491,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     const anterior = seguimiento.current.visto;
     const r = llegaServidor({ modelo, effort }, seguimiento.current, { modelo: modeloServidor, effort: effortServidor });
     seguimiento.current = r.s;
+    sincronizarCajaGuardada(l?.id ?? null, r.caja, r.s);
     if (anterior?.modelo === modeloServidor && anterior.effort === effortServidor) return;
     // Mientras compacta desde caché, esa operación restaura el modelo elegido aunque llegue tarde el eco del modelo que compactó.
     if (!compactoCacheActivo) {
@@ -1490,6 +1500,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     () => (l && l.cache_vence !== null && !l.subagentes && cacheAplica(l.modelo) ? pintorCache(`lider:${l.id}:${l.cache_vence}`, l.cache_vence, l.cache_ttl_s, false) : null),
     [l],
   );
+  const cacheSinTtl = !cache && Boolean(l && !l.caido && !l.subagentes && l.actividad > 0 && cacheSinTtlDe(l.modelo));
 
   // «No conversation found»: la conversación está con otra cuenta de Claude. Se cambia la cuenta de este líder (no la preferida) y se retoma.
   const retomar = (conCuenta?: string) => {
@@ -1559,7 +1570,11 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       {/* El nombre, el modelo y el esfuerzo ya van en la cabecera; acá sólo lo que cambia (caché, subagentes, si duerme o cayó). Un líder nuevo no tiene nada. */}
       {l ? (
         <div className="lider-linea" data-desliza>
-          {!ocupado && cache ? <Reloj pintor={cache} className="cache" /> : null}
+          {!ocupado && cache ? (
+            <Reloj pintor={cache} className="cache" />
+          ) : !ocupado && cacheSinTtl ? (
+            <CacheSinTtl modelo={l.modelo} />
+          ) : null}
           {l.subagentes ? <ChipSubagentes n={l.subagentes} clave={l.id} /> : null}
           {app && !l.vivo && !l.caido ? <span className="tenue">{tr("lider.dormido")}</span> : null}
           {l.caido ? <span className={l.caido === "murio" ? "c-fallo" : "tenue"} title={l.motivo}>{tr(l.caido === "murio" ? "estado.fallo" : "lider.cerrado")}</span> : null}
@@ -1930,7 +1945,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
           </div>
         )}
         {errorCaja ? <div className="caja-error" role="alert">{errorCaja}</div> : null}
-        {cierreCupo ? <TarjetaCierre c={cierreCupo} /> : null}
+        {cierreCupo && l && cierreRigeAlLider(cierreCupo, l) ? <TarjetaCierre c={cierreCupo} alSeguir={ocupado ? undefined : abrirSeguir} /> : null}
         {ofertaCuenta ? <OfertaCuenta oferta={ofertaCuenta} alPasar={() => elegirCuenta(ofertaCuenta.otra.id)} deshabilitado={ocupado} /> : null}
         {cruceDatos ? (
           <DialogoCambio

@@ -19,8 +19,8 @@ test("cada evento cae en su tipo", () => {
   assert.equal(caso(sola("escribiendo")), "escribiendo");
   assert.equal(caso(herr("WebSearch", "css grid")), "web");
   assert.equal(caso(herr("WebFetch", "https://developer.mozilla.org/es/docs")), "web");
-  for (const n of ["Read", "Grep", "Glob"]) assert.equal(caso(herr(n, "x")), "codigo", n);
-  for (const n of ["Edit", "Write", "MultiEdit"]) assert.equal(caso(herr(n, "/a/b.ts")), "editando", n);
+  for (const n of ["Read", "Grep", "Glob", "read_file", "view_file"]) assert.equal(caso(herr(n, "x")), "codigo", n);
+  for (const n of ["Edit", "Write", "MultiEdit", "edit_file", "write_file"]) assert.equal(caso(herr(n, "/a/b.ts")), "editando", n);
   assert.equal(caso(herr("Bash", "git status")), "comando");
   assert.equal(caso(herr("Agent", "revisar", "Explore")), "delegando");
   assert.equal(caso(herr("Task", "revisar")), "delegando");

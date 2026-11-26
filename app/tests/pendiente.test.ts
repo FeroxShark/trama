@@ -191,3 +191,28 @@ test("la caja no le devuelve al main lo que tomó del servidor (Lider.tsx: sólo
   const efecto = fuente.slice(fuente.indexOf("const selVista"), fuente.indexOf("cola.elegir(l.id"));
   assert.match(efecto, /elegidaAca\.current/);
 });
+
+test("salir a otro chat y volver conserva el esfuerzo/modelo pendiente (p. ej. Hydrogen high -> xhigh)", async () => {
+  const { estadoInicialCaja, olvidarCajasGuardadas, sincronizarCajaGuardada } = await import("../src/hilo/pendiente.ts");
+  olvidarCajasGuardadas();
+  const hHigh: Sel = { modelo: "gemini-4-hydrogen", effort: "high" };
+  const hXHigh: Sel = { modelo: "gemini-4-hydrogen", effort: "xhigh" };
+
+  // Monta el chat con el servidor en high.
+  const ini1 = estadoInicialCaja("sid-h", hHigh);
+  assert.deepEqual(ini1.caja, hHigh);
+
+  // La persona elige xhigh mientras corre (el servidor sigue en high).
+  const s1 = elegidoAca(ini1.s, hXHigh);
+  sincronizarCajaGuardada("sid-h", hXHigh, s1);
+
+  // Sale del chat y vuelve (remonta con el servidor todavía en high): conserva xhigh y sigue pendiente.
+  const ini2 = estadoInicialCaja("sid-h", hHigh);
+  assert.deepEqual(ini2.caja, hXHigh);
+  assert.deepEqual(pendienteDe({ ocupado: true, modelo: ini2.caja!.modelo, effort: ini2.caja!.effort, turno: hHigh }), { modelo: false, effort: true });
+
+  // Cuando el próximo turno lo aplica en el servidor, se confirma y se limpia de memoria.
+  const ini3 = estadoInicialCaja("sid-h", hXHigh);
+  assert.deepEqual(ini3.caja, hXHigh);
+  assert.equal(ini3.s.propio, null);
+});

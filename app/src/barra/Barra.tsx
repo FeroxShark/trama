@@ -162,6 +162,9 @@ import { LoBuscado, Resalte } from "./Resalte";
 import { pintorHace } from "../tiempo";
 import { Reloj } from "./piezas";
 import { avisarVentana, irA, ponerLista, UMBRAL, useVentana } from "./ventana";
+import { useGrafoLider } from "../hilo/flujo/useGrafoLider";
+import { DockDerechoFlujo, InspectorNodo, type TabDock } from "../hilo/flujo/InspectorNodo";
+import "../hilo/flujo/flujo.css";
 
 // El panel de contexto va en un chunk aparte: se carga al abrirlo.
 // La vista del hilo (chat del líder, worker, subagente) va en un chunk aparte.
@@ -1591,6 +1594,75 @@ export function Barra() {
       .filter((h) => h.jefe_id === liderContexto.id && !["archivado", "integrado", "descartado", "revertido"].includes(h.estado))
       .sort((a, b) => Number(vivo(b)) - Number(vivo(a)) || b.inicio - a.inicio);
   }, [todos, liderContexto?.id]);
+
+  // Mapa de flujo B3 al costado del chat del líder + Inspector compartido con Contexto en el dock derecho.
+  const [flujoAbierto, setFlujoAbierto] = useState<boolean>(() => {
+    if (MODO.datosFijos) return false;
+    return guardado("hilos:flujo:abierto", (s) => s !== "0", true);
+  });
+  const [tabDock, setTabDock] = useState<TabDock>("contexto");
+  const [nodoFlujoId, setNodoFlujoId] = useState<string | null>(null);
+  const [flujoMaximizado, setFlujoMaximizado] = useState(false);
+
+  const workersFlujo = useMemo(() => {
+    if (!liderActivo) return [];
+    return todos.filter((h) => h.jefe_id === liderActivo.id && !["archivado", "descartado", "revertido"].includes(h.estado));
+  }, [todos, liderActivo?.id]);
+  const subsFlujo = useMemo(() => (liderActivo ? (subagentes[liderActivo.id] ?? []) : []), [subagentes, liderActivo?.id]);
+  const estadoWorkerFlujo = useCallback((h: Hilo) => estadoVisto(h, optimista.get(h.id)), [optimista]);
+  const grafoLider = useGrafoLider({
+    lider: liderActivo,
+    liderNuevo: activa === LIDER_NUEVO,
+    workers: workersFlujo,
+    estadoWorker: estadoWorkerFlujo,
+    subagentes: subsFlujo,
+  });
+  const nodoSeleccionado = useMemo(
+    () => grafoLider.nodos.find((n) => n.id === nodoFlujoId) ?? grafoLider.nodos[0] ?? null,
+    [grafoLider.nodos, nodoFlujoId],
+  );
+  const flujoDisponible = !angosto && !medio && Boolean(liderActivo || activa === LIDER_NUEVO);
+  const alternarFlujo = useCallback(() => {
+    setFlujoAbierto((prev) => {
+      const next = !prev;
+      guardar("hilos:flujo:abierto", next ? "1" : "0");
+      if (!next) setTabDock("contexto");
+      return next;
+    });
+  }, []);
+  const seleccionarNodoFlujo = useCallback(
+    (id: string) => {
+      setNodoFlujoId(id);
+      setTabDock("inspector");
+      if (acoplado) {
+        acopleCtrl.abrir("contexto", true);
+        setConsumo(true);
+        if (esVentana()) fuente.guardarConsumo(true);
+      } else if (!consumo) {
+        setConsumo(true);
+        if (esVentana()) fuente.guardarConsumo(true);
+      }
+      setFlujoMaximizado(false);
+    },
+    [acoplado, acopleCtrl, consumo],
+  );
+  const alternarMaximizarFlujo = useCallback(() => {
+    setFlujoMaximizado((prev) => {
+      const entrar = !prev;
+      if (acoplado) {
+        const chatsPlegado = acopleCtrl.acople.plegados.includes("chats");
+        const ctxPlegado = acopleCtrl.acople.plegados.includes("contexto");
+        if (entrar) {
+          if (!chatsPlegado && zonaDe(acopleCtrl.acople, "chats")) acopleCtrl.plegar("chats");
+          if (!ctxPlegado && zonaDe(acopleCtrl.acople, "contexto")) acopleCtrl.plegar("contexto");
+        } else {
+          if (chatsPlegado) acopleCtrl.plegar("chats");
+          if (ctxPlegado) acopleCtrl.plegar("contexto");
+        }
+      }
+      return entrar;
+    });
+  }, [acoplado, acopleCtrl]);
   // Lo abierto cambia: se guarda para volver (demorado, src/volver.ts).
   useEffect(huboCambio, [activa, panel, abierta]);
   // Lo que quedó abierto de la vez anterior y ya no existe (se archivó, se quitó, pasó más de un día): se abre normal, sin conversación.
@@ -2361,6 +2433,16 @@ export function Barra() {
             alCerrar={cerrar}
             alPasar={pasar}
             alRetomar={retomarId}
+            flujo={{
+              disponible: flujoDisponible,
+              abierto: flujoAbierto,
+              alAlternar: alternarFlujo,
+              grafo: grafoLider,
+              seleccionado: nodoSeleccionado?.id ?? null,
+              alSeleccionar: seleccionarNodoFlujo,
+              maximizado: flujoMaximizado,
+              alAlternarMaximizar: alternarMaximizarFlujo,
+            }}
           />
         </Suspense>
         {/* El panel va al lado y la vista se esconde por CSS (`data-panel`): no se desmonta. */}
@@ -2400,9 +2482,30 @@ export function Barra() {
       titulo: tr("acople.contexto"),
       icono: <Layers size={16} strokeWidth={1.8} aria-hidden></Layers>,
       contenido: (
-        <Suspense fallback={null}>
-          <PanelContexto acoplado lider={liderContexto} workers={workersContexto} alCerrar={alternarConsumo} alAbrirHilo={abrir} />
-        </Suspense>
+        <DockDerechoFlujo
+          mostrarTabs={flujoDisponible && flujoAbierto}
+          tab={tabDock}
+          alCambiarTab={setTabDock}
+          lider={liderContexto}
+          inspector={
+            <InspectorNodo
+              nodo={nodoSeleccionado}
+              lider={liderActivo}
+              acciones={{
+                alAbrirHilo: abrir,
+                alAbrirSub: abrirSub,
+                alCerrarWorker: cerrar,
+                alRetomarWorker: retomarId,
+                alIrAContexto: () => setTabDock("contexto"),
+              }}
+            />
+          }
+          contexto={
+            <Suspense fallback={null}>
+              <PanelContexto acoplado lider={liderContexto} workers={workersContexto} alCerrar={alternarConsumo} alAbrirHilo={abrir} />
+            </Suspense>
+          }
+        />
       ),
     },
     cupo: {

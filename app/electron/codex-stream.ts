@@ -276,6 +276,9 @@ export function argsCodex(
 ): string[] {
   // En Windows `codex.cmd` va por cmd.exe, que no admite `"` en un argumento (`argParaCmd`): sin comillas codex toma el valor como texto.
   const q = plat === "win32" ? "" : '"';
+  const fotos = x.imagenes.flatMap((i) => ["-i", i]);
+  // En `codex exec`, `-i <FILE>...` acepta varios posicionales y se comía `resume`, el UUID y `-` como rutas de imagen.
+  // Al retomar, `-i` va en el subcomando `resume` y `--` corta las opciones antes del prompt (`-`).
   return [
     "exec",
     "--json",
@@ -290,8 +293,8 @@ export function argsCodex(
     x.sandbox,
     "-C",
     x.cwd,
-    ...x.imagenes.flatMap((i) => ["-i", i]),
-    ...(x.thread ? ["resume", x.thread] : []),
+    ...(x.thread ? ["resume", x.thread, ...fotos] : fotos),
+    ...(fotos.length ? ["--"] : []),
     "-",
   ];
 }

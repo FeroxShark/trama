@@ -42,7 +42,12 @@ const num = (x: unknown): number => (typeof x === "number" && Number.isFinite(x)
 /** Tokens de contexto de un `usage` de la API (`input_tokens + cache_read_input_tokens + cache_creation_input_tokens`). */
 export function tokensDeUso(u: unknown): number | null {
   if (!u || typeof u !== "object") return null;
-  const r = u as Record<string, unknown>;
+  // Con varias llamadas en un mensaje (el advisor: llamada, asesor, llamada), el `usage` de arriba es la SUMA de todas: dos llamadas
+  // de 140k decían 280k y adelantaban la nota y el `/compact`. La ocupación es la de la última iteración de tipo `message`.
+  const its = Array.isArray((u as { iterations?: unknown }).iterations)
+    ? ((u as { iterations: unknown[] }).iterations.filter((i) => !!i && typeof i === "object" && (i as { type?: unknown }).type === "message") as Record<string, unknown>[])
+    : [];
+  const r = its.length ? its[its.length - 1]! : (u as Record<string, unknown>);
   const tiene = ["input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"].some(
     (k) => typeof r[k] === "number" && Number.isFinite(r[k]) && (r[k] as number) >= 0,
   );

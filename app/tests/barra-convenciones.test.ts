@@ -132,7 +132,32 @@ test("el rayito: vencido dice Uncached y apaga, sin rayo; sin caché (otro motor
   assert.equal(frio.texto, "Uncached");
   assert.equal(frio.attrs?.["data-frio"], "");
   assert.doesNotMatch(pintaLider(lider({ cache_vence: null })), /class="cache"/);
-  assert.doesNotMatch(pintaLider(lider({ ...CALIENTE, modelo: "gemini-3.8-flash" })), /class="cache"/);
+  assert.doesNotMatch(pintaLider(lider({ ...CALIENTE, modelo: "opencode:opencode/deepseek-v4.1-flash-free" })), /class="cache"/);
+  assert.doesNotMatch(pintaLider(lider({ ...CALIENTE, modelo: "dsh:deepseek/deepseek-v4-flash" })), /class="cache"/);
+});
+
+test("el rayito en Codex y Gemini: señal informativa sin vencimiento inventado y sin marcar frío por reloj", () => {
+  const codex = pintaLider(lider({ modelo: "codex:gpt-6.2-sol", cache_vence: null, cache_ttl_s: null }));
+  assert.match(codex, /class="cache" data-codex=""[^>]*data-tip="Caché de ChatGPT: sin vencimiento informado/);
+  assert.match(codex, /class="cache" data-codex=""[^>]*aria-label="Caché de ChatGPT: sin vencimiento informado/);
+  assert.match(codex, /class="cache" data-codex=""[^>]*>\?<\/span>/);
+  assert.doesNotMatch(codex, /data-frio/, "nunca marca frío por reloj");
+  assert.doesNotMatch(pintaLider(lider({ modelo: "codex:gpt-6.2-sol", actividad: 0 })), /class="cache"/);
+  assert.doesNotMatch(pintaLider(lider({ modelo: "codex:gpt-6.2-sol", caido: "cerro", vivo: false })), /class="cache"/);
+  assert.doesNotMatch(pintaLider(lider({ modelo: "codex:gpt-6.2-sol", subagentes: 1 })), /class="cache"/);
+  assert.equal(es["cache.codexTip"].length > 0 && en["cache.codexTip"].length > 0, true);
+
+  for (const modeloGemini of ["gemini-4-argon", "gemini-3.8-flash", "agy:claude-opus-5-5"]) {
+    const gem = pintaLider(lider({ modelo: modeloGemini, cache_vence: null, cache_ttl_s: null }));
+    assert.match(gem, /class="cache" data-gemini=""[^>]*data-tip="Caché de Gemini: implícita de Google/, modeloGemini);
+    assert.match(gem, /class="cache" data-gemini=""[^>]*aria-label="Caché de Gemini: implícita de Google/, modeloGemini);
+    assert.match(gem, /class="cache" data-gemini=""[^>]*>\?<\/span>/, modeloGemini);
+    assert.doesNotMatch(gem, /data-frio/, modeloGemini);
+    assert.doesNotMatch(pintaLider(lider({ modelo: modeloGemini, actividad: 0 })), /class="cache"/, modeloGemini);
+    assert.doesNotMatch(pintaLider(lider({ modelo: modeloGemini, caido: "cerro", vivo: false })), /class="cache"/, modeloGemini);
+    assert.doesNotMatch(pintaLider(lider({ modelo: modeloGemini, subagentes: 1 })), /class="cache"/, modeloGemini);
+  }
+  assert.equal(es["cache.geminiTip"].length > 0 && en["cache.geminiTip"].length > 0, true);
 });
 
 test("el chip de modelo y esfuerzo va en cada worker y en el líder, con la forma larga y la corta", () => {

@@ -795,3 +795,18 @@ test("líderes (settingsCierreCupo y lider.nuevo): un solo JSON con cierre-cupo 
     }
   }
 });
+
+test("ultimoUsoDeLineas: con advisor mide la última llamada, no la suma del mensaje", () => {
+  const usage = {
+    input_tokens: 4, cache_read_input_tokens: 275_569, cache_creation_input_tokens: 3_709,
+    iterations: [
+      { type: "message", input_tokens: 2, cache_read_input_tokens: 136_576, cache_creation_input_tokens: 2_417 },
+      { type: "advisor_message", input_tokens: 125_659, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      { type: "message", input_tokens: 2, cache_read_input_tokens: 138_993, cache_creation_input_tokens: 1_292 },
+    ],
+  };
+  const linea = JSON.stringify({ type: "assistant", message: { model: "claude-opus-5-5", usage } });
+  assert.equal(hookMod.ultimoUsoDeLineas([linea]).tokens, 140_287);
+  const sinIteraciones = JSON.stringify({ type: "assistant", message: { model: "claude-opus-5-5", usage: { input_tokens: 1, cache_read_input_tokens: 99, cache_creation_input_tokens: 0 } } });
+  assert.equal(hookMod.ultimoUsoDeLineas([sinIteraciones]).tokens, 100);
+});

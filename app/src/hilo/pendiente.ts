@@ -67,3 +67,34 @@ export function opcionesEnTurno<T extends { id: string; desc: string; deshabilit
   const fam = familiaDe(modeloDelTurno);
   return opciones.map((o) => (familiaDe(o.id) === fam ? o : { ...o, deshabilitada: true, desc: porque }));
 }
+
+type GuardadoCaja = { caja: Seleccion; s: Seguimiento };
+const cajasGuardadas = new Map<string, GuardadoCaja>();
+
+/**
+ * Conserva el modelo o esfuerzo elegido por la persona para `sid` mientras el servidor todavía no lo aplicó: al salir a otro chat
+ * (el componente se desmonta) y volver, no se pierde la selección pendiente (`próx.`).
+ */
+export function sincronizarCajaGuardada(sid: string | null | undefined, caja: Seleccion, s: Seguimiento) {
+  if (!sid) return;
+  if (s.propio) cajasGuardadas.set(sid, { caja, s });
+  else cajasGuardadas.delete(sid);
+}
+
+/**
+ * Selección inicial de la caja al montar un chat (`sid`) contra lo último que reporta el servidor: recupera una selección pendiente si
+ * todavía no fue confirmada ni pisada por otra cosa.
+ */
+export function estadoInicialCaja(sid: string | null | undefined, servidor: Seleccion | null): { caja: Seleccion | null; s: Seguimiento } {
+  const g = sid ? cajasGuardadas.get(sid) : undefined;
+  if (!g) return { caja: servidor, s: { visto: servidor, propio: null } };
+  if (!servidor) return { caja: g.caja, s: g.s };
+  const r = llegaServidor(g.caja, g.s, servidor);
+  sincronizarCajaGuardada(sid, r.caja, r.s);
+  return r;
+}
+
+/** Para los tests. */
+export function olvidarCajasGuardadas() {
+  cajasGuardadas.clear();
+}

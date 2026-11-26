@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Bocetos: Líder ligero + Orquestador + Workers</title>
+<style>
+  @font-face {
+    font-family: "IBM Plex Sans";
+    src: url("../../../app/src/fuentes/IBMPlexSans-Variable.woff2") format("woff2");
+    font-weight: 100 700;
+  }
+  @font-face {
+    font-family: "IBM Plex Mono";
+    src: url("../../../app/src/fuentes/IBMPlexMono-Regular.woff2") format("woff2");
+    font-weight: 400;
+  }
+  :root {
+    --fondo: #08080a;
+    --vidrio: #17171a;
+    --luz: #34343b;
+    --texto: #f5f5f6;
+    --apagado: #d2d2d7;
+    --inactivo: #9c9ca6;
+    --acento: #8fb5f0;
+    --acento-tinte: rgb(143 181 240 / 0.16);
+    --ok: #55d0c8;
+    --ok-tinte: rgb(85 208 200 / 0.14);
+    --aviso: #e3b65a;
+    --aviso-tinte: rgb(227 182 90 / 0.14);
+    --critico: #f07a7a;
+    --probar: #b79cf0;
+    --fam-opus: #d98fb2;
+    --fam-sonnet: #9cc58a;
+    --fam-haiku: #cdb68a;
+    --capa-card: #1f1f23;
+    --capa-div: #28282e;
+    --capa-tile: #2a2a30;
+    --capa-input: #1f1f23;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--fondo);
+    color: var(--texto);
+    font: 400 13px/1.45 "IBM Plex Sans", system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  svg.ic {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex: none;
+  }
+  .hoja {
+    width: 1520px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .intro {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--luz);
+    padding-bottom: 12px;
+  }
+  .intro h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  .intro span { color: var(--inactivo); font-size: 12px; }
+
+  .opcion {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .op-cab {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .op-cab h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .op-cab .tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--acento-tinte);
+    color: var(--acento);
+    font-weight: 500;
+  }
+  .op-cab p { margin: 0; color: var(--inactivo); font-size: 13px; }
+
+  .ventana {
+    background: var(--fondo);
+    border: 1px solid var(--luz);
+    border-radius: 20px;
+    padding: 12px;
+    display: grid;
+    gap: 10px;
+    height: 430px;
+  }
+  .win-a { grid-template-columns: 44px 236px 1fr 310px; }
+  .win-b { grid-template-columns: 44px 220px 1fr; }
+  .win-c { grid-template-columns: 44px 270px 1fr; }
+
+  /* Riel */
+  .riel {
+    background: var(--vidrio);
+    border: 1px solid var(--luz);
+    border-radius: 14px;
+    padding: 8px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .mono {
+    width: 30px; height: 30px;
+    border-radius: 9px;
+    background: var(--capa-tile);
+    display: grid; place-items: center;
+    font-weight: 600; font-size: 12px;
+    border: 1px solid var(--luz);
+  }
+  .mono.act { border-color: var(--acento); background: var(--acento-tinte); color: var(--acento); }
+
+  /* Panel estándar */
+  .panel {
+    background: var(--vidrio);
+    border: 1px solid var(--luz);
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .ph {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--luz);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--apagado);
+  }
+  .ph .meta { margin-left: auto; font-weight: 400; color: var(--inactivo); }
+  .pc { padding: 10px; display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1; }
+
+  /* Barra izquierda */
+  .carp { font-size: 11px; color: var(--inactivo); padding: 2px 4px; font-weight: 500; }
+  .fila {
+    display: flex; align-items: center; gap: 7px;
+    padding: 6px 8px; border-radius: 9px; font-size: 12px;
+    white-space: nowrap; overflow: hidden;
+  }
+  .fila.act {
+    background: color-mix(in srgb, var(--acento) 14%, var(--capa-tile));
+    box-shadow: inset 3px 0 0 var(--acento);
+  }
+  .fila .tit { overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+  .fila.sub { padding-left: 18px; color: var(--apagado); }
+  .fila.sub2 { padding-left: 32px; color: var(--apagado); font-size: 11.5px; }
+
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .dot.ok { background: var(--ok); }
+  .dot.run { background: var(--acento); }
+  .dot.warn { background: var(--aviso); }
+  .dot.orq { background: var(--probar); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 1px 7px; border-radius: 999px;
+    background: var(--capa-tile); color: var(--apagado);
+    font-size: 11px; flex: none;
+  }
+  .chip.ok { background: var(--ok-tinte); color: var(--ok); }
+  .chip.run { background: var(--acento-tinte); color: var(--acento); }
+  .chip.orq { background: rgb(183 156 240 / 0.16); color: var(--probar); }
+  .chip.warn { background: var(--aviso-tinte); color: var(--aviso); }
+
+  .fam { width: 7px; height: 7px; display: inline-block; flex: none; }
+  .fam.sonnet { border-radius: 50%; background: var(--fam-sonnet); }
+  .fam.opus { transform: rotate(45deg); background: var(--fam-opus); }
+  .fam.fable { border-radius: 2px; background: var(--probar); }
+  .fam.haiku { border-radius: 1px; background: var(--fam-haiku); }
+
+  /* Chat centro */
+  .chat {
+    background: var(--vidrio);
+    border: 1px solid var(--luz);
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .chat-cab {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 14px; border-bottom: 1px solid var(--luz);
+    font-size: 12px;
+  }
+  .chat-cab b { font-size: 13px; font-weight: 600; }
+  .tabs { display: flex; gap: 4px; margin-left: auto; background: var(--capa-tile); padding: 2px; border-radius: 999px; }
+  .tab { padding: 3px 10px; border-radius: 999px; font-size: 11.5px; color: var(--inactivo); }
+  .tab.on { background: var(--acento); color: #08080a; font-weight: 600; }
+
+  .mensajes {
+    flex: 1; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; overflow: hidden;
+  }
+  .yo {
+    align-self: flex-end;
+    background: var(--capa-tile);
+    border: 1px solid var(--luz);
+    border-radius: 14px;
+    padding: 8px 12px;
+    max-width: 78%;
+    font-size: 12.5px;
+  }
+  .asist {
+    align-self: flex-start;
+    max-width: 88%;
+    font-size: 12.5px;
+    color: var(--apagado);
+  }
+  .asist strong { color: var(--texto); font-weight: 600; }
+
+  /* Tarjeta viva */
+  .card {
+    background: var(--capa-card);
+    border: 1px solid var(--luz);
+    border-radius: 14px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .card-h { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .card-h b { font-weight: 600; color: var(--texto); }
+  .card-h .t { margin-left: auto; color: var(--inactivo); font-family: "IBM Plex Mono", monospace; font-size: 11px; }
+
+  /* Caja inferior */
+  .caja {
+    margin: 0 12px 12px;
+    background: var(--capa-input);
+    border: 1px solid var(--luz);
+    border-radius: 14px;
+    padding: 9px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .caja-txt { color: var(--inactivo); font-size: 12.5px; }
+  .caja-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .pbtn {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--capa-tile); border: 1px solid var(--luz);
+    border-radius: 999px; padding: 3px 9px; font-size: 11.5px; color: var(--texto);
+  }
+  .pbtn.orq { border-color: color-mix(in srgb, var(--probar) 45%, transparent); }
+  .send {
+    margin-left: auto; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--acento); color: #08080a; display: grid; place-items: center;
+  }
+
+  /* Opción A: Panel derecho de Orquestación */
+  .nodo {
+    background: var(--capa-card);
+    border: 1px solid var(--luz);
+    border-radius: 12px;
+    padding: 9px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .nodo-top { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .nodo-top b { font-weight: 600; }
+  .nodo-sub { font-size: 11.5px; color: var(--inactivo); }
+  .flecha { display: flex; align-items: center; gap: 6px; padding-left: 10px; font-size: 11px; color: var(--inactivo); }
+  .wcard {
+    background: var(--capa-tile);
+    border: 1px solid var(--luz);
+    border-radius: 10px;
+    padding: 7px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .wcard-r { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .wcard-r b { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wcard-m { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--inactivo); }
+  .mono-t { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; }
+
+  /* Opción B: Mapa visual en vivo */
+  .grafo {
+    flex: 1;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: 195px 30px 235px 30px 1fr;
+    align-items: center;
+    gap: 0;
+  }
+  .conector {
+    height: 2px;
+    background: var(--luz);
+    position: relative;
+  }
+  .conector.vivo { background: var(--acento); }
+  .col-workers { display: flex; flex-direction: column; gap: 8px; }
+  .gnodo {
+    background: var(--capa-card);
+    border: 1px solid var(--luz);
+    border-radius: 14px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .gnodo.orq { border-color: color-mix(in srgb, var(--probar) 55%, transparent); }
+  .gnodo.act { border-color: color-mix(in srgb, var(--acento) 55%, transparent); }
+  .gnodo h4 { margin: 0; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .gnodo p { margin: 0; font-size: 11.5px; color: var(--apagado); }
+  .gnodo .pie { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--inactivo); }
+  .res-chat {
+    margin: 0 12px 10px;
+    padding: 7px 12px;
+    background: var(--capa-card);
+    border: 1px solid var(--luz);
+    border-radius: 12px;
+    display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--apagado);
+  }
+
+  /* Opción C: Tarjeta en el chat + árbol */
+  .fichas {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .ficha {
+    background: var(--capa-tile);
+    border: 1px solid var(--luz);
+    border-radius: 10px;
+    padding: 8px 10px;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .ficha-h { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .ficha-h b { font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ficha-p { font-size: 11.5px; color: var(--apagado); }
+  .ficha-f { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--inactivo); }
+</style>
+</head>
+<body>
+<svg style="display:none">
+  <symbol id="crown" viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></symbol>
+  <symbol id="cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4z"/></symbol>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="git" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="12" r="3"/><path d="M6 9v6M9 7l6 3"/></symbol>
+</svg>
+
+<div class="hoja">
+  <div class="intro">
+    <h1>Bocetos · Líder ligero + Orquestador de fondo + Workers</h1>
+    <span>3 direcciones visuales sobre la ventana actual de Trama (datos de ejemplo)</span>
+  </div>
+
+  <!-- OPCIÓN A -->
+  <section class="opcion">
+    <div class="op-cab">
+      <h2>A · Panel acoplable «Orquesta» a la derecha</h2>
+      <span class="tag">Recomendada · encaja con el acople actual</span>
+      <p>Tu chat queda limpio con el líder ligero. A la derecha (arrastrable/plegable como Contexto y Cupo) ves al orquestador y sus workers en vivo.</p>
+    </div>
+    <div class="ventana win-a">
+      <div class="riel">
+        <div class="mono act">TR</div>
+        <div class="mono">SH</div>
+        <div class="mono">LF</div>
+      </div>
+      <div class="panel">
+        <div class="ph">Hilos <span class="meta">Recientes</span></div>
+        <div class="pc">
+          <div class="carp">TRAMA</div>
+          <div class="fila act"><svg class="ic" style="color:var(--acento)"><use href="#crown"/></svg><span class="tit">Presets y caché</span><span class="chip"><i class="fam sonnet"></i>S</span></div>
+          <div class="fila sub"><span class="dot run"></span><span class="tit">presets.ts + cli/pa</span><span class="chip">H</span></div>
+          <div class="fila sub"><span class="dot ok"></span><span class="tit">tests/presets.test</span><span class="chip">OC</span></div>
+          <div class="carp">SHARK</div>
+          <div class="fila"><svg class="ic" style="color:var(--inactivo)"><use href="#crown"/></svg><span class="tit">Caras nuevas</span><span class="chip">H</span></div>
+        </div>
+      </div>
+      <div class="chat">
+        <div class="chat-cab">
+          <b>Presets y caché</b>
+          <span class="chip"><i class="fam sonnet"></i>Sonnet 5.5 (líder)</span>
+          <span class="chip orq"><i class="fam fable"></i>Fable 5.2 (orquestador)</span>
+        </div>
+        <div class="mensajes">
+          <div class="yo">Armá los presets de skills para que los workers de backend no carguen las skills de diseño.</div>
+          <div class="asist"><strong>Sonnet:</strong> Le pasé el encargo acotado al orquestador (objetivo, archivos de <span class="mono-t">pa</span> y criterio de tests). Ya partió el trabajo en dos workers con preset mínimo.</div>
+        </div>
+        <div class="caja">
+          <div class="caja-txt">Pedile otro ajuste o preguntá cómo va…</div>
+          <div class="caja-bar">
+            <span class="pbtn"><i class="fam sonnet"></i>Líder: Sonnet <svg class="ic"><use href="#chev"/></svg></span>
+            <span class="pbtn orq"><i class="fam fable"></i>Orq: Fable 5.2 <svg class="ic"><use href="#chev"/></svg></span>
+            <span class="pbtn">Auto</span>
+            <span class="send"><svg class="ic"><use href="#arrow"/></svg></span>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><svg class="ic" style="color:var(--probar)"><use href="#cpu"/></svg>Orquesta <span class="meta">en vivo · 24 s</span></div>
+        <div class="pc">
+          <div class="nodo">
+            <div class="nodo-top"><span class="dot orq"></span><b>Fable 5.2 · Orquestador</b><span class="chip orq">Revisa</span></div>
+            <div class="nodo-sub">Encargo: «Presets por --tipo sin pisar paralelos» · contexto 28k (sin tu charla)</div>
+          </div>
+          <div class="flecha">└─ delegó 2 workers</div>
+          <div class="wcard">
+            <div class="wcard-r"><span class="dot run"></span><b>presets.ts + flags</b><span class="chip run">Corriendo · 18 s</span></div>
+            <div class="wcard-m"><i class="fam haiku"></i>Haiku · preset <b>codigo</b> · sin skills UI</div>
+          </div>
+          <div class="wcard">
+            <div class="wcard-r"><span class="dot ok"></span><b>tests/presets.test.ts</b><span class="chip ok">Listo · +1 rama</span></div>
+            <div class="wcard-m"><i class="fam haiku"></i>OpenCode gratis · preset <b>minimo</b></div>
+          </div>
+          <div class="wcard">
+            <div class="wcard-r"><span class="dot warn"></span><b>Ajustes &gt; Presets</b><span class="chip warn">En cola</span></div>
+            <div class="wcard-m"><i class="fam sonnet"></i>Sonnet · preset <b>diseno</b> · espera a presets.ts</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OPCIÓN B -->
+  <section class="opcion">
+    <div class="op-cab">
+      <h2>B · Mapa visual de flujo en el centro (pestaña «Chat | Orquesta»)</h2>
+      <p>Cuando querés mirar todo el árbol de una vez: el centro cambia a un grafo vivo Líder → Orquestador → Workers con conexiones, presets y ramas.</p>
+    </div>
+    <div class="ventana win-b">
+      <div class="riel">
+        <div class="mono act">TR</div>
+        <div class="mono">SH</div>
+        <div class="mono">LF</div>
+      </div>
+      <div class="panel">
+        <div class="ph">Hilos</div>
+        <div class="pc">
+          <div class="carp">TRAMA</div>
+          <div class="fila act"><svg class="ic" style="color:var(--acento)"><use href="#crown"/></svg><span class="tit">Presets y caché</span></div>
+          <div class="fila sub"><span class="dot orq"></span><span class="tit">Fable · 2 corriendo</span></div>
+          <div class="carp">SHARK</div>
+          <div class="fila"><svg class="ic" style="color:var(--inactivo)"><use href="#crown"/></svg><span class="tit">Caras nuevas</span></div>
+        </div>
+      </div>
+      <div class="chat">
+        <div class="chat-cab">
+          <b>Presets y caché</b>
+          <span class="chip"><i class="fam sonnet"></i>Sonnet</span>
+          <span class="chip orq"><i class="fam fable"></i>Fable</span>
+          <div class="tabs"><span class="tab">Chat</span><span class="tab on">Orquesta · 2 vivos</span></div>
+        </div>
+        <div class="grafo">
+          <div class="gnodo">
+            <h4><span class="dot ok"></span>Líder · Sonnet</h4>
+            <p>Tu charla + índice del repo. Armó el encargo y espera el resultado.</p>
+            <div class="pie"><span class="chip">ctx 19k</span><span>hace 24 s</span></div>
+          </div>
+          <div class="conector vivo"></div>
+          <div class="gnodo orq">
+            <h4><span class="dot orq"></span>Orquestador · Fable</h4>
+            <p>Divide tareas, elige presets y revisa tests antes de integrar.</p>
+            <div class="pie"><span class="chip orq">ctx 28k</span><span class="chip">sin advisor</span></div>
+          </div>
+          <div class="conector vivo"></div>
+          <div class="col-workers">
+            <div class="gnodo act">
+              <h4><span class="dot run"></span>Worker 1 · presets.ts<span class="chip run" style="margin-left:auto">18 s</span></h4>
+              <p>Editando cli/pa/lanzar.ts · preset <b>codigo</b> (−7k tokens fijos)</p>
+              <div class="pie"><i class="fam haiku"></i>Haiku · <svg class="ic"><use href="#git"/></svg>pa/trama/1204</div>
+            </div>
+            <div class="gnodo">
+              <h4><span class="dot ok"></span>Worker 2 · tests<span class="chip ok" style="margin-left:auto">Listo</span></h4>
+              <p>14 tests verdes en Windows + Linux · preset <b>minimo</b></p>
+              <div class="pie"><i class="fam haiku"></i>OpenCode gratis · 1 commit</div>
+            </div>
+          </div>
+        </div>
+        <div class="res-chat">
+          <span class="chip orq">Último aviso del orquestador</span>
+          <span>Worker 2 pasó los tests; Worker 1 termina en segundos.</span>
+          <span style="margin-left:auto;color:var(--acento);font-weight:500">Volver al chat</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OPCIÓN C -->
+  <section class="opcion">
+    <div class="op-cab">
+      <h2>C · Tarjeta viva de Orquesta dentro del chat + árbol en la barra</h2>
+      <p>Sin paneles ni pestañas nuevas: el encargo al orquestador aparece como tarjeta viva adentro de la charla, con fichas visuales por cada worker.</p>
+    </div>
+    <div class="ventana win-c">
+      <div class="riel">
+        <div class="mono act">TR</div>
+        <div class="mono">SH</div>
+        <div class="mono">LF</div>
+      </div>
+      <div class="panel">
+        <div class="ph">Hilos</div>
+        <div class="pc">
+          <div class="carp">TRAMA</div>
+          <div class="fila act"><svg class="ic" style="color:var(--acento)"><use href="#crown"/></svg><span class="tit">Presets y caché</span><span class="chip"><i class="fam sonnet"></i>S</span></div>
+          <div class="fila sub"><span class="dot orq"></span><span class="tit">Orq: Fable · 2 en curso</span><span class="chip orq">28k</span></div>
+          <div class="fila sub2"><span class="dot run"></span><span class="tit">presets.ts</span><span class="chip">codigo</span></div>
+          <div class="fila sub2"><span class="dot ok"></span><span class="tit">tests/presets</span><span class="chip ok">listo</span></div>
+          <div class="carp">SHARK</div>
+          <div class="fila"><svg class="ic" style="color:var(--inactivo)"><use href="#crown"/></svg><span class="tit">Caras nuevas</span></div>
+        </div>
+      </div>
+      <div class="chat">
+        <div class="chat-cab">
+          <b>Presets y caché</b>
+          <span class="chip"><i class="fam sonnet"></i>Sonnet</span>
+          <span class="chip orq"><i class="fam fable"></i>Orquestador: Fable 5.2</span>
+        </div>
+        <div class="mensajes">
+          <div class="yo">Armá los presets de skills para que los workers de backend no carguen diseño.</div>
+          <div class="card">
+            <div class="card-h">
+              <span class="dot orq"></span>
+              <b>Orquestando con Fable 5.2</b>
+              <span class="chip orq">2 workers</span>
+              <span class="t">24 s</span>
+            </div>
+            <div class="fichas">
+              <div class="ficha">
+                <div class="ficha-h"><span class="dot run"></span><b>presets.ts + flags</b><span class="chip run">Corriendo</span></div>
+                <div class="ficha-p">Editando lanzar.ts y otros-motores.ts</div>
+                <div class="ficha-f"><i class="fam haiku"></i>Haiku · preset <b>codigo</b> · 18 s</div>
+              </div>
+              <div class="ficha">
+                <div class="ficha-h"><span class="dot ok"></span><b>tests/presets.test.ts</b><span class="chip ok">Listo</span></div>
+                <div class="ficha-p">14 pruebas verdes (Linux + win32)</div>
+                <div class="ficha-f"><i class="fam haiku"></i>OpenCode gratis · preset <b>minimo</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="caja">
+          <div class="caja-txt">Escribile al líder mientras el orquestador sigue…</div>
+          <div class="caja-bar">
+            <span class="pbtn"><i class="fam sonnet"></i>Líder: Sonnet <svg class="ic"><use href="#chev"/></svg></span>
+            <span class="pbtn orq"><i class="fam fable"></i>Orq: Fable 5.2 <svg class="ic"><use href="#chev"/></svg></span>
+            <span class="send"><svg class="ic"><use href="#arrow"/></svg></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

@@ -51,11 +51,21 @@ test("un run_command que sale con código ≠ 0 vuelve como error; el 0 no", () 
 });
 
 test("las herramientas de agy se ven como las de Claude con los campos que la vista lee", () => {
-  assert.deepEqual(herramientaClaude("run_command", { CommandLine: "ls", Cwd: "/x" }), { name: "Bash", input: { command: "ls", cwd: "/x" } });
+  assert.deepEqual(herramientaClaude("run_command", { CommandLine: "ls", Cwd: "/x", toolSummary: "Listar" }), { name: "Bash", input: { command: "ls", description: "Listar", cwd: "/x" } });
   assert.deepEqual(herramientaClaude("view_file", { AbsolutePath: "/a/b" }), { name: "Read", input: { file_path: "/a/b" } });
+  assert.deepEqual(herramientaClaude("read_file", { Path: "/a/c.ts", StartLine: 1 }), { name: "Read", input: { file_path: "/a/c.ts" } });
   assert.deepEqual(herramientaClaude("grep_search", { Query: "foo", SearchPath: "/src" }), { name: "Grep", input: { pattern: "foo", path: "/src" } });
   assert.equal(herramientaClaude("write_to_file", { TargetFile: "/a", CodeContent: "x" }).name, "Write");
+  assert.deepEqual(herramientaClaude("write_file", { Path: "/a/d.ts", Content: "hola" }), { name: "Write", input: { file_path: "/a/d.ts", content: "hola" } });
   assert.equal(herramientaClaude("replace_file_content", { TargetFile: "/a" }).name, "Edit");
+  assert.deepEqual(herramientaClaude("edit_file", { Path: "/a/e.ts", Target: "antes", Replacement: "despues" }), {
+    name: "Edit",
+    input: { file_path: "/a/e.ts", old_string: "antes", new_string: "despues" },
+  });
+  assert.deepEqual(herramientaClaude("invoke_subagent", { Role: "Investigador", Prompt: "mirar" }), {
+    name: "Agent",
+    input: { description: "Investigador", prompt: "mirar" },
+  });
   assert.equal(herramientaClaude("read_url_content", { Url: "http://x" }).input.url, "http://x");
   // Lo desconocido pasa con su nombre y sus parámetros, sin tirar.
   assert.deepEqual(herramientaClaude("browser_click_element", { Id: 3 }), { name: "browser_click_element", input: { Id: 3 } });

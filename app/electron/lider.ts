@@ -75,7 +75,7 @@ import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts"
 import { settingsLider } from "./apagados.ts";
 import { carpetaHooksCierre, carpetaHooksNota, cierreRegistradoEn, settingsCierreCupo } from "./cierre-cupo-texto.ts";
 import { conClaves } from "./claves.ts";
-import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTramaApp, tramaParaAcp } from "./mcp.ts";
+import { anotarTramaEnAgy, anotarTramaEnClaude, anotarTramaEnCodex, archivoMcpClaudeSync, servidorTramaApp, tramaParaAcp } from "./mcp.ts";
 import { paraAcp, resueltos } from "./mcp-config.ts";
 import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { partirCodex } from "./codex-stream.ts";
@@ -230,6 +230,8 @@ type Proc = {
   stderr: string;
   /** Lo cerró la app (Cerrar, Settle, salir): que termine no es un error. */
   adrede: boolean;
+  /** Se está reemplazando un proceso ocioso por otro (cambio de modelo o motor): no emite un `salio` que limpie la tarjeta del turno nuevo. */
+  reemplazo?: boolean;
   /** Quien espera a que termine el turno (salir de trama sin cortarlo). */
   libre: (() => void)[];
   /**
@@ -625,8 +627,9 @@ export function planAutoNotaCompactar(sid: string): { texto: string; modelo: str
   if (!x || x.local) return null;
   if (x.clase !== "claude" && x.clase !== "gemini") return null;
   const ventana = x.clase === "gemini" ? VENTANA_GEMINI : ventanaDe(x.modelo);
+  const topeActual = x.clase === "gemini" ? (topeDeLider(x.modelo) ?? x.topeNota ?? x.tope ?? null) : (x.topeNota ?? x.tope ?? null);
   const umbrales: UmbralesNota = umbralesNota({
-    tope: x.clase === "claude" ? (x.topeNota ?? x.tope ?? null) : null,
+    tope: topeActual,
     ventana,
     pct: notaCompactarPctGuardado(),
     tareaPct: notaCompactarTareaPctGuardado(),
@@ -667,8 +670,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   const clase = claseDeModelo(g.modelo);
   // Ultracode y Fast son de Claude Code con un modelo de Anthropic (no de uno local, de Ollama ni de otro motor).
   const oficial = clase === "claude" && !local && !extra.ollama && esClaudeOficial(g.modelo);
-  // «Contexto antes de compactar» de su familia (modelos.json, `PA_AUTOCOMPACT` pisa), como un worker de `pa`: al arrancar y al reanudar.
-  const tope = clase === "claude" && !local && !extra.ollama ? topeDeLider(g.modelo) : null;
+  // «Contexto antes de compactar» de su familia (modelos.json, `PA_AUTOCOMPACT` pisa): en Claude va por argv (`--autocompact`), en Gemini lo controla Trama al pedir nota y encolar `/compact`.
+  const tope = (clase === "claude" || clase === "gemini") && !local && !extra.ollama ? topeDeLider(g.modelo) : null;
   // Advisor: el asesor que se eligió en Ajustes para su familia (sólo si anda en esta máquina; ver advisor.ts).
   const asesor = clase === "claude" && !local && !extra.ollama ? asesorDeLider(g.modelo, entornoLider(process.env, HOME), HOME) : null;
   // La terminal de los agentes (Windows): PowerShell por defecto; en Linux no cambia nada (terminal-agentes.ts).
@@ -685,7 +688,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   if (cuenta) for (const a of asegurarCuenta(cuenta.id)) rastro(g.sid, "sin-motivo", a);
   // La nota se pide antes de la compactación que de verdad va a pasar: sin tope de Trama manda el `autoCompactWindow` del settings de
   // Claude Code (si no, el umbral salía de la ventana entera y Claude Code compactaba antes de que se pidiera).
-  const topeNota = tope ?? (clase === "claude" && !local && !extra.ollama ? leerUmbralYa(cuenta?.dir ?? process.env.CLAUDE_CONFIG_DIR ?? path.join(HOME, ".claude")) : null);
+  const topeNota = tope ?? ((clase === "claude" || clase === "gemini") && !local && !extra.ollama ? leerUmbralYa(cuenta?.dir ?? process.env.CLAUDE_CONFIG_DIR ?? path.join(HOME, ".claude")) : null);
   const opciones = { ...base, ...(cuenta ? { env: entornoCuenta(base.env, cuenta.dir) } : {}), stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: hijoEnGrupo(), windowsHide: true };
   // Si la conversación venía de otro motor, lo hablado va aparte de los mensajes (prompt de sistema o prefacio): no ensucia el transcript.
   // (También el de una rama hecha con relevo o una vuelta atrás en un motor sin `--resume-session-at`: el archivo sólo existe si hace falta.)
@@ -707,6 +710,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
       // Con un `claude` de mentira (HILOS_CLAUDE, las pruebas) no: sería otro proceso más y no hay config de usuario que tocar.
       if (trama && !process.env.HILOS_CLAUDE) void anotarTramaEnClaude(trama, CLAUDE).catch(silencio("mcp-trama-claude"));
     } else if (clase === "gemini" && trama) anotarTramaEnAgy(trama, HOME);
+    else if (clase === "codex" && trama) anotarTramaEnCodex(trama, base.env, HOME);
   } catch (e) {
     silencio("mcp-lanzar")(e);
   }
@@ -944,6 +948,10 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
     for (const f of x.controles.values()) f({ ok: false });
     x.controles.clear();
     const mal = !x.adrede && (x.ocupado || error !== null);
+    if (x.reemplazo && !x.ocupado && !mal) {
+      alCambio();
+      return;
+    }
     // "" = salió mal sin decir nada (la vista lo cuenta igual, con el código si hay).
     alEv(g.sid, { tipo: "salio", codigo, error: mal ? error || dijo : null });
     alEv(g.sid, { tipo: "estado", ocupado: false, vivo: false });
@@ -1224,8 +1232,9 @@ export async function cambiarExtras(sid: string, x: unknown): Promise<{ ok: bool
 }
 
 /** ¿El tope, el asesor o el Fast del proceso (van en su argv) no son los que corresponden? Pasa tras cambiar de familia a mitad de un turno, o al apagar Fast. */
-function desfasado(x: Pick<Proc, "modelo" | "tope" | "asesor" | "fast" | "fastArgv">): boolean {
-  return (x.tope ?? null) !== topeDeLider(x.modelo) || (x.asesor ?? null) !== asesorDeLider(x.modelo, entornoLider(process.env, HOME), HOME) || fastDesfasado(x);
+function desfasado(x: Pick<Proc, "modelo" | "tope" | "asesor" | "fast" | "fastArgv"> & { clase?: Clase }): boolean {
+  const topeCambia = x.clase === "gemini" ? false : (x.tope ?? null) !== topeDeLider(x.modelo);
+  return topeCambia || (x.asesor ?? null) !== asesorDeLider(x.modelo, entornoLider(process.env, HOME), HOME) || fastDesfasado(x);
 }
 
 /** ¿Hay un proceso vivo con esta sesión que no es de la app? (terminal, otra trama). */
@@ -1564,18 +1573,28 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
     }
     // Con otro contexto cargado (se guardó otro `-c`), su `claude` tiene el viejo en el entorno: se relanza.
     if (p && (p.local?.url !== local!.url || p.local?.ctx !== local!.ctx)) {
+      p.adrede = true;
+      p.reemplazo = true;
       await terminar(p);
       p = undefined;
     }
   }
   if (p && ((p.modelo !== modelo || p.effort !== effort) && !(await cambiarEnVivo(p, modelo, effort)) || (p.clase === "claude" && !p.local && desfasado(p)))) {
     // Pudo haber salido mientras esperaba: si sigue, se cierra y se relanza con los nuevos.
-    if (procs.get(g.sid) === p) await terminar(p);
+    if (procs.get(g.sid) === p) {
+      p.adrede = true;
+      p.reemplazo = true;
+      await terminar(p);
+    }
     p = undefined;
   }
   if (p && procs.get(g.sid) !== p) p = undefined;
   if (p?.ocupado) throw errorT("main.respondiendo");
-  if (cruza && p) await terminar(p);
+  if (cruza && p) {
+    p.adrede = true;
+    p.reemplazo = true;
+    await terminar(p);
+  }
   if (cruza) {
     p = undefined;
     // Volviendo a Claude tras un corte: retoma su archivo en el último mensaje que la vista conserva (`--resume-session-at`).

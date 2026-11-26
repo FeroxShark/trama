@@ -120,6 +120,9 @@ No tocar:       lo que no cambia
 - Lo irreversible (borrar, `push --force`, `--descartar`, publicar) se confirma con el usuario ANTES.
 - `git stash` y `git add -A` están bloqueados por un hook. Release e instalaciones (`cargo --release`,
   `tauri build`, `npm i -g`) los hacés vos, después de integrar. Un modelo local nunca va en la GPU sin avisar.
+- **Cupo:** un worker parado no se retoma con contexto grande (la caché venció: se reescribe entero); se lanza uno
+  nuevo con un brief corto. Si un worker devuelve que el proyecto lo hizo perder pasos (CLAUDE.md enorme, muchas
+  búsquedas, archivos gigantes), ordenarlo es una tarea propia: `ordenar-proyecto.md`, en esta misma carpeta.
 
 ## Memoria y tablero
 

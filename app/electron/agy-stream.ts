@@ -41,10 +41,11 @@ export function herramientaClaude(nombre: string, parametros: unknown): { name: 
   const con = (name: string, campos: Obj) => ({ name, input: Object.fromEntries(Object.entries(campos).filter(([, v]) => v !== null)) });
   switch (nombre) {
     case "run_command":
-      return con("Bash", { command: param(p, "CommandLine", "Command"), description: param(p, "Description", "Purpose"), cwd: param(p, "Cwd") });
+      return con("Bash", { command: param(p, "CommandLine", "Command"), description: param(p, "Description", "Purpose", "toolSummary"), cwd: param(p, "Cwd") });
     case "view_file":
     case "view_file_outline":
     case "view_code_item":
+    case "read_file":
       return con("Read", { file_path: ruta() });
     case "list_dir":
       return con("LS", { path: ruta() });
@@ -53,11 +54,19 @@ export function herramientaClaude(nombre: string, parametros: unknown): { name: 
     case "grep_search":
       return con("Grep", { pattern: param(p, "Query", "Pattern", "SearchTerm"), path: param(p, "SearchPath", "SearchDirectory", "Path") });
     case "write_to_file":
+    case "write_file":
       return con("Write", { file_path: ruta(), content: param(p, "CodeContent", "Content") });
     case "replace_file_content":
     case "multi_replace_file_content":
+    case "edit_file":
     case "sed_file":
-      return con("Edit", { file_path: ruta() });
+      return con("Edit", {
+        file_path: ruta(),
+        old_string: param(p, "Target", "TargetContent"),
+        new_string: param(p, "Replacement", "ReplacementContent"),
+      });
+    case "invoke_subagent":
+      return con("Agent", { description: param(p, "Role", "TypeName"), prompt: param(p, "Prompt") });
     case "search_web":
       return con("WebSearch", { query: param(p, "query", "Query") });
     case "read_url_content":

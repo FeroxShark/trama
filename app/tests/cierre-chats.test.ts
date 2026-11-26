@@ -10,7 +10,7 @@ const VUELVE = T0 + 3600;
 const entrada = (p: Partial<EntradaCierre> = {}): EntradaCierre => ({ proveedor: "claude", cuenta: "claude", ventana: "5h", restante: 4, umbral: 5, vuelve: VUELVE, desde: T0, ...p });
 
 /** Un entorno de mentira: reloj, disco, cola y relojes a mano. */
-function armar(opc: { disco?: string | null; retomarSolo?: boolean; modelos?: Record<string, string>; trabajando?: string[] } = {}) {
+function armar(opc: { disco?: string | null; retomarSolo?: boolean; modelos?: Record<string, string>; cuentas?: Record<string, string>; trabajando?: string[] } = {}) {
   const e = {
     ahora: T0,
     disco: opc.disco ?? (null as string | null),
@@ -23,12 +23,14 @@ function armar(opc: { disco?: string | null; retomarSolo?: boolean; modelos?: Re
     retomarSolo: opc.retomarSolo ?? false,
   };
   const modelos = opc.modelos ?? { a: "claude-opus-5-5", b: "gemini-4-hydrogen-xhigh", c: "opencode:opencode/x" };
+  const cuentas = opc.cuentas ?? {};
   const d: Deps = {
     leer: () => e.disco,
     guardar: (j) => void (e.disco = j),
     ahora: () => e.ahora,
     trabajando: () => e.trabajando,
     modeloDe: (sid) => modelos[sid] ?? null,
+    cuentaDe: (sid) => cuentas[sid],
     relevo: (sid) => `/relevos/${sid}.md`,
     retomarSolo: () => e.retomarSolo,
     encolar: (sid, texto) => void e.encolados.push({ sid, texto }),
@@ -47,7 +49,7 @@ function armar(opc: { disco?: string | null; retomarSolo?: boolean; modelos?: Re
     e.ahora += s;
     for (const [id, r] of [...e.relojes]) if (r.en <= e.ahora) (e.relojes.delete(id), r.fn());
   };
-  return { e, c, d, pasar };
+  return { e, c, d, pasar, modelos, cuentas };
 }
 
 test("la tarjeta aparece sólo en los chats de la suscripción de la entrada y que estaban trabajando", () => {
@@ -290,4 +292,125 @@ test("el límite propio de Fable cierra sólo a los chats de Fable y no retiene 
   assert.deepEqual(c.alCierre(entrada({ ventana: "7d" })).sort(), ["f", "s"]);
   c.alVolvio(entrada({ ventana: "7d", grupo: "fable" }), [entrada({ ventana: "7d" })]);
   assert.ok(c.de("s") && c.de("f"));
+});
+
+test("al cambiar de Claude a Codex se borra el cierre y se cancela su reloj", () => {
+  const { c, e, modelos, pasar } = armar({ retomarSolo: true });
+  c.alCierre(entrada());
+  modelos.a = "codex:gpt-6";
+  c.revisar();
+  assert.equal(c.de("a"), null);
+  assert.deepEqual(e.vistas.at(-1), []);
+  assert.deepEqual(JSON.parse(e.disco!).chats, []);
+  assert.equal(e.relojes.size, 0);
+  pasar(7200);
+  assert.deepEqual(e.encolados, []);
+});
+
+test("un cierre nuevo no hereda la espera ni las opciones de otro proveedor o cuenta", () => {
+  const casos = [
+    { modelo: "codex:gpt-6", proveedor: "chatgpt", cuenta: "chatgpt" },
+    { modelo: "claude-opus-5-5", proveedor: "claude", cuenta: "trabajo" },
+  ] as const;
+  for (const { modelo, proveedor, cuenta } of casos) {
+    const { c, e, modelos, cuentas } = armar({ retomarSolo: true });
+    c.alCierre(entrada({ ventana: "7d", restante: 1, vuelve: T0 + 86_400 }));
+    c.duenoEscribio("a");
+    c.ponerRetomar("a", false);
+    modelos.a = modelo;
+    cuentas.a = cuenta;
+    c.alCierre(entrada({ proveedor, cuenta, desde: T0 + 1 }));
+    const r = c.de("a")!;
+    assert.deepEqual([r.proveedor, r.cuenta, r.vuelve, r.restante, r.desde], [proveedor, cuenta, VUELVE, 4, T0 + 1]);
+    assert.equal(r.duenoEscribio, false);
+    assert.equal(r.retomar, true);
+    assert.equal(e.relojes.size, 1);
+  }
+});
+
+test("al cambiar de familia se quita el límite propio y se conserva la ventana general que sigue aplicando", () => {
+  for (const inverso of [false, true]) {
+    const { c, modelos } = armar({ modelos: { a: "claude-fable-5-2" } });
+    const propia = entrada({ ventana: "7d", grupo: "fable", restante: 1, vuelve: T0 + 86_400 });
+    const general = entrada();
+    for (const v of inverso ? [general, propia] : [propia, general]) c.alCierre(v);
+    modelos.a = "claude-sonnet-5-5";
+    c.revisar();
+    const r = c.de("a")!;
+    assert.deepEqual([r.ventana, r.vuelve, r.restante], ["5h", VUELVE, 4]);
+  }
+});
+
+test("el reloj comprueba proveedor, cuenta y límite propio aunque no haya llegado una revisión", () => {
+  const casos = [
+    { modelo: "codex:gpt-6", cuenta: "claude" },
+    { modelo: "claude-fable-5-2", cuenta: "trabajo" },
+    { modelo: "claude-sonnet-5-5", cuenta: "claude" },
+  ];
+  for (const { modelo, cuenta } of casos) {
+    const { c, e, modelos, cuentas, pasar } = armar({ modelos: { a: "claude-fable-5-2" }, retomarSolo: true });
+    c.alCierre(entrada({ ventana: "7d", grupo: "fable" }));
+    modelos.a = modelo;
+    cuentas.a = cuenta;
+    pasar(7200);
+    assert.deepEqual(e.encolados, []);
+    assert.equal(c.de("a"), null);
+  }
+});
+
+test("al arrancar se descartan cierres incompatibles guardados antes de que venza el reloj", () => {
+  const a = armar({ modelos: { a: "claude-fable-5-2" }, retomarSolo: true });
+  a.c.alCierre(entrada({ ventana: "7d", grupo: "fable" }));
+  for (const identidad of [
+    { modelo: "codex:gpt-6" },
+    { modelo: "claude-sonnet-5-5" },
+    { modelo: "claude-fable-5-2", cuenta: "trabajo" },
+  ]) {
+    const b = armar({ disco: a.e.disco, modelos: {}, trabajando: [] });
+    b.e.ahora = VUELVE + MARGEN_RETOMAR_S;
+    b.c.arrancar(() => identidad);
+    assert.equal(b.c.de("a"), null);
+    assert.deepEqual(b.e.encolados, []);
+    assert.equal(b.e.relojes.size, 0);
+  }
+});
+
+test("sin modelo temporalmente se conserva el cierre y se espera a verificarlo para retomar", () => {
+  const a = armar({ modelos: { a: "claude-fable-5-2" }, retomarSolo: true });
+  a.c.alCierre(entrada({ ventana: "7d", grupo: "fable" }));
+  const b = armar({ disco: a.e.disco, modelos: {}, trabajando: [] });
+  b.c.arrancar();
+  b.pasar(7200);
+  b.c.revisar();
+  assert.equal(b.c.de("a")?.fase, "volvio");
+  assert.deepEqual(b.e.encolados, []);
+  b.modelos.a = "claude-fable-5-2";
+  b.c.revisar();
+  assert.equal(b.e.encolados.length, 1);
+});
+
+test("la selección de Codex invalida una retomada en vuelo mientras el proceso todavía usa Claude", async () => {
+  const { d, e, pasar } = armar({ retomarSolo: true });
+  const consulta = Promise.withResolvers<{ modelo: string; cuenta: string }>();
+  const c = crearCierreChats({ ...d, identidadAlRetomar: () => consulta.promise });
+  c.alCierre(entrada());
+  pasar(3600 + MARGEN_RETOMAR_S);
+  c.revisarIdentidad("a", { modelo: "codex:gpt-6" });
+  consulta.resolve({ modelo: "claude-opus-5-5", cuenta: "claude" });
+  await consulta.promise;
+  assert.equal(c.de("a"), null);
+  assert.deepEqual(e.encolados, []);
+});
+
+test("el modelo guardado permite retomar un chat sin proceso al vencer su cupo", async () => {
+  const a = armar({ retomarSolo: true });
+  a.c.alCierre(entrada());
+  const b = armar({ disco: a.e.disco, modelos: {}, trabajando: [] });
+  const consulta = Promise.resolve({ modelo: "claude-opus-5-5", cuenta: "claude" });
+  const c = crearCierreChats({ ...b.d, identidadAlRetomar: () => consulta });
+  c.arrancar();
+  b.pasar(3600 + MARGEN_RETOMAR_S);
+  await consulta;
+  assert.deepEqual(b.e.encolados.map((x) => x.sid), ["a"]);
+  assert.equal(c.de("a")?.fase, "retomado");
 });

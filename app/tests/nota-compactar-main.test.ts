@@ -57,6 +57,17 @@ test("extracción de nota, guardado idempotente, renombrado a .devuelta.md y tok
   assert.equal(extraerNotaDeTexto("sin bloque"), null);
   assert.equal(extraerNotaDeTexto("[[nota-compactar]]primera[[/nota-compactar]] texto [[nota-compactar]]\nsegunda\n[[/nota-compactar]]"), "segunda");
   assert.equal(tokensDeUso({ input_tokens: 10, cache_read_input_tokens: 500, cache_creation_input_tokens: 40 }), 550);
+  // Con advisor el `usage` de arriba suma las llamadas del mensaje (dato real: 136.576 + 138.993 leídos); vale la última.
+  const conAsesor = {
+    input_tokens: 4, cache_read_input_tokens: 275_569, cache_creation_input_tokens: 3_709,
+    iterations: [
+      { type: "message", input_tokens: 2, cache_read_input_tokens: 136_576, cache_creation_input_tokens: 2_417 },
+      { type: "advisor_message", input_tokens: 125_659, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      { type: "message", input_tokens: 2, cache_read_input_tokens: 138_993, cache_creation_input_tokens: 1_292 },
+    ],
+  };
+  assert.equal(tokensDeUso(conAsesor), 140_287);
+  assert.equal(usoDeLineaStream(JSON.stringify({ type: "assistant", message: { usage: conAsesor } })), 140_287);
   assert.equal(usoDeLineaStream(JSON.stringify({ type: "assistant", parent_tool_use_id: "p1", message: { usage: { input_tokens: 999 } } })), null);
   // El `result` trae la suma del turno entero (no el contexto): no cuenta.
   assert.equal(usoDeLineaStream(JSON.stringify({ type: "result", usage: { input_tokens: 120_000 } })), null);
@@ -251,6 +262,15 @@ test("flujo Gemini (solo Gemini, agy-falso): al pasar umbral fuerte pide nota, e
     assert.match(conNota.prompt, /Nota que te escribiste antes de compactar/);
     assert.match(conNota.prompt, /Nota falsa de Gemini/);
     assert.equal(existsSync(path.join(estadoDir, "notas", `${sid}.md`)), false, "se renombra a .devuelta.md");
+
+    // Con tope propio para Gemini (300k), 260k ya supera el 85% (255k) y dispara nota + /compact sin esperar a 1M.
+    writeFileSync(modelosF, JSON.stringify({ version: 1, lider: { modelo: "gemini-4-neon-high" }, gemini: { habilitado: true }, autocompact: { defecto: null, por_modelo: { gemini: 300_000 } } }));
+    process.env.TRAMA_FALSO_AGY_TOKENS = "260000";
+    compactoVisto = false;
+    const sid2 = await lider.nuevo({ modelo: "gemini-4-neon-high", effort: "high", texto: "segundo trabajo con tope 300k" });
+    await esperarHasta(() => compactoVisto, { tope: 12_000 });
+    await esperarHasta(async () => (await lider.disponible(sid2)) === "app", { tope: 8_000 });
+    assert.equal(existsSync(path.join(estadoDir, "notas", `${sid2}.md`)), true);
   } finally {
     await lider.cerrarTodos(true);
     for (const [k, v] of Object.entries(prev)) {

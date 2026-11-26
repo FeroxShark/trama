@@ -1,7 +1,7 @@
 // Un líder de ChatGPT de punta a punta (electron/lider.ts → codex-puente.ts → scripts/codex-falso.mjs): contesta por el stream,
 // corre con el modelo y el esfuerzo pedidos, el sandbox del modo y sin OPENAI_API_KEY; retoma su conversación con `resume`
 // (también tras cerrar y volver, y en una nueva si codex la perdió); se para y sigue. Nunca el codex de verdad.
-import { after } from "node:test";
+import { after, test as testComun } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -26,6 +26,7 @@ const home = path.join(tmp, "home");
 mkdirSync(home, { recursive: true });
 writeFileSync(path.join(home, "CLAUDE.md"), "# Reglas de prueba\n- MARCA-CLAUDE-MD\n");
 process.env.HOME = home;
+process.env.CODEX_HOME = path.join(tmp, "codex-home");
 process.env.HILOS_STATE = path.join(tmp, "estado");
 process.env.HILOS_SESIONES = path.join(tmp, "sesiones");
 process.env.CLAUDE_CONFIG_DIR = path.join(tmp, "claude");
@@ -72,13 +73,16 @@ test("un líder de ChatGPT contesta por el stream: modelo, esfuerzo, sandbox, si
   assert.equal(val(l.args, "--sandbox"), "danger-full-access", "el modo por defecto del líder (bypass) corre sin sandbox, como Gemini");
   assert.ok(!l.args.includes("resume"), "el primer turno abre la conversación");
   assert.equal(l.args.at(-1), "-", "el mensaje va por la entrada estándar");
-  assert.deepEqual(l.env, [], `ninguna variable de Claude ni la clave de OpenAI: ${l.env}`);
+  assert.deepEqual(l.env.sort(), ["PA_JEFE", "PA_JEFE_ID"], "sólo viaja la identidad del líder entre las variables de pa y de otros motores");
   assert.match(l.prompt, /ChatGPT dentro de `codex`/);
   assert.match(l.prompt, /MARCA-CLAUDE-MD/, "codex no lee CLAUDE.md: el prefacio se lo da");
   assert.match(l.prompt, /Mensaje de [^\n]+:\nherramienta hola/);
   const t = await lider.transcriptDe(sid);
   assert.equal(t, path.join(process.env.HILOS_STATE!, "codex", `${sid}.jsonl`));
   assert.match(readFileSync(t!, "utf8"), /eco: herramienta hola/);
+  const cfgCodex = path.join(process.env.CODEX_HOME!, "config.toml");
+  assert.ok(existsSync(cfgCodex), "al arrancar un líder Codex se registra el MCP de Trama en config.toml");
+  assert.match(readFileSync(cfgCodex, "utf8"), /\[mcp_servers\.trama\]/);
   await lider.cerrarTodos(false);
   assert.deepEqual(readdirSync(process.env.HILOS_SESIONES!).filter((f) => f.endsWith(".json")), []);
 });
@@ -160,4 +164,34 @@ test("el modo plan corre a codex en sólo lectura", { timeout: 60_000 }, async (
   const sid = await lider.nuevo({ modelo: M, effort: "low", texto: "mirá", modo: "plan" });
   await esperarHasta(() => de(sid, "fin").length === 1, { tope: 30_000 });
   assert.equal(val(llamadas().at(-1)!.args, "--sandbox"), "read-only");
+});
+
+testComun("el entorno del líder Codex identifica su corrida y permite cobrar sólo sus resultados", async () => {
+  const { entornoCodexLider } = await import("../electron/binario.ts");
+  const { jefeId, jefeNombre, prologo } = await import("../electron/cli/pa/entorno.ts");
+  const { cmdEsperarTodos } = await import("../electron/cli/pa/async.ts");
+  const estado = path.join(tmp, "pa-estado");
+  const sid = "aaaaaaaa-0000-4000-8000-000000000001";
+  const env = entornoCodexLider({ HOME: home, USERPROFILE: home, HILOS_SESIONES: process.env.HILOS_SESIONES, PA_STATE: estado }, home, { sid, nombre: "líder" });
+  let salida = "";
+  const pa = prologo(["--esperar-todos"], env, { out: (s) => (salida += s), err: () => {} });
+  const dir = path.join(estado, "demo");
+  mkdirSync(dir, { recursive: true });
+  for (const [id, jefe, resultado] of [
+    ["20261126-070000-1", jefeId(pa), "RESULTADO: tarea propia"],
+    ["20261126-070000-2", "otro-lider", "RESULTADO: tarea ajena"],
+  ]) {
+    const json = path.join(dir, `${id}.json`);
+    writeFileSync(json, JSON.stringify({ result: resultado, is_error: false }));
+    writeFileSync(path.join(dir, `${id}.pid`), "0");
+    writeFileSync(path.join(dir, `${id}.log`), "");
+    writeFileSync(path.join(dir, `${id}.jefe`), `jefe_id=${jefe}\n`);
+    writeFileSync(path.join(dir, `${id}.listo`), `salida=${json}\nrc=0\n`);
+  }
+
+  assert.equal(await cmdEsperarTodos(pa, []), 0);
+  assert.match(salida, /RESULTADO: tarea propia/);
+  assert.ok(existsSync(path.join(dir, "20261126-070000-2.listo")), "la corrida ajena sigue sin cobrar");
+  assert.equal(jefeId(pa), sid, "el aviso de fin tiene el id de Trama del líder");
+  assert.equal(jefeNombre(pa), "líder");
 });

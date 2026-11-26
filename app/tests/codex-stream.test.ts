@@ -1,7 +1,7 @@
 // El traductor del stream de codex: el medidor de contexto (PUENTES-2).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Traductor } from "../electron/codex-stream.ts";
+import { argsCodex, Traductor } from "../electron/codex-stream.ts";
 import { parsearLinea } from "../electron/lider-arma.ts";
 
 const msg = { type: "item.completed", item: { id: "i1", type: "agent_message", text: "Hola" } };
@@ -43,4 +43,73 @@ test("CTX-39: el anillo termina con el contexto del último pedido (traductor �
   const iFin = eventos.findIndex((o) => o.type === "result");
   const iUltimo = eventos.findLastIndex((o) => o.type === "stream_event" && o.event.type === "message_start");
   assert.ok(iUltimo >= 0 && iUltimo < iFin);
+});
+
+/** Simula cómo clap parsea `codex exec`: `-i <FILE>...` en `exec` es voraz y se come posicionales hasta otra bandera o `--`. */
+function parsearExecCodex(args: string[]) {
+  assert.equal(args[0], "exec");
+  const imagenes: string[] = [];
+  const pos: string[] = [];
+  let sub: "resume" | null = null;
+  let finOpciones = false;
+  for (let i = 1; i < args.length; i++) {
+    const a = args[i]!;
+    if (finOpciones) {
+      pos.push(a);
+      continue;
+    }
+    if (a === "--") {
+      finOpciones = true;
+      continue;
+    }
+    if (a === "-i" || a === "--image") {
+      if (sub === "resume") {
+        imagenes.push(args[++i]!);
+      } else {
+        // En `codex exec`, `-i <FILE>...` traga todos los tokens que no empiecen con `-` (salvo `-` solo, que también traga si no hay `--`).
+        while (i + 1 < args.length && (!args[i + 1]!.startsWith("-") || args[i + 1] === "-")) {
+          if (args[i + 1] === "--") break;
+          imagenes.push(args[++i]!);
+        }
+      }
+      continue;
+    }
+    if (["-m", "-c", "--sandbox", "-C"].includes(a)) {
+      i++;
+      continue;
+    }
+    if (a.startsWith("--")) continue;
+    if (!sub && a === "resume") {
+      sub = "resume";
+      continue;
+    }
+    pos.push(a);
+  }
+  return { sub, imagenes, pos };
+}
+
+test("argsCodex: con imágenes al iniciar y al retomar, -i nunca se traga resume, el UUID ni -", () => {
+  const base = { modelo: "gpt-6.2-sol", effort: "high", sandbox: "danger-full-access", cwd: "/tmp/p" };
+  const imgs = ["/tmp/img-1.png", "/tmp/img-2.png"];
+  const uuid = "aaaaaaaa-0000-4000-8000-000000000001";
+
+  const nuevoConImgs = parsearExecCodex(argsCodex({ ...base, imagenes: imgs, thread: null }, "linux"));
+  assert.equal(nuevoConImgs.sub, null);
+  assert.deepEqual(nuevoConImgs.imagenes, imgs);
+  assert.deepEqual(nuevoConImgs.pos, ["-"]);
+
+  const retomaConImgs = parsearExecCodex(argsCodex({ ...base, imagenes: imgs, thread: uuid }, "linux"));
+  assert.equal(retomaConImgs.sub, "resume");
+  assert.deepEqual(retomaConImgs.imagenes, imgs);
+  assert.deepEqual(retomaConImgs.pos, [uuid, "-"]);
+
+  const retomaSinImgs = parsearExecCodex(argsCodex({ ...base, imagenes: [], thread: uuid }, "linux"));
+  assert.equal(retomaSinImgs.sub, "resume");
+  assert.deepEqual(retomaSinImgs.imagenes, []);
+  assert.deepEqual(retomaSinImgs.pos, [uuid, "-"]);
+
+  const nuevoSinImgs = parsearExecCodex(argsCodex({ ...base, imagenes: [], thread: null }, "linux"));
+  assert.equal(nuevoSinImgs.sub, null);
+  assert.deepEqual(nuevoSinImgs.imagenes, []);
+  assert.deepEqual(nuevoSinImgs.pos, ["-"]);
 });

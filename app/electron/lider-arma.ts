@@ -421,7 +421,7 @@ export function aplicarModo(g: Pick<Guardado, "modo" | "modoPrevio">, nuevo: Mod
 
 // --- Herramientas ------------------------------------------------------------
 
-const DETALLE = ["command", "file_path", "path", "pattern", "url", "query", "description", "skill", "prompt"];
+const DETALLE = ["command", "file_path", "path", "Path", "AbsolutePath", "TargetFile", "pattern", "url", "query", "description", "skill", "prompt"];
 
 /**
  * Tope de seguridad de lo concreto que viaja en cada cambio de la tarjeta (un prompt de Agent puede pesar kilobytes y

@@ -39,7 +39,8 @@ Estado de cada señal en la barra actual («Riel», desde `0c98b24`): **igual**,
 | **`⚡ 21m`** | La conversación está caliente: el caché dura 21 min más; retomarla ahora sale barato. El tooltip lo dice en palabras. | Decide si conviene seguir ahora o dejarla. Es el dato que el dueño mira para no gastar. | **recuperada**: el Riel lo escondió hasta pasar el mouse, y sin mouse no había ninguna señal. Va siempre a la vista, en su píldora y antes del tiempo. |
 | Texto blanco con un pulso | Quedan menos de 10 min (o 1/6 de un TTL corto): el pulso una sola vez. | Avisar sin molestar. | igual |
 | Anillo vacío (el rayo sin carga), sin píldora | `Uncached`: venció o no va a pegar; el próximo mensaje relee todo y gasta más cupo. La palabra vive en el tooltip y el lector de pantalla la sigue leyendo. | Va apagado: no pide nada, y la fila gana ancho para el título (#1919, pedido del dueño). | cambió: antes la palabra `Uncached` a la vista. Sigue sin depender del color: tiene forma (anillo vacío ≠ rayo), el nombre se apaga y el tooltip lo dice con palabras. |
-| Nada | Otro motor (el caché medido es sólo de Claude, con el TTL real: 1 h o 5 min) o sin dato. | `41ec09f`. | igual |
+| **`⚡ ?`** (líder Codex o Gemini activo) | Caché de ChatGPT o Gemini sin vencimiento informado (el stream no entrega TTL). El tooltip lo explica y nunca marca el hilo frío por TTL inexistente. | Saber que el motor maneja el caché solo sin inventar un reloj ni confundir con un motor sin caché. | nueva |
+| Nada | Otro motor sin TTL (OpenCode, dsh) o sin dato. | `41ec09f`. | igual |
 | Nada en un líder sin proceso y frío | `Murió`/`Cerrado` ya lo dice: el anillo al lado no suma. | Falta de lugar en una línea. | cambió |
 | Con `te espera` | Se ve igual: es cuando más importa el caché. | | igual |
 | En un worker | Sólo si terminó (no corriendo ni pidiendo atención). | Retomarlo también sale barato o caro. | recuperada |

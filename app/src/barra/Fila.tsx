@@ -7,13 +7,13 @@ import { ChevronDown, CircleQuestionMark, Crown, X } from "lucide-react";
 import { comoSettle, type Estado, type Hilo, type Lider } from "../datos/contrato";
 import { MODO } from "../modo";
 import { cuando as cuandoEpoch, pintorCache, pintorDura, pintorHace } from "../tiempo";
-import { cacheAplica } from "../../electron/cache";
+import { cacheAplica, cacheSinTtlDe } from "../../electron/cache";
 import { atencionItem, errorCorto, fin, liderEspera, type Atencion, type Como, type Salida } from "./arbol";
 import { chipModelo, chipModeloTip, ficha, type ChipModelo } from "./ficha";
 import { Glifo, glifoDe } from "./Glifo";
 import { latir } from "./latido";
 import { tonoRiel } from "./logo-logica";
-import { cierre as cierreDe, ChipFalta, Punto, Reloj, tareaDe, textoEstado, tipoDe } from "./piezas";
+import { CacheSinTtl, cierre as cierreDe, ChipFalta, Punto, Reloj, tareaDe, textoEstado, tipoDe } from "./piezas";
 import { Resalte } from "./Resalte";
 import { t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
@@ -456,6 +456,8 @@ export const FilaLider = memo(function FilaLider({
     () => (l.cache_vence === null || l.subagentes || !cacheAplica(l.modelo) ? null : pintorCache(`lider:${l.id}:${l.cache_vence}`, l.cache_vence, l.cache_ttl_s, false)),
     [l],
   );
+  // Codex (ChatGPT) y Gemini (agy) no informan vencimiento del caché: muestran `⚡ ?` informativo sin marcar frío por reloj.
+  const cacheSinTtl = !cache && !l.caido && !l.subagentes && l.actividad > 0 && cacheSinTtlDe(l.modelo) !== null;
   // Uno de terminal no cuenta qué hace: que compacta lo dice la marca del hook (uno de la app, su stream).
   const compacta = useCompactando(l.caido ? null : l.id);
   const duraCompacta = useMemo(() => (compacta !== null ? pintorDura(compacta) : null), [compacta]);
@@ -490,7 +492,11 @@ export const FilaLider = memo(function FilaLider({
           {espera || duraCompacta ? null : <FraseFila sid={l.id} />}
         </span>
         {l.caido ? null : <ChipMod c={chip} />}
-        {cache ? <Reloj pintor={cache} className="cache" /> : null}
+        {cache ? (
+          <Reloj pintor={cache} className="cache" />
+        ) : cacheSinTtl ? (
+          <CacheSinTtl modelo={l.modelo} />
+        ) : null}
         {l.subagentes ? <ChipSubagentes n={l.subagentes} clave={l.id} corto /> : null}
         {espera ? (
           <span className="chip-at" data-at="decision" data-tip={tr(espera.motivo === "pide" ? "espera.pide" : "espera.listo")}>

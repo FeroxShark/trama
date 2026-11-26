@@ -57,7 +57,7 @@ import { agyOfrecidos } from "./agy-ofrecidos.ts";
 import { codexListo, revisoresPermitidos } from "./revision-plan.ts";
 import { crearCierreCupo } from "./cierre-cupo-disco.ts";
 import { CONFIRMAR_VOLVIO_S } from "./cierre-cupo.ts";
-import { crearCierreChats } from "./cierre-chats.ts";
+import { crearCierreChats, type Deps as DepsCierreChats } from "./cierre-chats.ts";
 import { avisarLideres, carpetaHooksCierre } from "./cierre-cupo-texto.ts";
 import { autocompactLiderGuardado, cierreGuardado, claseDeModelo, efectivoDePa, excluirGuardado, guardarModelos, leerModelos, modelosConfig, sondearOllama, topeEntorno, vistaModelos } from "./modelos-config.ts";
 import { accesos } from "./celular-accesos.js";
@@ -723,11 +723,20 @@ function revisarCierre(s: Statusline) {
  */
 const ARCHIVO_CIERRE_CHATS = path.join(ESTADO, "cierre-chats.json");
 const ventanaDeCierre = (v: string) => (v === "5h" ? "five_hour" : v === "7d" ? "seven_day" : v);
-async function retomarPorCupo(sid: string, texto: string) {
-  const sel = await lider.seleccionGuardadaDe(sid);
-  if (!sel) return;
-  const { item } = lider.paraCola({ sid, texto, modelo: sel.modelo, effort: sel.effort || "medium" });
+function identidadParaCierre(sid: string, guardados: Awaited<ReturnType<typeof lider.lideresApp>>) {
+  const g = guardados.find((l) => l.sid === sid);
+  const seleccion = lider.seleccionDe(sid) ?? g;
+  return {
+    modelo: seleccion?.modelo ?? null,
+    effort: seleccion?.effort || "medium",
+    cuenta: (g ? g.cuenta : lider.cuentaDeProceso(sid)) ?? "claude",
+  };
+}
+async function retomarPorCupo(sid: string, texto: string, sigueVigente: Parameters<DepsCierreChats["encolar"]>[2]) {
   await leerCola();
+  const sel = identidadParaCierre(sid, await lider.lideresApp());
+  if (saliendo || !sel.modelo || !sigueVigente(sel)) return;
+  const { item } = lider.paraCola({ sid, texto, modelo: sel.modelo, effort: sel.effort });
   // Lo manda Trama, no la persona: va al chat como fila de sistema.
   cola.encolar(sid, { ...item, aviso: true, avisos: [] });
 }
@@ -744,9 +753,10 @@ export const cierreChats = crearCierreChats({
   trabajando: () => lider.respondiendoSids(),
   modeloDe: (sid) => lider.seleccionDe(sid)?.modelo ?? null,
   cuentaDe: (sid) => lider.cuentaDeProceso(sid),
+  identidadAlRetomar: async (sid) => identidadParaCierre(sid, await lider.lideresApp()),
   relevo: lider.archivoRelevo,
   retomarSolo: () => cierreGuardado().retomar_solo,
-  encolar: (sid, texto) => void retomarPorCupo(sid, texto).catch(silencio("cierre-chats")),
+  encolar: (sid, texto, sigueVigente) => void retomarPorCupo(sid, texto, sigueVigente).catch(silencio("cierre-chats")),
   avisar: (l) => enviar("lider:cierre", l),
   avisoChat: (sid, e) =>
     lider.emitir(sid, {
@@ -1011,7 +1021,9 @@ export function armarNucleo() {
   void leerCola().then(cola.revisar);
   // El cierre por cupo de cada chat: los relojes de «Retomar solo» se arman de nuevo y, si la hora ya pasó (la PC estaba apagada), retoma ya.
   alSalir(() => cierreChats.parar());
-  cierreChats.arrancar();
+  void lider.lideresApp().then((guardados) => {
+    if (!saliendo) cierreChats.arrancar((sid) => identidadParaCierre(sid, guardados));
+  }).catch(silencio("cierre-chats"));
   // Lo programado que venció con trama cerrada sale ya; lo que falta se vuelve a programar.
   alSalir(() => programados.parar());
   void programados.arrancar().catch(silencio("programados"));
@@ -1540,6 +1552,7 @@ export function armarNucleo() {
     if (e.tipo === "estado") conAvisos(() => avisosL.entregar(sid));
   });
   lider.alCambiar(() => {
+    cierreChats.revisar();
     conAvisos(() => avisosL.entregar());
     void avisarSl();
     cambioLider();
@@ -1645,7 +1658,11 @@ export function armarNucleo() {
   manejar("app:pararTodo", (_e, forzar: unknown) => pararTodo(forzar === true));
   manejar("lider:modo", (_e, x: { sid: string; modo: string }) => lider.cambiarModo(String(x?.sid), x?.modo));
   // La cuenta de Claude de ese líder (la elige la persona; nunca cambia sola): se aplica en el próximo mensaje (`lider.cambiarCuenta`).
-  manejar("lider:cuenta", (_e, x: { sid: string; cuenta: unknown }) => lider.cambiarCuenta(String(x?.sid), x?.cuenta));
+  manejar("lider:cuenta", async (_e, x: { sid: string; cuenta: unknown }) => {
+    const sid = String(x?.sid);
+    await lider.cambiarCuenta(sid, x?.cuenta);
+    cierreChats.revisarIdentidad(sid, identidadParaCierre(sid, await lider.lideresApp()));
+  });
   manejar("lider:extras", (_e, x: { sid: string; ultracode?: unknown; fast?: unknown }) => lider.cambiarExtras(String(x?.sid), { ultracode: x?.ultracode, fast: x?.fast }));
   manejar("lider:permiso", (_e, x: { sid: string; id: string; ok: boolean; mensaje?: string; respuestas?: unknown }) =>
     lider.responderPermiso(String(x?.sid), String(x?.id), {
@@ -1702,6 +1719,7 @@ export function armarNucleo() {
   manejar("lider:colaSeleccion", async (_e, x: { sid: string; modelo: string; effort: string }) => {
     const { sid, seleccion } = lider.paraSeleccion(x ?? {});
     cola.elegir(sid, seleccion);
+    cierreChats.revisarIdentidad(sid, seleccion);
     await lider.cambiarEnTurno(sid, seleccion);
   });
   // El MCP de Trama (cli/mcp-trama.ts): otro líder o un worker le deja un mensaje a un líder. Entra por la misma cola que lo del usuario,

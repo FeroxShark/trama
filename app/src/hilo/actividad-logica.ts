@@ -59,7 +59,7 @@ export function iconoDe(h: HaceLider): Icono {
     case "web":
       return "web";
     case "editando":
-      return h.nombre === "Write" ? "escribir" : "editar";
+      return ESCRIBIR.has(h.nombre) ? "escribir" : "editar";
     case "delegando":
       return "delegar";
     case "permiso":
@@ -139,9 +139,10 @@ export function delegaPa(cmd: string): string | null {
   return t ? `${proy} · ${t}` : proy;
 }
 
-const LEER = new Set(["Read", "NotebookRead"]);
-const EDITAR = new Set(["Edit", "MultiEdit", "NotebookEdit"]);
-const DELEGAR = new Set(["Task", "Agent"]);
+const LEER = new Set(["Read", "NotebookRead", "read_file", "view_file", "view_file_outline", "view_code_item"]);
+const EDITAR = new Set(["Edit", "MultiEdit", "NotebookEdit", "edit_file", "replace_file_content", "multi_replace_file_content"]);
+const ESCRIBIR = new Set(["Write", "write_file", "write_to_file"]);
+const DELEGAR = new Set(["Task", "Agent", "invoke_subagent"]);
 
 /** Un Grep: «patrón» en la carpeta. */
 const buscando = (d: string, extra: string | undefined) => unaLinea(extra ? `«${d}» ${t("hz.d.enCarpeta", { e: rutaLegible(extra) })}` : `«${d}»`);
@@ -162,7 +163,7 @@ function partes(h: HaceLider): Partes {
   if (n === "Grep") return { tipo: "codigo", verbo: "hz.buscar", paso: "hz.p.busco", d: d ? buscando(d, extra) : n };
   if (n === "Glob") return { tipo: "codigo", verbo: "hz.buscarArchivos", paso: "hz.p.busco", d: d ? buscando(d, extra) : n };
   if (EDITAR.has(n)) return { tipo: "editando", verbo: "hz.editar", paso: "hz.p.edito", d: d ? rutaLegible(d) : n };
-  if (n === "Write") return { tipo: "editando", verbo: "hz.escribirArchivo", paso: "hz.p.escribioArchivo", d: d ? rutaLegible(d) : n };
+  if (ESCRIBIR.has(n)) return { tipo: "editando", verbo: "hz.escribirArchivo", paso: "hz.p.escribioArchivo", d: d ? rutaLegible(d) : n };
   if (DELEGAR.has(n)) return { tipo: "delegando", verbo: "hz.delegar", paso: "hz.p.delego", d: d ? unaLinea(extra ? `${extra} · ${d}` : d) : (extra ?? n) };
   if (n === "Bash") {
     const pa = d ? delegaPa(d) : null;

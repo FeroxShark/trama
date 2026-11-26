@@ -285,9 +285,11 @@ function cambiarPor(sid: string, ev: EventoLider) {
       }
       case "estado": {
         const desde = ev.ocupado ? (e.desde ?? ahora()) : null;
-        // Un turno que arranca (también el que sale solo de la cola) deja atrás cómo cerró el anterior.
+        // Un turno que arranca (también el que sale solo de la cola o retoma la vista) deja atrás cómo cerró el anterior
+        // y muestra «pidiendo» desde el primer instante hasta que llegue el primer paso del stream.
+        const hace = ev.ocupado ? (e.ind.hace ?? { que: "pidiendo" as const, nombre: null, detalle: null }) : null;
         const x = { ...e, ocupado: ev.ocupado, desde, parando: ev.ocupado && e.parando, ...(ev.ocupado && !e.ocupado ? { fin: null, novedad: Date.now() } : {}) };
-        return conInd(x, ev.ocupado ? { desde } : { hace: null, desde: null });
+        return conInd(x, ev.ocupado ? { hace, desde } : { hace: null, desde: null });
       }
       case "salio": {
         let avisos = sinReintento(e.avisos);

@@ -38,6 +38,11 @@ test("Windows: los argumentos de codex.cmd no llevan comillas dobles y paraLanza
   assert.ok(args.includes("model_reasoning_effort=medium"));
   assert.ok(args.includes("approval_policy=never"));
   assert.doesNotThrow(() => paraLanzar("C:\\Users\\gonza\\AppData\\Roaming\\npm\\codex.cmd", args, {}, "win32"));
+  // Con imágenes y resume en Windows: `resume <id>` va antes de `-i` y `--` antes de `-`.
+  const retomaImgs = argsCodex({ ...x, imagenes: ["C:\\tmp\\a.png"], thread: "aaaaaaaa-0000-4000-8000-000000000001" }, "win32");
+  assert.ok(retomaImgs.indexOf("resume") < retomaImgs.indexOf("-i"));
+  assert.deepEqual(retomaImgs.slice(-2), ["--", "-"]);
+  assert.doesNotThrow(() => paraLanzar("C:\\Users\\gonza\\AppData\\Roaming\\npm\\codex.cmd", retomaImgs, {}, "win32"));
   // Linux conserva las comillas TOML
   assert.ok(argsCodex(x, "linux").includes('model_reasoning_effort="medium"'));
 });

@@ -5,8 +5,8 @@
 // "Pasárselo a un líder" si pide algo y no tiene líder.
 // Un líder (sesión jefe) abre su chat (src/hilo/Lider.tsx); uno de sus subagentes, sus pasos (src/hilo/Subagente.tsx).
 import { ChipEspera } from "../barra/Espera";
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Square } from "lucide-react";
+import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { Cpu, MessageSquare, Square } from "lucide-react";
 import { comoSettle, VERSION, type Estado, type Hilo, type Lider, type Mensaje, type Tokens } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { Lado } from "./Lado";
@@ -45,6 +45,35 @@ import { VistaWorker, WorkerExtras } from "./Worker";
 import { SubagenteMigas, VistaSubagente } from "./Subagente";
 import type { Subagente } from "../../electron/subagentes";
 import { activo as subActivo } from "../barra/subagentes-logica";
+import type { GrafoFlujo } from "./flujo/flujo-logica";
+import { ResumenLiderCab } from "./flujo/ResumenLiderCab";
+
+const FlujoCanvas = lazy(() => import("./flujo/FlujoCanvas").then((m) => ({ default: m.FlujoCanvas })));
+
+const CLAVE_ANCHO_CHAT_B3 = "hilos:flujo:anchoChat";
+const ANCHO_CHAT_DEF = 370;
+const ANCHO_CHAT_MIN = 260;
+const ANCHO_CHAT_MAX = 640;
+
+function leerAnchoChat(): number {
+  try {
+    const v = Number(localStorage.getItem(CLAVE_ANCHO_CHAT_B3));
+    return Number.isFinite(v) && v >= ANCHO_CHAT_MIN && v <= ANCHO_CHAT_MAX ? v : ANCHO_CHAT_DEF;
+  } catch {
+    return ANCHO_CHAT_DEF;
+  }
+}
+
+export type FlujoVista = {
+  disponible: boolean;
+  abierto: boolean;
+  alAlternar: () => void;
+  grafo: GrafoFlujo;
+  seleccionado: string | null;
+  alSeleccionar: (id: string) => void;
+  maximizado: boolean;
+  alAlternarMaximizar: () => void;
+};
 
 const puesto = (p: string) => (p === "aca" ? tr("vista.aca") : tr("vista.puesto", { p }));
 
@@ -89,6 +118,8 @@ type Props = {
   alPasar: (h: Hilo) => Promise<void>;
   /** Retomar (B22): un líder nuevo se hace cargo de lo que murió con commits. */
   alRetomar: (id: string) => void;
+  /** Mapa de flujo interactivo B3 al costado del chat del líder. */
+  flujo?: FlujoVista;
 };
 
 export function Vista({
@@ -112,6 +143,7 @@ export function Vista({
   alCerrar,
   alPasar,
   alRetomar,
+  flujo,
 }: Props) {
   const lado = barraAbierta ? tr("comun.ocultarBarra") : tr("comun.mostrarBarra");
   const titulos = useTitulos();
@@ -120,9 +152,54 @@ export function Vista({
   const pasos = usePasos(h && estado ? h.id : sub && !lider ? sub.clave : null);
   const conPasos = pasos && pasos.hay ? pasos : null;
   const vive = sub && !h ? (sub.u ? subActivo(sub.u) : false) : estado === "trabajando" || estado === "colgado";
+  const [anchoChat, setAnchoChat] = useState(leerAnchoChat);
+  const [chatPlegado, setChatPlegado] = useState(false);
+  const [tirandoChat, setTirandoChat] = useState(false);
   useEffect(() => {
     if (t?.tipo === "nec") latir();
   }, [t]);
+
+  const arrastrarDivisorChat = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (chatPlegado) return;
+    e.preventDefault();
+    setTirandoChat(true);
+    const x0 = e.clientX;
+    const w0 = anchoChat;
+    let ultimo = w0;
+    const mover = (e2: PointerEvent) => {
+      ultimo = Math.max(ANCHO_CHAT_MIN, Math.min(ANCHO_CHAT_MAX, Math.round(w0 + (e2.clientX - x0))));
+      setAnchoChat(ultimo);
+    };
+    const soltar = () => {
+      setTirandoChat(false);
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      try {
+        localStorage.setItem(CLAVE_ANCHO_CHAT_B3, String(ultimo));
+      } catch {
+        // sin storage
+      }
+    };
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+  };
+
+  const teclaDivisorChat = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const delta = e.key === "ArrowLeft" ? -24 : 24;
+    const next = Math.max(ANCHO_CHAT_MIN, Math.min(ANCHO_CHAT_MAX, anchoChat + delta));
+    setAnchoChat(next);
+    try {
+      localStorage.setItem(CLAVE_ANCHO_CHAT_B3, String(next));
+    } catch {
+      // sin storage
+    }
+  };
+
+  const mostrarFlujo = Boolean((lider || liderNuevo) && !h && !sub && flujo?.disponible && flujo.abierto);
+  const cuentaFlujo = flujo ? flujo.grafo.resumen.corriendo + flujo.grafo.resumen.decision + flujo.grafo.resumen.error : 0;
+  const totalFlujo = flujo ? Math.max(0, flujo.grafo.nodos.length - 1) : 0;
 
   return (
     <main className="hilo">
@@ -175,9 +252,26 @@ export function Vista({
                   : tr("lider.nuevoSub")}
               </span>
             </div>
+            {lider ? <ResumenLiderCab lider={lider} /> : null}
             <MaquinaMigas maquina={lider?.maquina} />
             {lider?.espera && !lider.ocupado && !lider.caido ? <ChipEspera espera={lider.espera} /> : null}
             {lider ? <PildoraTrabajando l={lider} /> : null}
+            {flujo?.disponible ? (
+              <button
+                type="button"
+                className="flujo-toggle"
+                aria-pressed={flujo.abierto}
+                aria-label={tr(flujo.abierto ? "flujo.ocultar" : "flujo.mostrar")}
+                data-tip={tr(flujo.abierto ? "flujo.ocultar" : "flujo.mostrar")}
+                onClick={flujo.alAlternar}
+              >
+                <Cpu size={13} strokeWidth={1.9} aria-hidden />
+                <span>{tr("flujo.boton")}</span>
+                {cuentaFlujo > 0 || totalFlujo > 0 ? (
+                  <span className="flujo-toggle-n">{cuentaFlujo > 0 ? cuentaFlujo : totalFlujo}</span>
+                ) : null}
+              </button>
+            ) : null}
           </>
         ) : null}
         {/* Quieto, Settle (a uno de la app también lo cierra); respondiendo, Cerrar líder (sólo los de la app). */}
@@ -211,24 +305,87 @@ export function Vista({
           </div>
         )
       ) : lider || liderNuevo ? (
-        <ChatLider
-          key={lider?.id ?? "nuevo"}
-          l={lider}
-          alCreado={alLiderCreado}
-          alNuevo={alLiderNuevo}
-          lideres={lideres}
-          alAbrirLider={alAbrirLider}
-          alAbrirHilo={alAbrirHilo}
-          integrar={integrar}
-          archivar={
-            // Si no se puede retomar: Archivar; con algún worker todavía trabajando, al menos sacarlo de la barra.
-            !lider?.caido ? null : settleLider !== null ? (
-              <SettleLider l={lider} ramas={settleLider} alSettle={alSettleLider} className="btn2" />
-            ) : (
-              <CerrarLider l={lider} alCerrar={alCerrarLider} className="btn2" quitar />
-            )
-          }
-        />
+        mostrarFlujo && flujo ? (
+          <div className="hilo-b3">
+            <div className="hilo-b3-chat" data-plegado={chatPlegado ? "true" : undefined} style={chatPlegado ? undefined : { width: `${anchoChat}px` }}>
+              {chatPlegado ? (
+                <>
+                  <button
+                    type="button"
+                    className="flujo-cab-btn"
+                    title={tr("flujo.mostrarChat")}
+                    aria-label={tr("flujo.mostrarChat")}
+                    onClick={() => setChatPlegado(false)}
+                  >
+                    <MessageSquare size={15} strokeWidth={1.8} />
+                  </button>
+                  <span className="hilo-b3-tira-rot">{tr("flujo.chatTira")}</span>
+                </>
+              ) : (
+                <ChatLider
+                  key={lider?.id ?? "nuevo"}
+                  l={lider}
+                  alCreado={alLiderCreado}
+                  alNuevo={alLiderNuevo}
+                  lideres={lideres}
+                  alAbrirLider={alAbrirLider}
+                  alAbrirHilo={alAbrirHilo}
+                  integrar={integrar}
+                  archivar={
+                    !lider?.caido ? null : settleLider !== null ? (
+                      <SettleLider l={lider} ramas={settleLider} alSettle={alSettleLider} className="btn2" />
+                    ) : (
+                      <CerrarLider l={lider} alCerrar={alCerrarLider} className="btn2" quitar />
+                    )
+                  }
+                />
+              )}
+            </div>
+            <div
+              role="separator"
+              tabIndex={0}
+              className="hilo-b3-divisor"
+              data-activo={tirandoChat ? "true" : undefined}
+              aria-orientation="vertical"
+              aria-label={tr("flujo.divisor")}
+              aria-valuemin={ANCHO_CHAT_MIN}
+              aria-valuemax={ANCHO_CHAT_MAX}
+              aria-valuenow={anchoChat}
+              onPointerDown={arrastrarDivisorChat}
+              onDoubleClick={() => setChatPlegado((p) => !p)}
+              onKeyDown={teclaDivisorChat}
+            />
+            <Suspense fallback={null}>
+              <FlujoCanvas
+                grafo={flujo.grafo}
+                seleccionado={flujo.seleccionado}
+                alSeleccionar={flujo.alSeleccionar}
+                maximizado={flujo.maximizado}
+                alAlternarMaximizar={flujo.alAlternarMaximizar}
+                tituloSesion={lider ? lider.nombre || tr("lider.sesionJefe") : tr("lider.nuevo")}
+              />
+            </Suspense>
+          </div>
+        ) : (
+          <ChatLider
+            key={lider?.id ?? "nuevo"}
+            l={lider}
+            alCreado={alLiderCreado}
+            alNuevo={alLiderNuevo}
+            lideres={lideres}
+            alAbrirLider={alAbrirLider}
+            alAbrirHilo={alAbrirHilo}
+            integrar={integrar}
+            archivar={
+              // Si no se puede retomar: Archivar; con algún worker todavía trabajando, al menos sacarlo de la barra.
+              !lider?.caido ? null : settleLider !== null ? (
+                <SettleLider l={lider} ramas={settleLider} alSettle={alSettleLider} className="btn2" />
+              ) : (
+                <CerrarLider l={lider} alCerrar={alCerrarLider} className="btn2" quitar />
+              )
+            }
+          />
+        )
       ) : (
         <div className="vacio">
           <span data-desliza>{tr("vista.elegi")}</span>

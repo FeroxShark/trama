@@ -2,7 +2,7 @@
 // terminal de Claude Code: una línea por llamada ("Bash · Corre los tests",
 // "Edit · src/x.ts +3 −1") y, al abrirla, el comando entero o el diff. Puro: lo
 // prueba `tests/herramientas.test.ts`.
-import { archivoDeHerramienta, type ArchivoDeHerramienta } from "../../electron/archivo-ruta.ts";
+import { accionDeHerramienta, archivoDeHerramienta, rutaDeHerramienta, type ArchivoDeHerramienta } from "../../electron/archivo-ruta.ts";
 import type { Herramienta } from "../datos/contrato";
 
 /** Lo que `pa --hilo` (y el transcript de un líder) deja de cada texto de la entrada. */
@@ -52,8 +52,8 @@ export function relativa(ruta: string, transcript: string | null): string {
 export function resumen(nombre: string, entrada: Record<string, unknown>, transcript: string | null = null): string {
   const e = entrada ?? {};
   if (nombre === "Bash") return renglon(str(e.description) ?? str(e.command) ?? "");
-  if (ARCHIVO.has(nombre)) {
-    const r = str(e.file_path) ?? str(e.notebook_path) ?? str(e.path);
+  if (ARCHIVO.has(nombre) || accionDeHerramienta(nombre)) {
+    const r = rutaDeHerramienta(nombre, e) ?? str(e.file_path) ?? str(e.notebook_path) ?? str(e.path) ?? str(e.Path);
     return r ? relativa(r.trim(), transcript) : "";
   }
   if (PATRON.has(nombre)) return renglon(str(e.pattern) ?? "");

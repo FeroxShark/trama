@@ -50,6 +50,12 @@ export function entornoAgy(env: Env, home: string, esEjecutable: (f: string) => 
   return { ...env, [clavePath(env, plat)]: dirs.join(delimitadorDe(plat)) };
 }
 
+/** El `pa` del líder de Codex recibe el id de Trama que identifica sus corridas y recibe sus avisos. */
+export function entornoCodexLider(env: Env, home: string, lider: { sid: string; nombre: string }): Env {
+  const { CLAUDE_CONFIG_DIR, OPENAI_API_KEY, CODEX_API_KEY, ...limpio } = env;
+  return entornoAgy({ ...limpio, ...(lider.sid ? { PA_JEFE: lider.nombre, PA_JEFE_ID: lider.sid } : {}) }, home);
+}
+
 /**
  * La variable de entorno si está; si no, el binario del PATH (el de la app, tal cual vino); si no,
  * `~/.local/bin/<nombre>`. Si no aparece en ningún lado queda el nombre pelado: el error de spawn

@@ -112,10 +112,10 @@ export async function gastoSubagentes(x: unknown, vivos?: { leer(): Promise<Suba
 
 
 
-// El tope de ese líder hoy (el de su modelo en modelos.json): un líder de Gemini, local o de Ollama no lo lleva.
+// El tope de ese líder hoy (el de su modelo en modelos.json): vale para Claude y Gemini; un local o de Ollama no lo lleva.
 async function conTopeDeLider(d: Desglose, sid: string): Promise<Desglose> {
   const l = await claseDeLider(sid);
-  if (!l || l.clase !== "claude" || l.local || l.modelo.toLowerCase().startsWith("ollama:")) return d;
+  if (!l || (l.clase !== "claude" && l.clase !== "gemini") || l.local || l.modelo.toLowerCase().startsWith("ollama:")) return d;
   return conTope(d, topeDeLider(l.modelo));
 }
 

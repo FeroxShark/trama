@@ -34,7 +34,7 @@ import {
   ponerNotaCompactarTareaPct,
 } from "./ajustes-nota-compactar";
 
-const NOMBRE: Record<Familia, string> = { haiku: "Haiku", sonnet: "Sonnet", opus: "Opus" };
+const NOMBRE: Record<Familia, string> = { haiku: "Haiku", sonnet: "Sonnet", opus: "Opus", gemini: "Gemini" };
 
 function Fila({ fam, b, cambiar, rol }: { fam: Familia; b: Borrador; cambiar: (b: Borrador) => void; rol: Rol }) {
   const valor = topeEfectivo(b, fam, rol);

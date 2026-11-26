@@ -551,3 +551,16 @@ test("un turno que ya corría al abrir la ventana no esconde la conversación: v
   empezar("sabida");
   assert.ok(enCurso("sabida").baseSabida);
 });
+
+test("estado ocupado sin `hace` previo muestra «pidiendo» enseguida (tras reemplazo de proceso o al abrir turno sin stream todavía)", () => {
+  const sid = "ocupado-sin-hace";
+  suscribir(sid, () => {});
+  enviado(sid, "seguí con otro modelo", PAG.total);
+  assert.deepEqual(enCurso(sid).ind.hace, { que: "pidiendo", nombre: null, detalle: null });
+  // Si otro proceso viejo cerrara con `salio` y luego llegara `estado: ocupado`, igual conserva o repone `pidiendo`.
+  emitir({ sid, e: { tipo: "salio", codigo: 0, error: null } });
+  assert.equal(enCurso(sid).ind.hace, null);
+  emitir({ sid, e: { tipo: "estado", ocupado: true, vivo: true } });
+  assert.equal(enCurso(sid).ocupado, true);
+  assert.deepEqual(enCurso(sid).ind.hace, { que: "pidiendo", nombre: null, detalle: null });
+});

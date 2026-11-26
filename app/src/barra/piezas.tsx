@@ -4,6 +4,7 @@ import { Info } from "lucide-react";
 import type { Estado, Hilo } from "../datos/contrato";
 import { t, type ClaveSola } from "../i18n";
 import { suscribir, type Pintor } from "../reloj";
+import { cacheSinTtlDe } from "../../electron/cache";
 import { arrancando } from "./arbol";
 import { latir } from "./latido";
 
@@ -14,6 +15,23 @@ export function Reloj({ pintor, ...resto }: { pintor: Pintor } & HTMLAttributes<
   const ref = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => suscribir(ref.current!, pintor), [pintor]);
   return <span ref={ref} {...resto} />;
+}
+
+/** Chip informativo `⚡ ?` para motores cuyo caché no publica TTL en el stream (Codex, Gemini). */
+export function CacheSinTtl({ modelo }: { modelo: string | null | undefined }) {
+  const info = cacheSinTtlDe(modelo);
+  if (!info) return null;
+  const tip = t(info.tip);
+  return (
+    <span
+      className="cache"
+      {...(info.motor === "codex" ? { "data-codex": "" } : { "data-gemini": "" })}
+      data-tip={tip}
+      aria-label={tip}
+    >
+      {t("cache.codexCorto")}
+    </span>
+  );
 }
 
 /** Cómo se ve cada estado activo: la palabra, su color y qué punto lleva. */

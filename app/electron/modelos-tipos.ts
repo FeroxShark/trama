@@ -142,8 +142,8 @@ export const URL_OLLAMA = "http://localhost:11434";
 /** Más locales que esto no es una lista que alguien arme a mano. */
 export const LOCALES_MAX = 50;
 
-/** Familias con tope de compactación propio en `autocompact.por_modelo` (las que `pa` resuelve por nombre). */
-export const AUTOCOMPACT_FAMILIAS = ["haiku", "sonnet", "opus"] as const;
+/** Familias con tope de compactación propio en `autocompact.por_modelo` (las que `pa` y los líderes resuelven por nombre). */
+export const AUTOCOMPACT_FAMILIAS = ["haiku", "sonnet", "opus", "gemini"] as const;
 /** Rango que acepta `pa` (y `--autocompact` de Claude Code): tokens. */
 export const AUTOCOMPACT_MIN = 100_000;
 export const AUTOCOMPACT_MAX = 1_000_000;

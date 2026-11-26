@@ -69,7 +69,8 @@ if (!process.env.TRAMA_TEST_SIN_BUILD && !process.env.TRAMA_TEST_DIR) {
 const env = { ...process.env };
 for (const k of Object.keys(env)) {
   // NODE_TEST_CONTEXT: lo pone `node --test` en sus hijos; con él el `node --test` de cada archivo no corre nada.
-  if (k.startsWith("PA_") || k === "TRAMA_LOCAL" || k === MARCA || k === "NODE_TEST_CONTEXT") delete env[k];
+  // TRAMA_LIDER_AGY: lo pone agy-puente.ts en líderes Gemini y fuerza `--async` en `pa`; si se filtra, rompe los tests de `pa`.
+  if (k.startsWith("PA_") || k === "TRAMA_LOCAL" || k === "TRAMA_LIDER_AGY" || k === MARCA || k === "NODE_TEST_CONTEXT") delete env[k];
 }
 env.TRAMA_GO_SIN_RED = "1"; // las pruebas no leen opencode.ai/go (los topes de Go salen del caché de cada prueba o del respaldo)
 

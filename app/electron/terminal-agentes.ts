@@ -35,5 +35,19 @@ const ABSOLUTA_WINDOWS = "(empieza con la unidad, como `C:\\Users\\...`, o con ~
 /** `LINEA_CHAT` para la plataforma: igual en Linux; en Windows la ruta tocable empieza con la unidad, no con `/`. */
 export const lineaChat = (plat: string): string => (plat === "win32" ? LINEA_CHAT.replace(ABSOLUTA_POSIX, ABSOLUTA_WINDOWS) : LINEA_CHAT);
 
-/** El agregado al prompt de sistema de un líder de Claude: lo del chat y, en Windows con PowerShell, la línea de la terminal. */
-export const lineaSistemaLider = (plat: string, terminal: TerminalAgentes): string => [lineaChat(plat), lineaTerminalAgentes(plat, terminal)].filter(Boolean).join(" ");
+/**
+ * Cómo gastar menos cupo, para todo líder de Claude. Sale de medir el uso real (2026-11-26): la mayor parte se va en reescribir caché
+ * (subagentes retomados con la caché vencida, chats retomados después de 1 h) y en releer contexto (CLAUDE.md enormes, lecturas de más).
+ * Texto fijo, sin datos que cambien: si cambiara, rompería la caché del prompt de sistema. Una sola línea, como `LINEA_CHAT`.
+ */
+export const LINEA_CACHE =
+  "Cupo y caché: cada llamada relee todo el contexto; lo que está en caché cuesta ~1/10 y lo que se escribe o reescribe ~2×. La caché de tu chat dura 1 h; la de un subagente, 5 min. Por eso: no retomes (SendMessage) un subagente parado más de 5 min, que se reescribe entero: lanzá uno nuevo con un brief corto; dale a cada subagente una tarea cerrada que termine de una vez. Leé lo justo: Grep antes que Read, offset/limit en archivos grandes, no releas lo que ya tenés; una imagen ábrela sólo si hace falta verla y después describila en texto en vez de reabrirla. Effort alto y asesor sólo para lo difícil. Si el proyecto te hace perder pasos (CLAUDE.md de más de ~15 KB, muchas búsquedas antes de poder actuar, el mismo archivo releído, archivos gigantes), terminá lo pedido y seguí la guía RUTA_GUIA.";
+const GUIA_POSIX = "`~/.claude/skills/trama-orquestar/ordenar-proyecto.md`";
+const GUIA_WINDOWS = "`~\\.claude\\skills\\trama-orquestar\\ordenar-proyecto.md`"; // sin `%`: en Windows la línea puede pasar por cmd.exe
+
+/** `LINEA_CACHE` con la ruta de la guía de la plataforma (en Windows, `~\.claude\skills`). */
+export const lineaCache = (plat: string): string => LINEA_CACHE.replace("RUTA_GUIA", plat === "win32" ? GUIA_WINDOWS : GUIA_POSIX);
+
+/** El agregado al prompt de sistema de un líder de Claude: lo del chat, cómo ahorrar cupo y, en Windows con PowerShell, la línea de la terminal. */
+export const lineaSistemaLider = (plat: string, terminal: TerminalAgentes): string =>
+  [lineaChat(plat), lineaCache(plat), lineaTerminalAgentes(plat, terminal)].filter(Boolean).join(" ");

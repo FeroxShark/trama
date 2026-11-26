@@ -11,7 +11,7 @@ export type TopeConf = { defecto: number | null; por_modelo: Record<string, numb
 /** `PA_AUTOCOMPACT` ya leído: `null` = no pisa nada, `"nativo"` = fuerza sin tope. */
 export type TopeEntorno = number | "nativo" | null;
 
-const FAMILIAS = ["fable", "opus", "sonnet", "haiku"] as const;
+const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "gemini"] as const;
 
 /** `PA_AUTOCOMPACT` como lo lee `pa` (tokens de 100 000 a 1 000 000, o `nativo`); lo que no sirve se ignora. */
 export function topeDeEntorno(v: string | undefined): TopeEntorno {

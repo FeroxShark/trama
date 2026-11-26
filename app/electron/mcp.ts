@@ -11,7 +11,7 @@ import { enPath } from "./cli/base/buscar.ts";
 import { enmascarar } from "./conectores-claude.ts";
 import { entornoLider } from "./lider-arma.ts";
 import { jsonClaude, leerMcpSync, resueltos, type ServidorMcp, type ServidorResuelto } from "./mcp-config.ts";
-import { archivoClaudeJson, archivoMcpAgy, entradaAcp, entradaClaude, registrarEnAgy, registrarEnClaude, scriptMcpTrama, type ServidorTrama as LanzarTrama } from "./mcp-trama-registro.ts";
+import { archivoClaudeJson, archivoConfigCodex, archivoMcpAgy, entradaAcp, entradaClaude, registrarEnAgy, registrarEnClaude, registrarEnCodex, scriptMcpTrama, type ServidorTrama as LanzarTrama } from "./mcp-trama-registro.ts";
 import { estadoHilos, homeDe, nodeWindows, plataformaActual } from "./rutas.ts";
 import { entornoCuenta } from "./uso-cuentas.ts";
 import { configActiva } from "./mcp-apagados.ts";
@@ -169,6 +169,10 @@ export const tramaParaAcp = (s: LanzarTrama | null) => (s && !s.env ? [entradaAc
 
 /** agy (sus líderes y workers leen `~/.gemini/config/mcp_config.json`). */
 export const anotarTramaEnAgy = (s: LanzarTrama, home = homeDe()) => registrarEnAgy(archivoMcpAgy(home, plataformaActual()), s);
+
+/** codex (sus líderes y workers leen `$CODEX_HOME/config.toml` o `~/.codex/config.toml`). */
+export const anotarTramaEnCodex = (s: LanzarTrama, env: NodeJS.ProcessEnv = process.env, home = homeDe(env)) =>
+  registrarEnCodex(archivoConfigCodex(env, home, plataformaActual()), s);
 
 let claudeAnotado: Promise<unknown> | null = null;
 /**

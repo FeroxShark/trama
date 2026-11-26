@@ -105,11 +105,11 @@ export const umbralDe = (autoCompact: number | null | undefined, ventana: number
   autoCompact && autoCompact > 0 ? Math.min(autoCompact, ventana) : ventana;
 
 /**
- * El umbral del anillo de un líder de Claude: su tope de «Contexto antes de compactar» (por familia, modelos.json; `PA_AUTOCOMPACT` pisa)
- * si lo hay, nunca más que la ventana; sin tope (nativo) vale lo de `umbralDe` (`autoCompactWindow` o la ventana). Un modelo que no es de Claude no lo lleva.
+ * El umbral del anillo de un líder (Claude o Gemini): su tope de «Contexto antes de compactar» (por familia, modelos.json; `PA_AUTOCOMPACT` pisa)
+ * si lo hay, nunca más que la ventana; sin tope (nativo) vale lo de `umbralDe` (`autoCompactWindow` o la ventana).
  */
 export function umbralDeLider(modelo: string | null | undefined, tope: Umbrales["tope"], autoCompact: number | null | undefined, ventana: number): number {
-  const t = modelo && tope && /^claude-/i.test(modelo) ? topeAutocompact(modelo, tope.conf, tope.env) : null;
+  const t = modelo && tope ? topeAutocompact(modelo, tope.conf, tope.env) : null;
   return t ? Math.min(t, ventana) : umbralDe(autoCompact, ventana);
 }
 
