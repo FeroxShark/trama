@@ -4,22 +4,25 @@
 // el latido de los que no tienen hooks (codex, dsh, opencode) y la conversión del stream a `<ts>.json` (agy y codex; dsh y
 // opencode lo deja su runner node). Sin bash, ps ni /proc: el runner de dsh/opencode se corre con este mismo node.
 import { spawn } from "node:child_process";
-import { closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { enPath, esEjecutable } from "../base/buscar.ts";
+import { borrarSinSeguir, enlazarArchivo, enlazarDir } from "../base/enlaces.ts";
 import { matarArbol } from "../base/proc.ts";
 import { hallarCodex, paraLanzar, resolverAgy } from "../../binario.ts";
-import { homeDe } from "../../rutas.ts";
+import { leerApagadosTrama } from "../../apagados.ts";
+import { apagadasPorPreset, type PresetSkills } from "../../presets-tipos.ts";
+import { configTrama, homeDe } from "../../rutas.ts";
 import type { Env, Pa } from "./entorno.ts";
-import { mapaDe, promptDe, usaSkills, type Corrida, type Lanzamiento, type OpcionesLanzar } from "./lanzar.ts";
+import { mapaDe, presetDe, promptDe, usaSkills, type Corrida, type Lanzamiento, type OpcionesLanzar } from "./lanzar.ts";
 import { chequeoAgy, chequeoCodex, chequeoDsh, localEstado, type Local } from "./motores/chequeo.ts";
 import { armarLlamada, conCuenta, type EntornoCuenta, type Llamada } from "./motores/llamada.ts";
 import { esOpencode, Modelos } from "./modelos.ts";
 import { motorMemoria } from "./motores/modelos.ts";
 import type { Llamada as LlamadaPa, Motores } from "./politica.ts";
 import { escribirAgyJson, escribirCodexJson, latir, pasosDeCodex } from "./motores/salida.ts";
-import { type MotorSkills, sincronizarSkillsParaMotor } from "./skills-motores.ts";
+import { type MotorSkills, sincronizarSkills, sincronizarSkillsParaMotor, skillsClaude } from "./skills-motores.ts";
 import { registrarParaMotor, scriptMcpTrama } from "../../mcp-trama-registro.ts";
 
 /** Los motores que corren por acá (ollama es el claude de siempre contra el servidor local; ver lanzar.ts). */
@@ -125,6 +128,60 @@ const aErr = (f: string, t: string) => {
 const motorSkillsDe = (motor: string | undefined, modelo: string): MotorSkills | null =>
   motor === "agy" || motor === "codex" ? motor : motor === "dsh" && esOpencode(modelo) ? "opencode" : null;
 
+/**
+ * Skills por corrida en codex y opencode (agy no se puede): una carpeta de config temporal (`CODEX_HOME` o `XDG_CONFIG_HOME`) que
+ * enlaza lo de la original y lleva en `skills/` sólo las de Claude que el preset deja. Va bajo el estado de `pa` y no en /tmp:
+ * codex se niega a armar sus ayudantes en una carpeta temporal del sistema.
+ */
+export function aislarSkills(motor: "codex" | "opencode", pa: Pa, env: Env, preset: PresetSkills): { env: Env; limpiar: () => void; fallidas: { nombre: string; error: string }[] } {
+  const base = path.join(pa.state, "tmp");
+  mkdirSync(base, { recursive: true });
+  const tmp = mkdtempSync(path.join(base, `pa-${motor}-`));
+  // sin seguir enlaces: lo de la config original queda intacto
+  const limpiar = () => {
+    try {
+      borrarSinSeguir(tmp);
+    } catch {
+      /* queda en el estado de pa */
+    }
+  };
+  try {
+    const enlazar = (de: string, a: string) => {
+      let carpeta: boolean;
+      try {
+        carpeta = statSync(de).isDirectory();
+      } catch {
+        return; // no está (o es un enlace roto)
+      }
+      (carpeta ? enlazarDir : enlazarArchivo)(de, a, { plat: pa.plat });
+    };
+    const listar = (d: string) => (existsSync(d) ? readdirSync(d) : []);
+    const home = homeDe(env, pa.plat);
+    let destino: string;
+    if (motor === "codex") {
+      const orig = env.CODEX_HOME || path.join(home, ".codex");
+      // `sessions` va enlazada: de sus rollouts salen el cupo de ChatGPT y el contexto de la corrida
+      mkdirSync(path.join(orig, "sessions"), { recursive: true });
+      for (const f of ["auth.json", "config.toml", "AGENTS.md", "rules", "sessions"]) enlazar(path.join(orig, f), path.join(tmp, f));
+      destino = path.join(tmp, "skills");
+    } else {
+      const orig = env.XDG_CONFIG_HOME || path.join(home, ".config");
+      // lo demás de la config (trama, git…) se sigue viendo: sólo se reemplaza `opencode/skills`
+      for (const f of listar(orig)) if (f !== "opencode") enlazar(path.join(orig, f), path.join(tmp, f));
+      for (const f of listar(path.join(orig, "opencode"))) if (f !== "skills") enlazar(path.join(orig, "opencode", f), path.join(tmp, "opencode", f));
+      destino = path.join(tmp, "opencode", "skills");
+    }
+    mkdirSync(destino, { recursive: true });
+    const { skills, raices } = skillsClaude(pa.env.CLAUDE_CONFIG_DIR || path.join(pa.home, ".claude"));
+    const apagadas = apagadasPorPreset(skills, preset, leerApagadosTrama(configTrama(pa.env, pa.home, pa.plat)).skills);
+    const { fallidas } = sincronizarSkills({ destino, skills, apagadas, raices });
+    return { env: { ...env, [motor === "codex" ? "CODEX_HOME" : "XDG_CONFIG_HOME"]: tmp }, limpiar, fallidas };
+  } catch (e) {
+    limpiar();
+    throw e;
+  }
+}
+
 /** `OpcionesLanzar.ejecutar` para agy, codex y dsh/opencode. */
 export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
   const ll = llamadaDe(l);
@@ -137,7 +194,11 @@ export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
   const fe = openSync(ll.stderr, "w");
   // Las skills de Claude que el motor no carga solo: se enlazan (sin las apagadas en Trama) antes de lanzarlo. Si falla, no frena la corrida.
   const motor = motorSkillsDe(c.motor, c.modelo);
-  if (motor && usaSkills(c)) {
+  const res = motor ? presetDe(pa, c) : null;
+  // con un preset que filtra, codex y opencode van con su config aislada: la carpeta global de skills no se toca
+  const aislar = motor && motor !== "agy" && res && res.preset.modo !== "todo" ? motor : null;
+  if (motor === "agy" && c.preset && res) writeSync(fe, `pa: preset '${res.nombre}' no se aísla por proceso en agy (usa apagados.json global).\n`);
+  if (motor && !aislar && usaSkills(c, pa)) {
     try {
       for (const f of sincronizarSkillsParaMotor(motor, pa.env, pa.home, pa.plat).fallidas) aErr(ll.stderr, `pa: no pude enlazar la skill ${f.nombre} para ${motor}: ${f.error}\n`);
     } catch (e) {
@@ -155,7 +216,20 @@ export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
     }
   }
   // opencode lee ~/.claude/skills por su cuenta (sin el apagado de Trama y con las de plugins repetidas): que sólo cuente lo enlazado acá
-  const entorno = motor === "opencode" ? { ...ll.env, OPENCODE_DISABLE_CLAUDE_CODE_SKILLS: "1" } : ll.env;
+  let entorno: Env = motor === "opencode" ? { ...ll.env, OPENCODE_DISABLE_CLAUDE_CODE_SKILLS: "1" } : ll.env;
+  // después de anotar el MCP: la config aislada enlaza el archivo ya escrito
+  let limpiar = () => {};
+  if (aislar) {
+    try {
+      const a = aislarSkills(aislar, pa, entorno, res!.preset);
+      entorno = a.env;
+      limpiar = a.limpiar;
+      for (const f of a.fallidas) writeSync(fe, `pa: no pude enlazar la skill ${f.nombre} para ${aislar}: ${f.error}\n`);
+    } catch (e) {
+      writeSync(fe, `pa: no pude aislar las skills para ${aislar} (va con las de siempre): ${(e as Error).message}\n`);
+    }
+  }
+  process.once("exit", limpiar);
   return new Promise<number>((resolve) => {
     let timer: NodeJS.Timeout | undefined;
     let vigia: NodeJS.Timeout | undefined;
@@ -169,6 +243,8 @@ export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
       if (vigia) clearInterval(vigia);
       if (remate) clearTimeout(remate);
       if (ll.tareaArchivo) rmSync(ll.tareaArchivo.ruta, { force: true });
+      process.removeListener("exit", limpiar);
+      limpiar();
       try {
         // `>"$out" 2>/dev/null || true`
         if (ll.json === "agy") escribirAgyJson({ transcript: ll.transcript, err: ll.stderr, modelo: c.modelo, rc, out: ll.out });
