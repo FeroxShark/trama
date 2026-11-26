@@ -58,12 +58,34 @@ export function familiaDeLimite(nombre: unknown): string {
 }
 
 /**
+ * El grupo de cupo de un modelo de Google como lo escribe `pa -m` (y `reparto --cupos`): Argon tiene su ventana, Claude y GPT por agy la
+ * suya y el resto es Gemini. `null` si el modelo no es de Google.
+ */
+export function grupoGoogleDeModelo(modelo: string | null | undefined): string | null {
+  if (suscripcionDeModelo(modelo) !== "google") return null;
+  const m = (modelo ?? "").toLowerCase();
+  if (m.includes("argon")) return "gemini-4-argon";
+  if (m.includes("claude") || m.includes("gpt")) return "claude-gpt";
+  return "gemini";
+}
+
+/** Los grupos de cupo de Google que conoce el vigilante y la lectura de `pa`/`reparto`. */
+const GRUPOS_GOOGLE = ["gemini", "claude-gpt", "gemini-4-argon"] as const;
+
+/**
  * ¿Rige esta entrada a ese modelo? Una de Claude con `grupo` (el límite propio de una familia) sólo a los ids que la llevan; sin saber el
- * modelo no rige a nadie. Las demás (toda la suscripción, o el grupo de Google, que se resuelve aparte) rigen siempre.
+ * modelo no rige a nadie. Una de Google con `grupo` sólo a los modelos de ese grupo (Gemini, Claude/GPT por agy, Argon); sin saber el modelo
+ * rige (conservador). Un grupo desconocido (legado) vale para toda la suscripción. Las demás rigen siempre.
  */
 export function entradaRigeAModelo(e: { proveedor: string; grupo?: string }, modelo: string | null | undefined): boolean {
-  if (e.proveedor !== "claude" || !e.grupo) return true;
-  return !!modelo && modelo.toLowerCase().includes(e.grupo);
+  if (!e.grupo) return true;
+  if (e.proveedor === "claude") return !!modelo && modelo.toLowerCase().includes(e.grupo);
+  if (e.proveedor === "google") {
+    if (!modelo) return true;
+    if (!(GRUPOS_GOOGLE as readonly string[]).includes(e.grupo)) return true;
+    return grupoGoogleDeModelo(modelo) === e.grupo;
+  }
+  return true;
 }
 
 /** Lo que se sabe del uso de una ventana: `usado` 0..100 (`null`: sin dato), `vuelve` epoch s. */

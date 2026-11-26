@@ -3,7 +3,7 @@
 // Sin Electron: sólo `node:fs` y lo puro de cierre-cupo.ts. Lo prueba tests/cierre-cupo-hook.test.ts.
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { ARCHIVO_CIERRE, entradaRigeAModelo, leerSenal, suscripcionDeModelo, type EntradaCierre, type Suscripcion } from "../cierre-cupo.ts";
+import { ARCHIVO_CIERRE, entradaRigeAModelo, grupoGoogleDeModelo, leerSenal, suscripcionDeModelo, type EntradaCierre, type Suscripcion } from "../cierre-cupo.ts";
 
 /** Las entradas vigentes de la señal (las de una ventana que ya volvió no cuentan); `[]` sin archivo o roto. */
 export function cierresVigentes(estadoPa: string, ahora = Math.floor(Date.now() / 1000)): EntradaCierre[] {
@@ -24,11 +24,7 @@ export const suscripcionDeProveedor = (p: unknown): Suscripcion | null => (p ===
  * GPT por agy la suya y el resto es Gemini. `null` si el modelo no es de Google.
  */
 export function grupoDeModelo(modelo: string | null | undefined): string | null {
-  if (suscripcionDeModelo(modelo) !== "google") return null;
-  const m = (modelo ?? "").toLowerCase();
-  if (m.includes("argon")) return "gemini-4-argon";
-  if (m.includes("claude") || m.includes("gpt")) return "claude-gpt";
-  return "gemini";
+  return grupoGoogleDeModelo(modelo);
 }
 
 /**

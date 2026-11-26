@@ -107,8 +107,8 @@ export type LiderVivo = { sid: string; modelo: string; effort: string; clase: st
 
 /**
  * A quiénes de los líderes vivos hay que mandarles el aviso por la cola: los que NO corren hooks (todo menos el `claude` oficial),
- * cuya suscripción es la de la entrada y que están respondiendo (uno ocioso no se despierta). La entrada con `grupo` (Google) vale para
- * toda la suscripción, como dice el protocolo.
+ * cuya suscripción es la de la entrada y que están respondiendo (uno ocioso no se despierta). Una entrada de Google con `grupo` sólo
+ * avisa a los líderes de ese grupo (Gemini, Claude/GPT por agy o Argon): que se agote `claude-gpt` no avisa a un líder de Gemini.
  */
 export function lideresParaAvisar(vivos: readonly LiderVivo[], entrada: Pick<EntradaCierre, "proveedor" | "grupo">): LiderVivo[] {
   return vivos.filter((l) => l.clase !== "claude" && l.clase !== "ollama" && l.ocupado && suscripcionDeModelo(l.modelo) === entrada.proveedor && entradaRigeAModelo(entrada, l.modelo));

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ajustesCierreDe, CIERRE_DEFECTO, CONFIRMAR_VOLVIO_S, crearVigilante, entradaRigeAModelo, familiaDeLimite, lecturasDeUso, leerSenal, suscripcionDeModelo, type AjustesCierre, type LecturaCupo } from "../electron/cierre-cupo.ts";
+import { ajustesCierreDe, CIERRE_DEFECTO, CONFIRMAR_VOLVIO_S, crearVigilante, entradaRigeAModelo, familiaDeLimite, grupoGoogleDeModelo, lecturasDeUso, leerSenal, suscripcionDeModelo, type AjustesCierre, type LecturaCupo } from "../electron/cierre-cupo.ts";
 import { crearCierreCupo } from "../electron/cierre-cupo-disco.ts";
 import { validarCierre } from "../electron/valida-ajustes.ts";
 import { leerConfig, unir, validarConfig } from "../electron/modelos-tipos.ts";
@@ -265,4 +265,26 @@ test("una entrada de Claude con grupo rige sólo a los modelos de esa familia", 
   assert.equal(entradaRigeAModelo(e, null), false);
   assert.equal(entradaRigeAModelo({ proveedor: "claude" }, "claude-sonnet-5-5"), true);
   assert.equal(entradaRigeAModelo({ proveedor: "google", grupo: "gemini" }, "gemini-4"), true);
+});
+
+test("el grupo de Google de un modelo: Argon, Claude/GPT por agy y el resto Gemini", () => {
+  assert.equal(grupoGoogleDeModelo("gemini-4-neon-xhigh"), "gemini");
+  assert.equal(grupoGoogleDeModelo("gemini-4-hydrogen-high"), "gemini");
+  assert.equal(grupoGoogleDeModelo("gemini-4-argon-high"), "gemini-4-argon");
+  assert.equal(grupoGoogleDeModelo("agy:claude-opus-5-5-high"), "claude-gpt");
+  assert.equal(grupoGoogleDeModelo("agy:gpt-oss-120b-medium"), "claude-gpt");
+  assert.equal(grupoGoogleDeModelo("claude-opus-5-5"), null);
+  assert.equal(grupoGoogleDeModelo(null), null);
+});
+
+test("una entrada de Google con grupo claude-gpt rige a Claude/GPT por agy y no a Gemini ni a Argon", () => {
+  const e = { proveedor: "google", grupo: "claude-gpt" };
+  assert.equal(entradaRigeAModelo(e, "agy:claude-opus-5-5-high"), true);
+  assert.equal(entradaRigeAModelo(e, "agy:gpt-oss-120b-medium"), true);
+  assert.equal(entradaRigeAModelo(e, "gemini-4-neon-xhigh"), false);
+  assert.equal(entradaRigeAModelo(e, "gemini-4-hydrogen-high"), false);
+  assert.equal(entradaRigeAModelo(e, "gemini-4-argon-high"), false);
+  assert.equal(entradaRigeAModelo(e, null), true, "sin modelo conocido, conservador");
+  // Un grupo que no se conoce (legado) vale para toda la suscripción.
+  assert.equal(entradaRigeAModelo({ proveedor: "google", grupo: "gemini-pro" }, "gemini-4-neon-xhigh"), true);
 });

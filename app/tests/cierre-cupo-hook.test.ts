@@ -195,3 +195,22 @@ test("el aviso por la cola no llega a un líder de otro modelo que el del límit
   assert.deepEqual(lideresParaAvisar(vivos, { proveedor: "claude", grupo: "fable" }).map((l) => l.sid), ["claude-fable-5-2"]);
   assert.equal(lideresParaAvisar(vivos, { proveedor: "claude" }).length, 2);
 });
+
+test("agotarse claude-gpt (Google) cierra sólo Claude/GPT por agy: no cierra ni avisa a Gemini 4 ni a Argon", () => {
+  const e = ent({ proveedor: "google", cuenta: "google", grupo: "claude-gpt", restante: 0 });
+  const vivos: LiderVivo[] = [
+    vivo({ sid: "opus", modelo: "agy:claude-opus-5-5-high", clase: "agy" }),
+    vivo({ sid: "oss", modelo: "agy:gpt-oss-120b-medium", clase: "agy" }),
+    vivo({ sid: "neon", modelo: "gemini-4-neon-xhigh", clase: "gemini" }),
+    vivo({ sid: "hydro", modelo: "gemini-4-hydrogen-high", clase: "gemini" }),
+    vivo({ sid: "argon", modelo: "gemini-4-argon-high", clase: "gemini" }),
+  ];
+  assert.deepEqual(lideresParaAvisar(vivos, e).map((l) => l.sid), ["opus", "oss"]);
+  for (const modelo of ["agy:claude-opus-5-5-high", "agy:gpt-oss-120b-medium"]) assert.ok(cierreDeModelo([e], modelo), modelo);
+  for (const modelo of ["gemini-4-neon-xhigh", "gemini-4-hydrogen-high", "gemini-4-argon-high"]) assert.equal(cierreDeModelo([e], modelo), null, modelo);
+  const cola: string[] = [];
+  return avisarLideres({ entrada: e, vivos, idioma: "es", hooks: HOOKS, archivoRelevo: (s) => `/r/${s}.md`, encolar: (sid) => void cola.push(sid) }).then((sids) => {
+    assert.deepEqual(sids, ["opus", "oss"]);
+    assert.deepEqual(cola, ["opus", "oss"]);
+  });
+});
