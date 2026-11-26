@@ -3,9 +3,10 @@
 // Sin React ni DOM: lo prueba `tests/flujo-logica.test.ts`.
 import type { Estado, Hilo, Lider } from "../../datos/contrato";
 import type { Subagente } from "../../../electron/subagentes";
+import type { EncargoOrquestador } from "../../../electron/orquestador-texto";
 
 export type EstadoNodo = "lider" | "orq" | "run" | "decision" | "error" | "verify" | "ok" | "queue" | "pausa";
-export type TipoNodo = "lider" | "subagente" | "worker";
+export type TipoNodo = "lider" | "orquestador" | "subagente" | "worker";
 
 export type NodoFlujo = {
   id: string;
@@ -23,6 +24,7 @@ export type NodoFlujo = {
   estadoHilo?: Estado;
   subagente?: Subagente;
   claveSub?: string;
+  encargo?: EncargoOrquestador;
   x: number;
   y: number;
   w: number;
@@ -69,6 +71,8 @@ export type ParamsGrafo = {
   estadoWorker: (h: Hilo) => Estado;
   /** Subagentes visibles del líder. */
   subagentes: readonly Subagente[];
+  /** Encargos del Orquestador de fondo del líder (sin ellos el mapa queda igual que antes). */
+  orquestadores?: readonly EncargoOrquestador[];
   /** Títulos legibles ya resueltos para los workers (p. ej. `tareaDe(h)`). */
   tituloWorker: (h: Hilo) => string;
   /** Formateador de tiempo relativo/transcurrido. */
@@ -96,6 +100,12 @@ export type ParamsGrafo = {
     workerTrabaja: string;
     workerListo: string;
     commits: (n: number) => string;
+    orqMarca?: string;
+    orqRevisando?: string;
+    orqConsulta?: string;
+    orqEjecutando?: string;
+    orqListo?: string;
+    orqFallo?: string;
   };
 };
 
@@ -116,6 +126,14 @@ export function estadoDeSubagente(u: Subagente): EstadoNodo {
   if (u.estado === "error") return "error";
   if (u.estado === "parado") return "pausa";
   return "ok";
+}
+
+/** Estado visual de un encargo del Orquestador de fondo. */
+export function estadoDeOrquestador(o: EncargoOrquestador): EstadoNodo {
+  if (o.estado === "consulta") return "decision";
+  if (o.estado === "error") return "error";
+  if (o.estado === "listo") return "ok";
+  return "orq";
 }
 
 /** Estado visual del nodo líder. */
@@ -150,6 +168,9 @@ const prioridadWorker = (e: EstadoNodo): number => {
       return 5;
   }
 };
+
+const prioridadOrq = (e: EncargoOrquestador["estado"]): number =>
+  e === "consulta" ? 0 : e === "error" ? 2 : e === "listo" ? 3 : 1;
 
 /** Arma el grafo completo con posiciones deterministas y cables semánticos. */
 export function armarGrafo(p: ParamsGrafo): GrafoFlujo {
@@ -199,6 +220,15 @@ export function armarGrafo(p: ParamsGrafo): GrafoFlujo {
 
   const idsWorkers = new Set(workersOrdenados.map((x) => x.h.id));
   const subsOrdenados = [...p.subagentes].slice(0, 8);
+  const orqsOrdenados = [...(p.orquestadores ?? [])]
+    .sort((a, b) => prioridadOrq(a.estado) - prioridadOrq(b.estado) || b.actualizado - a.actualizado)
+    .slice(0, 6);
+
+  // Cada worker cuelga de un solo orquestador visible (el primero que lo reclama).
+  const padreOrqDeWorker = new Map<string, string>();
+  for (const o of orqsOrdenados) {
+    for (const w of o.workers) if (!padreOrqDeWorker.has(w)) padreOrqDeWorker.set(w, `orq:${o.id}`);
+  }
 
   // Separar workers raíz (colgados del líder) y workers encadenados (`sigue_de` apuntando a otro worker visible).
   const wRaiz = workersOrdenados.filter((x) => !x.h.sigue_de || !idsWorkers.has(x.h.sigue_de));
@@ -208,9 +238,24 @@ export function armarGrafo(p: ParamsGrafo): GrafoFlujo {
   const col2X = col1X + (subsOrdenados.length ? ANCHO_SUB : ANCHO_WORKER) + 96;
   const col3X = col2X + ANCHO_WORKER + 96;
 
+  // Cadenas cuya raíz cuelga de un orquestador: su raíz ocupa la columna 2, así que siguen en la 3.
+  const porId = new Map(workersOrdenados.map((x) => [x.h.id, x.h]));
+  const linaje = (h: Hilo): { raiz: string; nivel: number } => {
+    const vistos = new Set([h.id]);
+    let cur = h;
+    while (cur.sigue_de && !vistos.has(cur.sigue_de) && porId.has(cur.sigue_de)) {
+      vistos.add(cur.sigue_de);
+      cur = porId.get(cur.sigue_de)!;
+    }
+    return { raiz: cur.id, nivel: vistos.size };
+  };
+  const bajoOrq = (h: Hilo) => padreOrqDeWorker.has(linaje(h).raiz);
+  const wDirectos = wRaiz.filter((x) => !padreOrqDeWorker.has(x.h.id));
+
   // Subagentes (si hay) van en columna 1 arriba; si también hay workers raíz, van a la derecha o debajo según cantidad.
   const haySubs = subsOrdenados.length > 0;
-  const hayWorkers = wRaiz.length > 0;
+  const hayOrqs = orqsOrdenados.length > 0;
+  const hayWorkers = wDirectos.length > 0;
 
   let ySub = MARGEN_Y;
   for (const u of subsOrdenados) {
@@ -251,12 +296,32 @@ export function armarGrafo(p: ParamsGrafo): GrafoFlujo {
     ySub += PASO_Y;
   }
 
+  // Orquestadores: columna 1, debajo de los subagentes.
+  const yOrqs = new Map<string, number>();
+  for (const o of orqsOrdenados) {
+    const est = estadoDeOrquestador(o);
+    contarEstado(resumen, est);
+    const nid = `orq:${o.id}`;
+    nodos.push(construirNodoOrquestador(o, est, col1X, ySub, p));
+    yOrqs.set(nid, ySub);
+    aristas.push({
+      id: `e:${idLider}->${nid}`,
+      de: idLider,
+      a: nid,
+      tipo: est,
+      etiquetaClave: est === "decision" ? "consulta" : est === "orq" ? "encargo" : est === "error" ? "fallo" : "listo",
+      particula: est === "decision" || est === "orq",
+      inversa: est === "decision",
+    });
+    ySub += PASO_Y;
+  }
+
   // Workers raíz: si hay subagentes, los ponemos en columna 1 debajo de subagentes si son pocos, o en columna 2 para mantener aire.
-  const xWorkersRaiz = haySubs && subsOrdenados.length <= 2 && wRaiz.length >= 2 ? col1X : col1X;
-  let yWorker = haySubs ? ySub + (hayWorkers ? 16 : 0) : MARGEN_Y;
+  const xWorkersRaiz = haySubs && subsOrdenados.length <= 2 && wDirectos.length >= 2 ? col1X : col1X;
+  let yWorker = haySubs || hayOrqs ? ySub + (hayWorkers ? 16 : 0) : MARGEN_Y;
   const mapaPos = new Map<string, { x: number; y: number }>();
 
-  for (const { h, estHilo, est } of wRaiz) {
+  for (const { h, estHilo, est } of wDirectos) {
     contarEstado(resumen, est);
     const nid = `w:${h.id}`;
     const nodo = construirNodoWorker(h, estHilo, est, xWorkersRaiz, yWorker, p);
@@ -269,16 +334,41 @@ export function armarGrafo(p: ParamsGrafo): GrafoFlujo {
   // Workers encadenados (`sigue_de`) en la columna siguiente, alineados con su padre cuando se puede.
   const xCadena = haySubs && xWorkersRaiz === col1X ? col2X : col2X;
   let yCadena = MARGEN_Y;
-  for (const { h, estHilo, est } of wCadena) {
+
+  // Hijos de cada orquestador en la columna 2, a la altura del padre cuando hay lugar.
+  for (const [orqId, yOrq] of yOrqs) {
+    for (const { h, estHilo, est } of wRaiz) {
+      if (padreOrqDeWorker.get(h.id) !== orqId) continue;
+      contarEstado(resumen, est);
+      const y = Math.max(yCadena, yOrq);
+      const nid = `w:${h.id}`;
+      nodos.push(construirNodoWorker(h, estHilo, est, col2X, y, p));
+      mapaPos.set(h.id, { x: col2X, y });
+      aristas.push(construirArista(orqId, nid, est, false));
+      yCadena = y + PASO_Y;
+    }
+  }
+
+  const ponerEnCadena = ({ h, estHilo, est }: (typeof wCadena)[number], x: number, yMin: number): number => {
     contarEstado(resumen, est);
     const padrePos = h.sigue_de ? mapaPos.get(h.sigue_de) : undefined;
-    const y = Math.max(yCadena, padrePos ? padrePos.y : yCadena);
+    const y = Math.max(yMin, padrePos ? padrePos.y : yMin);
     const nid = `w:${h.id}`;
-    nodos.push(construirNodoWorker(h, estHilo, est, xCadena, y, p));
-    mapaPos.set(h.id, { x: xCadena, y });
+    nodos.push(construirNodoWorker(h, estHilo, est, x, y, p));
+    mapaPos.set(h.id, { x, y });
     const deId = h.sigue_de ? `w:${h.sigue_de}` : idLider;
     aristas.push(construirArista(deId, nid, est, true));
-    yCadena = y + PASO_Y;
+    return y + PASO_Y;
+  };
+
+  for (const w of wCadena) {
+    if (!bajoOrq(w.h)) yCadena = ponerEnCadena(w, xCadena, yCadena);
+  }
+
+  // Columna 3: primero los padres, para que cada hijo pueda alinearse.
+  let yTercera = MARGEN_Y;
+  for (const w of wCadena.filter((x) => bajoOrq(x.h)).sort((a, b) => linaje(a.h).nivel - linaje(b.h).nivel)) {
+    yTercera = ponerEnCadena(w, col3X, yTercera);
   }
 
   // Centrar verticalmente el nodo Líder respecto a sus ramas hijas.
@@ -291,7 +381,6 @@ export function armarGrafo(p: ParamsGrafo): GrafoFlujo {
     nodoLider.y = 140;
   }
 
-  void col3X;
   return { nodos, aristas, resumen };
 }
 
@@ -301,6 +390,35 @@ function contarEstado(r: ResumenFlujo, est: EstadoNodo) {
   else if (est === "error") r.error++;
   else if (est === "ok") r.listo++;
   else if (est === "queue") r.cola++;
+}
+
+const recortarTexto = (s: string, max: number): string => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+
+function construirNodoOrquestador(o: EncargoOrquestador, est: EstadoNodo, x: number, y: number, p: ParamsGrafo): NodoFlujo {
+  const t = p.textos;
+  const [etiqueta, detalle] = {
+    revisando: [t.orqRevisando ?? "Revisando", o.resumen],
+    consulta: [t.orqConsulta ?? "Consulta", o.propuesta?.resumen?.trim() || o.resumen],
+    ejecutando: [t.orqEjecutando ?? "Ejecutando", o.resumen],
+    listo: [t.orqListo ?? "Listo", o.resumen],
+    error: [t.orqFallo ?? "Falló", o.error],
+  }[o.estado] as [string, string | undefined];
+
+  return {
+    id: `orq:${o.id}`,
+    tipo: "orquestador",
+    estado: est,
+    titulo: recortarTexto(o.objetivo.trim(), 64) || (t.orqMarca ?? "Orquestador"),
+    subtitulo: recortarTexto(detalle?.trim() || etiqueta, 120),
+    modelo: [p.modeloCorto(o.modelo), o.effort].filter(Boolean).join(" · "),
+    contexto: o.preset_contexto,
+    tiempo: etiqueta,
+    progreso: o.estado === "revisando" ? 38 : o.estado === "ejecutando" ? 68 : undefined,
+    encargo: o,
+    x,
+    y,
+    w: ANCHO_SUB,
+  };
 }
 
 function construirNodoWorker(h: Hilo, estHilo: Estado, est: EstadoNodo, x: number, y: number, p: ParamsGrafo): NodoFlujo {
