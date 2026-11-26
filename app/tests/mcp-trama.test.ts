@@ -96,7 +96,7 @@ test("el servidor arranca por stdio, lista las herramientas y llama estado, busc
     s.avisar("notifications/initialized");
 
     const lista = await s.pedir("tools/list");
-    assert.deepEqual(lista.result.tools.map((h: { name: string }) => h.name).sort(), ["buscar_hilos", "estado_workers", "lanzar_worker", "mandar_mensaje"]);
+    assert.deepEqual(lista.result.tools.map((h: { name: string }) => h.name).sort(), ["buscar_hilos", "encargar_orquestador", "estado_workers", "lanzar_worker", "mandar_mensaje"]);
     for (const h of lista.result.tools) assert.equal(h.inputSchema.type, "object", h.name);
 
     const estado = await s.pedir("tools/call", { name: "estado_workers", arguments: {} });
@@ -226,6 +226,46 @@ test("registro en Claude: con claude mcp add-json de usuario, y nada si ya está
 test("el script se encuentra al lado (el .ts en las fuentes) y nunca dentro de un asar", () => {
   assert.equal(scriptMcpTrama(path.dirname(SERVIDOR)), SERVIDOR);
   assert.equal(scriptMcpTrama(path.join(raiz, "no-hay")), null);
+});
+
+test("lanzar_worker: preset y advisor llegan a pa; un advisor fuera de la lista da error", async () => {
+  const llamadas: string[][] = [];
+  const d = { pa: async (a: string[]) => (llamadas.push(a), { rc: 0, out: "ok", err: "" }), motor: async () => null };
+  const bien = (await atender({ id: 1, method: "tools/call", params: { name: "lanzar_worker", arguments: { proyecto: "demo", tarea: "t", preset: "codigo", advisor: "opus" } } }, d, {})) as any;
+  assert.equal(bien.result.isError, undefined, bien.result.content[0].text);
+  assert.deepEqual(llamadas.at(-1), ["demo", "--async", "--preset", "codigo", "--advisor", "opus", "--", "t"]);
+  const malo = (await atender({ id: 2, method: "tools/call", params: { name: "lanzar_worker", arguments: { proyecto: "demo", tarea: "t", advisor: "invalido" } } }, d, {})) as any;
+  assert.equal(malo.result.isError, true);
+  assert.match(malo.result.content[0].text, /advisor inválido/);
+});
+
+test("encargar_orquestador: llama al motor con el encargo completo y valida proyecto, objetivo e id", async () => {
+  const pedidos: { canal: string; args: unknown[] }[] = [];
+  const d = {
+    pa: async () => ({ rc: 0, out: "", err: "" }),
+    motor: async (canal: string, args: unknown[]) => (pedidos.push({ canal, args }), "encargo orq-1 encolado"),
+  };
+  const r = (await atender({ id: 1, method: "tools/call", params: { name: "encargar_orquestador", arguments: {
+    proyecto: "demo", objetivo: "dejar lista la migración", restricciones: ["no tocar main", "  ", "  sin push  "], verificacion: "npm test", id: "20261120-101010-7", decision: "sí, adelante",
+  } } }, d, { PA_JEFE_ID: SID })) as any;
+  assert.equal(r.result.isError, undefined, r.result.content[0].text);
+  assert.equal(r.result.content[0].text, "encargo orq-1 encolado");
+  assert.equal(pedidos.length, 1);
+  assert.equal(pedidos[0]!.canal, "orquestador:encargar");
+  assert.deepEqual(pedidos[0]!.args[0], {
+    proyecto: "demo", objetivo: "dejar lista la migración", restricciones: ["no tocar main", "sin push"], verificacion: "npm test",
+    id: "20261120-101010-7", decision: "sí, adelante", lider_sid: SID,
+  });
+  for (const [args, re] of [
+    [{ proyecto: "../fuera", objetivo: "x" }, /proyecto inválido/],
+    [{ proyecto: "demo" }, /falta el objetivo/],
+    [{ proyecto: "demo", objetivo: "x", id: "../x" }, /id inválido/],
+  ] as const) {
+    const e = (await atender({ id: 2, method: "tools/call", params: { name: "encargar_orquestador", arguments: args } }, d, {})) as any;
+    assert.equal(e.result.isError, true);
+    assert.match(e.result.content[0].text, re);
+  }
+  assert.equal(pedidos.length, 1, "los errores no llegan al motor");
 });
 
 test("estado_workers y buscar_hilos: JSON sin sangría y tope total; al cortar dice cuántas filas quedaron afuera (CTX-7)", () => {

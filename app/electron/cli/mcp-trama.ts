@@ -90,6 +90,7 @@ const SUELTO = /^[A-Za-z0-9][A-Za-z0-9._:/@-]*$/;
 /** El id de una corrida de pa (`20261112-112822-1495239`). */
 const CORRIDA = /^\d{8}-\d{6}-\d+$/;
 const SID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ADVISOR = /^(haiku|sonnet|opus|fable)$/;
 
 export const HERRAMIENTAS = [
   {
@@ -106,6 +107,8 @@ export const HERRAMIENTAS = [
         tipo: { type: "string", description: "Opcional: el tipo de tarea (--tipo), para que pa elija el modelo." },
         id: { type: "string", description: "Opcional: el id de un worker para seguirlo (--seguir --id) en vez de lanzar uno nuevo; `tarea` es lo que se le dice (la respuesta a su FALTA)." },
         mcp: { type: "boolean", description: "Opcional: darle los MCP de la persona (Chrome, Gmail, Notion…) con --mcp. Por defecto el worker va sin ellos." },
+        preset: { type: "string", description: "Opcional: preset de skills del worker (--preset: minimo, codigo, diseno, orquestador, todo)." },
+        advisor: { type: "string", description: "Opcional: familia del asesor de Claude (--advisor: sonnet, opus, fable). Sin él, el worker corre sin advisor." },
       },
       required: ["proyecto", "tarea"],
     },
@@ -145,6 +148,23 @@ export const HERRAMIENTAS = [
         texto: { type: "string", description: "El mensaje." },
       },
       required: ["sid", "texto"],
+    },
+  },
+  {
+    name: "encargar_orquestador",
+    description:
+      "Delega una tarea acotada al orquestador potente configurado en Trama (revisión previa antes de lanzar workers). Con `id` y `decision`, retoma un orquestador que frenó en estado consulta. Necesita Trama abierta.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        proyecto: { type: "string", description: "El proyecto (slug o nombre del registry de pa)." },
+        objetivo: { type: "string", description: "Qué tiene que quedar resuelto (1-3 oraciones concretas, nunca el chat entero)." },
+        restricciones: { type: "array", items: { type: "string" }, description: "Opcional: restricciones explícitas de la persona que no se pueden romper." },
+        verificacion: { type: "string", description: "Opcional: criterio observable o comando exacto de verificación." },
+        id: { type: "string", description: "Opcional: id de un encargo previo para retomarlo (por ejemplo tras una consulta)." },
+        decision: { type: "string", description: "Opcional: la decisión o respuesta de la persona cuando el orquestador volvió en estado consulta." },
+      },
+      required: ["proyecto", "objetivo"],
     },
   },
 ] as const;
@@ -218,10 +238,11 @@ export async function llamarHerramienta(nombre: string, a: J, d: Deps, env: Env 
     if (!SLUG.test(proyecto)) falla("proyecto inválido");
     if (!tarea) falla("falta la tarea");
     const extra: string[] = [];
-    for (const [k, flag] of [["modelo", "-m"], ["effort", "--effort"], ["tipo", "--tipo"]] as const) {
+    for (const [k, flag] of [["modelo", "-m"], ["effort", "--effort"], ["tipo", "--tipo"], ["preset", "--preset"], ["advisor", "--advisor"]] as const) {
       const v = texto(a[k]);
       if (!v) continue;
       if (!SUELTO.test(v)) falla(`${k} inválido: ${corto(v, 40)}`);
+      if (k === "advisor" && !ADVISOR.test(v)) falla(`advisor inválido: ${corto(v, 40)} (sonnet, opus, fable o haiku)`);
       extra.push(flag, v);
     }
     const id = texto(a.id);
@@ -259,6 +280,23 @@ export async function llamarHerramienta(nombre: string, a: J, d: Deps, env: Env 
     const r = (await d.motor("lider:encolarAgente", [{ sid, texto: `Mensaje de ${de} (por el MCP de Trama):\n\n${cuerpo}` }])) as J | null;
     return `encolado para ${typeof r?.nombre === "string" && r.nombre ? r.nombre : sid}: le llega cuando pueda recibirlo`;
   }
+  if (nombre === "encargar_orquestador") {
+    const proyecto = texto(a.proyecto);
+    if (!SLUG.test(proyecto)) falla("proyecto inválido");
+    const objetivo = texto(a.objetivo);
+    if (!objetivo) falla("falta el objetivo");
+    const id = texto(a.id);
+    if (id && !/^[A-Za-z0-9._-]{1,80}$/.test(id)) falla("id inválido");
+    const decision = texto(a.decision);
+    const verificacion = texto(a.verificacion);
+    const restricciones = (Array.isArray(a.restricciones) ? a.restricciones.map((x) => texto(x)).filter(Boolean) : [texto(a.restricciones)].filter(Boolean)).slice(0, 20);
+    const liderSid = texto(env.PA_JEFE_ID);
+    const lider_sid = SID.test(liderSid) ? liderSid : undefined;
+    const r = await d.motor("orquestador:encargar", [
+      { proyecto, objetivo, restricciones, verificacion, ...(id ? { id } : {}), ...(decision ? { decision } : {}), ...(lider_sid ? { lider_sid } : {}) },
+    ]);
+    return typeof r === "string" ? r : JSON.stringify(r ?? { ok: true });
+  }
   return falla(`herramienta desconocida: ${nombre}`);
 }
 
@@ -280,7 +318,7 @@ export async function atender(m: Pedido, d: Deps, env: Env = process.env): Promi
         protocolVersion: PROTOCOLOS.includes(pedido) ? pedido : PROTOCOLOS[0],
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "trama", version: VERSION_MCP },
-        instructions: "Trama: lanzar workers de pa, ver su estado, buscar en el historial de hilos y dejarle un mensaje a otro líder.",
+        instructions: "Trama: lanzar workers de pa, ver su estado, buscar en el historial de hilos, dejarle un mensaje a otro líder y encargar tareas al orquestador.",
       });
     }
     case "ping":
