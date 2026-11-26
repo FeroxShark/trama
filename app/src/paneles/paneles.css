@@ -3853,6 +3853,20 @@
   gap: var(--esp-2);
   align-items: flex-end;
 }
+.mdl-compactar-grupo,
+.mdl-advisor-grupo,
+.mdl-orquestador {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--esp-2);
+  width: 100%;
+}
+.mdl-compactar-grupo + .mdl-compactar-grupo,
+.mdl-advisor-grupo + .mdl-advisor-grupo {
+  padding-top: var(--esp-2);
+  border-top: 1px solid var(--borde-2);
+}
 .mdl-compactar-fila {
   display: flex;
   flex-wrap: wrap;
@@ -4166,6 +4180,20 @@
 }
 .mdl-advisor-motivo {
   text-align: right;
+}
+.mdl-advisor-grupo h4 {
+  align-self: stretch;
+  margin: 0;
+  color: var(--texto-2);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.mdl-orquestador-fila {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+  width: 100%;
 }
 .pn-chip-f:disabled {
   opacity: 0.45;

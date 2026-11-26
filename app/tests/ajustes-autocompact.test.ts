@@ -20,7 +20,7 @@ registerHooks({
 });
 
 const { borradorDe, configDe, sucio } = await import("../src/paneles/modelos-borrador.ts");
-const { esPredeterminado, ponerTope, topeDeK, topeEfectivo } = await import("../src/paneles/ajustes-autocompact.ts");
+const { esPredeterminado, ponerTope, separarOrquestador, topeDeK, topeEfectivo } = await import("../src/paneles/ajustes-autocompact.ts");
 
 const estado = (j: Record<string, unknown> = {}): EstadoModelos => ({ version: 1, ruta: "/x/modelos.json", existe: true, error: null, efectivo: null, config: leerConfig(j) });
 
@@ -86,4 +86,16 @@ test("topeDeK: miles de tokens, de 100 a 1000; vacío no es error; basura sí", 
   assert.equal(topeDeK("99").error, "ajustes.errCompactarRango");
   assert.equal(topeDeK("1001").error, "ajustes.errCompactarRango");
   assert.equal(topeDeK("abc").error, "ajustes.errRedNumero");
+});
+
+test("orquestador: usa los workers hasta separarse y Codex también tiene tope", () => {
+  const b = borradorDe(estado());
+  assert.equal(topeEfectivo(b, "codex", "orquestador"), null);
+  assert.ok(esPredeterminado(b, "codex", "orquestador"));
+  const propio = separarOrquestador(b, true);
+  assert.deepEqual(propio.autocompactOrquestador, propio.autocompact);
+  const x = ponerTope(propio, "codex", 500000, "orquestador");
+  assert.equal(topeEfectivo(x, "codex", "orquestador"), 500000);
+  assert.equal(topeEfectivo(x, "codex"), null);
+  assert.equal(separarOrquestador(x, false).autocompactOrquestador, null);
 });

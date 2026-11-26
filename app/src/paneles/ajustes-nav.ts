@@ -41,6 +41,10 @@ export const ITEMS: readonly Item[] = [
   { cat: "modelos", nombre: "ajustes.mdlWk", que: "ajustes.mdlWkQue", sin: "modelos workers excluir inteligencia calidad apagar permitir fable opus sonnet haiku no usar prohibir dejar afuera gratis opencode" },
   { cat: "modelos", nombre: "ajustes.mdlDestrabar", que: "ajustes.mdlDestrabarQue", sin: "gemini repite bucle trabado destrabar loop interrumpir neon hydrogen argon" },
   { cat: "modelos", nombre: "ajustes.mdlPermitirMax", que: "ajustes.mdlPermitirMaxQue", sin: "max esfuerzo effort permitir gasta cupo" },
+  { cat: "modelos", nombre: "ajustes.mdlOrquestador", que: "ajustes.mdlOrquestadorQue", sin: "orquestador orchestrator segundo plano background lider liviano workers revision previa review contexto context preset ahorro equilibrado profundo manual" },
+  { cat: "modelos", nombre: "ajustes.mdlAvances", que: "ajustes.mdlAvancesQue", sin: "avances vivo live updates progreso progress cortos short mostrar hide" },
+  { cat: "modelos", nombre: "ajustes.mdlCompactar", que: "ajustes.mdlCompactarQue", sin: "compactar compaction contexto context tokens autocompact lider leader workers orquestador orchestrator" },
+  { cat: "modelos", nombre: "ajustes.mdlAdvisor", que: "ajustes.mdlAdvisorQue", sin: "advisor asesor lider leader orquestador orchestrator workers heredar inherit" },
   { cat: "modelos", nombre: "ajustes.dictado", que: "ajustes.dictadoQue", sin: "dictar dictation voz voice microfono microphone transcribir transcribe stt whisper turbo handy" },
 
   { cat: "cupos", nombre: "cu.claude", que: "cu.claudeQue", sin: "claude anthropic suscripcion subscription plan cupo quota ventana window 5h semana week conectar connect login" },

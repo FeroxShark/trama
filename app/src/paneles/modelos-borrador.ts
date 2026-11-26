@@ -49,6 +49,7 @@ import {
   type Tipo,
   type TopeVivosConfig,
 } from "../../electron/modelos-tipos";
+import type { PresetContextoOrq } from "../../electron/autocompact-tope";
 import type { AdvisorConfig } from "../../electron/advisor";
 import { MOTORES_MEMORIA, type MotorMemoria } from "../../electron/modelos-tipos";
 import type { AjustesCierre } from "../../electron/valida-ajustes";
@@ -78,6 +79,8 @@ export type Borrador = {
   autocompact: AutocompactConfig;
   /** El de los líderes (`autocompact_lider`); `null` = igual que los workers (la clave no se escribe). */
   autocompactLider: AutocompactConfig | null;
+  /** El del orquestador (`autocompact_orquestador`); `null` = usa el preset de contexto. */
+  autocompactOrquestador: AutocompactConfig | null;
   /** Compactar con nota del modelo (`nota_compactar`); prendida por defecto. */
   notaCompactar?: boolean;
   /** Porcentaje (50..95) desde el cual se pide sí o sí la nota (`nota_compactar_pct`), como texto mientras se edita. */
@@ -88,6 +91,12 @@ export type Borrador = {
   notaCompactarTareaPct?: string;
   /** Advisor de Claude Code (`advisor` del archivo): familia del modelo → familia del asesor. Sin entradas la clave no se escribe. */
   advisor: AdvisorConfig;
+  /** Advisor independiente del orquestador. */
+  advisorOrquestador: AdvisorConfig;
+  /** Muestra avances cortos mientras se trabaja; prendido por defecto. */
+  avancesVivo: boolean;
+  /** Modo líder liviano + orquestador, con sus defaults explícitos para el borrador. */
+  orquestacion: { activo: boolean; modelo?: Eleccion; revisionPrevia: boolean; presetContexto: PresetContextoOrq };
   /** Cierre ordenado cuando se acaba el cupo (`cierre` del archivo): sólo lo que se tocó; lo demás vale `CIERRE_DEFECTO`. Sin campos la clave no se escribe. */
   cierre: Partial<AjustesCierre>;
   /** Memoria compartida (`memoria_compartida` del archivo): sólo los motores apagados (`false`); los que faltan reciben la memoria y la ficha del tablero. */
@@ -124,6 +133,7 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   efforts_permitidos: Object.fromEntries(Object.entries(e.config.efforts_permitidos ?? {}).map(([k, v]) => [k, [...v]])),
   autocompact: { defecto: e.config.autocompact?.defecto ?? null, por_modelo: { ...(e.config.autocompact?.por_modelo ?? {}) } },
   autocompactLider: e.config.autocompact_lider ? { defecto: e.config.autocompact_lider.defecto, por_modelo: { ...e.config.autocompact_lider.por_modelo } } : null,
+  autocompactOrquestador: e.config.autocompact_orquestador ? { defecto: e.config.autocompact_orquestador.defecto, por_modelo: { ...e.config.autocompact_orquestador.por_modelo } } : null,
   notaCompactar: e.config.nota_compactar ?? true,
   notaCompactarPct: String(e.config.nota_compactar_pct ?? NOTA_PCT_DEFECTO),
   notaCompactarTarea: e.config.nota_compactar_tarea_pct !== 0,
@@ -131,6 +141,14 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
     e.config.nota_compactar_tarea_pct && e.config.nota_compactar_tarea_pct > 0 ? e.config.nota_compactar_tarea_pct : NOTA_TAREA_PCT_DEFECTO,
   ),
   advisor: { ...(e.config.advisor ?? {}) },
+  advisorOrquestador: { ...(e.config.advisor_orquestador ?? {}) },
+  avancesVivo: e.config.avances_vivo ?? true,
+  orquestacion: {
+    activo: e.config.orquestacion?.activo ?? false,
+    ...(e.config.orquestacion?.modelo ? { modelo: { ...e.config.orquestacion.modelo } } : {}),
+    revisionPrevia: e.config.orquestacion?.revision_previa ?? true,
+    presetContexto: e.config.orquestacion?.preset_contexto ?? "equilibrado",
+  },
   cierre: { ...(e.config.cierre ?? {}) },
   memoriaCompartida: { ...(e.config.memoria_compartida ?? {}) },
   ...(e.config.tope_vivos !== undefined ? { topeVivos: typeof e.config.tope_vivos === "number" ? e.config.tope_vivos : { ...e.config.tope_vivos } } : {}),
@@ -190,10 +208,23 @@ export function configDe(b: Borrador): ConfigModelos | null {
     ...(Object.keys(b.efforts_permitidos).length ? { efforts_permitidos: Object.fromEntries(Object.entries(b.efforts_permitidos).map(([k, v]) => [k, [...v]])) } : {}),
     ...(b.autocompact.defecto !== null || Object.keys(b.autocompact.por_modelo).length ? { autocompact: { defecto: b.autocompact.defecto, por_modelo: { ...b.autocompact.por_modelo } } } : {}),
     ...(b.autocompactLider ? { autocompact_lider: { defecto: b.autocompactLider.defecto, por_modelo: { ...b.autocompactLider.por_modelo } } } : {}),
+    ...(b.autocompactOrquestador ? { autocompact_orquestador: { defecto: b.autocompactOrquestador.defecto, por_modelo: { ...b.autocompactOrquestador.por_modelo } } } : {}),
     nota_compactar: notaActiva,
     ...(notaActiva && notaPctValido(notaPct) ? { nota_compactar_pct: notaPct } : {}),
     ...(notaActiva && notaTareaPctValido(notaTareaPct) ? { nota_compactar_tarea_pct: notaTareaPct } : {}),
     ...(Object.keys(b.advisor).length ? { advisor: { ...b.advisor } } : {}),
+    ...(Object.keys(b.advisorOrquestador).length ? { advisor_orquestador: { ...b.advisorOrquestador } } : {}),
+    ...(b.avancesVivo === false ? { avances_vivo: false } : {}),
+    ...(b.orquestacion.activo || b.orquestacion.modelo || b.orquestacion.revisionPrevia === false || b.orquestacion.presetContexto !== "equilibrado"
+      ? {
+          orquestacion: {
+            activo: b.orquestacion.activo,
+            ...(b.orquestacion.modelo ? { modelo: { ...b.orquestacion.modelo } } : {}),
+            ...(b.orquestacion.revisionPrevia === false ? { revision_previa: false } : {}),
+            ...(b.orquestacion.presetContexto !== "equilibrado" ? { preset_contexto: b.orquestacion.presetContexto } : {}),
+          },
+        }
+      : {}),
     ...(Object.keys(b.cierre).length ? { cierre: { ...b.cierre } } : {}),
     ...(Object.keys(b.memoriaCompartida).length ? { memoria_compartida: { ...b.memoriaCompartida } } : {}),
     gemini: {},
@@ -222,10 +253,14 @@ const huella = (c: ConfigModelos) =>
     c.autocompact?.defecto ?? null,
     Object.entries(c.autocompact?.por_modelo ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.autocompact_lider ? [c.autocompact_lider.defecto, Object.entries(c.autocompact_lider.por_modelo).sort(([a], [z]) => (a < z ? -1 : 1))] : null,
+    c.autocompact_orquestador ? [c.autocompact_orquestador.defecto, Object.entries(c.autocompact_orquestador.por_modelo).sort(([a], [z]) => (a < z ? -1 : 1))] : null,
     c.nota_compactar ?? true,
     c.nota_compactar_pct ?? NOTA_PCT_DEFECTO,
     c.nota_compactar_tarea_pct ?? NOTA_TAREA_PCT_DEFECTO,
     Object.entries(c.advisor ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
+    Object.entries(c.advisor_orquestador ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
+    c.avances_vivo ?? true,
+    [c.orquestacion?.activo ?? false, c.orquestacion?.modelo ?? null, c.orquestacion?.revision_previa ?? true, c.orquestacion?.preset_contexto ?? "equilibrado"],
     Object.entries(c.cierre ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     MOTORES_MEMORIA.map((m) => c.memoria_compartida?.[m] !== false),
     c.tope_vivos ?? TOPE_VIVOS_DEFECTO,
@@ -309,6 +344,19 @@ export function elegirEffortLider(b: Borrador, effort: string): Borrador {
   return b.lider && esClaude(b.lider.modelo) ? { ...b, lider: { modelo: b.lider.modelo, effort } } : b;
 }
 
+export const ponerAvancesVivo = (b: Borrador, avancesVivo: boolean): Borrador => ({ ...b, avancesVivo });
+export const ponerOrquestacionActiva = (b: Borrador, activo: boolean): Borrador => ({ ...b, orquestacion: { ...b.orquestacion, activo } });
+export function elegirModeloOrquestador(b: Borrador, id: string): Borrador {
+  const { modelo: _, ...resto } = b.orquestacion;
+  return { ...b, orquestacion: id ? { ...resto, modelo: eleccionDe(id, b.orquestacion.modelo) } : resto };
+}
+export function elegirEffortOrquestador(b: Borrador, effort: string): Borrador {
+  const modelo = b.orquestacion.modelo;
+  return modelo && esClaude(modelo.modelo) ? { ...b, orquestacion: { ...b.orquestacion, modelo: { modelo: modelo.modelo, effort } } } : b;
+}
+export const ponerRevisionPrevia = (b: Borrador, revisionPrevia: boolean): Borrador => ({ ...b, orquestacion: { ...b.orquestacion, revisionPrevia } });
+export const ponerPresetContextoOrq = (b: Borrador, presetContexto: PresetContextoOrq): Borrador => ({ ...b, orquestacion: { ...b.orquestacion, presetContexto } });
+
 export function elegirWorker(b: Borrador, tipo: Tipo, id: string): Borrador {
   const workers = { ...b.workers };
   if (id) workers[tipo] = eleccionDe(id, workers[tipo]);
@@ -384,6 +432,7 @@ export function quitarLocal(b: Borrador, id: string): Borrador {
   for (const t of TIPOS) if (workers[t]?.modelo === id) delete workers[t];
   const r: Borrador = { ...b, workers, locales: b.locales.filter((l) => l.id !== id) };
   if (r.lider?.modelo === id) delete r.lider;
+  if (r.orquestacion.modelo?.modelo === id) delete r.orquestacion.modelo;
   return r;
 }
 

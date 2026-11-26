@@ -34,6 +34,7 @@ import type { VistaPlanes } from "../../electron/costo-planes-texto";
 import { AutocompactFilas } from "./AjustesAutocompact";
 import { AjustesMemoria } from "./AjustesMemoria";
 import { AdvisorFilas } from "./AjustesAdvisor";
+import { AjustesOrquestador } from "./AjustesOrquestador";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
 import { LocalesDetectados } from "./LocalesDetectados";
 import { marcar } from "./ajustes-nav";
@@ -45,6 +46,7 @@ import {
   efectivoBorrador,
   elegirEffortLider,
   elegirEffortWorker,
+  ponerAvancesVivo,
   elegirLider,
   elegirWorker,
   esAutomatico,
@@ -149,7 +151,7 @@ const gb = (n: number | null) => (n === null ? "" : `${(n / 1e9).toFixed(1)} GB`
 type Estado = Sondeo | "comprobando";
 
 /** El modelo de una fila y, si es de Claude, su esfuerzo. */
-function EleccionSel({
+export function EleccionSel({
   etiqueta,
   modelos,
   valor,
@@ -375,7 +377,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
   const valido = config !== null;
   const auto = esAutomatico(b);
   const locales = b.locales;
-  const modelos = modelosPara(locales, [b.lider?.modelo ?? "", ...TIPOS.map((x) => b.workers[x]?.modelo ?? "")], e.agy ?? true);
+  const modelos = modelosPara(locales, [b.lider?.modelo ?? "", b.orquestacion.modelo?.modelo ?? "", ...TIPOS.map((x) => b.workers[x]?.modelo ?? "")], e.agy ?? true);
 
   const guardar = async () => {
     if (!config || !hayCambio) return;
@@ -567,6 +569,14 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
           )}
 
           <ModelosParaWorkers b={b} cambiar={cambiar} planes={planes} />
+
+          <Dato nombre="ajustes.mdlOrquestador" que="ajustes.mdlOrquestadorQue">
+            <AjustesOrquestador b={b} cambiar={cambiar} modelos={modelos} />
+          </Dato>
+
+          <Dato nombre="ajustes.mdlAvances" que="ajustes.mdlAvancesQue">
+            <Interruptor activo={b.avancesVivo} alCambiar={(v) => cambiar(ponerAvancesVivo(b, v))} aria-label={t("ajustes.mdlAvances")} />
+          </Dato>
 
           <Dato nombre="ajustes.mdlCompactar" que="ajustes.mdlCompactarQue">
             <AutocompactFilas b={b} cambiar={cambiar} />

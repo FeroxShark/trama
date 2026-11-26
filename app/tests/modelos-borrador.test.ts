@@ -18,7 +18,7 @@ registerHooks({
   },
 });
 
-const { agregarExcluido, agregarLocal, borradorDe, ponerTopeVivos, topeVivosDe, configDe, cupoDe, efectivoBorrador, elegirEffortLider, elegirLider, elegirWorker, esAutomatico, excluidoDe, EXCLUIR_MAX, modelosPara, nombreGemini, destrabarOn, ponerAutomatico, ponerDestrabar, ponerPermitirMax, quitarExcluido, quitarLocal, sucio, todoEn } = await import("../src/paneles/modelos-borrador.ts");
+const { agregarExcluido, agregarLocal, borradorDe, ponerTopeVivos, topeVivosDe, configDe, cupoDe, efectivoBorrador, elegirEffortLider, elegirLider, elegirModeloOrquestador, elegirWorker, esAutomatico, excluidoDe, EXCLUIR_MAX, modelosPara, nombreGemini, ponerAvancesVivo, ponerOrquestacionActiva, ponerPresetContextoOrq, destrabarOn, ponerAutomatico, ponerDestrabar, ponerPermitirMax, quitarExcluido, quitarLocal, sucio, todoEn } = await import("../src/paneles/modelos-borrador.ts");
 
 const estado = (config: Partial<EstadoModelos["config"]> = {}, existe = true): EstadoModelos => ({
   version: 1,
@@ -34,6 +34,11 @@ test("sin cambios no está sucio; sin archivo tampoco", () => {
   assert.equal(sucio(estado({}, false), borradorDe(estado({}, false))), false);
   const e = estado({ lider: { modelo: "claude-opus-5-5", effort: "high" }, gemini: { cupo_max: 70 } });
   assert.equal(sucio(e, borradorDe(e)), false);
+  const c = configDe(borradorDe(estado()))!;
+  assert.equal(c.avances_vivo, undefined);
+  assert.equal(c.orquestacion, undefined);
+  assert.equal(c.advisor_orquestador, undefined);
+  assert.equal(c.autocompact_orquestador, undefined);
 });
 
 test("cambiar y volver a lo guardado deja de estar sucio", () => {
@@ -147,6 +152,32 @@ test("quitar un local deja en 'como hoy' lo que lo usaba", () => {
   assert.equal(b.workers["debug"]?.modelo, "claude-opus-5-5");
   assert.equal(b.locales.length, 0);
   assert.ok(configDe(b));
+});
+
+test("orquestación, avances, advisor y contexto propios vuelven a lo guardado", () => {
+  const e = estado({
+    autocompact_orquestador: { defecto: 200000, por_modelo: { codex: 300000 } },
+    advisor_orquestador: { sonnet: "opus" },
+    avances_vivo: false,
+    orquestacion: { activo: true, modelo: { modelo: QWEN.id }, revision_previa: false, preset_contexto: "profundo" },
+    locales: [QWEN],
+  });
+  const b = borradorDe(e);
+  assert.equal(sucio(e, b), false);
+  assert.equal(b.avancesVivo, false);
+  assert.deepEqual(b.autocompactOrquestador, { defecto: 200000, por_modelo: { codex: 300000 } });
+  assert.deepEqual(configDe(b)!.orquestacion, { activo: true, modelo: { modelo: QWEN.id }, revision_previa: false, preset_contexto: "profundo" });
+  assert.deepEqual(configDe(b)!.advisor_orquestador, { sonnet: "opus" });
+  assert.equal(configDe(b)!.avances_vivo, false);
+  assert.equal(sucio(e, ponerAvancesVivo(b, true)), true);
+  const limpio = ponerPresetContextoOrq(ponerOrquestacionActiva(elegirModeloOrquestador(b, ""), false), "equilibrado");
+  assert.equal(limpio.orquestacion.modelo, undefined);
+  assert.equal(sucio(e, limpio), true);
+});
+
+test("quitar un local también limpia el modelo del orquestador", () => {
+  const b = elegirModeloOrquestador(borradorDe(estado({ locales: [QWEN] })), QWEN.id);
+  assert.equal(quitarLocal(b, QWEN.id).orquestacion.modelo, undefined);
 });
 
 test("un porcentaje: vacío, número entero de 1 a 100 o inválido (un tope mal escrito no se puede guardar)", () => {

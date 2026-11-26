@@ -17,9 +17,11 @@ import {
   topeDeK,
   topeEfectivo,
   separarLideres,
+  separarOrquestador,
   type Familia,
   type Rol,
 } from "./ajustes-autocompact";
+import { ponerPresetContextoOrq, type Borrador as BorradorTipo } from "./modelos-borrador";
 import {
   NOTA_PCT_DEFECTO,
   NOTA_PCT_MAX,
@@ -184,17 +186,36 @@ function NotaCompactarFilas({ b, cambiar }: { b: Borrador; cambiar: (b: Borrador
 
 export function AutocompactFilas({ b, cambiar }: { b: Borrador; cambiar: (b: Borrador) => void }) {
   const igual = b.autocompactLider === null;
+  const igualOrquestador = b.autocompactOrquestador === null;
+  const manual = b.orquestacion.presetContexto === "manual";
+  const presets: { id: BorradorTipo["orquestacion"]["presetContexto"]; nota: string }[] = [
+    { id: "ahorro", nota: t("ajustes.mdlPresetAhorroQue") },
+    { id: "equilibrado", nota: t("ajustes.mdlPresetEquilibradoQue") },
+    { id: "profundo", nota: t("ajustes.mdlPresetProfundoQue") },
+    { id: "manual", nota: "" },
+  ];
   return (
     <div className="mdl-compactar">
-      <div className="mdl-compactar-tit">{t("ajustes.mdlCompactarWorkers")}</div>
-      {AUTOCOMPACT_FAMILIAS.map((f) => (
-        <Fila key={f} fam={f} b={b} cambiar={cambiar} rol="workers" />
-      ))}
+      <section className="mdl-compactar-grupo">
+        <div className="mdl-compactar-tit">{t("ajustes.mdlCompactarOrquestadorWorkers")}</div>
+        <div className="pn-chips" role="group" aria-label={t("ajustes.mdlPresetContexto")}>
+          {presets.map((p) => <button key={p.id} type="button" className="pn-chip-f" aria-pressed={b.orquestacion.presetContexto === p.id} onClick={() => cambiar(ponerPresetContextoOrq(b, p.id))}>{t(`ajustes.mdlPreset${p.id[0]!.toUpperCase()}${p.id.slice(1)}` as never)}</button>)}
+        </div>
+        {!manual ? <p className="pn-alt">{presets.find((p) => p.id === b.orquestacion.presetContexto)?.nota}</p> : <>
+          <div className="mdl-compactar-tit">{t("ajustes.mdlCompactarWorkers")}</div>
+          {AUTOCOMPACT_FAMILIAS.map((f) => <Fila key={f} fam={f} b={b} cambiar={cambiar} rol="workers" />)}
+          <div className="mdl-compactar-tit mdl-compactar-igual"><span>{t("ajustes.mdlCompactarOrquestadorIgual")}</span><Interruptor activo={igualOrquestador} alCambiar={(v) => cambiar(separarOrquestador(b, !v))} aria-label={t("ajustes.mdlCompactarOrquestadorIgual")} /></div>
+          {igualOrquestador ? null : AUTOCOMPACT_FAMILIAS.map((f) => <Fila key={`o-${f}`} fam={f} b={b} cambiar={cambiar} rol="orquestador" />)}
+        </>}
+      </section>
+      <section className="mdl-compactar-grupo">
+        <div className="mdl-compactar-tit">{t("ajustes.mdlCompactarLideres")}</div>
       <div className="mdl-compactar-tit mdl-compactar-igual">
         <span>{t("ajustes.mdlCompactarIgual")}</span>
         <Interruptor activo={igual} alCambiar={(v) => cambiar(separarLideres(b, !v))} aria-label={t("ajustes.mdlCompactarIgual")} />
       </div>
       {igual ? null : AUTOCOMPACT_FAMILIAS.map((f) => <Fila key={`l-${f}`} fam={f} b={b} cambiar={cambiar} rol="lideres" />)}
+      </section>
       <NotaCompactarFilas b={b} cambiar={cambiar} />
     </div>
   );

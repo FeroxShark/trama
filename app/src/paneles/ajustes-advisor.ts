@@ -7,6 +7,7 @@ import type { Borrador } from "./modelos-borrador";
 
 export { asesoresPara };
 export type { FamiliaAdvisor };
+export type RolAdvisor = "lider" | "orquestador";
 
 /** Los modelos que muestra el panel: todos menos el más fuerte (Fable no tiene a quién consultar). */
 export const FAMILIAS_CON_ASESOR = FAMILIAS_ADVISOR.slice(0, -1) as readonly FamiliaAdvisor[];
@@ -24,8 +25,8 @@ export const familiaHabilitada = (b: Borrador, fam: FamiliaAdvisor): boolean => 
 export const asesoresOfrecidos = (b: Borrador, base: FamiliaAdvisor): FamiliaAdvisor[] => asesoresPara(base).filter((a) => familiaHabilitada(b, a));
 
 /** El asesor guardado para esa familia, o `null`. Uno que ya no es válido o quedó apagado no se muestra como elegido (se ve «sin asesor»). */
-export const asesorElegido = (b: Borrador, base: FamiliaAdvisor): FamiliaAdvisor | null => {
-  const a = b.advisor[base];
+export const asesorElegido = (b: Borrador, base: FamiliaAdvisor, rol: RolAdvisor = "lider"): FamiliaAdvisor | null => {
+  const a = (rol === "lider" ? b.advisor : b.advisorOrquestador)[base];
   return a && asesoresOfrecidos(b, base).includes(a) ? a : null;
 };
 
@@ -33,9 +34,9 @@ export const asesorElegido = (b: Borrador, base: FamiliaAdvisor): FamiliaAdvisor
 export const asesorInicial = (b: Borrador, base: FamiliaAdvisor): FamiliaAdvisor | null => asesoresOfrecidos(b, base)[0] ?? null;
 
 /** Pone (o saca, con `null`) el asesor de una familia; sin entradas la clave `advisor` no se escribe. */
-export function ponerAsesor(b: Borrador, base: FamiliaAdvisor, asesor: FamiliaAdvisor | null): Borrador {
-  const ad: AdvisorConfig = { ...b.advisor };
+export function ponerAsesor(b: Borrador, base: FamiliaAdvisor, asesor: FamiliaAdvisor | null, rol: RolAdvisor = "lider"): Borrador {
+  const ad: AdvisorConfig = { ...(rol === "lider" ? b.advisor : b.advisorOrquestador) };
   if (asesor) ad[base] = asesor;
   else delete ad[base];
-  return { ...b, advisor: ad };
+  return rol === "lider" ? { ...b, advisor: ad } : { ...b, advisorOrquestador: ad };
 }
