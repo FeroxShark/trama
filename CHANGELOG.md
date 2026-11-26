@@ -1,5 +1,17 @@
 # Cambios
 
+## 0.3.30
+
+- Workers: si un worker vuelve a contestar después de terminar (lo despierta una tarea de fondo), ya no se pierde su resultado verificado ni la cuenta de turnos y duración.
+- Workers: una DECISION «nada» seguida de una frase que sólo dice que no hay nada («No hay cambios…») ya no llega al tablero como pregunta para vos.
+- Workers: el contrato les dice qué borrados deja pasar la guardia, para que no gasten turnos reintentando.
+- `pa --limpiar` también cierra las corridas que quedaron colgadas o murieron en cola hace más de un día. Un `pa --async` con un error de uso ya no queda como «murió en cola».
+- `pa` avisa cuando una corrida termina y deja procesos corriendo (con el `kill` exacto), y `pa --estado` los lista como «QUEDÓ VIVO». No baja nada solo. Sólo en Linux.
+- `pa` avisa si pedís a mano el modelo más caro para frontend o código de varias partes, donde rinde poco.
+- Reparto: las corridas que fallan cuentan en el historial, y un modelo gratis con mal historial en lecturas o tareas mecánicas ya no se elige.
+- `tablero ficha` sale corta (una línea por item y las pruebas juntas), así entra entera al arrancar una sesión.
+- Chat: el selector de modelo ya no va y viene sin fin al compactar con un modelo barato y seguir con otro.
+
 ## 0.3.29
 
 - Panel Contexto > Vista previa: «Revisar con IA». Un modelo barato lee lo que se carga en cada mensaje del proyecto (CLAUDE.md, AGENTS.md, GEMINI.md y la memoria) y marca lo repetido, lo contradictorio, lo viejo y lo largo, con el antes y el después y cuántos tokens ahorra por mensaje. Nada cambia hasta que tocás «Aplicar» (uno, los de un archivo o todos), y antes de escribir se guarda una copia. Si el archivo cambió desde la revisión, ese hallazgo no se aplica.
