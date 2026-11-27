@@ -37,6 +37,23 @@ registerHooks({
   },
 });
 
+const noop = () => {};
+Object.assign(globalThis, {
+  window: globalThis,
+  addEventListener: noop,
+  removeEventListener: noop,
+  matchMedia: () => ({ matches: false, addEventListener: noop, removeEventListener: noop }),
+  location: { search: "", hash: "" },
+  document: {
+    documentElement: { addEventListener: noop, removeEventListener: noop },
+    addEventListener: noop,
+    removeEventListener: noop,
+    getElementsByClassName: () => [],
+    hidden: false,
+    visibilityState: "visible",
+  },
+});
+
 const { presetsFabrica } = await import("../electron/presets-tipos.ts");
 const {
   cambiarModoPreset,
