@@ -39,6 +39,8 @@ const opcionDe = (m: ModeloDef) =>
       ...(m.local ? { local: true } : {}),
       ...(m.gratis ? { gratis: true } : {}),
       ...(m.go ? { go: true } : {}),
+      // Las generaciones anteriores arrancan plegadas bajo «Anteriores».
+      ...(m.anterior ? { plegado: true } : {}),
       // Su proveedor no está conectado: atenuado, con «Sin conectar», y elegirlo ofrece «Conectar» (abre Ajustes en ese proveedor) en vez de cambiar el modelo.
       ...marcaConexion(m),
       // DeepSeek Harness con la API de DeepSeek: tu clave, se paga por uso (los de Ollama de dsh corren acá y no cuestan).

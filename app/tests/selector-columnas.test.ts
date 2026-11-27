@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { filtrar, mover, repartir, type Repartible } from "../src/hilo/selector-columnas.ts";
+import { bloquesPlegables, filtrar, grupoExpandido, mover, repartir, type Repartible } from "../src/hilo/selector-columnas.ts";
 
 const expect = <T,>(v: T) => ({
   toEqual: (e: unknown) => assert.deepEqual(v, e),
@@ -67,4 +67,39 @@ describe("mover", () => {
     expect(mover(largos, { s: 4, i: 2 }, "Home")).toEqual({ s: 4, i: 0 });
     expect(mover(largos, { s: 4, i: 1 }, "End")).toEqual({ s: 4, i: 3 });
   });
+});
+
+describe("bloquesPlegables", () => {
+  it("las normales quedan sueltas, aunque su grupo no sea el de la columna (Ollama en Local)", () => {
+    const ops = [o("l1", { grupo: "Qwen", col: "local", colNombre: "Local" }), o("ol", { grupo: "Ollama", col: "local", colNombre: "Local" })];
+    expect(bloquesPlegables(ops)).toEqual(ops.map((opcion) => ({ tipo: "suelto", opcion })));
+  });
+  it("las plegadas contiguas con el mismo grupo se juntan en un solo bloque", () => {
+    const n = o("n1", { grupo: "Anthropic", col: "anthropic" });
+    const p1 = o("a1", { grupo: "Anteriores", col: "anthropic", plegado: true });
+    const p2 = o("a2", { grupo: "Anteriores", col: "anthropic", plegado: true });
+    expect(bloquesPlegables([n, p1, p2])).toEqual([
+      { tipo: "suelto", opcion: n },
+      { tipo: "plegable", clave: "anthropic:Anteriores", titulo: "Anteriores", ops: [p1, p2] },
+    ]);
+  });
+  it("dos proveedores con plegadas tienen claves distintas y no se mezclan", () => {
+    const a = o("a1", { grupo: "Anteriores", col: "anthropic", plegado: true });
+    const g = o("g1", { grupo: "Anteriores", col: "google", plegado: true });
+    expect(bloquesPlegables([a, g])).toEqual([
+      { tipo: "plegable", clave: "anthropic:Anteriores", titulo: "Anteriores", ops: [a] },
+      { tipo: "plegable", clave: "google:Anteriores", titulo: "Anteriores", ops: [g] },
+    ]);
+  });
+});
+
+describe("grupoExpandido", () => {
+  const ops = [o("a1"), o("a2")];
+  it("por defecto arranca plegado", () => expect(grupoExpandido("k", {}, false, "otro", ops)).toEqual(false));
+  it("abierto si el modelo actual es uno del grupo", () => expect(grupoExpandido("k", {}, false, "a2", ops)).toEqual(true));
+  it("la elección manual manda sobre el modelo actual", () => {
+    expect(grupoExpandido("k", { k: false }, false, "a1", ops)).toEqual(false);
+    expect(grupoExpandido("k", { k: true }, false, "otro", ops)).toEqual(true);
+  });
+  it("al buscar siempre abierto", () => expect(grupoExpandido("k", { k: false }, true, "otro", ops)).toEqual(true));
 });

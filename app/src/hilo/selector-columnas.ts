@@ -14,6 +14,8 @@ export type Repartible = {
   colNombre?: string;
   /** Para ordenar las columnas (menor, antes); sin esto, en el orden en que aparecen. */
   colOrden?: number;
+  /** Opciones que arrancan ocultas bajo un grupo desplegable, como las generaciones anteriores. */
+  plegado?: boolean;
 };
 
 export type Columna<T> = { clave: string; nombre: string; ops: T[] };
@@ -44,6 +46,42 @@ export function repartir<T extends Repartible>(opciones: readonly T[]): Reparto<
   // `sort` es estable: las que empatan (sin orden) quedan como aparecieron.
   const columnas = [...por.values()].sort((a, b) => a.orden - b.orden).map(({ clave, nombre, ops }) => ({ clave, nombre, ops }));
   return { arriba, columnas };
+}
+
+/** Un tramo de una columna: una opción suelta o un grupo plegable (las opciones `plegado` contiguas del mismo `col` y `grupo`). */
+export type BloquePlegable<T> = { tipo: "suelto"; opcion: T } | { tipo: "plegable"; clave: string; titulo: string; ops: T[] };
+
+/** Parte las opciones de una columna en bloques: las normales quedan sueltas y las `plegado` contiguas con el mismo grupo se juntan en uno. */
+export function bloquesPlegables<T extends Repartible>(ops: readonly T[]): BloquePlegable<T>[] {
+  const bloques: BloquePlegable<T>[] = [];
+  for (const o of ops) {
+    if (!o.plegado) {
+      bloques.push({ tipo: "suelto", opcion: o });
+      continue;
+    }
+    const titulo = o.grupo ?? "";
+    const clave = `${o.col ?? ""}:${titulo}`;
+    const ultimo = bloques[bloques.length - 1];
+    if (ultimo && ultimo.tipo === "plegable" && ultimo.clave === clave) ultimo.ops.push(o);
+    else bloques.push({ tipo: "plegable", clave, titulo, ops: [o] });
+  }
+  return bloques;
+}
+
+/**
+ * Si un grupo plegable se ve abierto: al buscar, siempre; si la persona lo abrió o cerró a mano, como lo dejó; si no, sólo cuando
+ * el modelo elegido en el chat es uno de los suyos.
+ */
+export function grupoExpandido<T extends Pick<Repartible, "id">>(
+  clave: string,
+  expandidos: Readonly<Record<string, boolean>>,
+  buscando: boolean,
+  valorActual: string,
+  ops: readonly T[],
+): boolean {
+  if (buscando) return true;
+  if (clave in expandidos) return Boolean(expandidos[clave]);
+  return ops.some((o) => o.id === valorActual);
 }
 
 /** Sin mayúsculas ni tildes: "gemini" encuentra "Géminis". */
