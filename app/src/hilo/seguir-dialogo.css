@@ -109,6 +109,68 @@
 .seg-grupo:first-child {
   padding-top: var(--esp-1);
 }
+/* Subgrupo plegable de generaciones anteriores (espeja .mc-sub* de popovers-vidrio.css). */
+.seg-sub {
+  padding: var(--esp-2) var(--esp-2-5) var(--esp-1);
+  color: var(--inactivo);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.seg-sub-btn {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--esp-1-5);
+  border: 0;
+  border-radius: var(--r-sm);
+  margin-top: var(--esp-1);
+  padding: var(--esp-1-5) var(--esp-2-5);
+  background: transparent;
+  color: var(--inactivo);
+  font: inherit;
+  font-size: var(--letra-4);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--t-snappy),
+    color var(--t-snappy);
+}
+.seg-sub-btn:is(:hover, :focus-visible):not(:disabled) {
+  background: var(--popover-fila);
+  color: var(--texto);
+  outline: none;
+}
+.seg-sub-btn:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
+}
+.seg-sub-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.seg-sub-chev {
+  flex: 0 0 auto;
+  transition: transform var(--t-snappy);
+}
+.seg-sub-btn[aria-expanded="true"] .seg-sub-chev {
+  transform: rotate(90deg);
+}
+.seg-sub-t {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seg-sub-n {
+  flex: 0 0 auto;
+  color: var(--inactivo);
+  font-size: var(--letra-2);
+  font-variant-numeric: tabular-nums;
+}
+.seg-sub-btn:is(:hover, :focus-visible):not(:disabled) .seg-sub-n {
+  color: var(--apagado);
+}
 .seg-vacio {
   margin: 0;
   padding: var(--esp-4) var(--esp-2-5);
@@ -254,6 +316,10 @@
 @media (prefers-reduced-motion: reduce) {
   .seg {
     animation: none;
+  }
+  .seg-sub-btn,
+  .seg-sub-chev {
+    transition: none;
   }
 }
 

@@ -6,7 +6,7 @@
 import { useSalida } from "../movimiento";
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRightLeft, Ban, Check, Clock, MessagesSquare, ScanSearch, Search, X } from "lucide-react";
+import { ArrowRightLeft, Ban, Check, ChevronRight, Clock, MessagesSquare, ScanSearch, Search, X } from "lucide-react";
 import { fuente } from "../datos/fuente";
 import type { Uso } from "../datos/contrato";
 import { useFoco } from "../foco";
@@ -17,7 +17,7 @@ import { cuandoFuturo } from "../tiempo";
 import { Boton, Interruptor } from "../ui/componentes";
 import { estadosCupoModelos } from "./cupo-modelos.ts";
 import { peorCasoLlamadas } from "./debate-logica.ts";
-import { claveResaltada, filasSeguir, listaSeguir, moverSeguir, noElegible, resaltadaInicial, sinSesionDe, type OpcionSeguir, type SinSesion } from "./seguir-con.ts";
+import { claveResaltada, filasSeguir, listaSeguir, moverSeguir, noElegible, plegadasAbiertas, resaltadaInicial, sinSesionDe, type FilaSeguir, type OpcionSeguir, type SinSesion } from "./seguir-con.ts";
 import "./seguir-dialogo.css";
 import "./debate.css";
 
@@ -94,9 +94,18 @@ export function SeguirCon({ de, opciones, actual, alElegir, alDebatir, alCerrar:
       vivo = false;
     };
   }, [de, opciones]);
+  // Subgrupos de generaciones anteriores abiertos o cerrados a mano, por clave de proveedor.
+  const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
+  const buscando = busqueda.trim() !== "";
+  // El debate: los modelos marcados (en el orden en que se marcaron), el esfuerzo de cada uno y las rondas.
+  const [debate, setDebate] = useState(false);
+  const [marcados, setMarcados] = useState<string[]>([]);
+  const [esfuerzosDeb, setEsfuerzosDeb] = useState<Record<string, string>>({});
+  const [rondas, setRondas] = useState<number>(RONDAS_DEFECTO);
+  const enDebate = debate && !!alDebatir;
   const cupos = useMemo(() => estadosCupoModelos(opciones.map((o) => o.id), uso, Date.now() / 1000), [opciones, uso]);
   const grupos = useMemo(() => listaSeguir(opciones, cupos, actual, busqueda, sesiones), [opciones, cupos, actual, busqueda, sesiones]);
-  const filas = useMemo(() => filasSeguir(grupos), [grupos]);
+  const filas = useMemo(() => filasSeguir(grupos, expandidos, buscando, marcados), [grupos, expandidos, buscando, marcados]);
   const clave = claveResaltada(filas, busqueda);
   const [seleccion, setSeleccion] = useState<{ clave: string; indice: number } | null>(null);
   // Hasta que la persona elija, el cupo y las cuentas definen la fila inicial.
@@ -115,12 +124,6 @@ export function SeguirCon({ de, opciones, actual, alElegir, alDebatir, alCerrar:
   const ofrecidos = useMemo(() => (esfuerzos && marcada ? esfuerzos(marcada) : null), [esfuerzos, marcada]);
   const [esfuerzoElegido, setEsfuerzoElegido] = useState<{ modelo: string; nivel: string } | null>(null);
   const esfuerzo = ofrecidos && esfuerzoElegido?.modelo === marcada && ofrecidos.niveles.includes(esfuerzoElegido.nivel) ? esfuerzoElegido.nivel : (ofrecidos?.defecto ?? "");
-  // El debate: los modelos marcados (en el orden en que se marcaron), el esfuerzo de cada uno y las rondas.
-  const [debate, setDebate] = useState(false);
-  const [marcados, setMarcados] = useState<string[]>([]);
-  const [esfuerzosDeb, setEsfuerzosDeb] = useState<Record<string, string>>({});
-  const [rondas, setRondas] = useState<number>(RONDAS_DEFECTO);
-  const enDebate = debate && !!alDebatir;
   const esfuerzoDe = (m: string) => {
     const o = esfuerzos?.(m);
     const e = esfuerzosDeb[m];
@@ -163,6 +166,71 @@ export function SeguirCon({ de, opciones, actual, alElegir, alDebatir, alCerrar:
   };
 
   let n = -1;
+  const dibujarFila = (f: FilaSeguir) => {
+    const i = ++n;
+    const sin = !!f.cupo?.sin;
+    const poco = !sin && !!f.cupo?.poco;
+    const marcado = enDebate && marcados.includes(f.opcion.id);
+    const elegida = enDebate ? marcado : i === resaltada;
+    return (
+      <div
+        key={f.opcion.id}
+        id={`${id}-o${i}`}
+        className="seg-op"
+        role="option"
+        aria-selected={elegida}
+        aria-disabled={noElegible(f) || undefined}
+        data-sinsesion={f.sinSesion ? "" : undefined}
+        data-cupo={sin ? "sin" : poco ? "poco" : undefined}
+        data-actual={f.actual ? "" : undefined}
+        data-enviando={enviando === f.opcion.id ? "" : undefined}
+        data-marcado={marcado ? "" : undefined}
+        data-foco={enDebate && i === resaltada ? "" : undefined}
+        onMouseEnter={() => !conEsfuerzo && !noElegible(f) && !enviando && setResaltada(i)}
+        onClick={() => {
+          if (noElegible(f)) return;
+          if (enDebate) {
+            setResaltada(i);
+            alternar(f.opcion.id);
+          } else if (conEsfuerzo) !enviando && setResaltada(i);
+          else elegir(f.opcion.id);
+        }}
+      >
+        <span className="seg-n">{f.opcion.nombre}</span>
+        <span className="seg-m">{f.sinSesion ? <MotivoSesion s={f.sinSesion} /> : f.opcion.desc}</span>
+        {enviando === f.opcion.id ? (
+          <span className="seg-e" data-e="envio" role="status">
+            {t(de === "revisar" ? "revision.revisando" : "seguir.continuando")}
+          </span>
+        ) : marcado ? (
+          <span className="seg-e" data-e="marcado">
+            <Check size={11} strokeWidth={2.4} aria-hidden="true" />
+            {t("debate.elegido")}
+          </span>
+        ) : f.sinSesion ? (
+          <span className="seg-e" data-e="sinsesion">
+            <Ban size={11} strokeWidth={2.4} aria-hidden="true" />
+            {t("revision.sinSesionEtiqueta")}
+          </span>
+        ) : f.actual ? (
+          <span className="seg-e" data-e="actual">
+            <Check size={11} strokeWidth={2.4} aria-hidden="true" />
+            {t("seguir.actual")}
+          </span>
+        ) : sin ? (
+          <span className="seg-e" data-e="sin">
+            <Ban size={11} strokeWidth={2.4} aria-hidden="true" />
+            {f.cupo?.vuelve != null ? t("selector.sinCupoHasta", { cuando: cuandoFuturo(f.cupo.vuelve) }) : t("selector.sinCupo")}
+          </span>
+        ) : poco ? (
+          <span className="seg-e" data-e="poco">
+            <Clock size={11} strokeWidth={2.4} aria-hidden="true" />
+            {t("selector.pocoCupoTip", { n: Math.round(f.cupo?.libre ?? 0) })}
+          </span>
+        ) : null}
+      </div>
+    );
+  };
   return createPortal(
     <div className="seg-fondo" data-seguir data-saliendo={saliendo ? "" : undefined} onMouseDown={(e) => e.target === e.currentTarget && !enviando && alCerrar()}>
       <div ref={raiz} className="seg" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} aria-describedby={`${id}-d`} tabIndex={-1} onKeyDown={tecla}>
@@ -205,79 +273,44 @@ export function SeguirCon({ de, opciones, actual, alElegir, alDebatir, alCerrar:
           />
         </label>
         <div className="seg-lista mov-lista" ref={lista} id={`${id}-l`} role="listbox" aria-multiselectable={enDebate || undefined} aria-label={t("seguir.lista")} aria-busy={!!enviando}>
-          {!filas.length ? <p className="seg-vacio">{t("seguir.sinResultados")}</p> : null}
-          {grupos.map((g) => (
-            <Fragment key={g.clave}>
-              <div className="seg-grupo" role="presentation">
-                {g.nombre}
-              </div>
-              {g.filas.map((f) => {
-                const i = ++n;
-                const sin = !!f.cupo?.sin;
-                const poco = !sin && !!f.cupo?.poco;
-                const marcado = enDebate && marcados.includes(f.opcion.id);
-                const elegida = enDebate ? marcado : i === resaltada;
-                return (
-                  <div
-                    key={f.opcion.id}
-                    id={`${id}-o${i}`}
-                    className="seg-op"
-                    role="option"
-                    aria-selected={elegida}
-                    aria-disabled={noElegible(f) || undefined}
-                    data-sinsesion={f.sinSesion ? "" : undefined}
-                    data-cupo={sin ? "sin" : poco ? "poco" : undefined}
-                    data-actual={f.actual ? "" : undefined}
-                    data-enviando={enviando === f.opcion.id ? "" : undefined}
-                    data-marcado={marcado ? "" : undefined}
-                    data-foco={enDebate && i === resaltada ? "" : undefined}
-                    onMouseEnter={() => !conEsfuerzo && !noElegible(f) && !enviando && setResaltada(i)}
-                    onClick={() => {
-                      if (noElegible(f)) return;
-                      if (enDebate) {
-                        setResaltada(i);
-                        alternar(f.opcion.id);
-                      } else if (conEsfuerzo) !enviando && setResaltada(i);
-                      else elegir(f.opcion.id);
-                    }}
-                  >
-                    <span className="seg-n">{f.opcion.nombre}</span>
-                    <span className="seg-m">{f.sinSesion ? <MotivoSesion s={f.sinSesion} /> : f.opcion.desc}</span>
-                    {enviando === f.opcion.id ? (
-                      <span className="seg-e" data-e="envio" role="status">
-                        {t(de === "revisar" ? "revision.revisando" : "seguir.continuando")}
-                      </span>
-                    ) : marcado ? (
-                      <span className="seg-e" data-e="marcado">
-                        <Check size={11} strokeWidth={2.4} aria-hidden="true" />
-                        {t("debate.elegido")}
-                      </span>
-                    ) : f.sinSesion ? (
-                      <span className="seg-e" data-e="sinsesion">
-                        <Ban size={11} strokeWidth={2.4} aria-hidden="true" />
-                        {t("revision.sinSesionEtiqueta")}
-                      </span>
-                    ) : f.actual ? (
-                      <span className="seg-e" data-e="actual">
-                        <Check size={11} strokeWidth={2.4} aria-hidden="true" />
-                        {t("seguir.actual")}
-                      </span>
-                    ) : sin ? (
-                      <span className="seg-e" data-e="sin">
-                        <Ban size={11} strokeWidth={2.4} aria-hidden="true" />
-                        {f.cupo?.vuelve != null ? t("selector.sinCupoHasta", { cuando: cuandoFuturo(f.cupo.vuelve) }) : t("selector.sinCupo")}
-                      </span>
-                    ) : poco ? (
-                      <span className="seg-e" data-e="poco">
-                        <Clock size={11} strokeWidth={2.4} aria-hidden="true" />
-                        {t("selector.pocoCupoTip", { n: Math.round(f.cupo?.libre ?? 0) })}
-                      </span>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </Fragment>
-          ))}
+          {!grupos.length ? <p className="seg-vacio">{t("seguir.sinResultados")}</p> : null}
+          {grupos.map((g) => {
+            const abierto = plegadasAbiertas(g, expandidos, buscando, marcados);
+            const titulo = g.tituloPlegadas ?? t("modelo.anteriores");
+            return (
+              <Fragment key={g.clave}>
+                <div className="seg-grupo" role="presentation">
+                  {g.nombre}
+                </div>
+                {g.filas.map(dibujarFila)}
+                {g.plegadas.length > 0 ? (
+                  buscando ? (
+                    <>
+                      <div className="seg-sub" role="presentation">
+                        {titulo}
+                      </div>
+                      {g.plegadas.map(dibujarFila)}
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="seg-sub seg-sub-btn"
+                        aria-expanded={abierto}
+                        disabled={!!enviando}
+                        onClick={() => setExpandidos((prev) => ({ ...prev, [g.clave]: !abierto }))}
+                      >
+                        <ChevronRight size={12} strokeWidth={2.2} className="seg-sub-chev" aria-hidden="true" />
+                        <span className="seg-sub-t">{titulo}</span>
+                        <span className="seg-sub-n">{g.plegadas.length}</span>
+                      </button>
+                      {abierto ? g.plegadas.map(dibujarFila) : null}
+                    </>
+                  )
+                ) : null}
+              </Fragment>
+            );
+          })}
         </div>
         {error ? (
           <div className="caja-error" role="alert">
