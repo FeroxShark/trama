@@ -35,7 +35,7 @@ test("defaults de fábrica: nombres, modos y mapeo por tipo", () => {
   assert.equal(f.presets.codigo.modo, "apagar");
   assert.ok(f.presets.codigo.skills.includes("trama-orquestar"));
   assert.equal(f.presets.diseno.modo, "solo");
-  assert.deepEqual(f.presets.orquestador.skills, ["trama-orquestar", "ferox-orquestar"]);
+  assert.deepEqual(f.presets.orquestador.skills, ["trama-orquestar"]);
   assert.equal(f.presets.todo.modo, "todo");
   assert.equal(f.por_tipo.mecanico, "minimo");
   assert.equal(f.por_tipo.lectura, "minimo");

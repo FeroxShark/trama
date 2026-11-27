@@ -22,7 +22,7 @@ const MAX_SKILLS = 200;
 
 export const PRESETS_NOMBRES_FABRICA = ["minimo", "codigo", "diseno", "orquestador", "todo"] as const;
 
-const SKILLS_CODIGO = ["ui-ux-pro-max", "taste-skill", "design-taste-frontend", "frontend-design", "frontend-design:frontend-design", "stageshow", "diseno", "trama-orquestar", "ferox-orquestar"];
+const SKILLS_CODIGO = ["ui-ux-pro-max", "taste-skill", "design-taste-frontend", "frontend-design", "frontend-design:frontend-design", "stageshow", "diseno", "trama-orquestar"];
 const SKILLS_DISENO = ["ui-ux-pro-max", "taste-skill", "design-taste-frontend", "frontend-design", "frontend-design:frontend-design", "stageshow", "diseno"];
 
 /** Los defaults de fábrica (copia nueva cada vez: nadie puede mutar el objeto compartido). */
@@ -33,7 +33,7 @@ export function presetsFabrica(): ConfigPresets {
       minimo: { modo: "solo", skills: [] },
       codigo: { modo: "apagar", skills: [...SKILLS_CODIGO] },
       diseno: { modo: "solo", skills: [...SKILLS_DISENO] },
-      orquestador: { modo: "solo", skills: ["trama-orquestar", "ferox-orquestar"] },
+      orquestador: { modo: "solo", skills: ["trama-orquestar"] },
       todo: { modo: "todo", skills: [] },
     },
     por_tipo: {
