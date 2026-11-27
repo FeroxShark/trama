@@ -1,10 +1,12 @@
 // Hook que arma el grafo B3 vivo del líder abierto: suscribe a su actividad en curso (`vivo`),
 // su contexto (`contextoVivo`), sus workers y sus subagentes, sin lógica de layout en los componentes.
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { Estado, Hilo, Lider } from "../../datos/contrato";
 import type { Subagente } from "../../../electron/subagentes";
 import { cacheAplica, cacheSinTtlDe } from "../../../electron/cache";
 import { tareaDe } from "../../barra/piezas";
+import type { EncargoOrquestador } from "../../../electron/orquestador-texto";
+import { fuente } from "../../datos/fuente";
 import { t as tr } from "../../i18n";
 import { useIdioma } from "../../i18n/react";
 import { clasificar } from "../actividad-logica";
@@ -38,6 +40,29 @@ export function useGrafoLider(params: {
   );
   const ctx = useResumenContextoLider(lider);
 
+  // Encargos del Orquestador de fondo de este líder, en vivo.
+  const [orquestadores, setOrquestadores] = useState<EncargoOrquestador[]>([]);
+  useEffect(() => {
+    if (!sid) {
+      setOrquestadores([]);
+      return;
+    }
+    let vivo = true;
+    void fuente
+      .orquestadores(sid)
+      .then((lista) => {
+        if (vivo) setOrquestadores(lista.filter((o) => o.lider_sid === sid));
+      })
+      .catch(() => {});
+    const baja = fuente.alCambiarOrquestadores?.((lista) => {
+      if (vivo) setOrquestadores(lista.filter((o) => o.lider_sid === sid));
+    });
+    return () => {
+      vivo = false;
+      baja?.();
+    };
+  }, [sid]);
+
   const actividadLider = useMemo(() => {
     if (!ind.hace) return null;
     const act = clasificar(ind.hace);
@@ -68,6 +93,7 @@ export function useGrafoLider(params: {
       workers,
       estadoWorker,
       subagentes,
+      orquestadores,
       tituloWorker: tareaDe,
       tiempoWorker: (h, est) => {
         if (est === "trabajando" || h.arrancando) return duracionCorta(ahora - h.inicio);
@@ -98,8 +124,14 @@ export function useGrafoLider(params: {
         workerFrenado: tr("flujo.estado.pausa"),
         workerTrabaja: tr("flujo.workerTrabaja"),
         workerListo: tr("flujo.workerListo"),
+        orqMarca: tr("flujo.orq.marca"),
+        orqRevisando: tr("flujo.orq.revisando"),
+        orqConsulta: tr("flujo.orq.consulta"),
+        orqEjecutando: tr("flujo.orq.ejecutando"),
+        orqListo: tr("flujo.orq.listo"),
+        orqFallo: tr("flujo.orq.fallo"),
         commits: (n) => (n === 1 ? tr("flujo.commit1") : tr("flujo.commits", { n })),
       },
     });
-  }, [lider, liderNuevo, actividadLider, ctx.textoCorto, ctx.pct, cacheLider, workers, estadoWorker, subagentes]);
+  }, [lider, liderNuevo, actividadLider, ctx.textoCorto, ctx.pct, cacheLider, workers, estadoWorker, subagentes, orquestadores]);
 }

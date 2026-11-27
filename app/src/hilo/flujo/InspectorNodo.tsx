@@ -98,7 +98,10 @@ export function InspectorNodo({ nodo, lider, acciones }: PropsInspector) {
 
   const h = nodo.hilo ?? null;
   const sub = nodo.subagente ?? null;
+  const orq = nodo.tipo === "orquestador" ? (nodo.encargo ?? null) : null;
   const vive = nodo.estado === "run" || nodo.estado === "orq";
+  // El encargo no tiene un campo de preguntas: las opciones de la propuesta hacen de preguntas antes de delegar.
+  const preguntasOrq = orq?.propuesta?.opciones?.filter((q) => q.trim()) ?? [];
   const ultimosPasos = pasos?.hay ? pasos.pasos.slice(-8).reverse() : [];
   const archivos = pasos?.hay ? pasos.encabezado.archivos : [];
   const pasosLider = indLider.pasos.slice(0, 6);
@@ -119,7 +122,9 @@ export function InspectorNodo({ nodo, lider, acciones }: PropsInspector) {
         </span>
       </div>
 
-      <p className="insp-desc">{h?.decision?.trim() || h?.resultado?.trim() || nodo.subtitulo}</p>
+      <p className="insp-desc">{orq
+          ? orq.propuesta?.resumen?.trim() || orq.resumen?.trim() || orq.error?.trim() || orq.objetivo.trim()
+          : h?.decision?.trim() || h?.resultado?.trim() || nodo.subtitulo}</p>
 
       {/* Acciones directas según tipo y estado del nodo */}
       <div className="insp-acciones">
@@ -163,7 +168,26 @@ export function InspectorNodo({ nodo, lider, acciones }: PropsInspector) {
 
       {/* Datos clave del nodo */}
       <div className="insp-card">
-        {h ? (
+        {orq ? (
+          <>
+            <div className="insp-kv">
+              <span>{tr("flujo.kv.proyecto")}</span>
+              <span>{orq.proyecto || "—"}</span>
+            </div>
+            <div className="insp-kv">
+              <span>{tr("flujo.kv.modelo")}</span>
+              <span>{nodo.modelo || orq.modelo || "—"}</span>
+            </div>
+            <div className="insp-kv">
+              <span>{tr("flujo.kv.preset")}</span>
+              <span>{orq.preset_contexto || "—"}</span>
+            </div>
+            <div className="insp-kv">
+              <span>{tr("flujo.kv.workers")}</span>
+              <span>{String(orq.workers.length)}</span>
+            </div>
+          </>
+        ) : h ? (
           <>
             <div className="insp-kv">
               <span>{tr("flujo.kv.rama")}</span>
@@ -253,6 +277,22 @@ export function InspectorNodo({ nodo, lider, acciones }: PropsInspector) {
             <p className="insp-desc">{tr("flujo.sinPasos")}</p>
           )}
         </>
+      ) : orq ? (
+        preguntasOrq.length > 0 ? (
+          <>
+            <div className="insp-sec">
+              <span>{tr("flujo.orq.preguntas")}</span>
+              <span>{preguntasOrq.length}</span>
+            </div>
+            <div className="insp-pasos">
+              {preguntasOrq.map((q, idx) => (
+                <div key={idx} className="insp-paso">
+                  <span>{q}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null
       ) : (
         <>
           <div className="insp-sec">
