@@ -163,7 +163,6 @@ import { pintorHace } from "../tiempo";
 import { Reloj } from "./piezas";
 import { avisarVentana, irA, ponerLista, UMBRAL, useVentana } from "./ventana";
 import { useGrafoLider } from "../hilo/flujo/useGrafoLider";
-import { DockDerechoFlujo, InspectorNodo, type TabDock } from "../hilo/flujo/InspectorNodo";
 import "../hilo/flujo/flujo.css";
 
 // El panel de contexto va en un chunk aparte: se carga al abrirlo.
@@ -1600,7 +1599,6 @@ export function Barra() {
     if (MODO.datosFijos) return false;
     return guardado("hilos:flujo:abierto", (s) => s !== "0", true);
   });
-  const [tabDock, setTabDock] = useState<TabDock>("contexto");
   const [nodoFlujoId, setNodoFlujoId] = useState<string | null>(null);
   const [flujoMaximizado, setFlujoMaximizado] = useState(false);
 
@@ -1618,34 +1616,24 @@ export function Barra() {
     subagentes: subsFlujo,
   });
   const nodoSeleccionado = useMemo(
-    () => grafoLider.nodos.find((n) => n.id === nodoFlujoId) ?? grafoLider.nodos[0] ?? null,
+    () => grafoLider.nodos.find((n) => n.id === nodoFlujoId) ?? null,
     [grafoLider.nodos, nodoFlujoId],
   );
+  // Al cambiar de líder el mapa arranca limpio, sin cajón abierto.
+  useEffect(() => {
+    setNodoFlujoId(null);
+  }, [liderActivo?.id]);
   const flujoDisponible = !angosto && !medio && Boolean(liderActivo || activa === LIDER_NUEVO);
   const alternarFlujo = useCallback(() => {
     setFlujoAbierto((prev) => {
       const next = !prev;
       guardar("hilos:flujo:abierto", next ? "1" : "0");
-      if (!next) setTabDock("contexto");
       return next;
     });
   }, []);
-  const seleccionarNodoFlujo = useCallback(
-    (id: string) => {
-      setNodoFlujoId(id);
-      setTabDock("inspector");
-      if (acoplado) {
-        acopleCtrl.abrir("contexto", true);
-        setConsumo(true);
-        if (esVentana()) fuente.guardarConsumo(true);
-      } else if (!consumo) {
-        setConsumo(true);
-        if (esVentana()) fuente.guardarConsumo(true);
-      }
-      setFlujoMaximizado(false);
-    },
-    [acoplado, acopleCtrl, consumo],
-  );
+  const seleccionarNodoFlujo = useCallback((id: string) => {
+    setNodoFlujoId((prev) => (prev === id ? null : id));
+  }, []);
   const alternarMaximizarFlujo = useCallback(() => {
     setFlujoMaximizado((prev) => {
       const entrar = !prev;
@@ -2440,6 +2428,8 @@ export function Barra() {
               grafo: grafoLider,
               seleccionado: nodoSeleccionado?.id ?? null,
               alSeleccionar: seleccionarNodoFlujo,
+              alCerrarDetalle: () => setNodoFlujoId(null),
+              acciones: { alAbrirHilo: abrir, alAbrirSub: abrirSub, alCerrarWorker: cerrar, alRetomarWorker: retomarId },
               maximizado: flujoMaximizado,
               alAlternarMaximizar: alternarMaximizarFlujo,
             }}
@@ -2482,30 +2472,9 @@ export function Barra() {
       titulo: tr("acople.contexto"),
       icono: <Layers size={16} strokeWidth={1.8} aria-hidden></Layers>,
       contenido: (
-        <DockDerechoFlujo
-          mostrarTabs={flujoDisponible && flujoAbierto}
-          tab={tabDock}
-          alCambiarTab={setTabDock}
-          lider={liderContexto}
-          inspector={
-            <InspectorNodo
-              nodo={nodoSeleccionado}
-              lider={liderActivo}
-              acciones={{
-                alAbrirHilo: abrir,
-                alAbrirSub: abrirSub,
-                alCerrarWorker: cerrar,
-                alRetomarWorker: retomarId,
-                alIrAContexto: () => setTabDock("contexto"),
-              }}
-            />
-          }
-          contexto={
-            <Suspense fallback={null}>
-              <PanelContexto acoplado lider={liderContexto} workers={workersContexto} alCerrar={alternarConsumo} alAbrirHilo={abrir} />
-            </Suspense>
-          }
-        />
+        <Suspense fallback={null}>
+          <PanelContexto acoplado lider={liderContexto} workers={workersContexto} alCerrar={alternarConsumo} alAbrirHilo={abrir} />
+        </Suspense>
       ),
     },
     cupo: {

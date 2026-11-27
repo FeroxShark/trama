@@ -46,6 +46,7 @@ import { SubagenteMigas, VistaSubagente } from "./Subagente";
 import type { Subagente } from "../../electron/subagentes";
 import { activo as subActivo } from "../barra/subagentes-logica";
 import type { GrafoFlujo } from "./flujo/flujo-logica";
+import type { AccionesCajon } from "./flujo/InspectorNodo";
 import { ResumenLiderCab } from "./flujo/ResumenLiderCab";
 
 const FlujoCanvas = lazy(() => import("./flujo/FlujoCanvas").then((m) => ({ default: m.FlujoCanvas })));
@@ -73,6 +74,8 @@ export type FlujoVista = {
   alSeleccionar: (id: string) => void;
   maximizado: boolean;
   alAlternarMaximizar: () => void;
+  alCerrarDetalle: () => void;
+  acciones: AccionesCajon;
 };
 
 const puesto = (p: string) => (p === "aca" ? tr("vista.aca") : tr("vista.puesto", { p }));
@@ -198,7 +201,7 @@ export function Vista({
   };
 
   const mostrarFlujo = Boolean((lider || liderNuevo) && !h && !sub && flujo?.disponible && flujo.abierto);
-  const cuentaFlujo = flujo ? flujo.grafo.resumen.corriendo + flujo.grafo.resumen.decision + flujo.grafo.resumen.error : 0;
+  const cuentaFlujo = flujo ? flujo.grafo.resumen.corriendo + flujo.grafo.resumen.decision + flujo.grafo.resumen.error + flujo.grafo.resumen.cola : 0;
   const totalFlujo = flujo ? Math.max(0, flujo.grafo.nodos.length - 1) : 0;
 
   return (
@@ -362,6 +365,9 @@ export function Vista({
                 alSeleccionar={flujo.alSeleccionar}
                 maximizado={flujo.maximizado}
                 alAlternarMaximizar={flujo.alAlternarMaximizar}
+                lider={lider}
+                acciones={flujo.acciones}
+                alCerrarDetalle={flujo.alCerrarDetalle}
                 tituloSesion={lider ? lider.nombre || tr("lider.sesionJefe") : tr("lider.nuevo")}
               />
             </Suspense>
