@@ -81,10 +81,13 @@ export function useGrafoLider(params: {
     return "";
   }, [lider]);
 
-  return useMemo(() => {
+  const [tick, setTick] = useState(0);
+
+  const grafo = useMemo(() => {
     const contextoLider = ctx.textoCorto ? `${ctx.textoCorto} · ${ctx.pct}%` : "";
     const ahora = Date.now() * 0.001;
     return armarGrafo({
+      ahora,
       lider,
       liderNuevo,
       actividadLider,
@@ -133,5 +136,15 @@ export function useGrafoLider(params: {
         commits: (n) => (n === 1 ? tr("flujo.commit1") : tr("flujo.commits", { n })),
       },
     });
-  }, [lider, liderNuevo, actividadLider, ctx.textoCorto, ctx.pct, cacheLider, workers, estadoWorker, subagentes, orquestadores]);
+  }, [lider, liderNuevo, actividadLider, ctx.textoCorto, ctx.pct, cacheLider, workers, estadoWorker, subagentes, orquestadores, tick]);
+
+  // Ticker liviano: sólo corre mientras algún nodo está desvaneciéndose; sin ninguno no queda timer.
+  const hayExpirando = grafo.nodos.some((n) => n.expiraEnS != null);
+  useEffect(() => {
+    if (!hayExpirando) return;
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [hayExpirando]);
+
+  return grafo;
 }

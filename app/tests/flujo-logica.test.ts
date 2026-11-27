@@ -282,3 +282,140 @@ test("los workers de un orquestador cuelgan de su nodo y las cadenas pasan a la 
   assert.ok(["lider:sid-1", "orq:o1", "w:w1", "w:w3"].every((id) => rel.has(id)));
   assert.ok(!rel.has("w:w2"));
 });
+
+// ── Auto-expiración de nodos terminados y fallidos ──
+const T0 = 1700000000;
+const grafoExp = (ahora: number, workers: Hilo[], extra: Partial<ParamsGrafo> = {}) =>
+  armarGrafo({
+    ahora,
+    lider: lider(),
+    workers,
+    estadoWorker: (h) => h.estado as Estado,
+    subagentes: [],
+    tituloWorker: (h) => h.tarea,
+    tiempoWorker: () => "12 s",
+    modeloCorto: (m) => m ?? "",
+    textos: TEXTOS,
+    ...extra,
+  });
+
+test("sin `ahora` nada expira y `ocultos` queda vacío", () => {
+  const g = grafoExp(undefined as unknown as number, [hilo("w1", { estado: "listo" })]);
+  assert.equal(g.ocultos.length, 0);
+  assert.equal(g.nodos.find((n) => n.id === "w:w1")!.expiraEnS, undefined);
+});
+
+test("un worker listo sigue 60 s con cuenta regresiva y después pasa a ocultos", () => {
+  const w = hilo("w1", { estado: "listo", inicio: T0 });
+  const g1 = grafoExp(T0 + 30, [w]);
+  const n = g1.nodos.find((x) => x.id === "w:w1")!;
+  assert.equal(n.expiraEnS, 30);
+  assert.equal(n.expiraPct, 50);
+  assert.equal(g1.resumen.listo, 1);
+  assert.equal(g1.ocultos.length, 0);
+
+  const g2 = grafoExp(T0 + 61, [w]);
+  assert.ok(!g2.nodos.some((x) => x.id === "w:w1"));
+  assert.ok(!g2.aristas.some((a) => a.a === "w:w1"));
+  assert.equal(g2.resumen.listo, 0);
+  assert.equal(g2.ocultos.length, 1);
+  assert.equal(g2.ocultos[0]!.id, "w:w1");
+  assert.equal(g2.ocultos[0]!.finEn, T0);
+  assert.equal(g2.ocultos[0]!.tipo, "worker");
+  assert.equal(g2.ocultos[0]!.titulo, "Tarea w1");
+});
+
+test("el fin de un worker usa frenado_en, murio_en o inicio + duración", () => {
+  const g = grafoExp(T0 + 100, [
+    hilo("a", { estado: "listo", duracion_s: 50 }), // fin T0+50 → rem 10
+    hilo("b", { estado: "listo", duracion_s: 50, murio_en: T0 + 90 }), // fin T0+90 → rem 50
+  ]);
+  assert.equal(g.nodos.find((n) => n.id === "w:a")!.expiraEnS, 10);
+  assert.equal(g.nodos.find((n) => n.id === "w:b")!.expiraEnS, 50);
+});
+
+test("un worker con error sigue 300 s y pasa a ocultos después", () => {
+  const w = hilo("w1", { estado: "murio", inicio: T0 });
+  const n = grafoExp(T0 + 120, [w]).nodos.find((x) => x.id === "w:w1")!;
+  assert.equal(n.expiraEnS, 180);
+  assert.equal(n.expiraPct, 60);
+  const g2 = grafoExp(T0 + 301, [w]);
+  assert.ok(!g2.nodos.some((x) => x.id === "w:w1"));
+  assert.equal(g2.resumen.error, 0);
+  assert.equal(g2.ocultos[0]!.estado, "error");
+});
+
+test("los plazos se pueden cambiar con `expiracion`", () => {
+  const g = grafoExp(T0 + 11, [hilo("w1", { estado: "listo" })], { expiracion: { listoS: 10 } });
+  assert.equal(g.ocultos.length, 1);
+});
+
+test("workers activos, en decisión o en cola nunca expiran", () => {
+  const ws = [
+    hilo("r", { estado: "trabajando" }),
+    hilo("d", { estado: "decision", decision: "¿?" }),
+    hilo("q", { estado: "trabajando", en_cola: true }),
+  ];
+  const g = grafoExp(T0 + 10 * 3600, ws);
+  assert.equal(g.ocultos.length, 0);
+  for (const id of ["w:r", "w:d", "w:q"]) {
+    const n = g.nodos.find((x) => x.id === id)!;
+    assert.ok(n, id);
+    assert.equal(n.expiraEnS, undefined);
+  }
+});
+
+test("subagentes y orquestadores terminados o fallidos expiran, y `ocultos` va del más reciente al más viejo", () => {
+  const sub = (id: string, estado: Subagente["estado"], ultimo_en: number): Subagente => ({
+    id,
+    sid: "sid-1",
+    descripcion: `Sub ${id}`,
+    tipo: "Explore",
+    modelo: "haiku",
+    estado,
+    inicio: ultimo_en - 5,
+    ultimo_en,
+    ultimo: null,
+    tokens: 0,
+    resultado: null,
+    hay_mas: false,
+    esfuerzo: null,
+  });
+  const g = grafoExp(T0 + 1000, [hilo("w1", { estado: "listo", inicio: T0 + 900 })], {
+    subagentes: [sub("s1", "terminado", T0 + 100), sub("s2", "error", T0 + 800), sub("s3", "terminado", T0 + 990), sub("s4", "corriendo", T0)],
+    orquestadores: [
+      encargo("o1", { estado: "listo", actualizado: T0 + 500 }),
+      encargo("o2", { estado: "error", actualizado: T0 + 950 }),
+      encargo("o3", { estado: "ejecutando", actualizado: T0 }),
+    ],
+  });
+  // s1 (listo hace 900 s) y o1 (listo hace 500 s) expiraron; s2 (error hace 200 s) y o2 (error hace 50 s) siguen.
+  assert.deepEqual(g.ocultos.map((o) => o.id), ["w:w1", "orq:o1", "sub:s1"]);
+  assert.ok(g.nodos.some((n) => n.id === "sub:s2" && n.expiraEnS === 100));
+  assert.ok(g.nodos.some((n) => n.id === "sub:s3" && n.expiraEnS === 50));
+  assert.ok(g.nodos.some((n) => n.id === "orq:o2" && n.expiraEnS === 250));
+  assert.ok(g.nodos.some((n) => n.id === "sub:s4" && n.expiraEnS === undefined));
+  assert.ok(g.nodos.some((n) => n.id === "orq:o3" && n.expiraEnS === undefined));
+  const orq1 = g.ocultos.find((o) => o.id === "orq:o1")!;
+  assert.equal(orq1.tipo, "orquestador");
+  assert.ok(orq1.encargo);
+  assert.equal(g.ocultos.find((o) => o.id === "sub:s1")!.tipo, "subagente");
+  assert.ok(!g.aristas.some((a) => a.a === "orq:o1" || a.a === "sub:s1"));
+  for (let i = 1; i < g.ocultos.length; i++) assert.ok(g.ocultos[i - 1]!.finEn >= g.ocultos[i]!.finEn);
+});
+
+test("un worker activo cuyo padre expiró queda colgado del líder sin aristas huérfanas", () => {
+  const padre = hilo("p", { estado: "listo", inicio: T0 });
+  const hijo = hilo("h", { estado: "trabajando", sigue_de: "p", inicio: T0 + 10 });
+  const g = grafoExp(T0 + 500, [padre, hijo]);
+  assert.ok(!g.nodos.some((n) => n.id === "w:p"));
+  assert.equal(g.aristas.find((a) => a.a === "w:h")?.de, "lider:sid-1");
+
+  // Lo mismo si el que expiró es el orquestador que lo reclamaba.
+  const g2 = grafoExp(T0 + 500, [hijo], { orquestadores: [encargo("o1", { estado: "listo", workers: ["h"], actualizado: T0 })] });
+  assert.ok(!g2.nodos.some((n) => n.id === "orq:o1"));
+  assert.equal(g2.aristas.find((a) => a.a === "w:h")?.de, "lider:sid-1");
+
+  const ids = new Set(g.nodos.map((n) => n.id));
+  for (const a of [...g.aristas, ...g2.aristas]) assert.ok(a.de.startsWith("lider:") || ids.has(a.de) || g2.nodos.some((n) => n.id === a.de));
+});

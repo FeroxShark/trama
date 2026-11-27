@@ -25,9 +25,34 @@ export type NodoFlujo = {
   subagente?: Subagente;
   claveSub?: string;
   encargo?: EncargoOrquestador;
+  /** Segundos que faltan para que el nodo pase al historial (sólo dentro de la ventana de desvanecimiento). */
+  expiraEnS?: number;
+  /** Lo mismo en porcentaje del plazo total (100 = recién terminado, 0 = por irse). */
+  expiraPct?: number;
   x: number;
   y: number;
   w: number;
+};
+
+/** Segundos que un nodo terminado (o frenado) sigue en el mapa antes de pasar al historial. */
+export const EXPIRA_LISTO_S = 60;
+/** Segundos que un nodo fallido sigue en el mapa antes de pasar al historial. */
+export const EXPIRA_ERROR_S = 300;
+
+/** Nodo ya expirado: sale del mapa y queda sólo en el historial de «ocultos». */
+export type NodoHistorial = {
+  id: string;
+  tipo: "worker" | "subagente" | "orquestador";
+  estado: EstadoNodo;
+  titulo: string;
+  subtitulo: string;
+  modelo: string;
+  tiempo: string;
+  finEn: number;
+  hilo?: Hilo;
+  subagente?: Subagente;
+  claveSub?: string;
+  encargo?: EncargoOrquestador;
 };
 
 export type AristaFlujo = {
@@ -54,9 +79,15 @@ export type GrafoFlujo = {
   nodos: NodoFlujo[];
   aristas: AristaFlujo[];
   resumen: ResumenFlujo;
+  /** Nodos terminados o fallidos que ya expiraron, del más reciente al más viejo. */
+  ocultos: NodoHistorial[];
 };
 
 export type ParamsGrafo = {
+  /** Epoch en segundos. Sin él no expira ningún nodo y `ocultos` queda vacío. */
+  ahora?: number;
+  /** Plazos de expiración en segundos (por defecto `EXPIRA_LISTO_S` y `EXPIRA_ERROR_S`). */
+  expiracion?: { listoS?: number; errorS?: number };
   lider: Lider | null;
   liderNuevo?: boolean;
   /** Descripción breve de lo que está haciendo el líder ahora (si está activo). */
@@ -145,12 +176,48 @@ export function estadoDeLider(l: Lider | null): EstadoNodo {
   return "lider";
 }
 
-const ANCHO_LIDER = 248;
-const ANCHO_SUB = 256;
-const ANCHO_WORKER = 272;
-const PASO_Y = 132;
-const MARGEN_X = 44;
-const MARGEN_Y = 44;
+const ANCHO_LIDER = 224;
+const ANCHO_SUB = 232;
+const ANCHO_WORKER = 244;
+const PASO_Y = 120;
+const MARGEN_X = 32;
+const MARGEN_Y = 32;
+const SEP_COL = 76;
+
+const finDeWorker = (h: Hilo): number =>
+  h.frenado_en ?? h.murio_en ?? (h.duracion_s != null && h.duracion_s > 0 ? h.inicio + h.duracion_s : h.inicio);
+const finDeSub = (u: Subagente): number => u.ultimo_en || u.inicio;
+const finDeOrq = (o: EncargoOrquestador): number => o.actualizado || o.creado;
+
+/**
+ * Expiración de un nodo: `null` si no expira (sin `ahora` o estado activo); si no, los segundos que
+ * faltan (`rem <= 0` ya expiró) y el plazo total usado.
+ */
+function expiracionDe(est: EstadoNodo, fin: number, p: ParamsGrafo): { rem: number; limite: number } | null {
+  if (p.ahora == null) return null;
+  let limite: number;
+  if (est === "ok" || est === "pausa") limite = p.expiracion?.listoS ?? EXPIRA_LISTO_S;
+  else if (est === "error") limite = p.expiracion?.errorS ?? EXPIRA_ERROR_S;
+  else return null;
+  return { rem: Math.ceil(fin + limite - p.ahora), limite };
+}
+
+const pctExpira = (rem: number, limite: number): number => Math.max(0, Math.min(100, Math.round((rem / limite) * 100)));
+
+const aHistorial = (n: NodoFlujo, tipo: NodoHistorial["tipo"], finEn: number): NodoHistorial => ({
+  id: n.id,
+  tipo,
+  estado: n.estado,
+  titulo: n.titulo,
+  subtitulo: n.subtitulo,
+  modelo: n.modelo,
+  tiempo: n.tiempo,
+  finEn,
+  hilo: n.hilo,
+  subagente: n.subagente,
+  claveSub: n.claveSub,
+  encargo: n.encargo,
+});
 
 const prioridadWorker = (e: EstadoNodo): number => {
   switch (e) {
@@ -208,23 +275,58 @@ export function armarGrafo(p: ParamsGrafo): GrafoFlujo {
   };
   nodos.push(nodoLider);
 
+  // Expiración: los terminados/fallidos viejos salen del mapa y van a `ocultos`; los recientes llevan cuenta regresiva.
+  const ocultos: NodoHistorial[] = [];
+  const expirando = new Map<string, { rem: number; limite: number }>();
+
   // Ordenar workers: primero los que piden atención o corren, después en cola, luego listos (máximo 12 para no saturar el lienzo).
-  const workersOrdenados = [...p.workers]
-    .map((h) => {
+  const workersOrdenados = p.workers
+    .flatMap((h) => {
       const estHilo = p.estadoWorker(h);
       const est = estadoDeWorker(h, estHilo);
-      return { h, estHilo, est };
+      const fin = finDeWorker(h);
+      const ex = expiracionDe(est, fin, p);
+      if (ex && ex.rem <= 0) {
+        ocultos.push(aHistorial(construirNodoWorker(h, estHilo, est, 0, 0, p), "worker", fin));
+        return [];
+      }
+      if (ex) expirando.set(`w:${h.id}`, ex);
+      return [{ h, estHilo, est }];
     })
     .sort((a, b) => prioridadWorker(a.est) - prioridadWorker(b.est) || b.h.inicio - a.h.inicio)
     .slice(0, 12);
 
   const idsWorkers = new Set(workersOrdenados.map((x) => x.h.id));
-  const subsOrdenados = [...p.subagentes].slice(0, 8);
-  const orqsOrdenados = [...(p.orquestadores ?? [])]
+  const subsOrdenados = p.subagentes
+    .filter((u) => {
+      const est = estadoDeSubagente(u);
+      const fin = finDeSub(u);
+      const ex = expiracionDe(est, fin, p);
+      if (ex && ex.rem <= 0) {
+        ocultos.push(aHistorial(construirNodoSub(u, est, 0, 0, p), "subagente", fin));
+        return false;
+      }
+      if (ex) expirando.set(`sub:${u.id}`, ex);
+      return true;
+    })
+    .slice(0, 8);
+  const orqsOrdenados = p.orquestadores
+    ?.filter((o) => {
+      const est = estadoDeOrquestador(o);
+      const fin = finDeOrq(o);
+      const ex = expiracionDe(est, fin, p);
+      if (ex && ex.rem <= 0) {
+        ocultos.push(aHistorial(construirNodoOrquestador(o, est, 0, 0, p), "orquestador", fin));
+        return false;
+      }
+      if (ex) expirando.set(`orq:${o.id}`, ex);
+      return true;
+    })
     .sort((a, b) => prioridadOrq(a.estado) - prioridadOrq(b.estado) || b.actualizado - a.actualizado)
-    .slice(0, 6);
+    .slice(0, 6) ?? [];
 
   // Cada worker cuelga de un solo orquestador visible (el primero que lo reclama).
+  // Sólo cuentan los visibles: si el orquestador expiró, sus workers activos cuelgan del líder.
   const padreOrqDeWorker = new Map<string, string>();
   for (const o of orqsOrdenados) {
     for (const w of o.workers) if (!padreOrqDeWorker.has(w)) padreOrqDeWorker.set(w, `orq:${o.id}`);
@@ -234,9 +336,9 @@ export function armarGrafo(p: ParamsGrafo): GrafoFlujo {
   const wRaiz = workersOrdenados.filter((x) => !x.h.sigue_de || !idsWorkers.has(x.h.sigue_de));
   const wCadena = workersOrdenados.filter((x) => x.h.sigue_de && idsWorkers.has(x.h.sigue_de));
 
-  const col1X = MARGEN_X + ANCHO_LIDER + 92;
-  const col2X = col1X + (subsOrdenados.length ? ANCHO_SUB : ANCHO_WORKER) + 96;
-  const col3X = col2X + ANCHO_WORKER + 96;
+  const col1X = MARGEN_X + ANCHO_LIDER + SEP_COL;
+  const col2X = col1X + (subsOrdenados.length ? ANCHO_SUB : ANCHO_WORKER) + SEP_COL;
+  const col3X = col2X + ANCHO_WORKER + SEP_COL;
 
   // Cadenas cuya raíz cuelga de un orquestador: su raíz ocupa la columna 2, así que siguen en la 3.
   const porId = new Map(workersOrdenados.map((x) => [x.h.id, x.h]));
@@ -265,25 +367,7 @@ export function armarGrafo(p: ParamsGrafo): GrafoFlujo {
     else resumen.listo++;
 
     const nid = `sub:${u.id}`;
-    const subTxt =
-      u.ultimo?.trim() ||
-      u.resultado?.trim() ||
-      (u.estado === "corriendo" ? p.textos.subCorriendo : u.estado === "error" ? p.textos.subFallo : p.textos.subListo);
-    nodos.push({
-      id: nid,
-      tipo: "subagente",
-      estado: est,
-      titulo: u.descripcion || p.textos.subMarca,
-      subtitulo: subTxt.length > 120 ? `${subTxt.slice(0, 119)}…` : subTxt,
-      modelo: p.modeloCorto(u.modelo) || u.tipo || p.textos.subMarca,
-      contexto: u.tipo || "",
-      tiempo: u.estado === "corriendo" ? p.textos.subCorriendo : u.estado === "error" ? p.textos.subFallo : p.textos.subListo,
-      subagente: u,
-      claveSub: p.lider ? `${p.lider.id}:${u.id}` : undefined,
-      x: col1X,
-      y: ySub,
-      w: ANCHO_SUB,
-    });
+    nodos.push(construirNodoSub(u, est, col1X, ySub, p, p.lider ? `${p.lider.id}:${u.id}` : undefined));
     aristas.push({
       id: `e:${idLider}->${nid}`,
       de: idLider,
@@ -381,7 +465,38 @@ export function armarGrafo(p: ParamsGrafo): GrafoFlujo {
     nodoLider.y = 140;
   }
 
-  return { nodos, aristas, resumen };
+  // Cuenta regresiva de los nodos que todavía se ven pero ya están desvaneciéndose.
+  for (const n of nodos) {
+    const ex = expirando.get(n.id);
+    if (!ex) continue;
+    n.expiraEnS = ex.rem;
+    n.expiraPct = pctExpira(ex.rem, ex.limite);
+  }
+
+  ocultos.sort((a, b) => b.finEn - a.finEn);
+  return { nodos, aristas, resumen, ocultos };
+}
+
+function construirNodoSub(u: Subagente, est: EstadoNodo, x: number, y: number, p: ParamsGrafo, claveSub?: string): NodoFlujo {
+  const subTxt =
+    u.ultimo?.trim() ||
+    u.resultado?.trim() ||
+    (u.estado === "corriendo" ? p.textos.subCorriendo : u.estado === "error" ? p.textos.subFallo : p.textos.subListo);
+  return {
+    id: `sub:${u.id}`,
+    tipo: "subagente",
+    estado: est,
+    titulo: u.descripcion || p.textos.subMarca,
+    subtitulo: subTxt.length > 120 ? `${subTxt.slice(0, 119)}…` : subTxt,
+    modelo: p.modeloCorto(u.modelo) || u.tipo || p.textos.subMarca,
+    contexto: u.tipo || "",
+    tiempo: u.estado === "corriendo" ? p.textos.subCorriendo : u.estado === "error" ? p.textos.subFallo : p.textos.subListo,
+    subagente: u,
+    claveSub,
+    x,
+    y,
+    w: ANCHO_SUB,
+  };
 }
 
 function contarEstado(r: ResumenFlujo, est: EstadoNodo) {
