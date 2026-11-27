@@ -1,5 +1,13 @@
 # Changes
 
+## 0.3.32
+
+- Clean live flow map: the leader's flow map removes continuous animations, SVG particles, and the minimap for smooth dragging and zooming; finished workers, subagents, and orchestrators auto-hide after 60 s (and failed ones after 5 min) into the **History · N** popover. The Inspector/Context tabs were removed so the **Context** panel stays intact at all times, and clicking a node opens a compact inline drawer below the map with recent steps, touched files, and direct actions.
+- Skill presets per worker type: new `presets.json` editable in **Settings > Models** (`all`, `off`, and `only` modes, per-type assignment, and factory reset), support in `pa --preset` and the `lanzar_worker` MCP tool, and per-run skill isolation on supported engines without interfering with parallel workers.
+- Background orchestrator with pre-review: new `encargar_orquestador` MCP tool and live tracking inside the flow map (with pre-delegation confirmation), configurable in **Settings > Models** alongside independent advisors per role (`pa --advisor`) and quick context-limit presets per role (Leader, Orchestrator, and Workers).
+- Live progress updates and engine parity: leaders receive unified instructions (short live updates during multi-step tasks, delegation rules, and automatic post-`/compact` reminders), and non-default engines now also enforce their configured context cap and automatic compaction.
+- Sidebar quotas: all percentage rows now display "% used" consistently to avoid confusion with remaining quota, and the quota-pause card scopes provider-group limits only to models in that group.
+
 ## 0.3.31
 
 - Live flow map: alongside a leader's chat you can now open an interactive canvas with zoom, pan, minimap, draggable cards, and port-anchored animated arrows (including reverse amber flow when a worker asks for a decision). The right panel adds **Inspector** and **Context** tabs above Board and Quota, and the left chat header shows context tokens and cache at a glance.

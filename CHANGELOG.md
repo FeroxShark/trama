@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.3.32
+
+- Mapa vivo limpio: el mapa de flujo del líder elimina animaciones continuas, partículas SVG y minimapa para responder fluido al arrastrar y hacer zoom; los workers, subagentes y orquestadores terminados se ocultan solos a los 60 s (y los fallidos a los 5 min) pasando al popover **Historial · N**. Se quitaron las pestañas Inspector/Contexto para dejar el panel **Contexto** siempre intacto, y tocar un nodo abre un cajón compacto abajo del mapa con pasos recientes, archivos tocados y acciones directas.
+- Presets de skills por tipo de worker: nuevo `presets.json` editable desde **Ajustes > Modelos** (modos `todo`, `apagar` y `solo`, con asignación por tipo de tarea y restauración de fábrica), soporte en `pa --preset` y en la herramienta MCP `lanzar_worker`, y aislamiento de skills por corrida en los motores compatibles sin pisar workers en paralelo.
+- Orquestador de fondo con revisión previa: nueva herramienta MCP `encargar_orquestador` y seguimiento en vivo dentro del mapa de flujo (con consulta previa antes de delegar), configurable desde **Ajustes > Modelos** junto con advisors independientes por rol (`pa --advisor`) y presets rápidos de límite de contexto por rol (Líder, Orquestador y Workers).
+- Avances en vivo y paridad entre motores: los líderes reciben instrucciones unificadas (avances cortos durante tareas largas, delegación y recordatorio automático tras `/compact`), y los líderes de otros motores también aplican su tope de contexto y compactación automática.
+- Cupos en la barra lateral: todas las filas porcentuales muestran ahora «% usado» para evitar confusiones con el porcentaje disponible, y la tarjeta de cierre por cupo aplica los límites por grupo de proveedor sin bloquear modelos de otros grupos.
+
 ## 0.3.31
 
 - Mapa de flujo en vivo: en el chat de un líder ahora podés ver al costado un lienzo interactivo con zoom, paneo, minimapa, tarjetas arrastrables y flechas animadas ancladas a puertos (con flecha de vuelta en ámbar cuando un worker pide decisión). El panel derecho suma pestañas **Inspector** y **Contexto** arriba de Tablero y Cupo, y la cabecera izquierda del chat muestra tokens y caché de un vistazo.
