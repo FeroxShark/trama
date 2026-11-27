@@ -979,7 +979,7 @@ function VistaPreviaTab({ refresco }: { refresco: number }) {
 
   const v = carga?.v ?? null;
   const proyectos = v?.proyectos ?? [];
-  const modelos = MODELOS.filter((m) => m.id.startsWith("claude-"));
+  const modelos = MODELOS.filter((m) => m.id.startsWith("claude-") && !m.plegado);
   const sinModelo = !modelos.some((m) => m.id === modelo);
   const tipos: ["lider" | "worker", string][] = [
     ["lider", "ctxp.previa.lider"],

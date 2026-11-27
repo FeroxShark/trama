@@ -106,7 +106,7 @@ function Archivo({ g, puede, ocupados, alAplicar }: { g: GrupoArchivo; puede: bo
 
 /** El modelo de la revisión: «automático» (lo elige el main) o uno de Claude. */
 function useModelosRevision() {
-  return MODELOS.filter((m) => m.id.startsWith("claude-"));
+  return MODELOS.filter((m) => m.id.startsWith("claude-") && !m.plegado);
 }
 
 export function AuditoriaContexto({ proyecto, puede }: { proyecto: string; puede: boolean }) {
