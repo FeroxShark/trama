@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { AvisoVisto } from "../src/hilo/avisos.ts";
 import type { EstadoCupo } from "../src/hilo/cupo-modelos.ts";
-import { claveResaltada, filasSeguir, listaSeguir, moverSeguir, ofreceSeguir, resaltadaInicial, seguibleLider, seguibleWorker, type OpcionSeguir } from "../src/hilo/seguir-con.ts";
+import { claveResaltada, filasSeguir, listaSeguir, moverSeguir, ofreceSeguir, plegadasAbiertas, resaltadaInicial, seguibleLider, seguibleWorker, type OpcionSeguir } from "../src/hilo/seguir-con.ts";
 
 const op = (id: string, grupo: string, extra: Partial<OpcionSeguir> = {}): OpcionSeguir => ({ id, nombre: id.toUpperCase(), desc: `modelo ${id}`, grupo, ...extra });
 const OPCIONES = [op("a1", "Anthropic"), op("a2", "Anthropic"), op("a3", "Anthropic"), op("g1", "Google"), op("g2", "Google"), op("o1", "OpenCode", { col: "oc", colNombre: "OpenCode · gratis" })];
@@ -95,4 +95,34 @@ test("la resaltada sobrevive al repintado si la búsqueda y los ids siguen igual
   const selector = readFileSync(path.join(import.meta.dirname, "..", "src", "hilo", "SeguirCon.tsx"), "utf8");
   assert.match(selector, /const clave = claveResaltada\(filas, busqueda\)/);
   assert.match(selector, /const resaltada = seleccion\?\.clave === clave \? seleccion\.indice : resaltadaInicial/);
+});
+
+
+test("los modelos anteriores quedan plegados y se ordenan al abrirlos", () => {
+  const opciones = [op("nuevo", "Actuales", { col: "a" }), op("agotado", "Anteriores", { col: "a", plegado: true }), op("libre", "Anteriores", { col: "a", plegado: true })];
+  const grupos = listaSeguir(opciones, cupos({ agotado: sin }), null, "");
+  assert.equal(grupos[0].tituloPlegadas, "Anteriores");
+  assert.deepEqual(grupos[0].plegadas.map((f) => f.opcion.id), ["libre", "agotado"]);
+  assert.deepEqual(filasSeguir(grupos).map((f) => f.opcion.id), ["nuevo"]);
+  assert.deepEqual(filasSeguir(grupos, { a: true }).map((f) => f.opcion.id), ["nuevo", "libre", "agotado"]);
+});
+
+test("la búsqueda abre los anteriores incluso si se cerraron y cuenta su disponibilidad", () => {
+  const opciones = [op("x-agotado", "A"), op("x-anterior", "B", { plegado: true })];
+  const grupos = listaSeguir(opciones, cupos({ "x-agotado": sin }), null, "x");
+  assert.deepEqual(grupos.map((g) => g.clave), ["B", "A"]);
+  assert.equal(plegadasAbiertas(grupos[0], { B: false }, true), true);
+  assert.deepEqual(filasSeguir(grupos, { B: false }, true).map((f) => f.opcion.id), ["x-anterior", "x-agotado"]);
+  assert.equal(plegadasAbiertas(grupos[1], {}, true), false);
+});
+
+test("el actual o un marcado abre los anteriores salvo cierre manual", () => {
+  const opciones = [op("viejo", "A", { plegado: true })];
+  const actual = listaSeguir(opciones, cupos({}), "viejo", "")[0];
+  const marcado = listaSeguir(opciones, cupos({}), null, "")[0];
+  assert.equal(plegadasAbiertas(actual, {}, false), true);
+  assert.equal(plegadasAbiertas(actual, { A: false }, false), false);
+  assert.equal(plegadasAbiertas(marcado, {}, false, ["viejo"]), true);
+  assert.equal(plegadasAbiertas(marcado, { A: false }, false, ["viejo"]), false);
+  assert.deepEqual(filasSeguir([marcado], {}, false, ["viejo"]).map((f) => f.opcion.id), ["viejo"]);
 });

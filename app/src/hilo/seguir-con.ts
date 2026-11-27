@@ -8,7 +8,7 @@ import { esAvisoSinCupoOpencode } from "./agotados.ts";
 import { filtrarLista } from "./selector-lista.ts";
 
 /** Lo mínimo de una opción del selector que hace falta acá (el `Opcion` de Selector.tsx lo cumple). */
-export type OpcionSeguir = { id: string; nombre: string; desc: string; grupo?: string; col?: string; colNombre?: string; deshabilitada?: boolean };
+export type OpcionSeguir = { id: string; nombre: string; desc: string; grupo?: string; col?: string; colNombre?: string; plegado?: boolean; deshabilitada?: boolean };
 
 /** Un worker se puede seguir con otro modelo cuando su proceso ya terminó y dejó su puesto y su rama: terminó, pide una decisión o murió. */
 export const seguibleWorker = (estado: Estado): boolean => estado === "listo" || estado === "decision" || estado === "murio";
@@ -48,7 +48,15 @@ export type FilaSeguir<T extends OpcionSeguir = OpcionSeguir> = {
 };
 /** Una fila que no se puede elegir: el modelo con el que venía o uno sin sesión. */
 export const noElegible = (f: Pick<FilaSeguir, "actual" | "sinSesion">): boolean => f.actual || !!f.sinSesion;
-export type GrupoSeguir<T extends OpcionSeguir = OpcionSeguir> = { clave: string; nombre: string; filas: FilaSeguir<T>[] };
+export type GrupoSeguir<T extends OpcionSeguir = OpcionSeguir> = {
+  clave: string;
+  nombre: string;
+  filas: FilaSeguir<T>[];
+  /** Modelos de generaciones anteriores, plegados por defecto. */
+  plegadas: FilaSeguir<T>[];
+  /** Título del subgrupo plegable. */
+  tituloPlegadas?: string;
+};
 
 /** El proveedor de una opción (la clave de su columna, o su grupo): lo que separa la lista en secciones. */
 const claveDe = (o: OpcionSeguir) => o.col ?? o.grupo ?? "";
@@ -68,20 +76,43 @@ export function listaSeguir<T extends OpcionSeguir>(opciones: readonly T[], cupo
   for (const o of visibles) {
     const clave = claveDe(o);
     let g = porClave.get(clave);
-    if (!g) porClave.set(clave, (g = { clave, nombre: nombreDe(o), filas: [] }));
-    g.filas.push({ opcion: o, cupo: cupos.get(o.id) ?? null, actual: o.id === actual, sinSesion: sesiones.get(o.id) ?? null });
+    if (!g) porClave.set(clave, (g = { clave, nombre: nombreDe(o), filas: [], plegadas: [] }));
+    const fila = { opcion: o, cupo: cupos.get(o.id) ?? null, actual: o.id === actual, sinSesion: sesiones.get(o.id) ?? null };
+    if (o.plegado) {
+      g.plegadas.push(fila);
+      g.tituloPlegadas ??= o.grupo;
+    } else g.filas.push(fila);
   }
   const grupos = [...porClave.values()];
   for (const g of grupos) {
     const sin = (f: FilaSeguir<T>) => !!f.cupo?.sin || !!f.sinSesion;
     g.filas = [...g.filas.filter((f) => !sin(f)), ...g.filas.filter(sin)];
+    g.plegadas = [...g.plegadas.filter((f) => !sin(f)), ...g.plegadas.filter(sin)];
   }
-  const disponible = (g: GrupoSeguir<T>) => g.filas.some((f) => !noElegible(f) && !f.cupo?.sin);
+  const disponible = (g: GrupoSeguir<T>) => [...g.filas, ...g.plegadas].some((f) => !noElegible(f) && !f.cupo?.sin);
   return [...grupos.filter(disponible), ...grupos.filter((g) => !disponible(g))];
 }
 
-/** Las filas de la lista, de arriba abajo y sin las secciones: el orden en que las recorren las flechas. */
-export const filasSeguir = <T extends OpcionSeguir>(grupos: readonly GrupoSeguir<T>[]): FilaSeguir<T>[] => grupos.flatMap((g) => g.filas);
+/** Si el subgrupo de generaciones anteriores está abierto. */
+export function plegadasAbiertas<T extends OpcionSeguir>(
+  g: Pick<GrupoSeguir<T>, "clave" | "plegadas">,
+  expandidos: Readonly<Record<string, boolean>>,
+  buscando: boolean,
+  marcados: readonly string[] = [],
+): boolean {
+  if (!g.plegadas.length) return false;
+  if (buscando) return true;
+  if (g.clave in expandidos) return Boolean(expandidos[g.clave]);
+  return g.plegadas.some((f) => f.actual || marcados.includes(f.opcion.id));
+}
+
+/** Las filas visibles, de arriba abajo: el orden en que las recorren las flechas. */
+export const filasSeguir = <T extends OpcionSeguir>(
+  grupos: readonly GrupoSeguir<T>[],
+  expandidos: Readonly<Record<string, boolean>> = {},
+  buscando = false,
+  marcados: readonly string[] = [],
+): FilaSeguir<T>[] => grupos.flatMap((g) => plegadasAbiertas(g, expandidos, buscando, marcados) ? [...g.filas, ...g.plegadas] : g.filas);
 
 /** Qué fila queda resaltada al abrir: la primera que se puede elegir y tiene cupo; si no hay, la primera que se puede elegir; si no, ninguna (-1). */
 export function resaltadaInicial(filas: readonly FilaSeguir[], preferido?: string): number {
