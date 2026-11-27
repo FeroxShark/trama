@@ -5,7 +5,7 @@
 // Inicio/Fin, Enter o Espacio para elegir; Esc, Tab o clic afuera lo cierran.
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Ban, Check, ChevronUp, Clock, Search } from "lucide-react";
+import { Ban, Check, ChevronRight, ChevronUp, Clock, Search } from "lucide-react";
 import { t } from "../i18n";
 import { Reserva } from "../i18n/Fijo";
 import { cuandoFuturo } from "../tiempo";
@@ -13,7 +13,7 @@ import { ChipLocal } from "./Logos";
 import { alTocar } from "./conectar";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import type { EstadoCupo } from "./cupo-modelos.ts";
-import { filtrar, repartir } from "./selector-columnas";
+import { bloquesPlegables, filtrar, grupoExpandido, repartir } from "./selector-columnas";
 import { filtrarLista, moverResaltada } from "./selector-lista.ts";
 
 export type Opcion = {
@@ -58,6 +58,8 @@ export type Opcion = {
   logo?: ReactNode;
   /** Con `buscar`: se ve siempre, aunque la búsqueda no la deje (la salida "Otra carpeta…"). */
   fija?: boolean;
+  /** Arranca oculta bajo un grupo desplegable (como las generaciones anteriores). */
+  plegado?: boolean;
 };
 
 type Props = {
@@ -168,6 +170,9 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const [tab, setTab] = useState<string | null>(null);
   // La opción de un proveedor sin conectar que se tocó: el valor no cambia; el menú ofrece «Conectar».
   const [conectando, setConectando] = useState<string | null>(null);
+  // Secciones plegables abiertas o cerradas a mano (la clave viene de `bloquesPlegables`).
+  const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
+  const alternarGrupo = (clave: string, abiertoAhora: boolean) => setExpandidos((prev) => ({ ...prev, [clave]: !abiertoAhora }));
   useEffect(() => {
     if (!senalAbrir || disabled) return;
     setTab(pestana);
@@ -237,10 +242,10 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     };
   }, [abierto]);
 
-  // Al filtrar, el menú cambia de alto: se vuelve a poner junto al botón.
+  // Al filtrar o desplegar grupos, el menú cambia de alto: se vuelve a poner junto al botón.
   useLayoutEffect(() => {
     if (abierto && boton.current && menu.current) colocar(boton.current, menu.current);
-  }, [abierto, busqueda]);
+  }, [abierto, busqueda, expandidos]);
 
   const items = () => [...(menu.current?.querySelectorAll<HTMLElement>('[role="option"]:not(:disabled)') ?? [])];
 
@@ -277,6 +282,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     setBusqueda("");
     setTab(null);
     setConectando(null);
+    setExpandidos({});
     if (conFoco) boton.current?.focus();
   };
 
@@ -300,8 +306,8 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     setAbierto(true);
   };
 
-  /** Las opciones de la lista (de todos los proveedores, o de los que coinciden con la búsqueda). */
-  const filas = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-lista [role="option"]:not(:disabled)') ?? [])];
+  /** Las opciones y botones desplegables de la lista (de todos los proveedores, o de los que coinciden con la búsqueda). */
+  const filas = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-lista [role="option"]:not(:disabled), .mc-lista .mc-sub-btn') ?? [])];
   const teclaColumnas = (e: KeyboardEvent) => {
     const enBuscador = e.target === buscador.current;
     if (e.key === "Escape") {
@@ -322,7 +328,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         op[0]?.focus();
       } else if (e.key === "Enter") {
         e.preventDefault();
-        op[0]?.click();
+        menu.current?.querySelector<HTMLElement>('.mc-lista [role="option"]:not(:disabled)')?.click();
       }
       return;
     }
@@ -363,7 +369,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const teclaMenu = (e: KeyboardEvent) => {
     if (enColumnas) return teclaColumnas(e);
     if (buscable) return teclaBuscar(e);
-    const ops = items();
+    const ops = [...(menu.current?.querySelectorAll<HTMLElement>('[role="option"]:not(:disabled), .mc-sub-btn') ?? [])];
     const i = ops.indexOf(document.activeElement as HTMLElement);
     const ir = (k: number) => {
       e.preventDefault();
@@ -585,12 +591,49 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                               {sinConectar ? <span className="mc-sc">{t("selector.sinConectar")}</span> : null}
                               {marcaCupo(cuposColumnas?.get(c.clave))}
                             </div>
-                            {c.ops.map((o, i) => (
-                              <Fragment key={o.id}>
-                                {o.grupo && o.grupo !== c.nombre && o.grupo !== c.ops[i - 1]?.grupo ? <div className="mc-sub">{o.grupo}</div> : null}
-                                {renglon(o, c.nombre)}
-                              </Fragment>
-                            ))}
+                            {(() => {
+                              let grupoPrev: string | undefined;
+                              return bloquesPlegables(c.ops).map((b, bi) => {
+                                if (b.tipo === "suelto") {
+                                  const o = b.opcion;
+                                  const mostrarSub = Boolean(o.grupo && o.grupo !== c.nombre && o.grupo !== grupoPrev);
+                                  grupoPrev = o.grupo;
+                                  return (
+                                    <Fragment key={o.id}>
+                                      {mostrarSub ? <div className="mc-sub">{o.grupo}</div> : null}
+                                      {renglon(o, c.nombre)}
+                                    </Fragment>
+                                  );
+                                }
+                                grupoPrev = b.ops[b.ops.length - 1]?.grupo;
+                                const abiertoGrupo = grupoExpandido(b.clave, expandidos, buscando, actual.id, b.ops);
+                                return (
+                                  <Fragment key={`${b.clave}-${bi}`}>
+                                    {buscando ? (
+                                      <>
+                                        {b.titulo ? <div className="mc-sub">{b.titulo}</div> : null}
+                                        {b.ops.map((o) => renglon(o, c.nombre))}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="mc-sub mc-sub-btn"
+                                          tabIndex={-1}
+                                          aria-expanded={abiertoGrupo}
+                                          onClick={() => alternarGrupo(b.clave, abiertoGrupo)}
+                                        >
+                                          <ChevronRight className="mc-sub-chev" size={12} strokeWidth={2.2} aria-hidden="true" />
+                                          <span className="mc-sub-t">{b.titulo}</span>
+                                          <span className="mc-sub-n">{b.ops.length}</span>
+                                        </button>
+                                        {abiertoGrupo ? b.ops.map((o) => renglon(o, c.nombre)) : null}
+                                      </>
+                                    )}
+                                  </Fragment>
+                                );
+                              });
+                            })()}
                           </div>
                         );
                       })}
@@ -637,17 +680,46 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                     <div className="mh" aria-hidden="true">
                       {etiqueta}
                     </div>
-                    {opciones.map((o, i) => (
-                      <Fragment key={o.id}>
-                        {variosGrupos && o.grupo && o.grupo !== opciones[i - 1]?.grupo ? (
-                          // Como el rótulo de arriba, oculto al lector: la `desc` de cada opción ya dice qué es.
-                          <div className="mh mh-grupo" data-primero={i === 0 ? "" : undefined} aria-hidden="true">
-                            {o.grupo}
-                          </div>
-                        ) : null}
-                        {opcion(o)}
-                      </Fragment>
-                    ))}
+                    {(() => {
+                      let grupoPrev: string | undefined;
+                      return bloquesPlegables(opciones).map((b, bi) => {
+                        if (b.tipo === "suelto") {
+                          const o = b.opcion;
+                          const mostrarGrupo = Boolean(variosGrupos && o.grupo && o.grupo !== grupoPrev);
+                          grupoPrev = o.grupo;
+                          return (
+                            <Fragment key={o.id}>
+                              {mostrarGrupo ? (
+                                // Como el rótulo de arriba, oculto al lector: la `desc` de cada opción ya dice qué es.
+                                <div className="mh mh-grupo" data-primero={bi === 0 ? "" : undefined} aria-hidden="true">
+                                  {o.grupo}
+                                </div>
+                              ) : null}
+                              {opcion(o)}
+                            </Fragment>
+                          );
+                        }
+                        grupoPrev = b.ops[b.ops.length - 1]?.grupo;
+                        const abiertoGrupo = grupoExpandido(b.clave, expandidos, false, actual.id, b.ops);
+                        return (
+                          <Fragment key={`${b.clave}-${bi}`}>
+                            <button
+                              type="button"
+                              className="mh mh-grupo mc-sub-btn"
+                              data-primero={bi === 0 ? "" : undefined}
+                              tabIndex={-1}
+                              aria-expanded={abiertoGrupo}
+                              onClick={() => alternarGrupo(b.clave, abiertoGrupo)}
+                            >
+                              <ChevronRight className="mc-sub-chev" size={12} strokeWidth={2.2} aria-hidden="true" />
+                              <span className="mc-sub-t">{b.titulo}</span>
+                              <span className="mc-sub-n">{b.ops.length}</span>
+                            </button>
+                            {abiertoGrupo ? b.ops.map((o) => opcion(o)) : null}
+                          </Fragment>
+                        );
+                      });
+                    })()}
                     {avisoConectar}
                   </>
                 )}

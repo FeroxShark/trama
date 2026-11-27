@@ -74,6 +74,54 @@
   color: var(--inactivo);
   font-weight: 500;
 }
+.mc-sub-btn {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--esp-1-5);
+  border: 0;
+  border-radius: var(--r-md);
+  margin-top: var(--esp-1);
+  padding: var(--esp-1-5) var(--esp-3);
+  background: transparent;
+  color: var(--inactivo);
+  font: inherit;
+  font-size: var(--letra-4);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--t-snappy),
+    color var(--t-snappy);
+}
+.mc-sub-btn:is(:hover, :focus-visible) {
+  background: var(--popover-fila);
+  color: var(--texto);
+  outline: none;
+}
+.mc-sub-chev {
+  flex: 0 0 auto;
+  transition: transform var(--t-snappy);
+}
+.mc-sub-btn[aria-expanded="true"] .mc-sub-chev {
+  transform: rotate(90deg);
+}
+.mc-sub-t {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc-sub-n {
+  flex: 0 0 auto;
+  color: var(--inactivo);
+  font-size: var(--letra-2);
+  font-variant-numeric: tabular-nums;
+}
+.mc-sub-btn:is(:hover, :focus-visible) .mc-sub-n {
+  color: var(--apagado);
+}
 .menu .mh-grupo {
   border-top: 0;
   margin-top: var(--esp-2);
