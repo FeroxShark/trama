@@ -167,7 +167,7 @@ function Mini({ f }: { f: FilaVentana }) {
     <div className="v-mini" data-nivel={nivel} data-sin={f.pct === null ? "" : undefined}>
       <span>{f.nombre}</span>
       <Hilos pct={f.pct} nivel={nivelHilos(nivel)} total={HILOS_RENGLON} />
-      <b>{f.noAplica ? t("cu.w.noAplicaCorto") : f.pct === null ? t("riel.sinDato") : `${Math.round(f.pct)} %`}</b>
+      <b>{f.noAplica ? t("cu.w.noAplicaCorto") : f.pct === null ? t("riel.sinDato") : `${Math.round(f.pct)} ${t("riel.pctUsado")}`}</b>
       {vuelve ? (
         <small className="v-sub" data-nivel={nivel}>
           {vuelve}
@@ -217,7 +217,7 @@ function Linea({ l, cuentas, alCambiar, titulo }: { l: LineaRiel; cuentas: Lista
         ) : (
           <>
             <Hilos pct={lleno ? 100 : pct} nivel={nivelHilos(nivel)} total={HILOS_RENGLON} />
-            <b>{l.estado === "marcado" ? "" : `${lleno ? 100 : pct} %`}</b>
+            <b>{l.estado === "marcado" ? "" : `${lleno ? 100 : pct} ${t("riel.pctUsado")}`}</b>
           </>
         )}
         {vuelve && !dos ? <small className="v-sub">{vuelve}</small> : null}

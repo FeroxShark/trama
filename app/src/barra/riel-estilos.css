@@ -630,7 +630,7 @@
 .v-lin {
   display: grid;
   min-height: 1.5rem;
-  grid-template-columns: minmax(0, 1fr) 4.5rem 2.875rem;
+  grid-template-columns: minmax(0, 1fr) 4.5rem auto;
   align-items: center;
   column-gap: var(--esp-2);
   font-size: 0.78125rem;
@@ -673,7 +673,7 @@
 .v-mini {
   display: grid;
   min-height: 1.5rem;
-  grid-template-columns: 3.5rem minmax(0, 1fr) 3.75rem;
+  grid-template-columns: 3.5rem minmax(0, 1fr) auto;
   align-items: center;
   column-gap: var(--esp-2);
 }
