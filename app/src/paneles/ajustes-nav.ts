@@ -42,6 +42,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "modelos", nombre: "ajustes.mdlDestrabar", que: "ajustes.mdlDestrabarQue", sin: "gemini repite bucle trabado destrabar loop interrumpir neon hydrogen argon" },
   { cat: "modelos", nombre: "ajustes.mdlPermitirMax", que: "ajustes.mdlPermitirMaxQue", sin: "max esfuerzo effort permitir gasta cupo" },
   { cat: "modelos", nombre: "ajustes.mdlOrquestador", que: "ajustes.mdlOrquestadorQue", sin: "orquestador orchestrator segundo plano background lider liviano workers revision previa review contexto context preset ahorro equilibrado profundo manual" },
+  { cat: "modelos", nombre: "ajustes.mdlPresets", que: "ajustes.mdlPresetsQue", sin: "presets skills perfiles worker minimo codigo diseno orquestador ahorrar tokens contexto" },
   { cat: "modelos", nombre: "ajustes.mdlAvances", que: "ajustes.mdlAvancesQue", sin: "avances vivo live updates progreso progress cortos short mostrar hide" },
   { cat: "modelos", nombre: "ajustes.mdlCompactar", que: "ajustes.mdlCompactarQue", sin: "compactar compaction contexto context tokens autocompact lider leader workers orquestador orchestrator" },
   { cat: "modelos", nombre: "ajustes.mdlAdvisor", que: "ajustes.mdlAdvisorQue", sin: "advisor asesor lider leader orquestador orchestrator workers heredar inherit" },

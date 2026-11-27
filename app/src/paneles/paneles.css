@@ -4199,3 +4199,143 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* Ajustes > Modelos > Presets de skills: ocupa todo el ancho debajo del título para alojar la grilla de tipos y el editor. */
+.aj-cat .pn-dato:has(.mdl-presets) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--esp-3);
+}
+.aj-cat .pn-dato:has(.mdl-presets) > .pn-val {
+  width: 100%;
+  margin-left: 0;
+  text-align: left;
+  white-space: normal;
+}
+.aj-cat .pn-dato:has(.mdl-presets) .pn-que {
+  max-width: none;
+}
+.mdl-presets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+  width: 100%;
+}
+.mdl-presets-bloque {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.mdl-presets-sub {
+  color: var(--texto-2);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.mdl-presets-tipos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--esp-2);
+}
+.mdl-presets-tipo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--r-sm);
+  background: var(--capa-div);
+}
+.mdl-presets-tipo-nom {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--texto-2);
+  font-size: var(--letra-4);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mdl-presets-sel {
+  width: auto;
+  min-width: 7rem;
+  max-width: 10rem;
+  flex: none;
+  padding: 0 var(--esp-2-5);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.mdl-presets-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+  padding: var(--esp-3);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--r-md);
+  background: var(--capa-div);
+}
+.mdl-presets-campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+}
+.mdl-presets-etq {
+  color: var(--texto-2);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.mdl-presets-area {
+  height: auto;
+  min-height: 4.75rem;
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+  resize: vertical;
+}
+.mdl-presets-nota {
+  margin: 0;
+}
+.mdl-presets-err {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  font-size: var(--letra-4);
+}
+.mdl-presets-err svg {
+  flex: none;
+}
+.mdl-presets-acc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  padding-top: var(--esp-1);
+}
+.mdl-presets-est-wrap {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.mdl-presets-est {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.mdl-presets-est[data-estado="ok"] {
+  color: var(--ok);
+}
+.mdl-presets-est[data-estado="sucio"] {
+  color: var(--decision-texto);
+}
+.mdl-presets-est[data-estado="error"] {
+  color: var(--fallo-texto);
+}
+.mdl-presets-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}

@@ -35,6 +35,7 @@ import { AutocompactFilas } from "./AjustesAutocompact";
 import { AjustesMemoria } from "./AjustesMemoria";
 import { AdvisorFilas } from "./AjustesAdvisor";
 import { AjustesOrquestador } from "./AjustesOrquestador";
+import { AjustesPresets } from "./AjustesPresets";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
 import { LocalesDetectados } from "./LocalesDetectados";
 import { marcar } from "./ajustes-nav";
@@ -572,6 +573,10 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
 
           <Dato nombre="ajustes.mdlOrquestador" que="ajustes.mdlOrquestadorQue">
             <AjustesOrquestador b={b} cambiar={cambiar} modelos={modelos} />
+          </Dato>
+
+          <Dato nombre="ajustes.mdlPresets" que="ajustes.mdlPresetsQue">
+            <AjustesPresets />
           </Dato>
 
           <Dato nombre="ajustes.mdlAvances" que="ajustes.mdlAvancesQue">
