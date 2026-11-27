@@ -1,8 +1,9 @@
-// Lienzo interactivo B3: grafo en vivo Líder → Subagentes/Orquestadores → Workers con zoom, pan,
-// arrastre libre de tarjetas, puertos anclados al píxel, partículas de flujo, resalte de cadena y minimapa.
+// Mapa vivo: grafo Líder → Subagentes/Orquestadores → Workers con zoom, pan, arrastre de tarjetas, resalte de cadena,
+// historial de ocultos y cajón del nodo elegido. Sin animaciones continuas: nada se repinta si no cambia un dato.
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -21,14 +22,14 @@ import {
   Minimize2,
   Pause,
   Play,
-  RefreshCw,
   Scan,
   ShieldCheck,
-  Sparkles,
   XCircle,
 } from "lucide-react";
 import { t as tr } from "../../i18n";
 import { useIdioma } from "../../i18n/react";
+import type { Lider } from "../../datos/contrato";
+import { CajonNodo, type AccionesCajon } from "./InspectorNodo";
 import {
   cadenaRelacionada,
   calcularEncuadre,
@@ -38,18 +39,9 @@ import {
   type EstadoNodo,
   type GrafoFlujo,
   type NodoFlujo,
+  type NodoHistorial,
 } from "./flujo-logica";
 import "./flujo.css";
-
-const CLAVE_ANIM = "hilos:flujo:anim";
-
-function leerAnim(): boolean {
-  try {
-    return localStorage.getItem(CLAVE_ANIM) !== "0";
-  } catch {
-    return true;
-  }
-}
 
 const COLOR_ESTADO: Record<EstadoNodo, string> = {
   lider: "var(--fam-sonnet)",
@@ -113,6 +105,45 @@ function textoEtiquetaArista(k: AristaFlujo["etiquetaClave"]): string {
   return tr(`flujo.arista.${k}` as "flujo.arista.encargo");
 }
 
+/** Los cables que llevan etiqueta: sólo lo que pide mirar o espera. */
+const CON_ETIQUETA: ReadonlySet<EstadoNodo> = new Set(["decision", "error", "orq", "queue"]);
+
+const formatearCuenta = (s: number): string => (s < 60 ? `${s} s` : `${Math.ceil(s / 60)} m`);
+
+function hace(finEn: number): string {
+  const s = Math.max(0, Date.now() * 0.001 - finEn);
+  if (s < 60) return tr("flujo.recien");
+  if (s < 3600) return tr("flujo.haceMin", { m: Math.floor(s / 60) });
+  return tr("flujo.haceHora", { h: Math.floor(s / 3600) });
+}
+
+/** Junta los eventos de puntero y aplica a lo sumo uno por frame; al soltar aplica el último. */
+function arrastrar(alMover: (e: PointerEvent) => void, alAplicar: (e: PointerEvent) => void, alSoltar: (cancelado: boolean) => void) {
+  let raf = 0;
+  let ultimo: PointerEvent | null = null;
+  const aplicar = () => {
+    raf = 0;
+    if (ultimo) alAplicar(ultimo);
+    ultimo = null;
+  };
+  const mover = (e: PointerEvent) => {
+    alMover(e);
+    ultimo = e;
+    if (!raf) raf = requestAnimationFrame(aplicar);
+  };
+  const soltar = (e: PointerEvent) => {
+    if (raf) cancelAnimationFrame(raf);
+    aplicar();
+    window.removeEventListener("pointermove", mover);
+    window.removeEventListener("pointerup", soltar);
+    window.removeEventListener("pointercancel", soltar);
+    alSoltar(e.type === "pointercancel");
+  };
+  window.addEventListener("pointermove", mover);
+  window.addEventListener("pointerup", soltar);
+  window.addEventListener("pointercancel", soltar);
+}
+
 export type PropsFlujoCanvas = {
   grafo: GrafoFlujo;
   seleccionado: string | null;
@@ -120,6 +151,9 @@ export type PropsFlujoCanvas = {
   maximizado: boolean;
   alAlternarMaximizar: () => void;
   tituloSesion: string;
+  lider?: Lider | null;
+  acciones?: AccionesCajon;
+  alCerrarDetalle?: () => void;
 };
 
 export function FlujoCanvas({
@@ -129,6 +163,9 @@ export function FlujoCanvas({
   maximizado,
   alAlternarMaximizar,
   tituloSesion,
+  lider,
+  acciones,
+  alCerrarDetalle,
 }: PropsFlujoCanvas) {
   useIdioma();
   const stageRef = useRef<HTMLDivElement>(null);
@@ -140,7 +177,10 @@ export function FlujoCanvas({
   const [desplazamientos, setDesplazamientos] = useState<Record<string, { dx: number; dy: number }>>({});
   const [alturas, setAlturas] = useState<ReadonlyMap<string, number>>(new Map());
   const [tamStage, setTamStage] = useState({ w: 720, h: 480 });
-  const [animOn, setAnimOn] = useState(leerAnim);
+  const [histAbierto, setHistAbierto] = useState(false);
+  const histBtnRef = useRef<HTMLButtonElement>(null);
+  const histPopRef = useRef<HTMLDivElement>(null);
+  const idHist = useId();
 
   // Nodos efectivos aplicando corrimientos manuales del usuario (sin mutar la lógica pura).
   const nodosConPos = useMemo<NodoFlujo[]>(
@@ -157,21 +197,13 @@ export function FlujoCanvas({
   const salidas = useMemo(() => new Set(grafo.aristas.map((a) => a.de)), [grafo.aristas]);
   const cadena = useMemo(() => cadenaRelacionada(grafo.aristas, hoverId), [grafo.aristas, hoverId]);
 
-  const medirAlturas = useCallback(() => {
-    const next = new Map<string, number>();
-    let cambio = false;
-    for (const n of nodosConPos) {
-      const el = nodoRefs.current.get(n.id);
-      const h = el ? el.offsetHeight : 108;
-      next.set(n.id, h);
-      if (alturas.get(n.id) !== h) cambio = true;
-    }
-    if (cambio || next.size !== alturas.size) setAlturas(next);
-  }, [nodosConPos, alturas]);
-
+  // Medir sólo cuando cambia el contenido de las tarjetas: arrastrar una no fuerza ningún reflow.
+  const firmaContenido = grafo.nodos.map((n) => `${n.id}:${n.subtitulo.length}:${n.expiraEnS != null ? 1 : 0}`).join("|");
   useLayoutEffect(() => {
-    medirAlturas();
-  }, [medirAlturas]);
+    const next = new Map<string, number>();
+    for (const [id, el] of nodoRefs.current) next.set(id, el.offsetHeight);
+    setAlturas((prev) => (next.size === prev.size && [...next].every(([id, h]) => prev.get(id) === h) ? prev : next));
+  }, [firmaContenido]);
 
   const encuadrar = useCallback(
     (lista = nodosConPos, alts = alturas) => {
@@ -189,14 +221,13 @@ export function FlujoCanvas({
 
   // Al cambiar el líder o la cantidad de nodos, reencuadrar automáticamente para que nada quede fuera de vista.
   const firmaGrafo = `${grafo.nodos[0]?.id ?? ""}:${grafo.nodos.length}`;
-  const ultimaFirma = useRef("");
+  const encuadrarRef = useRef(encuadrar);
+  encuadrarRef.current = encuadrar;
   useEffect(() => {
-    if (ultimaFirma.current === firmaGrafo) return;
-    ultimaFirma.current = firmaGrafo;
     setDesplazamientos({});
-    const id = requestAnimationFrame(() => encuadrar());
+    const id = requestAnimationFrame(() => encuadrarRef.current(grafo.nodos));
     return () => cancelAnimationFrame(id);
-  }, [firmaGrafo, encuadrar]);
+  }, [firmaGrafo]);
 
   useLayoutEffect(() => {
     const el = stageRef.current;
@@ -231,21 +262,16 @@ export function FlujoCanvas({
 
   const alBajarFondo = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest(".flujo-nodo,.flujo-hud,.flujo-minimapa,.flujo-leyenda")) return;
+    if ((e.target as HTMLElement).closest(".flujo-nodo,.flujo-hud,.flujo-hist-pop")) return;
     setArrastrandoFondo(true);
     const x0 = e.clientX;
     const y0 = e.clientY;
     const cam0 = { ...cam };
-    const mover = (e2: PointerEvent) => {
-      setCam((c) => ({ ...c, x: Math.round(cam0.x + (e2.clientX - x0)), y: Math.round(cam0.y + (e2.clientY - y0)) }));
-    };
-    const soltar = () => {
-      setArrastrandoFondo(false);
-      window.removeEventListener("pointermove", mover);
-      window.removeEventListener("pointerup", soltar);
-    };
-    window.addEventListener("pointermove", mover);
-    window.addEventListener("pointerup", soltar);
+    arrastrar(
+      () => {},
+      (e2) => setCam((c) => ({ ...c, x: Math.round(cam0.x + (e2.clientX - x0)), y: Math.round(cam0.y + (e2.clientY - y0)) })),
+      () => setArrastrandoFondo(false),
+    );
   };
 
   const alBajarNodo = (n: NodoFlujo, e: ReactPointerEvent<HTMLDivElement>) => {
@@ -256,20 +282,20 @@ export function FlujoCanvas({
     const d0 = desplazamientos[n.id] ?? { dx: 0, dy: 0 };
     const z0 = cam.z;
     let movio = false;
-    const mover = (e2: PointerEvent) => {
-      const dx = (e2.clientX - x0) / z0;
-      const dy = (e2.clientY - y0) / z0;
-      if (Math.hypot(dx, dy) > 4) movio = true;
-      if (!movio) return;
-      setDesplazamientos((prev) => ({ ...prev, [n.id]: { dx: Math.round(d0.dx + dx), dy: Math.round(d0.dy + dy) } }));
-    };
-    const soltar = () => {
-      window.removeEventListener("pointermove", mover);
-      window.removeEventListener("pointerup", soltar);
-      if (!movio) alSeleccionar(n.id);
-    };
-    window.addEventListener("pointermove", mover);
-    window.addEventListener("pointerup", soltar);
+    arrastrar(
+      (e2) => {
+        if (Math.hypot(e2.clientX - x0, e2.clientY - y0) / z0 > 4) movio = true;
+      },
+      (e2) => {
+        if (!movio) return;
+        const dx = Math.round(d0.dx + (e2.clientX - x0) / z0);
+        const dy = Math.round(d0.dy + (e2.clientY - y0) / z0);
+        setDesplazamientos((prev) => ({ ...prev, [n.id]: { dx, dy } }));
+      },
+      (cancelado) => {
+        if (!movio && !cancelado) alSeleccionar(n.id);
+      },
+    );
   };
 
   const alTeclaNodo = (id: string, e: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -279,22 +305,44 @@ export function FlujoCanvas({
     }
   };
 
-  const alternarAnim = () => {
-    setAnimOn((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(CLAVE_ANIM, next ? "1" : "0");
-      } catch {
-        // sin storage
-      }
-      return next;
-    });
-  };
-
   const ordenar = () => {
     setDesplazamientos({});
     requestAnimationFrame(() => encuadrar(grafo.nodos, alturas));
   };
+
+  const hayOcultos = grafo.ocultos.length > 0;
+  const histVisible = histAbierto && hayOcultos;
+  useEffect(() => {
+    if (!histVisible) return;
+    histPopRef.current?.focus();
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setHistAbierto(false);
+      histBtnRef.current?.focus();
+    };
+    const afuera = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!histPopRef.current?.contains(t) && !histBtnRef.current?.contains(t)) setHistAbierto(false);
+    };
+    document.addEventListener("keydown", tecla, true);
+    document.addEventListener("pointerdown", afuera, true);
+    return () => {
+      document.removeEventListener("keydown", tecla, true);
+      document.removeEventListener("pointerdown", afuera, true);
+    };
+  }, [histVisible]);
+
+  const abrirDeHistorial = (o: NodoHistorial): (() => void) | null => {
+    const h = o.hilo;
+    if (o.tipo === "worker" && h && acciones?.alAbrirHilo) return () => acciones.alAbrirHilo(h.id);
+    const u = o.subagente;
+    if (o.tipo === "subagente" && u && lider && acciones?.alAbrirSub) return () => acciones.alAbrirSub(lider.id, u.id);
+    return null;
+  };
+
+  const nodoActivo = seleccionado ? (grafo.nodos.find((n) => n.id === seleccionado) ?? null) : null;
 
   // Resumen legible de cabecera.
   const resumenPartes: string[] = [];
@@ -309,11 +357,25 @@ export function FlujoCanvas({
   const ranuraVacia = soloLider ? { x: soloLider.x + soloLider.w + 96, y: soloLider.y + 4, w: 256, h: 96 } : null;
 
   return (
-    <section className="flujo-panel" data-anim={animOn ? "on" : "off"} aria-label={tr("flujo.aria")}>
+    <section className="flujo-panel" aria-label={tr("flujo.aria")}>
       <header className="flujo-cab">
         <Cpu size={14} strokeWidth={1.9} style={{ color: "var(--probar)", flex: "none" }} aria-hidden />
         <span className="flujo-cab-tit">{tr("flujo.cabTitulo", { nombre: tituloSesion })}</span>
         <span className="flujo-cab-resumen">{resumenTexto}</span>
+        {hayOcultos ? (
+          <button
+            ref={histBtnRef}
+            type="button"
+            className="flujo-hist-btn"
+            aria-expanded={histVisible}
+            aria-controls={histVisible ? idHist : undefined}
+            aria-label={tr("flujo.historialAria")}
+            title={tr("flujo.historialAria")}
+            onClick={() => setHistAbierto((v) => !v)}
+          >
+            {tr("flujo.historial", { n: grafo.ocultos.length })}
+          </button>
+        ) : null}
         <button type="button" className="flujo-cab-btn" title={tr("flujo.encuadrar")} aria-label={tr("flujo.encuadrar")} onClick={() => encuadrar()}>
           <Scan size={14} strokeWidth={1.8} />
         </button>
@@ -346,25 +408,15 @@ export function FlujoCanvas({
           <rect width="100%" height="100%" fill="url(#flujoGridDots)" />
         </svg>
 
-        {/* Leyenda semántica: cada estado con color + palabra */}
-        <div className="flujo-leyenda" aria-hidden="true">
-          <span className="flujo-ley-it"><span className="flujo-dot" data-estado="run" />{tr("flujo.estado.run")}</span>
-          <span className="flujo-ley-it"><span className="flujo-dot" data-estado="orq" />{tr("flujo.estado.orq")}</span>
-          <span className="flujo-ley-it"><span className="flujo-dot" data-estado="decision" />{tr("flujo.estado.decision")}</span>
-          <span className="flujo-ley-it"><span className="flujo-dot" data-estado="error" />{tr("flujo.estado.error")}</span>
-          <span className="flujo-ley-it"><span className="flujo-dot" data-estado="ok" />{tr("flujo.estado.ok")}</span>
-          <span className="flujo-ley-it"><span className="flujo-dot" data-estado="queue" />{tr("flujo.estado.queue")}</span>
-        </div>
-
-        <div className="flujo-mundo" style={{ transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.z})` }}>
+        <div className="flujo-mundo" style={{ transform: `translate3d(${cam.x}px, ${cam.y}px, 0) scale(${cam.z})` }}>
           <svg className="flujo-svg" viewBox="0 0 1600 1100" aria-hidden="true">
             <defs>
               {(Object.entries(COLOR_ESTADO) as [EstadoNodo, string][]).map(([k, c]) => (
                 <g key={k}>
-                  <marker id={`flujo-arr-${k}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+                  <marker id={`flujo-arr-${k}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
                     <path d="M 1 1.5 L 8.5 5 L 1 8.5 z" fill={c} />
                   </marker>
-                  <marker id={`flujo-arr-rev-${k}`} viewBox="0 0 10 10" refX="2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+                  <marker id={`flujo-arr-rev-${k}`} viewBox="0 0 10 10" refX="2" refY="5" markerWidth="8" markerHeight="8" orient="auto">
                     <path d="M 9 1.5 L 1.5 5 L 9 8.5 z" fill={c} />
                   </marker>
                 </g>
@@ -379,10 +431,8 @@ export function FlujoCanvas({
               const dim = Boolean(cadena && !(cadena.has(a.de) && cadena.has(a.a)));
               const etq = textoEtiquetaArista(a.etiquetaClave);
               const lblW = Math.max(46, etq.length * 6.4 + 14);
-              const col = COLOR_ESTADO[a.tipo];
               return (
                 <g key={a.id} className={dim ? "flujo-dim" : undefined}>
-                  <path className="flujo-cable-base" d={curva.d} />
                   <path
                     className="flujo-cable"
                     data-tipo={a.tipo}
@@ -390,15 +440,14 @@ export function FlujoCanvas({
                     markerStart={a.inversa ? `url(#flujo-arr-rev-${a.tipo})` : undefined}
                     markerEnd={!a.inversa ? `url(#flujo-arr-${a.tipo})` : undefined}
                   />
-                  {a.particula && animOn ? (
-                    <circle r="3.6" fill={col}>
-                      <animateMotion dur={a.inversa ? "1.8s" : "1.5s"} repeatCount="indefinite" path={a.inversa ? curva.dRev : curva.d} />
-                    </circle>
+                  {CON_ETIQUETA.has(a.tipo) ? (
+                    <>
+                      <rect className="flujo-etq-bg" data-tipo={a.tipo} x={curva.mx - lblW / 2} y={curva.my - 10} width={lblW} height={20} rx={10} />
+                      <text className="flujo-etq-txt" data-tipo={a.tipo} x={curva.mx} y={curva.my + 0.5}>
+                        {etq}
+                      </text>
+                    </>
                   ) : null}
-                  <rect className="flujo-etq-bg" data-tipo={a.tipo} x={curva.mx - lblW / 2} y={curva.my - 10} width={lblW} height={20} rx={10} />
-                  <text className="flujo-etq-txt" data-tipo={a.tipo} x={curva.mx} y={curva.my + 0.5}>
-                    {etq}
-                  </text>
                 </g>
               );
             })}
@@ -434,6 +483,7 @@ export function FlujoCanvas({
                 className={`flujo-nodo${dim ? " flujo-dim" : ""}`}
                 data-estado={n.estado}
                 data-sel={seleccionado === n.id ? "true" : undefined}
+                data-expira={n.expiraEnS != null ? "true" : undefined}
                 aria-label={`${n.titulo}, ${estTexto}`}
                 aria-pressed={seleccionado === n.id}
                 style={{ left: n.x, top: n.y, width: n.w }}
@@ -456,10 +506,13 @@ export function FlujoCanvas({
 
                 <p className="flujo-nodo-sub">{n.subtitulo}</p>
 
-                {n.progreso ? (
-                  <div className="flujo-prog" aria-hidden="true">
-                    <i style={{ width: `${n.progreso}%` }} />
-                  </div>
+                {n.expiraEnS != null ? (
+                  <>
+                    <span className="flujo-nodo-expira">{tr("flujo.seOcultaEn", { t: formatearCuenta(n.expiraEnS) })}</span>
+                    <div className="flujo-expira-bar" data-estado={n.estado} aria-hidden="true">
+                      <i style={{ width: `${n.expiraPct ?? 0}%` }} />
+                    </div>
+                  </>
                 ) : null}
 
                 <div className="flujo-nodo-pie">
@@ -482,7 +535,6 @@ export function FlujoCanvas({
           ) : null}
         </div>
 
-        {/* Barra flotante de controles de zoom, encuadre, orden y animaciones */}
         <div className="flujo-hud" role="toolbar" aria-label={tr("flujo.controles")}>
           <button type="button" className="flujo-hud-btn" onClick={() => hacerZoom(-0.12)} title={tr("flujo.alejar")} aria-label={tr("flujo.alejar")}>
             −
@@ -492,54 +544,73 @@ export function FlujoCanvas({
             +
           </button>
           <span className="flujo-hud-sep" aria-hidden="true" />
-          <button type="button" className="flujo-hud-btn" onClick={() => encuadrar()} title={tr("flujo.encuadrar")}>
-            <Scan size={12} strokeWidth={1.9} aria-hidden />
+          <button type="button" className="flujo-hud-btn" onClick={() => encuadrar()}>
             {tr("flujo.encuadrar")}
           </button>
-          <button type="button" className="flujo-hud-btn" onClick={ordenar} title={tr("flujo.ordenar")}>
-            <RefreshCw size={12} strokeWidth={1.9} aria-hidden />
+          <button type="button" className="flujo-hud-btn" onClick={ordenar}>
             {tr("flujo.ordenar")}
-          </button>
-          <button
-            type="button"
-            className="flujo-hud-btn"
-            aria-pressed={animOn}
-            onClick={alternarAnim}
-            title={tr("flujo.animaciones")}
-          >
-            <Sparkles size={12} strokeWidth={1.9} aria-hidden />
           </button>
         </div>
 
-        {/* Minimapa en vivo */}
-        <div className="flujo-minimapa" aria-hidden="true">
-          <svg viewBox="0 0 1600 1100">
-            {nodosConPos.map((n) => (
-              <rect
-                key={n.id}
-                x={n.x}
-                y={n.y}
-                width={n.w}
-                height={alturas.get(n.id) ?? 108}
-                rx={18}
-                fill={COLOR_ESTADO[n.estado]}
-                fillOpacity={seleccionado === n.id ? 0.95 : 0.45}
-              />
-            ))}
-            <rect
-              x={-cam.x / cam.z}
-              y={-cam.y / cam.z}
-              width={tamStage.w / cam.z}
-              height={tamStage.h / cam.z}
-              rx={14}
-              fill="var(--acento)"
-              fillOpacity={0.08}
-              stroke="var(--acento)"
-              strokeWidth={14}
-            />
-          </svg>
-        </div>
+        {histVisible ? (
+          <div
+            ref={histPopRef}
+            id={idHist}
+            className="flujo-hist-pop"
+            role="dialog"
+            aria-label={tr("flujo.historialTitulo")}
+            tabIndex={-1}
+            onWheel={(e) => e.stopPropagation()}
+          >
+            <div className="flujo-hist-cab">
+              <strong>{tr("flujo.historialTitulo")}</strong>
+              <span>
+                {tr("flujo.historialResumen", {
+                  fallos: grafo.ocultos.filter((o) => o.estado === "error").length,
+                  listos: grafo.ocultos.filter((o) => o.estado === "ok").length,
+                })}
+              </span>
+            </div>
+            <div className="flujo-hist-lista">
+              {grafo.ocultos.map((o) => {
+                const abrir = abrirDeHistorial(o);
+                const contenido = (
+                  <>
+                    <span className="flujo-dot" data-estado={o.estado} aria-hidden="true" />
+                    <span className="flujo-hist-ico" data-estado={o.estado} title={textoEstadoNodo(o.estado)}>
+                      {iconoEstado(o.estado)}
+                      <span className="flujo-solo-lector">{textoEstadoNodo(o.estado)}</span>
+                    </span>
+                    <span className="flujo-hist-tit" title={o.titulo}>{o.titulo}</span>
+                    <span className="flujo-hist-t">{hace(o.finEn)}</span>
+                  </>
+                );
+                return abrir ? (
+                  <button
+                    key={o.id}
+                    type="button"
+                    className="flujo-hist-fila"
+                    onClick={() => {
+                      setHistAbierto(false);
+                      abrir();
+                    }}
+                  >
+                    {contenido}
+                  </button>
+                ) : (
+                  <div key={o.id} className="flujo-hist-fila">
+                    {contenido}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </div>
+
+      {nodoActivo ? (
+        <CajonNodo key={nodoActivo.id} nodo={nodoActivo} lider={lider ?? null} acciones={acciones} alCerrar={alCerrarDetalle} />
+      ) : null}
     </section>
   );
 }
