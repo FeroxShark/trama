@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.3.33
+
+- Modelos anteriores plegables: en el selector de modelos del chat, el tablero, Ajustes y los diálogos de «Seguir con otro modelo», «Revisar con otro modelo» y «Debate», las generaciones anteriores ahora quedan ocultas por defecto bajo un botón desplegable **Anteriores** con contador, y se abren solas al buscar o si el modelo actual pertenece a ese grupo.
+- Panel Contexto: los selectores de modelo de la vista previa y auditoría de contexto ahora muestran sólo las generaciones actuales.
+
 ## 0.3.32
 
 - Mapa vivo limpio: el mapa de flujo del líder elimina animaciones continuas, partículas SVG y minimapa para responder fluido al arrastrar y hacer zoom; los workers, subagentes y orquestadores terminados se ocultan solos a los 60 s (y los fallidos a los 5 min) pasando al popover **Historial · N**. Se quitaron las pestañas Inspector/Contexto para dejar el panel **Contexto** siempre intacto, y tocar un nodo abre un cajón compacto abajo del mapa con pasos recientes, archivos tocados y acciones directas.

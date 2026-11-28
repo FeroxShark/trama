@@ -1,5 +1,10 @@
 # Changes
 
+## 0.3.33
+
+- Collapsible previous models: in the chat model picker, board, Settings, and the «Continue with another model», «Review with another model», and «Debate» dialogs, previous generations are now hidden by default under an expandable **Previous** toggle with a counter, and auto-expand while searching or when the active model is in that group.
+- Context panel: model pickers in the context preview and audit views now show only current generations.
+
 ## 0.3.32
 
 - Clean live flow map: the leader's flow map removes continuous animations, SVG particles, and the minimap for smooth dragging and zooming; finished workers, subagents, and orchestrators auto-hide after 60 s (and failed ones after 5 min) into the **History · N** popover. The Inspector/Context tabs were removed so the **Context** panel stays intact at all times, and clicking a node opens a compact inline drawer below the map with recent steps, touched files, and direct actions.
